@@ -1,6 +1,6 @@
 # Fathomlight progress
 
-Last updated: 2026-11-14, after milestone 0 (Setup).
+Last updated: 2026-11-14, after milestone 1 (Water and diver). **Waiting for Colin to approve the look before milestone 2.**
 
 Play link: https://colinhill88-hub.github.io/fathomlight/ (live; first successful deploy 2026-11-14)
 
@@ -33,9 +33,15 @@ These are defined in `src/presets.ts`. **Auto** picks High on touch devices (iPh
 | Sharpness | Up to 2× screen pixels | Full device sharpness, capped at 4K |
 | Drifting particles (relative amount) | 220 | 600 (denser) |
 | Rock parallax layers | 3 | 5 |
-| Soft shadows | off | on (switch exists; the effect itself comes later) |
+| Dynamic lights added up per pixel | 8 | 12 |
+| Caustics | single colour | split into red, green and blue (faint rainbow edges) |
+| Glow (bloom) sharpness and smoothness | ¼ resolution, 2 blur passes | ½ resolution, 4 blur passes |
+| Plants and coral | normal | about 1.6× more |
+| Soft shadows | baked rock shadows | baked rock shadows **plus** the diver's moving soft shadow on the seabed |
 
-Cut from High so far: the phone renders at 2× instead of its native 3×. This leaves headroom for the heavy effects in milestone 1. Revisit it once those effects exist.
+Every effect in the DESIGN.md High row is on in High: dynamic lights, light shafts, caustics, depth fog, glow, water distortion and particles.
+
+Cut from High so far: the phone renders at 2× instead of its native 3×. Colin reported a steady 60 fps on the milestone 0 scene in both presets. Milestone 1 adds much heavier effects, so 2× stays until Colin reports the new frame rate. If it holds 60 on the phone, try raising High to 3×.
 
 ## Done
 
@@ -50,12 +56,45 @@ Cut from High so far: the phone renders at 2× instead of its native 3×. This l
 - Deploy verified: GitHub Actions run 43649689741 built and deployed to Pages successfully.
 - Tested: type check and production build pass. A headless browser emulating an iPhone in landscape and a 1600×900 PC loaded the game with no errors. Presets switch at runtime (High 1468×686 → Ultra 2202×1029 on the iPhone-sized screen), and the rotate message appears in portrait. The frame rate could not be measured meaningfully here because the test browser has no real GPU. That has to be checked on the iPhone.
 
+### Milestone 1: Water and diver (look-and-feel benchmark)
+- **Feedback on milestone 0:** "looks good, steady 60 fps on both modes, the sun rays look pretty." Nothing was flagged to fix.
+- **The scene** is a small hand-laid test area, about 48 m wide and 15 m deep (`src/world/terrain.ts`). Left to right: sunny sandy shallows with kelp, coral and a rock outcrop; a weathered survey beacon (`KESTREL SURVEY 03`) with a blinking red lamp at the top of a drop-off; deeper water below; and a rock ledge whose underside forms a dark grotto. The grotto has glowing anemones and three glowfins. It is test scenery for judging the look, not the real shallows zone, which comes in milestone 2.
+- **The explorer** (`src/actors/diver.ts`) is drawn with code. They wear an orange suit with steel fittings, a yellow tank stencilled K7 and a dome helmet with a headlamp, and the suit has rivets, panel seams, scratches, rust streaks and algae specks. The hips, knees, ankles, shoulders and elbows are jointed, so the diver flutter-kicks faster with speed and sculls with their arms when floating still. The body tilts with the swim direction and turns around smoothly. Bubbles rise from the helmet with each breath, faster while boosting. The diver slides along rock and sand instead of sticking, and stops at the surface.
+- **Controls** (`src/input.ts`):
+  - Touch: a floating stick appears wherever the left thumb lands. Boost (large) and Lamp buttons sit on the right.
+  - Keyboard: WASD or arrow keys, Shift or Space to boost, L or F for the lamp.
+  - Mouse: hold the left button to swim towards the pointer; right-click boosts.
+  - Gamepad: left stick, A to boost, X or Y for the lamp.
+- **Camera:** follows the diver smoothly, looking ahead in the swim direction. The view always shows the same 560 world units of height, so the framing matches on phone, iPad and PC.
+- **Effects:**
+  - *Lighting* (`src/fx/lighting.ts`): sand, rock, plants and the diver are drawn into an off-screen picture, then lit by one shader. It handles depth-tinted sunlight (warm tones fade first), baked soft shadows under rock, animated caustics, up to 8/12 dynamic lights, visible light beams in the water, a water-distortion wobble, depth fog and the Ultra diver shadow.
+  - *Dynamic lights:* the headlamp cone, the beacon flash, the glowfin lures and the anemones.
+  - *Water* (`src/scene/water.ts`): the depth colour, swaying light shafts that rock blocks, and the rippling underside of the surface when you swim up to it.
+  - *Glow:* shining parts are drawn crisp, plus a blurred copy added on top.
+  - *Particles:* marine snow drifts with camera parallax and dims with depth. Bubbles and kelp sway; the kelp leans away when the diver brushes through it.
+  - *Parallax:* distant ridges move with the camera in both directions and take the water colour of the current depth. Dark foreground kelp passes in front.
+  - *Vignette:* a soft edge darkening.
+- **Colour rule kept:** cyan, violet and magenta glow is reserved for the Choir, so all bioluminescence here is warm yellow-green or pale yellow, and the beacon is red.
+- **HUD:** a depth meter (top left) and a first-time controls hint that fades once you start swimming.
+- Tested:
+  - Type check and production build pass.
+  - A headless browser emulating an iPhone 15 Pro in landscape and a 1280×720 PC rendered the shallows, outcrop, beacon, surface, ledge and grotto with no console errors. The lamp on and off states were checked too.
+  - A simulated touch drag on the left half moves the diver. The Lamp button toggles the lamp. Switching presets at runtime works (High 1468×686, Ultra 2202×1029 on the iPhone-sized screen).
+  - The frame rate could not be measured, because the test browser draws in software. Colin needs to check it on the iPhone.
+- Rendering pipeline notes for future sessions:
+  - `src/main.ts` explains the draw order.
+  - Anything that should be lit goes into `litCam`.
+  - Anything that should shine goes into `emissiveCam` (sharp) and `glowCam` (soft halo), with a matching entry in the lights list.
+
 ## Next
 
-**Milestone 1: Water and diver.** This is the look-and-feel benchmark: one explorer swimming through a small lit scene with every visual effect on (dynamic lights, light shafts, caustics, depth fog, glow, water distortion, particles, and Ultra extras). It adds touch controls (a virtual stick) and keyboard, mouse and gamepad controls. Do not move on until Colin approves the look.
+**First, Colin approves the look of milestone 1** (DESIGN.md: do not move on until he does). If he asks for changes, make them in a milestone 1 follow-up session.
+
+**Then milestone 2: Shallows.** This is the first real zone: oxygen, scanner, collectible materials and saving.
 
 ## Problems and open questions
 
 - ~~GitHub Pages switch~~ Done: Colin set Pages → Source to GitHub Actions, and the deploy now succeeds.
 - **Which branch deploys.** Only the repository's default branch may deploy to Pages by default. This branch will be the default because it is the first one pushed to the empty repository. If a `main` branch is added later, either merge into it or allow the branch under Settings → Environments → github-pages.
-- **Frame rate on the real phone.** Not yet measured (see Tested above).
+- **Things to watch in Colin's review:** whether the kelp is too bright or too busy, how strong the caustics and water wobble are, and how fast the diver swims. Each is a single number in the code and easy to tune.
+- **Frame rate on the real phone.** Milestone 0: Colin measured a steady 60 fps in both presets. Milestone 1: not yet measured; the test browser here has no real GPU.

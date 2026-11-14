@@ -168,3 +168,134 @@ body {
 #boot-error[hidden] {
   display: none;
 }
+
+#vignette {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(ellipse 75% 70% at 50% 45%, transparent 55%, rgba(2, 14, 20, 0.55) 100%);
+}
+
+#depth {
+  position: fixed;
+  top: calc(var(--safe-top) + 14px);
+  left: calc(var(--safe-left) + 16px);
+  padding: 6px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--ui-line);
+  background: var(--ui-bg);
+  font-size: 15px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+  z-index: 10;
+}
+
+#controls {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9;
+}
+
+#stick-base,
+#stick-knob {
+  position: absolute;
+  left: 0;
+  top: 0;
+  border-radius: 50%;
+  opacity: 0;
+  transition: opacity 0.15s;
+  pointer-events: none;
+}
+
+#stick-base {
+  width: 120px;
+  height: 120px;
+  margin: -60px 0 0 -60px;
+  border: 2px solid rgba(228, 239, 236, 0.35);
+  background: rgba(10, 32, 40, 0.25);
+}
+
+#stick-knob {
+  width: 56px;
+  height: 56px;
+  margin: -28px 0 0 -28px;
+  background: rgba(228, 239, 236, 0.45);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+}
+
+#stick-base.active,
+#stick-knob.active {
+  opacity: 1;
+}
+
+#btn-boost,
+#btn-lamp {
+  position: absolute;
+  display: none;
+  place-items: center;
+  border-radius: 50%;
+  border: 1px solid var(--ui-line);
+  background: var(--ui-bg);
+  color: var(--ui-text);
+  pointer-events: auto;
+  touch-action: none;
+}
+
+#btn-boost {
+  width: 76px;
+  height: 76px;
+  right: calc(var(--safe-right) + 28px);
+  bottom: calc(var(--safe-bottom) + 28px);
+}
+
+#btn-lamp {
+  width: 56px;
+  height: 56px;
+  right: calc(var(--safe-right) + 116px);
+  bottom: calc(var(--safe-bottom) + 58px);
+}
+
+#btn-boost.pressed,
+#btn-lamp.pressed {
+  background: var(--ui-accent);
+  color: #1d1a12;
+}
+
+body.touch #btn-boost,
+body.touch #btn-lamp {
+  display: grid;
+}
+
+#hint {
+  position: fixed;
+  left: 50%;
+  bottom: calc(var(--safe-bottom) + 18px);
+  transform: translateX(-50%);
+  max-width: min(560px, 70vw);
+  padding: 8px 14px;
+  border-radius: 10px;
+  background: var(--ui-bg);
+  font-size: 14px;
+  text-align: center;
+  pointer-events: none;
+  transition: opacity 1s;
+  z-index: 8;
+}
+
+#hint.gone {
+  opacity: 0;
+}
+
+.touch-only {
+  display: none;
+}
+
+body.touch .touch-only {
+  display: inline;
+}
+
+body.touch .desk-only {
+  display: none;
+}

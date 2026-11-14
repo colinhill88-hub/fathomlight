@@ -1,10 +1,9 @@
 /**
  * Graphics presets (DESIGN.md, Platform and tech).
  *
- * A preset is just a bundle of numbers that the scene reads. Milestone 0 only
- * wires up the settings that already exist in the empty scene (sharpness,
- * frame-rate cap, particle count, parallax layers). Later milestones add their
- * effects here, e.g. `softShadows` is reserved for Ultra and does nothing yet.
+ * A preset is just a bundle of numbers that the scene reads. Every effect is
+ * on in both presets; Ultra turns the dials up and adds a few extras that the
+ * phone does not need (see PROGRESS.md for the full table).
  */
 
 export type PresetId = 'high' | 'ultra';
@@ -23,8 +22,18 @@ export interface Preset {
   particleDensity: number;
   /** Layers of distant rock between the water and the seabed. */
   parallaxLayers: number;
-  /** Reserved for a later milestone (Ultra only, per DESIGN.md). */
+  /** Ultra only: the diver casts a soft moving shadow on the seabed. */
   softShadows: boolean;
+  /** Most dynamic lights the lighting shader adds up per pixel. */
+  maxLights: number;
+  /** Ultra splits caustics into red, green and blue for a rainbow fringe. */
+  chromaticCaustics: boolean;
+  /** Sharpness of the glow (bloom) layer, as a fraction of the screen. */
+  glowResolution: number;
+  /** Blur passes for the glow; more passes = smoother halos. */
+  glowQuality: number;
+  /** Extra kelp, coral and foreground plants. 1 = normal. */
+  detail: number;
 }
 
 const FOUR_K = 3840 * 2160;
@@ -41,6 +50,11 @@ export const PRESETS: Record<PresetId, Preset> = {
     particleDensity: 220,
     parallaxLayers: 3,
     softShadows: false,
+    maxLights: 8,
+    chromaticCaustics: false,
+    glowResolution: 0.25,
+    glowQuality: 2,
+    detail: 1,
   },
   ultra: {
     id: 'ultra',
@@ -51,6 +65,11 @@ export const PRESETS: Record<PresetId, Preset> = {
     particleDensity: 600,
     parallaxLayers: 5,
     softShadows: true,
+    maxLights: 12,
+    chromaticCaustics: true,
+    glowResolution: 0.5,
+    glowQuality: 4,
+    detail: 1.6,
   },
 };
 

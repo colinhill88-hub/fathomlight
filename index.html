@@ -21,6 +21,29 @@
   </head>
   <body>
     <div id="game"></div>
+    <div id="vignette"></div>
+
+    <div id="depth" aria-label="Depth">0.0 m</div>
+
+    <div id="controls">
+      <div id="stick-base"></div>
+      <div id="stick-knob"></div>
+      <button id="btn-lamp" type="button" aria-label="Headlamp">
+        <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true">
+          <path fill="currentColor" d="M9 21h6v-1.5H9zm3-19a7 7 0 0 0-4 12.7V17a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1v-2.3A7 7 0 0 0 12 2z" />
+        </svg>
+      </button>
+      <button id="btn-boost" type="button" aria-label="Boost">
+        <svg viewBox="0 0 24 24" width="28" height="28" aria-hidden="true">
+          <path fill="currentColor" d="M4 6l8 6-8 6zm8 0l8 6-8 6z" />
+        </svg>
+      </button>
+    </div>
+
+    <div id="hint">
+      <span class="touch-only">Drag on the left to swim · Boost and Lamp on the right</span>
+      <span class="desk-only">WASD or arrows to swim · Shift boost · L lamp · or hold the mouse button to swim towards the pointer</span>
+    </div>
 
     <div id="hud">
       <button id="settings-btn" type="button" aria-label="Settings" aria-expanded="false">

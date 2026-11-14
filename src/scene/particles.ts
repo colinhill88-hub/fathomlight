@@ -64,18 +64,24 @@ export class MarineSnow {
     }
   }
 
-  /** dt in seconds; drift is how many CSS pixels the view moved sideways. */
-  update(dt: number, time: number, drift: number): void {
+  /**
+   * dt in seconds; driftX/Y is how many CSS pixels the camera moved this
+   * frame, so near specks stream past faster than far ones. `fade` dims the
+   * specks in the dark depths.
+   */
+  update(dt: number, time: number, driftX: number, driftY: number, fade: number): void {
     const w = this.width + 20;
     const h = this.height + 20;
     for (const s of this.specks) {
       const p = s.p;
-      p.x += (s.vx + Math.sin(time * 0.5 + s.phase) * 3) * dt - drift * (0.15 + s.depth * 0.6);
-      p.y += s.vy * (0.4 + s.depth) * dt;
+      const par = 0.3 + s.depth * 0.9;
+      p.x += (s.vx + Math.sin(time * 0.5 + s.phase) * 3) * dt - driftX * par;
+      p.y += s.vy * (0.4 + s.depth) * dt - driftY * par;
       if (p.x < -10) p.x += w;
       else if (p.x > w - 10) p.x -= w;
       if (p.y > h - 10) p.y -= h;
-      p.alpha = (0.15 + s.depth * 0.45) * (0.75 + 0.25 * Math.sin(time * 1.3 + s.phase));
+      else if (p.y < -10) p.y += h;
+      p.alpha = (0.15 + s.depth * 0.45) * (0.75 + 0.25 * Math.sin(time * 1.3 + s.phase)) * fade;
     }
   }
 }
