@@ -2,7 +2,7 @@
 
 Last updated: 2026-11-14, after milestone 0 (Setup).
 
-Play link (once deployed): https://colinhill88-hub.github.io/fathomlight/
+Play link: https://colinhill88-hub.github.io/fathomlight/ (live; first successful deploy 2026-11-14)
 
 ## Tech choices (decided in milestone 0)
 
@@ -47,6 +47,7 @@ Cut from High so far: the phone renders at 2× instead of its native 3×. This l
 - iPhone landscape: full-screen layout using the whole screen, including around the camera cutout. Page scrolling and zooming are blocked. Portrait on a phone shows a "Turn your phone sideways" message. Rendering pauses when the app is in the background.
 - Home-screen install: manifest, Apple tags and an icon drawn by code (`scripts/make-icons.mjs`).
 - Settings panel (gear, top right): Auto / High / Ultra buttons, plus a live frame rate, render resolution, renderer and build stamp. The build stamp shows which version the phone has loaded.
+- Deploy verified: GitHub Actions run 43649689741 built and deployed to Pages successfully.
 - Tested: type check and production build pass. A headless browser emulating an iPhone in landscape and a 1600×900 PC loaded the game with no errors. Presets switch at runtime (High 1468×686 → Ultra 2202×1029 on the iPhone-sized screen), and the rotate message appears in portrait. The frame rate could not be measured meaningfully here because the test browser has no real GPU. That has to be checked on the iPhone.
 
 ## Next
@@ -55,6 +56,6 @@ Cut from High so far: the phone renders at 2× instead of its native 3×. This l
 
 ## Problems and open questions
 
-- **One-time GitHub Pages switch (blocking the play link).** The first deploy run built the game, then stopped at `configure-pages` with "Get Pages site failed... Not Found", because Pages is not switched on yet. Fix: in the repository on GitHub, go to Settings → Pages → "Build and deployment" → Source and choose **GitHub Actions**. Then re-run the workflow from the Actions tab, or push any commit. The workflow cannot switch Pages on by itself. Note that GitHub Pages on a *private* repository needs a paid GitHub plan; on a free plan the repository must be public.
+- ~~GitHub Pages switch~~ Done: Colin set Pages → Source to GitHub Actions, and the deploy now succeeds.
 - **Which branch deploys.** Only the repository's default branch may deploy to Pages by default. This branch will be the default because it is the first one pushed to the empty repository. If a `main` branch is added later, either merge into it or allow the branch under Settings → Environments → github-pages.
 - **Frame rate on the real phone.** Not yet measured (see Tested above).
