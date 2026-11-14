@@ -55,7 +55,6 @@ Cut from High so far: the phone renders at 2× instead of its native 3×. This l
 
 ## Problems and open questions
 
-- **GitHub access (blocking deploy).** At the end of this session, pushing to `colinhill88-hub/fathomlight` was refused (HTTP 403: the Claude GitHub App has no access to the repository). The work is committed locally on branch `claude/underwater-game-m0-0qqajg` but has not reached GitHub. Fix: reconnect GitHub at https://claude.ai/connect-github and make sure the Claude GitHub App is installed on the repository.
-- **One-time GitHub Pages switch.** In the repository on GitHub, go to Settings → Pages → "Build and deployment" → Source, and choose **GitHub Actions**. The workflow cannot turn this on by itself.
+- **One-time GitHub Pages switch (blocking the play link).** The first deploy run built the game, then stopped at `configure-pages` with "Get Pages site failed... Not Found", because Pages is not switched on yet. Fix: in the repository on GitHub, go to Settings → Pages → "Build and deployment" → Source and choose **GitHub Actions**. Then re-run the workflow from the Actions tab, or push any commit. The workflow cannot switch Pages on by itself. Note that GitHub Pages on a *private* repository needs a paid GitHub plan; on a free plan the repository must be public.
 - **Which branch deploys.** Only the repository's default branch may deploy to Pages by default. This branch will be the default because it is the first one pushed to the empty repository. If a `main` branch is added later, either merge into it or allow the branch under Settings → Environments → github-pages.
 - **Frame rate on the real phone.** Not yet measured (see Tested above).
