@@ -1,0 +1,170 @@
+:root {
+  --ui-bg: rgba(10, 32, 40, 0.82);
+  --ui-line: rgba(200, 230, 225, 0.22);
+  --ui-text: #e4efec;
+  --ui-dim: #9fb8b4;
+  --ui-accent: #c9a24a; /* muted hardware yellow */
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #0b2a33;
+  color: var(--ui-text);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  /* stop the page from scrolling, bouncing, zooming or selecting text while playing */
+  overscroll-behavior: none;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+#game {
+  position: fixed;
+  inset: 0;
+}
+
+#game canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+#hud {
+  position: fixed;
+  top: calc(var(--safe-top) + 12px);
+  right: calc(var(--safe-right) + 12px);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+  z-index: 10;
+}
+
+#settings-btn {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  border: 1px solid var(--ui-line);
+  background: var(--ui-bg);
+  color: var(--ui-text);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+
+#settings-panel {
+  width: 280px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  border: 1px solid var(--ui-line);
+  background: var(--ui-bg);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  max-height: calc(100vh - var(--safe-top) - var(--safe-bottom) - 84px);
+  overflow-y: auto;
+}
+
+#settings-panel[hidden] {
+  display: none;
+}
+
+#settings-panel h2 {
+  margin: 0 0 10px;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.preset-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+}
+
+.preset-row button {
+  min-height: 44px;
+  border-radius: 10px;
+  border: 1px solid var(--ui-line);
+  background: transparent;
+  color: var(--ui-text);
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.preset-row button[aria-checked='true'] {
+  background: var(--ui-accent);
+  border-color: var(--ui-accent);
+  color: #1d1a12;
+}
+
+#stats {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 12px;
+  margin: 12px 0 0;
+  font-size: 13px;
+}
+
+#stats dt {
+  color: var(--ui-dim);
+}
+
+#stats dd {
+  margin: 0;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+#rotate-hint {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: none;
+  place-items: center;
+  text-align: center;
+  background: #0b2a33;
+  color: var(--ui-text);
+  font-size: 18px;
+}
+
+/* Only phones (touch screens) are asked to rotate; a narrow desktop window is left alone */
+@media (orientation: portrait) and (pointer: coarse) {
+  #rotate-hint {
+    display: grid;
+  }
+}
+
+#boot-error {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: #0b2a33;
+  color: var(--ui-text);
+  font-size: 15px;
+  line-height: 1.5;
+  text-align: center;
+}
+
+#boot-error[hidden] {
+  display: none;
+}
