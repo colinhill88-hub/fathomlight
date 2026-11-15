@@ -28,7 +28,7 @@ import { MATERIAL_ICONS } from './hud';
  * slide it (it snaps cell by cell), or tap where you want it. Tap the tick
  * to build. With no piece picked, tap a built piece to select it and remove
  * it (all materials come back).
- * Keyboard: B opens and closes, 1-4 pick a piece, arrows or WASD move it,
+ * Keyboard: B opens and closes, 1-6 pick a piece, arrows or WASD move it,
  * R rotates, Enter or Space builds, Esc lets go of the piece, Tab selects
  * built pieces, Delete or X removes the selected one.
  * Mouse: the piece follows the pointer; click to build, right-click to let go.
@@ -46,6 +46,10 @@ const PIECE_ICONS: Record<PieceKind, string> = {
     '<svg viewBox="0 0 40 32"><circle cx="20" cy="10" r="9" fill="none" stroke="#3b4448" stroke-width="2.4"/><path d="M20 10l1-7 1 7zM20 10l6 4-7-2zM20 10l-6 4 6-5z" fill="#b8923f"/><circle cx="20" cy="10" r="2" fill="#8a9496"/><rect x="18.5" y="18" width="3" height="5" fill="#5b6467"/><rect x="10" y="22" width="20" height="9" rx="2" fill="#b8923f"/></svg>',
   storage:
     '<svg viewBox="0 0 40 32"><rect x="12" y="3" width="16" height="26" rx="6" fill="#5b6467"/><rect x="12" y="8" width="16" height="2.5" fill="#b8923f"/><circle cx="18" cy="18" r="3" fill="none" stroke="#a8402e" stroke-width="1.4"/><rect x="23" y="13" width="2.5" height="9" fill="#c9a24a"/><rect x="4" y="13" width="8" height="7" fill="#5b6467"/><rect x="28" y="13" width="8" height="7" fill="#5b6467"/></svg>',
+  tank:
+    '<svg viewBox="0 0 40 32"><rect x="3" y="8" width="34" height="18" fill="#1f4a4c"/><rect x="3" y="8" width="34" height="7" fill="#3d7470" opacity=".6"/><path d="M3 23q8-2 17 0t17 0v3H3z" fill="#b7a47a"/><path d="M14 17c3-3 7-3 9 0-2 3-6 3-9 0zm9 0l3-2v4z" fill="#d27a86"/><rect x="1" y="5" width="38" height="4" rx="1" fill="#a8402e"/><rect x="1" y="25" width="38" height="4" rx="1" fill="#a8402e"/></svg>',
+  filter:
+    '<svg viewBox="0 0 40 32"><rect x="2" y="12" width="7" height="8" fill="#5b6467"/><rect x="31" y="12" width="7" height="8" fill="#5b6467"/><rect x="17" y="1" width="6" height="6" fill="#5b6467"/><rect x="9" y="6" width="22" height="22" rx="4" fill="#5b6467"/><rect x="9" y="8" width="22" height="2.5" fill="#b8923f"/><circle cx="18" cy="19" r="6" fill="#262d30"/><path d="M18 19l1-5 1 5zM18 19l5 2-5 0zM18 19l-4 3 3-4z" fill="#aab4b5"/><circle cx="27" cy="15" r="2" fill="#a88a4a"/></svg>',
 };
 
 export interface BuildDeps {
@@ -286,6 +290,11 @@ export class BuildMode {
     }
     this.removeArmed = 0;
     const { save, layout } = this.deps;
+    if (p.kind === 'tank' && save.creatures.some((c) => c.tank === p.id)) {
+      this.deps.toast('Creatures live in this tank. Move them to another tank or release them first (tap Tend at the tank).', 'warn');
+      this.refresh();
+      return;
+    }
     layout.set(layout.pieces.filter((q) => q.id !== p.id));
     save.pieces = layout.pieces;
     // Everything comes back: into storage while there is room (so the dive
@@ -383,7 +392,7 @@ export class BuildMode {
       return;
     }
     if (!this.active) return;
-    const idx = ['1', '2', '3', '4'].indexOf(k);
+    const idx = ['1', '2', '3', '4', '5', '6'].indexOf(k);
     if (idx >= 0) this.pick(PIECE_ORDER[idx]);
     else if (k === 'arrowleft' || k === 'a') this.nudge(-1, 0);
     else if (k === 'arrowright' || k === 'd') this.nudge(1, 0);

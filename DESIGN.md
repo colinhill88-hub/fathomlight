@@ -33,6 +33,13 @@ The look is weathered, realistic hardware set in painterly water. The screenshot
 - **Hardware (suits, subs, base pieces):** chunky, functional silhouettes with industrial detail. Muted yellow, steel grey and rust red paint; rivets, panel seams, stencilled numbers, scratches, rust streaks and algae growth. Dome-shaped glass windows are a signature shape.
 - **Environment:** painterly and atmospheric. Soft brushed rock and sand, layered parallax, murky depth fog and drifting particles. Colour fades realistically with depth: warm tones disappear first, then everything goes blue-black.
 - **Creatures:** naturalistic proportions with small eyes, patterned skin and bioluminescence. Nothing cartoonish.
+- **Creatures get scarier with depth (Colin's direction after milestone 3 follow-up 2).** Opus may be creative with creature designs, and the mood of the creatures follows the depth:
+  - *Sunlit shallows:* cute and gentle. Round, soft shapes, no teeth, friendly eyes, but visually interesting: bold patterns, frills, translucency, small warm glows. Still drawn with realistic shading and weathering, not as cartoons.
+  - *Kelp forest and caves:* curious but wary. The first small predators: sharper fins, hints of tiny teeth, eyes that catch the lamp.
+  - *Wreck shelf:* unsettling. Longer bodies, spines, creatures that hide and lunge, more bioluminescence used as lures.
+  - *The trench:* fear-based. Large shapes glimpsed at the edge of the light, needle teeth, glowing lures in the dark, eyes that reflect, things that follow the diver. Bioluminescence grows with depth.
+  - *The sanctum:* awe again, not fear; the Choir's colours take over.
+  - The colour rule still holds at every depth: creature glow stays warm (yellow, green, amber, pale white, red). Cyan, violet and magenta stay reserved for the Choir.
 - **The alien presence:** luminous, non-humanoid ring-and-ribbon forms in cyan, violet and magenta. It is the only source of those colours in the game.
 - **Interface:** clean and minimal so it does not compete with the scene. Touch targets at least 44 px.
 - **Dive watch:** oxygen, depth and dive time are eventually shown on a gauge styled like a dive watch (Colin's request after milestone 1).

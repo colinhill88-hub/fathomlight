@@ -29,7 +29,19 @@ export const SCAN_ENTRIES: ScanEntry[] = [
     id: 'glowfin',
     name: 'Glowfin',
     category: 'Creature',
-    text: 'A striped fish that dangles a glowing lure above its head. Shy, and found only in the dark under the ledge. A tank could keep one (milestone 4).',
+    text: 'A round striped fish that dangles a glowing lure above its head. Shy, and found only in the dark under the ledge, where it lays clutches of glowing eggs. Keep: likes branch coral and other glowfins; puffcap threads sting it.',
+  },
+  {
+    id: 'puffcap',
+    name: 'Puffcap',
+    category: 'Creature',
+    text: 'A small jelly with a frilled rim, glowing spots and two dark eye spots. It drifts over the drop-off, pulsing gently. Young ones fit in the specimen jar. Keep: likes ribbon kelp to drift by and space to itself.',
+  },
+  {
+    id: 'ray',
+    name: 'Dapple ray',
+    category: 'Creature',
+    text: 'A palm-sized ray with dappled rings on its back. It glides low over the seagrass meadow and rests on the sand. Young ones fit in the specimen jar. Keep: likes seagrass and any tank-mate to follow.',
   },
   {
     id: 'anemone',

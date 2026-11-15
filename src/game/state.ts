@@ -78,10 +78,45 @@ export interface DroppedBag {
   items: Partial<Record<MaterialId, number>>;
 }
 
+/** Creatures you can keep (milestone 4). Rules are in src/game/creatures.ts. */
+export type SpeciesId = 'glowfin' | 'puffcap' | 'ray';
+export type PlantId = 'coral' | 'kelp' | 'grass';
+
+/** One creature living in a creature tank. Every need is 0..1 (1 is best). */
+export interface CreatureData {
+  id: number;
+  species: SpeciesId;
+  /** The creature tank (base piece id) it lives in. */
+  tank: number;
+  stage: 'egg' | 'young' | 'grown';
+  /** Egg: 0..1 towards hatching. Young: 0..1 towards grown. */
+  growth: number;
+  fed: number;
+  comfort: number;
+  /** 0 = healthy. Rises while a need stays very low; at 1 it goes dormant. */
+  sickness: number;
+  /** 0..1 towards the next material it makes, once grown and happy. */
+  make: number;
+}
+
+/** What is in the specimen jar the diver carries (one creature or one egg clutch). */
+export interface JarData {
+  species: SpeciesId;
+  stage: 'egg' | 'young' | 'grown';
+  /** Set when it was taken out of a tank: it keeps its needs and growth when put back. */
+  keep?: CreatureData;
+}
+
+/** Per creature tank: water quality (0..1) and the plant growing in it. */
+export interface TankData {
+  water: number;
+  plant: PlantId | null;
+}
+
 /** A base piece as saved (see src/game/base.ts). */
 export interface SavedPiece {
   id: number;
-  kind: 'dome' | 'corridor' | 'turbine' | 'storage';
+  kind: 'dome' | 'corridor' | 'turbine' | 'storage' | 'tank' | 'filter';
   gx: number;
   gy: number;
   rot: number;
@@ -111,6 +146,17 @@ export interface SaveData {
   stored: Record<MaterialId, number>;
   /** The build drone: still stuck in the sled wreck, or repaired and working. */
   drone: 'stranded' | 'active';
+  /** Creatures in the base's tanks (milestone 4). */
+  creatures: CreatureData[];
+  nextCreatureId: number;
+  /** Creature tank piece id -> its water and plant. */
+  tankData: Record<string, TankData>;
+  /** The specimen jar on the diver's belt. A blackout lets its creature swim home. */
+  jar: JarData | null;
+  /** Wild creature or egg spot id -> play time when it was collected (they come back). */
+  caught: Record<string, number>;
+  /** Creatures that died of neglect, kept in storage as dormant remains (revived later). */
+  dormant: Partial<Record<SpeciesId, number>>;
   /** One-time tips already shown. */
   tips: string[];
   playSeconds: number;
@@ -135,6 +181,12 @@ export function freshSave(spawnX: number, spawnY: number): SaveData {
     nextPieceId: 1,
     stored: { scrap: 0, copper: 0, quartz: 0, fibre: 0 },
     drone: 'stranded',
+    creatures: [],
+    nextCreatureId: 1,
+    tankData: {},
+    jar: null,
+    caught: {},
+    dormant: {},
     tips: [],
     playSeconds: 0,
     savedAt: 0,
@@ -160,6 +212,11 @@ export function loadSave(spawnX: number, spawnY: number): { data: SaveData; load
       tanks: Array.isArray(d.tanks) ? d.tanks : [],
       taken: d.taken && typeof d.taken === 'object' ? d.taken : {},
       drone: d.drone === 'active' ? 'active' : 'stranded',
+      creatures: Array.isArray(d.creatures) ? d.creatures : [],
+      tankData: d.tankData && typeof d.tankData === 'object' ? d.tankData : {},
+      caught: d.caught && typeof d.caught === 'object' ? d.caught : {},
+      dormant: d.dormant && typeof d.dormant === 'object' ? d.dormant : {},
+      jar: d.jar && typeof d.jar === 'object' ? d.jar : null,
     } as SaveData;
     // Older saves stored real clock times (milliseconds). Restart those timers from now.
     for (const k of Object.keys(data.taken)) if (data.taken[k] > 1e9) data.taken[k] = data.playSeconds;

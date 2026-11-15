@@ -6,8 +6,8 @@ import type { PointLight } from '../world/scenery';
 /**
  * Glowfins from the kit sheet: small striped fish with a glowing lure on a
  * stalk above the head. In this milestone they are scenery that wanders
- * around the grotto and shies away from the diver; caring for them comes in
- * milestone 4.
+ * around the grotto and shies away from the diver; they can also be kept: their
+ * egg clutches in the grotto go in the specimen jar (milestone 4).
  */
 
 const rand = mulberry32(0x61f1);
@@ -51,18 +51,18 @@ export class Glowfin {
     this.x = area.x0 + rand() * (area.x1 - area.x0);
     this.y = area.y0 + rand() * (area.y1 - area.y0);
     const g = new Graphics();
-    // Dorsal spikes.
-    for (let i = 0; i < 3; i++) {
-      const x = -6 + i * 6;
-      g.moveTo(x - 3, -8).lineTo(x, -14).lineTo(x + 3, -8).closePath().fill({ color: L.stripe });
-    }
+    // Soft rounded dorsal fin (shallows creatures stay gentle: no spikes or teeth).
+    g.moveTo(-10, -7).bezierCurveTo(-8, -16, 4, -17, 7, -8).closePath().fill({ color: L.stripe });
     // Body.
     g.ellipse(0, 0, 20, 9.5).fill({ color: L.body });
     g.ellipse(2, 4, 16, 4.5).fill({ color: L.belly, alpha: 0.7 });
     for (const x of [-9, -3, 3, 9]) g.moveTo(x, -8.5).quadraticCurveTo(x + 2, 0, x, 8.5).stroke({ color: L.stripe, width: 2, alpha: 0.8 });
-    // Small eye.
-    g.circle(13, -2, 2).fill({ color: 0x1a1414 });
-    g.circle(12.4, -2.6, 0.7).fill({ color: 0xffffff, alpha: 0.8 });
+    // A big friendly eye with catchlights, and a small closed smile.
+    g.circle(12.5, -2, 3.6).fill({ color: L.belly, alpha: 0.6 });
+    g.circle(12.5, -2, 3).fill({ color: 0x1a1414 });
+    g.circle(13.4, -3, 1.1).fill({ color: 0xffffff, alpha: 0.9 });
+    g.circle(11.6, -1, 0.5).fill({ color: 0xffffff, alpha: 0.7 });
+    g.moveTo(16.5, 2.5).quadraticCurveTo(18, 3.8, 19.2, 2.4).stroke({ color: 0x4a2222, width: 0.7, alpha: 0.7 });
     // Lure stalk.
     g.moveTo(12, -8).bezierCurveTo(14, -20, 24, -24, 28, -18).stroke({ color: L.stripe, width: 1.4 });
     // Pectoral fin.

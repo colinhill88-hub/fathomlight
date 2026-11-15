@@ -31,7 +31,7 @@ export const GRID_BASE = (() => {
   return Math.floor(top) - 6;
 })();
 
-export type PieceKind = 'dome' | 'corridor' | 'turbine' | 'storage';
+export type PieceKind = 'dome' | 'corridor' | 'turbine' | 'storage' | 'tank' | 'filter';
 export type Dir = 'L' | 'R' | 'U' | 'D';
 
 export interface PieceDef {
@@ -93,8 +93,34 @@ export const PIECES: Record<PieceKind, PieceDef> = {
       },
     ],
   },
+  tank: {
+    kind: 'tank',
+    name: 'Creature tank',
+    job: 'Houses up to four creatures. Swim up with a creature in your jar to put it in; tap Tend to look after them.',
+    cost: { scrap: 2, quartz: 3, fibre: 1 },
+    buildTime: 24,
+    shapes: [{ w: 2, h: 1, collars: [{ cx: 0, cy: 0, dir: 'L' }, { cx: 1, cy: 0, dir: 'R' }] }],
+  },
+  filter: {
+    kind: 'filter',
+    name: 'Filter pump',
+    job: 'Keeps the water clean in up to two creature tanks joined to it.',
+    cost: { scrap: 2, copper: 2, fibre: 2 },
+    buildTime: 16,
+    shapes: [
+      {
+        w: 1,
+        h: 1,
+        collars: [
+          { cx: 0, cy: 0, dir: 'L' },
+          { cx: 0, cy: 0, dir: 'R' },
+          { cx: 0, cy: 0, dir: 'U' },
+        ],
+      },
+    ],
+  },
 };
-export const PIECE_ORDER: PieceKind[] = ['dome', 'corridor', 'turbine', 'storage'];
+export const PIECE_ORDER: PieceKind[] = ['dome', 'corridor', 'turbine', 'storage', 'tank', 'filter'];
 
 /** How many materials each storage pod holds, all kinds together. */
 export const STORAGE_PER_POD = 40;
