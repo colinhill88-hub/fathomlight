@@ -526,6 +526,7 @@ Cut from High so far: the phone renders at 2× instead of its native 3×. Colin 
     - Upgrading a CB-1 line to CB-2 cost 2 plating and raised its capacity to 10.
     - The rates panel opened with O and closed with Esc. Swimming up to a tank took 2 copper from its tray into the bag.
     - Screenshots of the press close-up, the stencilled lines, the press readout and the rates panel. No console errors.
+- Deployed: GitHub Actions run 43760293910 built and deployed to Pages successfully from `claude/milestone-5-part-2-ncs2f6`. Merge it into the default branch `claude/underwater-game-m0-0qqajg` before the next session.
 
 ## Next
 
