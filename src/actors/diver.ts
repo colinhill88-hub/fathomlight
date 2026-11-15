@@ -285,6 +285,22 @@ function coiledHose(g: Graphics, pts: [number, number][], width: number): void {
   }
 }
 
+/**
+ * Dive lamp: a chrome canister strapped to the harness on the near
+ * shoulder, pointing forward under the helmet.
+ */
+function buildShoulderLamp(): Graphics {
+  const g = new Graphics();
+  g.rect(33, 7, 3.5, 15).fill({ color: C.red }); // strap round the harness
+  g.rect(33, 7, 3.5, 4).fill({ color: C.redShade, alpha: 0.6 });
+  chromeBands(g, 28, 10.5, 16, 8, 3.5);
+  g.roundRect(43, 9.5, 4, 10, 1.5).fill({ color: C.chromeDark }); // front bezel
+  g.rect(30, 11.5, 2.5, 6).fill({ color: C.chromeDark, alpha: 0.7 }); // end cap
+  rivets(g, [[39, 12.5]], 0.8);
+  scratches(g, 29, 11, 13, 6, 2, 0.3);
+  return g;
+}
+
 function buildHelmet(): Container {
   const c = new Container();
   const g = new Graphics();
@@ -370,9 +386,6 @@ function buildHelmet(): Container {
   g.circle(85, -9, 1.7).fill({ color: 0xffffff, alpha: 0.7 });
   g.moveTo(87.5, -2).quadraticCurveTo(88, 3, 86, 8).stroke({ color: 0xffffff, width: 1.2, alpha: 0.35, cap: 'round' });
 
-  // Headlamp clamped under the front of the crest.
-  g.roundRect(78, -27, 10, 6.5, 2.5).fill({ color: C.chrome }).stroke({ color: C.chromeDark, width: 1 });
-  g.circle(89, -23.8, 2.8).fill({ color: C.chromeMid });
 
   // Coiled breathing hose from the back unit, over the side of the helmet,
   // down to the regulator port on the chest.
@@ -390,7 +403,7 @@ export interface LampPose {
 
 export class Diver {
   readonly view = new Container();
-  /** The glowing lens of the headlamp, drawn without lighting so it shines. */
+  /** The glowing lens of the shoulder lamp, drawn without lighting so it shines. */
   readonly lens = new Graphics();
   readonly lensGlow = new Graphics();
 
@@ -433,7 +446,15 @@ export class Diver {
     this.nearLeg.thigh.position.set(hip.x, hip.y + 2);
     this.farArm.upper.position.set(shoulder.x + 2, shoulder.y - 3);
     this.nearArm.upper.position.set(shoulder.x, shoulder.y + 2);
-    this.body.addChild(this.farLeg.thigh, this.farArm.upper, torso, helmet, this.nearLeg.thigh, this.nearArm.upper);
+    this.body.addChild(
+      this.farLeg.thigh,
+      this.farArm.upper,
+      torso,
+      helmet,
+      buildShoulderLamp(),
+      this.nearLeg.thigh,
+      this.nearArm.upper,
+    );
     this.body.position.set(0, 0);
     this.view.addChild(this.body);
 
@@ -441,8 +462,8 @@ export class Diver {
     this.lensGlow.circle(0, 0, 14).fill({ color: 0xffe9b0, alpha: 0.9 });
   }
 
-  /** Where the headlamp lens sits, in local drawing space. */
-  private static readonly LAMP = { x: 85, y: -23.8 };
+  /** Where the shoulder lamp's lens sits, in local drawing space. */
+  private static readonly LAMP = { x: 48, y: 14.5 };
   private static readonly BUBBLE = { x: 47, y: 9 };
 
   private toWorld(lx: number, ly: number): [number, number] {
@@ -459,7 +480,7 @@ export class Diver {
     const [x, y] = this.toWorld(Diver.LAMP.x, Diver.LAMP.y);
     const r = this.body.rotation;
     const dl = 1;
-    const dyl = 0.22; // aim slightly downwards
+    const dyl = 0.1; // aim slightly downwards
     const dx = dl * this.face;
     return {
       x,
@@ -473,7 +494,7 @@ export class Diver {
     return this.toWorld(Diver.BUBBLE.x, Diver.BUBBLE.y);
   }
 
-  /** How strongly the headlamp shines right now (it fades on and off). */
+  /** How strongly the lamp shines right now (it fades on and off). */
   get lamp(): number {
     return this.lampLevel;
   }

@@ -107,6 +107,7 @@ Cut from High so far: the phone renders at 2× instead of its native 3×. Colin 
   - Thighs, shins, fins, upper arms and forearms are shorter, and the torso is about 12% shorter.
   - The helmet stays full size, so it reads a little larger relative to the body.
   - Diver scale went from 0.82 to 0.86.
+- **Lamp moved off the head:** at Colin's request, the dive lamp is now a chrome canister strapped to the harness on the near shoulder, under the helmet (`buildShoulderLamp` in `src/actors/diver.ts`). The beam starts there and aims slightly down.
 - **Camera zoomed out:** the view now shows 640 world units of height instead of 560 (`VIEW_H` in `src/main.ts`), which leaves room for base pieces later. Change that one number to zoom in or out.
 
 ## Next

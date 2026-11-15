@@ -208,7 +208,7 @@ async function boot(): Promise<void> {
     frontCam.scale.set(fz);
     frontCam.position.set(cssW / 2 - camCX * 1.3 * fz + WORLD_W * 0.15 * fz, cssH / 2 - camCY * fz + 40 * zoom);
 
-    // Headlamp.
+    // Shoulder lamp.
     const lp = diver.lampPose();
     lampLight.x = lp.x;
     lampLight.y = lp.y;
