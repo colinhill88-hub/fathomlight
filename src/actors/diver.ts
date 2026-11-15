@@ -620,6 +620,11 @@ export class Diver {
     return this.lampLevel;
   }
 
+  /** Which way the diver faces: 1 right, -1 left. */
+  get facing(): number {
+    return this.face;
+  }
+
   get boosting(): boolean {
     return this.boostTime > 0;
   }

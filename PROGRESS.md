@@ -1,6 +1,6 @@
 # Fathomlight progress
 
-Last updated: 2026-11-15, **milestone 3 follow-up (build drone and dive bag weight) deployed**. Colin was happy with milestone 3 and flagged nothing to fix. Next is milestone 4 (creatures).
+Last updated: 2026-11-15, **milestone 3 follow-up deployed, plus a drone redesign from Colin's feedback** (smaller, cuter, no more jitter). Next is milestone 4 (creatures).
 
 Play link: https://colinhill88-hub.github.io/fathomlight/ (live; first successful deploy 2026-11-14)
 
@@ -296,6 +296,35 @@ Cut from High so far: the phone renders at 2× instead of its native 3×. Colin 
   - The test browser draws in software and runs the game at about one sixth speed, so the real welding times and the frame rate have to be checked on the phone. No console errors.
 - Deployed: GitHub Actions run 43727209174 built and deployed to Pages successfully from `claude/next-milestone-build-deploy-ikoapi`. This branch (which also carries milestone 3) still needs merging into the default branch `claude/underwater-game-m0-0qqajg`.
 
+### Milestone 3 follow-up 2: a smaller, cuter drone that holds still
+- **Feedback:** the numbers (weights, build times) feel good; tune later for difficulty. But:
+  - the drone flickered left and right whenever the diver was still or treading water at the surface;
+  - it was too big;
+  - Colin wanted a cuter helper with more personality, shown through animation;
+  - it should start small, so finds in later biomes can upgrade it (and the diver) without filling the screen.
+- **Jitter fixed** (`src/actors/drone.ts`, `src/main.ts`):
+  - The cause: with the diver not moving, the game guessed the diver's facing from which side the drone was on. The drone then aimed for the spot "behind" the diver, on the other side, which flipped the guess, and so on. A "don't crowd the diver" push made it worse.
+  - Now it uses the diver's real facing. It only moves behind the diver while they actually swim (faster than 70 units/s). When they stop, it keeps to whichever side it is on.
+  - It turns only with clear travel, or after a 28-unit dead zone towards what it is looking at, and it settles firmly near its target.
+  - Checked in the emulated iPhone: still at the surface and still underwater, it drifts 1–2 units and never turns around (10 s sampled each).
+- **New look, about half the size** (roughly a third of the diver's length):
+  - a small squat Kestrel-yellow hull with a steel belly;
+  - a big glass dome "head" (the signature dome shape) with a dark camera ball inside and one large amber lens as its eye;
+  - two little ducted fans sticking out at the sides like ears;
+  - a springy antenna with a red tip lamp;
+  - a tiny folding welding arm.
+  - Still weathered: rivets, scratches, rust and algae.
+- **Personality animations:**
+  - the eye rolls inside the dome to look at the diver, or at the weld while working, and blinks every few seconds;
+  - it tilts its head towards what it is looking at;
+  - the antenna wobbles on a spring whenever it speeds up or stops;
+  - a **happy hop with a full roll**, its eye squinting into a smile, when you collect a material, scan something new, find an air tank, finish a piece, and right after it is repaired;
+  - when you stay still for a few seconds it glances around, curious;
+  - parked alone over the base, its eye droops half closed.
+  - All of these are in `src/actors/drone.ts`. `cheer()` triggers the hop, so future events can use it too.
+- **Room to grow:** drone upgrades from later biomes can add visible parts (bigger fans, a second arm, a cargo clamp) to this small base design.
+- Tested: type check and build pass. Close-ups of the new drone idle, mid-roll and smiling, plus the jitter measurements above. No console errors.
+
 ## Next
 
 **Milestone 4: Creatures.** Collecting creatures, the creature tank, feeding, the filter pump and the three needs (hunger, comfort, water quality). Tanks and filter pumps will be new base pieces using the same collar and power rules (`src/game/base.ts`: add to `PIECES`, then draw them in `src/world/basegfx.ts`).
@@ -307,7 +336,7 @@ Cut from High so far: the phone renders at 2× instead of its native 3×. Colin 
   - build times (`buildTime` in `PIECES`);
   - material weights (`kg` in `MATERIALS`) and the 15 kg / 24 kg limits (`BAG_RATED_KG`, `BAG_MAX_KG`);
   - the penalty sizes in `Diver.update` (swim −22% per rated load, sink 30 units/s per rated load) and the air use in `src/main.ts` (+20% per rated load).
-- **Drone upgrade path:** not built yet, by design. The hooks are in place (see the milestone 3 follow-up notes). When do upgrades arrive: with the Workshop in milestone 6, or earlier? Ask Colin.
+- **Drone upgrade path:** not built yet, by design. Colin wants drone and diver upgrades found in future biomes; the drone starts small so upgrades can show on it. The hooks are in place (see the milestone 3 follow-up notes). When do upgrades arrive: with the Workshop in milestone 6, or earlier? Ask Colin.
 - **The drone doesn't avoid rock on long flights.** It follows the diver's own path, and when idle it parks above the base, so in practice it stays in open water. If it is ever seen clipping through rock, that is the place to look.
 - **Base growth across biomes (Colin, after milestone 3).** Colin wants to expand the base with each new biome, with bigger, more complex and more rewarding pieces. This is recorded in DESIGN.md under The base. When planning milestones 6, 7, 9 and 10, include new base pieces made from that zone's materials. Open questions for Colin:
   - Should new biomes grow the one base at the Kestrel site (a larger grid and upgraded piece tiers), or allow small outposts in each zone?

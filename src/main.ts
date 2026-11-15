@@ -505,11 +505,13 @@ async function boot(): Promise<void> {
     for (const ev of pickups.update(dt, time, diver.x, diver.y, save, collectHeld && !atDrone && !bagFull, speed)) {
       if (ev.type === 'material') {
         save.bag[ev.kind]++;
+        drone.cheer();
         hud.refreshInventory(ev.kind);
         hud.toast(`+1 ${MATERIALS[ev.kind].name}`);
       } else if (ev.type === 'tank') {
         save.oxygen = maxOxygen(save);
         hud.toast(`Air tank upgrade! Dive time +${TANK_BONUS} s`, 'big');
+        drone.cheer();
       } else {
         let n = 0;
         for (const [k, v] of Object.entries(ev.items) as [keyof typeof save.bag, number][]) {
@@ -554,7 +556,8 @@ async function boot(): Promise<void> {
     for (const ev of drone.update(dt, time, {
       diverX: diver.x,
       diverY: diver.y,
-      diverFace: diver.vx < -25 ? -1 : diver.vx > 25 ? 1 : diver.x < drone.x ? 1 : -1,
+      diverFace: diver.facing,
+      diverSpeed: speed,
       repairing,
       layout,
       rate: droneWeldRate(save),
@@ -628,6 +631,7 @@ async function boot(): Promise<void> {
     const scanned = scanner.update(dt, diver.x, diver.y, inControl && s.scan, done, lpose.x, lpose.y, inControl);
     if (scanned) {
       save.scans.push(scanned);
+      drone.cheer();
       hud.scanAnnounce(scanned);
       persist();
     }
