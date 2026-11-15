@@ -482,6 +482,9 @@ Cut from High so far: the phone renders at 2× instead of its native 3×. Colin 
 - **faster CB-2 conveyors and FL-2 pipes** (faster, costing a later material). A splitter or merger if balancing needs it.
 - **A whole-base rates overview** (made and used per minute, per material). It should suit the PC screen and stay readable on the phone.
 - More Echo whorls in later biomes. There are two in the shallows now.
+- Starting a line from either end (selecting the auto feeder also offers "Conveyor from…"); Colin found starting at the storage pod unclear.
+
+The prompt for the next session is in `docs/prompts/milestone-5-part-2.md`. Merge this branch (`claude/great-pascal-vx5iis`) into the default branch first, so the next session starts from part 1.
 
 **Colin's decisions for part 2 (after part 1):**
 - The first refined material is **hull plating** for the sub.
