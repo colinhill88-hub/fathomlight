@@ -1,6 +1,6 @@
 # Fathomlight progress
 
-Last updated: 2026-11-15, **milestone 3 (base building) deployed**. Colin said everything in the milestone 2 follow-up looked good, so nothing needed fixing. Next is milestone 4 (creatures).
+Last updated: 2026-11-15, **milestone 3 (base building) deployed**. Colin said everything in the milestone 2 follow-up looked good, so nothing needed fixing. Next is a milestone 3 follow-up (build drone and material weight), then milestone 4 (creatures).
 
 Play link: https://colinhill88-hub.github.io/fathomlight/ (live; first successful deploy 2026-11-14)
 
@@ -255,11 +255,22 @@ Cut from High so far: the phone renders at 2× instead of its native 3×. Colin 
 
 ## Next
 
-**Milestone 4: Creatures.** Collecting creatures, the creature tank, feeding, the filter pump and the three needs (hunger, comfort, water quality). Tanks and filter pumps will be new base pieces using the same collar and power rules (`src/game/base.ts`: add to `PIECES`, then draw them in `src/world/basegfx.ts`).
+**First: milestone 3 follow-up (Colin's decision, 2026-11-15): the build drone and material weight.** Do this before milestone 4. The full write-up is in DESIGN.md under The base ("Proposed by Colin after milestone 3"). In short:
+- **Build drone:**
+  - A small robot helper is found early in the shallows; the survey sled wreck is the suggested spot. Repair it with a few materials.
+  - Building needs the drone. Build places a frame, and the drone flies over and welds it over time (about 10 s for a corridor up to about 40 s for a dome) while the player keeps swimming.
+  - Existing saves that already have pieces should keep them.
+- **Material weight:**
+  - Each material has a weight in the dive bag (copper and scrap heavy, kelp fibre light).
+  - A heavier bag means slower swimming, sinking when idle, a slower climb and faster air use. Show a weight gauge on the dive watch.
+  - Keep it gentle in the shallows, and never make it a sudden drowning.
+- **Hooks for later upgrades:** drone speed or a second drone; lift bag, buoyancy vest and the sub cargo bay for carrying more.
+
+**Then: milestone 4: Creatures.** Collecting creatures, the creature tank, feeding, the filter pump and the three needs (hunger, comfort, water quality). Tanks and filter pumps will be new base pieces using the same collar and power rules (`src/game/base.ts`: add to `PIECES`, then draw them in `src/world/basegfx.ts`).
 
 ## Problems and open questions
 
-- **Build drone and material weight (Colin's ideas after milestone 3).** Both are written up in DESIGN.md under The base, marked as proposed. Waiting on Colin to decide when to build them: a milestone 3 follow-up session before milestone 4, or folded into later milestones.
+- **Build drone and material weight (Colin's ideas after milestone 3).** Both are written up in DESIGN.md under The base, marked as proposed. Colin decided: build them as a milestone 3 follow-up next session, before milestone 4.
 - **Base growth across biomes (Colin, after milestone 3).** Colin wants to expand the base with each new biome, with bigger, more complex and more rewarding pieces. This is recorded in DESIGN.md under The base. When planning milestones 6, 7, 9 and 10, include new base pieces made from that zone's materials. Open questions for Colin:
   - Should new biomes grow the one base at the Kestrel site (a larger grid and upgraded piece tiers), or allow small outposts in each zone?
   - Which kind of reward matters most to him: new abilities, faster crafting, comfort and looks, or stronger creature care?
