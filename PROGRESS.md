@@ -95,6 +95,6 @@ Cut from High so far: the phone renders at 2× instead of its native 3×. Colin 
 ## Problems and open questions
 
 - ~~GitHub Pages switch~~ Done: Colin set Pages → Source to GitHub Actions, and the deploy now succeeds.
-- **Which branch deploys.** Only the repository's default branch may deploy to Pages by default. This branch will be the default because it is the first one pushed to the empty repository. If a `main` branch is added later, either merge into it or allow the branch under Settings → Environments → github-pages.
+- **Which branch deploys.** Only the repository's default branch, `claude/underwater-game-m0-0qqajg`, may deploy to Pages. A push from a session branch builds but its deploy step is refused (milestone 1 run 43655777497). The fix used in milestone 1, with Colin's OK: fast-forward the default branch to the session branch's commit (`git push origin HEAD:claude/underwater-game-m0-0qqajg`), which deployed successfully in run 43656384925. To make session branches deploy directly instead, Colin can add `claude/*` under Settings → Environments → github-pages → Deployment branches.
 - **Things to watch in Colin's review:** whether the kelp is too bright or too busy, how strong the caustics and water wobble are, and how fast the diver swims. Each is a single number in the code and easy to tune.
 - **Frame rate on the real phone.** Milestone 0: Colin measured a steady 60 fps in both presets. Milestone 1: not yet measured; the test browser here has no real GPU.
