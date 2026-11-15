@@ -108,11 +108,23 @@ export class Scanner {
   progress = 0;
   private pulse = 0;
 
-  constructor(private readonly candidates: ScanCandidate[]) {}
+  private idPulse = 0;
+  private idX = 0;
+  private idY = 0;
+
+  constructor(readonly candidates: ScanCandidate[]) {}
+
+  /** A quick amber ring sweeping out from the diver, shown when the quick ID is used. */
+  pulseIdentify(x: number, y: number): void {
+    this.idPulse = 1;
+    this.idX = x;
+    this.idY = y;
+  }
 
   /** Returns the id of an entry that was just completed, if any. */
   update(dt: number, dx: number, dy: number, held: boolean, done: Set<string>, emitX: number, emitY: number, enabled: boolean): string | null {
     this.pulse += dt;
+    this.idPulse = Math.max(0, this.idPulse - dt / 0.7);
     let completed: string | null = null;
 
     // Keep a locked target while the button is held, otherwise pick the nearest new thing.
@@ -152,6 +164,10 @@ export class Scanner {
   private draw(ex: number, ey: number, held: boolean): void {
     const g = this.overlay;
     g.clear();
+    if (this.idPulse > 0) {
+      const r = 40 + (1 - this.idPulse) * 420;
+      g.circle(this.idX, this.idY, r).stroke({ color: 0xffc861, width: 2, alpha: this.idPulse * 0.6 });
+    }
     const t = this.target;
     if (!t) return;
     const amber = 0xffc861;

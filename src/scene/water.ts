@@ -56,6 +56,12 @@ void main() {
   float ripple = noise(vec2(wp.x * 0.03 + uTime * 0.4, wp.y * 0.08 - uTime * 0.3));
   vec3 surf = mix(vec3(0.70, 0.86, 0.84), vec3(0.93, 0.98, 0.96), ripple);
   surf *= 0.94 + 0.06 * sin(wp.x * 0.05 + uTime * 1.5);
+  // Higher up, the rippling underside gives way to hazy daylight air, so a
+  // head breaking the surface reads as being out in the open.
+  float h = clamp((wave - d) / 110.0, 0.0, 1.0);
+  vec3 sky = mix(vec3(0.86, 0.93, 0.93), vec3(0.62, 0.79, 0.88), h);
+  sky += (noise(vec2(wp.x / 220.0 + uTime * 0.01, wp.y / 60.0)) - 0.5) * 0.05;
+  surf = mix(surf, sky, smoothstep(0.04, 0.3, h));
   col = mix(col, surf, above);
   col += vec3(1.0) * smoothstep(3.5, 0.0, abs(d - wave)) * 0.25; // bright line at the surface
 

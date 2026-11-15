@@ -4,12 +4,16 @@
  *   boost - true for the one frame a boost was asked for
  *   lamp  - true for the one frame the lamp was toggled
  *   scan  - true while the scan control is held down
+ *   scanTap - true for the one frame the scan control was pressed (quick ID of known things)
+ *   collect - true while the collect control is held down
  *
  * Touch: drag anywhere on the left half of the screen for a floating stick;
- *        the round buttons on the right are Boost, Lamp and Scan (hold).
- * Keyboard: WASD or arrow keys to swim, Shift or Space to boost, L or F for the lamp, hold E or Q to scan.
+ *        the round buttons on the right are Boost, Lamp, Scan (tap or hold)
+ *        and Collect (hold; it appears only next to a material).
+ * Keyboard: WASD or arrow keys to swim, Shift or Space to boost, L or F for the lamp,
+ *           E or Q to scan (tap or hold), hold C or R to collect.
  * Mouse: hold the left button to swim towards the pointer, right-click to boost.
- * Gamepad: left stick to swim, A to boost, X or Y for the lamp, hold B to scan.
+ * Gamepad: left stick to swim, A to boost, Y for the lamp, B to scan, hold X to collect.
  */
 
 export interface InputState {
@@ -18,6 +22,8 @@ export interface InputState {
   boost: boolean;
   lamp: boolean;
   scan: boolean;
+  scanTap: boolean;
+  collect: boolean;
   /** Which kind of control was used last, so on-screen hints can match it. */
   lastDevice: 'touch' | 'keyboard' | 'mouse' | 'gamepad';
 }
@@ -26,12 +32,14 @@ const STICK_RADIUS = 56;
 const DEADZONE = 0.15;
 
 export class Input {
-  readonly state: InputState = { moveX: 0, moveY: 0, boost: false, lamp: false, scan: false, lastDevice: 'keyboard' };
+  readonly state: InputState = { moveX: 0, moveY: 0, boost: false, lamp: false, scan: false, scanTap: false, collect: false, lastDevice: 'keyboard' };
 
   private keys = new Set<string>();
   private boostQueued = false;
   private lampQueued = false;
   private scanButton = false;
+  private scanTapQueued = false;
+  private collectButton = false;
 
   // Touch stick.
   private stickId: number | null = null;
@@ -61,12 +69,14 @@ export class Input {
       this.state.lastDevice = 'keyboard';
       if (k === 'shift' || k === ' ') this.boostQueued = true;
       if (k === 'l' || k === 'f') this.lampQueued = true;
+      if (k === 'e' || k === 'q') this.scanTapQueued = true;
       if (k.startsWith('arrow') || k === ' ') e.preventDefault();
     });
     window.addEventListener('keyup', (e) => this.keys.delete(e.key.toLowerCase()));
     window.addEventListener('blur', () => {
       this.keys.clear();
       this.scanButton = false;
+      this.collectButton = false;
       this.mouseDown = false;
       this.releaseStick();
     });
@@ -149,14 +159,35 @@ export class Input {
       }
       scanEl.classList.add('pressed');
       this.scanButton = true;
+      this.scanTapQueued = true;
     });
     const scanUp = () => {
       scanEl.classList.remove('pressed');
       this.scanButton = false;
+      this.collectButton = false;
     };
     scanEl.addEventListener('pointerup', scanUp);
     scanEl.addEventListener('pointercancel', scanUp);
     scanEl.addEventListener('lostpointercapture', scanUp);
+    const colEl = document.getElementById('btn-collect')!;
+    colEl.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      try {
+        colEl.setPointerCapture(e.pointerId);
+      } catch {
+        /* capture is a nicety */
+      }
+      colEl.classList.add('pressed');
+      this.collectButton = true;
+    });
+    const colUp = () => {
+      colEl.classList.remove('pressed');
+      this.collectButton = false;
+    };
+    colEl.addEventListener('pointerup', colUp);
+    colEl.addEventListener('pointercancel', colUp);
+    colEl.addEventListener('lostpointercapture', colUp);
 
     if (window.matchMedia?.('(pointer: coarse)').matches) {
       document.body.classList.add('touch');
@@ -201,6 +232,7 @@ export class Input {
     }
 
     let scan = this.scanButton || k.has('e') || k.has('q');
+    let collect = this.collectButton || k.has('c') || k.has('r');
 
     // Gamepad (first connected pad).
     const pads = navigator.getGamepads?.() ?? [];
@@ -218,8 +250,10 @@ export class Input {
       const btn = (i: number) => !!pad.buttons[i]?.pressed;
       const pressed = (i: number) => btn(i) && !this.padPrev[i];
       if (pressed(0)) this.boostQueued = true;
-      if (pressed(2) || pressed(3)) this.lampQueued = true;
+      if (pressed(3)) this.lampQueued = true;
       if (btn(1)) scan = true;
+      if (pressed(1)) this.scanTapQueued = true;
+      if (btn(2)) collect = true;
       if (pressed(0) || pressed(2) || pressed(3)) this.state.lastDevice = 'gamepad';
       this.padPrev = pad.buttons.map((b) => b.pressed);
       break;
@@ -230,6 +264,9 @@ export class Input {
     this.state.boost = this.boostQueued;
     this.state.lamp = this.lampQueued;
     this.state.scan = scan;
+    this.state.scanTap = this.scanTapQueued;
+    this.state.collect = collect;
+    this.scanTapQueued = false;
     this.boostQueued = false;
     this.lampQueued = false;
   }

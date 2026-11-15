@@ -1,15 +1,18 @@
 import { Container, Graphics } from 'pixi.js';
 import { mulberry32, WORLD_SEED } from '../rng';
 import { isSolid, CREVICE_X } from './terrain';
-import { MaterialId, REGROW_MS, SaveData, DroppedBag } from '../game/state';
+import { MATERIALS, MaterialId, REGROW_SECONDS, SaveData, DroppedBag } from '../game/state';
 import type { PointLight } from './scenery';
 
 /**
- * Things the diver collects by swimming into them:
- *  - materials (scrap metal, copper, quartz, kelp fibre), which grow back
- *    a few minutes after being taken,
- *  - hidden air tank upgrades, which add dive time for good,
- *  - the sample bag dropped after blacking out.
+ * Things the diver collects:
+ *  - materials (scrap metal, copper, quartz, kelp fibre). These take work
+ *    (Colin's feedback after milestone 2): stop next to one and hold Collect
+ *    while the diver chips, pries, digs or cuts it free. They grow back after
+ *    6 minutes of play time, a timer that carries on through blackouts and
+ *    across closing the app.
+ *  - hidden air tank upgrades, picked up by swimming into them,
+ *  - the sample bag dropped after blacking out, also picked up by touch.
  * Every pickup has a fixed place, so the world is the same on every play.
  */
 
@@ -128,6 +131,29 @@ interface Item {
   phase: number;
 }
 
+/** Seconds of work to free one of each material, and what the work is called. */
+export const EFFORT: Record<MaterialId, { seconds: number; verb: string }> = {
+  fibre: { seconds: 1.6, verb: 'Cut' },
+  scrap: { seconds: 2.2, verb: 'Pry loose' },
+  copper: { seconds: 2.6, verb: 'Dig out' },
+  quartz: { seconds: 3.0, verb: 'Chip off' },
+};
+/** How close the diver's middle must be to reach a material. */
+const REACH = 72;
+/** Faster than this and the diver cannot work (no collecting while swimming past). */
+const STILL_SPEED = 70;
+
+interface Bit {
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  life: number;
+  color: number;
+  r: number;
+  spark: boolean;
+}
+
 export type PickupEvent =
   | { type: 'material'; kind: MaterialId; x: number; y: number }
   | { type: 'tank'; id: string }
@@ -178,14 +204,42 @@ export class Pickups {
 
   /** Where the dropped bag is, if there is one (for the off-screen marker). */
   bagPos: { x: number; y: number } | null = null;
+  /** The material within reach that Collect would work on, if any. */
+  target: { id: string; kind: MaterialId; x: number; y: number } | null = null;
+  /** 0..1 work done on the target. */
+  progress = 0;
+  /** True while the diver is actually working (held, in reach and still). */
+  working = false;
 
-  update(dt: number, time: number, dx: number, dy: number, save: SaveData, now: number): PickupEvent[] {
+  private bits: Bit[] = [];
+  private bitsG = new Graphics();
+  private sparksG = new Graphics();
+  private ring = new Graphics();
+  private strikeClock = 0;
+  private lastTarget = '';
+
+  /** Call once after construction: adds the work effects to the layers. */
+  private ensureFx(): void {
+    if (this.bitsG.parent) return;
+    this.view.addChild(this.bitsG);
+    this.emissive.addChild(this.sparksG, this.ring);
+  }
+
+  /**
+   * now: play time in seconds (save.playSeconds). held: the Collect control
+   * is held. speed: how fast the diver is moving.
+   */
+  update(dt: number, time: number, dx: number, dy: number, save: SaveData, held: boolean, speed: number): PickupEvent[] {
+    this.ensureFx();
+    const now = save.playSeconds;
     const events: PickupEvent[] = [];
+    let best: Item | null = null;
+    let bestD = REACH;
     for (const it of this.items) {
       const { spot } = it;
       const isTank = spot.kind === 'tank';
       const taken = isTank ? save.tanks.includes(spot.id) : spot.id in save.taken;
-      if (!isTank && taken && now - save.taken[spot.id] > REGROW_MS) delete save.taken[spot.id];
+      if (!isTank && taken && now - save.taken[spot.id] > REGROW_SECONDS) delete save.taken[spot.id];
       const gone = isTank ? save.tanks.includes(spot.id) : spot.id in save.taken;
 
       if (it.pull > 0) {
@@ -228,19 +282,49 @@ export class Pickups {
       const l = this.tankLights.get(spot.id);
       if (l) l.intensity = 0.4 + 0.2 * Math.sin(time * 2.4);
 
-      const reach = isTank ? 46 : 40;
-      if (Math.hypot(dx - spot.x, dy - spot.y) < reach) {
-        it.pull = 0.0001;
-        if (isTank) {
+      const dist = Math.hypot(dx - spot.x, dy - spot.y);
+      if (isTank) {
+        if (dist < 46) {
+          it.pull = 0.0001;
           save.tanks.push(spot.id);
           events.push({ type: 'tank', id: spot.id });
           if (l) l.intensity = 0;
-        } else {
-          save.taken[spot.id] = now;
-          events.push({ type: 'material', kind: spot.kind as MaterialId, x: spot.x, y: spot.y });
         }
+      } else if (dist < bestD) {
+        bestD = dist;
+        best = it;
       }
     }
+
+    // ---- Working on a material ----
+    const t = best ? { id: best.spot.id, kind: best.spot.kind as MaterialId, x: best.spot.x, y: best.spot.y } : null;
+    if (!t || t.id !== this.lastTarget) this.progress = 0;
+    this.lastTarget = t?.id ?? '';
+    this.target = t;
+    this.working = !!t && held && speed < STILL_SPEED;
+    if (t && this.working) {
+      const effort = EFFORT[t.kind];
+      this.progress += dt / effort.seconds;
+      // Each stroke knocks off a few bits (and sparks when prying metal).
+      this.strikeClock -= dt;
+      if (this.strikeClock <= 0) {
+        this.strikeClock = 0.24;
+        this.strike(t.kind, t.x, t.y - 4);
+      }
+      // The material shakes a little as it is worked loose.
+      if (best) best.view.position.set(t.x + Math.sin(time * 40) * 0.8 * this.progress, t.y);
+      if (this.progress >= 1 && best) {
+        this.progress = 0;
+        best.pull = 0.0001;
+        save.taken[t.id] = now;
+        events.push({ type: 'material', kind: t.kind, x: t.x, y: t.y });
+        for (let i = 0; i < 3; i++) this.strike(t.kind, t.x, t.y - 4);
+      }
+    } else if (t) {
+      // Let go: the work slips back slowly, so a short pause does not lose it all.
+      this.progress = Math.max(0, this.progress - dt * 0.35);
+    }
+    this.drawFx(dt, time);
 
     // The dropped sample bag.
     const bag: DroppedBag | null = save.dropped;
@@ -263,6 +347,70 @@ export class Pickups {
       }
     }
     return events;
+  }
+
+  private strike(kind: MaterialId, x: number, y: number): void {
+    const colors: Record<MaterialId, number[]> = {
+      scrap: [0x8a3a20, 0x6a5a4c, 0xa8a199],
+      copper: [0x9f8d66, 0xcdb98c, 0x5f9a72],
+      quartz: [0xe8ecdf, 0xffffff, 0xa9b5ad],
+      fibre: [0xc9a24a, 0x8a6d32, 0x6f8a45],
+    };
+    const cs = colors[kind];
+    const n = kind === 'copper' ? 6 : 4;
+    for (let i = 0; i < n; i++) {
+      this.bits.push({
+        x: x + R(-6, 6),
+        y: y + R(-4, 4),
+        vx: R(-70, 70),
+        vy: kind === 'copper' ? R(-40, -5) : R(-90, -20),
+        life: 1,
+        color: cs[Math.floor(rand() * cs.length)],
+        r: kind === 'copper' ? R(3, 7) : R(0.8, 2),
+        spark: false,
+      });
+    }
+    if (kind === 'scrap' || kind === 'quartz') {
+      for (let i = 0; i < (kind === 'scrap' ? 3 : 2); i++)
+        this.bits.push({ x, y, vx: R(-120, 120), vy: R(-120, -30), life: 1, color: kind === 'scrap' ? 0xffc070 : 0xfffbe8, r: 1, spark: true });
+    }
+  }
+
+  private drawFx(dt: number, time: number): void {
+    const g = this.bitsG;
+    const sg = this.sparksG;
+    g.clear();
+    sg.clear();
+    for (const b of this.bits) {
+      b.life -= dt / (b.spark ? 0.3 : b.r > 2.5 ? 1.4 : 0.9);
+      b.vx *= 1 - dt * 3;
+      b.vy += (b.spark ? 200 : b.r > 2.5 ? -10 : 60) * dt; // sand clouds drift, chips sink
+      b.x += b.vx * dt;
+      b.y += b.vy * dt;
+      if (b.life <= 0) continue;
+      if (b.spark) sg.moveTo(b.x, b.y).lineTo(b.x - b.vx * 0.02, b.y - b.vy * 0.02).stroke({ color: b.color, width: 1.2, alpha: b.life });
+      else if (b.r > 2.5) g.circle(b.x, b.y, b.r * (1.6 - b.life * 0.6)).fill({ color: b.color, alpha: 0.35 * b.life });
+      else g.rect(b.x, b.y, b.r, b.r).fill({ color: b.color, alpha: b.life });
+    }
+    this.bits = this.bits.filter((b) => b.life > 0);
+
+    // A ring around the material in reach: dashed while idle, filling while working.
+    const r = this.ring;
+    r.clear();
+    const t = this.target;
+    if (!t) return;
+    const rad = 17;
+    const cy = t.y - 5;
+    for (let k = 0; k < 12; k++) {
+      const a0 = (k / 12) * Math.PI * 2 + time * 0.6;
+      r.arc(t.x, cy, rad, a0, a0 + 0.3).stroke({ color: 0xfff1d0, width: 1.4, alpha: 0.55 });
+    }
+    if (this.progress > 0) r.arc(t.x, cy, rad + 4, -Math.PI / 2, -Math.PI / 2 + this.progress * Math.PI * 2).stroke({ color: 0xfff1d0, width: 3, alpha: 0.95 });
+  }
+
+  /** The label for the Collect button, e.g. "Chip off quartz". */
+  static actionLabel(kind: MaterialId): string {
+    return `${EFFORT[kind].verb} ${MATERIALS[kind].name.toLowerCase()}`;
   }
 
   /** Where pickups of a kind lie (the scanner uses these). */

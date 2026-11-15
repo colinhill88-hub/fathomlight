@@ -29,6 +29,7 @@
       <div id="inventory" aria-label="Carried materials"></div>
     </div>
 
+    <div id="tags"></div>
     <div id="toasts" aria-live="polite"></div>
     <div id="banner"></div>
     <div id="bag-marker"><div class="arrow"></div><span>Bag</span><span id="bag-dist"></span></div>
@@ -48,6 +49,13 @@
         </svg>
       </button>
       <div id="scan-label"></div>
+      <button id="btn-collect" type="button" aria-label="Collect (hold)">
+        <svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true">
+          <path fill="currentColor" d="M14.8 3.2l6 6-2.1 2.1-1.4-1.4-6.7 6.7 1.4 1.4-2.1 2.1-6-6 2.1-2.1 1.4 1.4 6.7-6.7-1.4-1.4z" opacity=".9"/>
+          <path fill="currentColor" d="M3 21l4.2-4.2 1.4 1.4L4.4 22.4z"/>
+        </svg>
+      </button>
+      <div id="collect-label"></div>
       <button id="btn-boost" type="button" aria-label="Boost">
         <svg viewBox="0 0 24 24" width="28" height="28" aria-hidden="true">
           <path fill="currentColor" d="M4 6l8 6-8 6zm8 0l8 6-8 6z" />
@@ -56,8 +64,8 @@
     </div>
 
     <div id="hint">
-      <span class="touch-only">Drag on the left to swim · hold Scan near new things · breathe at the surface</span>
-      <span class="desk-only">WASD or arrows to swim · Shift boost · L lamp · hold E to scan · breathe at the surface</span>
+      <span class="touch-only">Drag on the left to swim · hold Scan near new things, tap it to name known ones · stop by materials and hold Collect</span>
+      <span class="desk-only">WASD or arrows to swim · Shift boost · L lamp · E scan (hold for new, tap to name known) · hold C to collect</span>
     </div>
 
     <div id="hud">

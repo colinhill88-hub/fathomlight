@@ -55,7 +55,8 @@ export class Bubbles {
   /** emitX/Y is the helmet valve; boosting makes the diver breathe harder. */
   update(dt: number, emitX: number, emitY: number, diverVX: number, diverVY: number, hard: boolean): void {
     this.breath -= dt * (hard ? 2.2 : 1);
-    if (this.breath <= 0) {
+    // Only breathe out bubbles underwater; at the surface the diver breathes air.
+    if (this.breath <= 0 && emitY > 8) {
       this.breath = 2.4 + rand() * 1.2;
       const n = 4 + Math.floor(rand() * 4);
       for (let i = 0; i < n; i++) this.spawn(emitX, emitY - i * 5, diverVX, diverVY);

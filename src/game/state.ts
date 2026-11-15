@@ -22,8 +22,12 @@ export const MATERIAL_ORDER: MaterialId[] = ['scrap', 'copper', 'quartz', 'fibre
 export const BASE_OXYGEN = 75;
 export const TANK_BONUS = 20;
 export const TOTAL_AIR_TANKS = 2;
-/** Collected materials grow back after this long (real time). */
-export const REGROW_MS = 6 * 60 * 1000;
+/**
+ * Collected materials grow back after this much play time. Play time keeps
+ * counting through blackouts and is saved, so neither dying nor closing the
+ * app makes anything grow back sooner.
+ */
+export const REGROW_SECONDS = 6 * 60;
 
 export interface DroppedBag {
   x: number;
@@ -43,7 +47,7 @@ export interface SaveData {
   scans: string[];
   /** Ids of air tank upgrades found. */
   tanks: string[];
-  /** Pickup id -> when it was collected (ms since 1970), so it can grow back. */
+  /** Pickup id -> play time (seconds) when it was collected, so it can grow back. */
   taken: Record<string, number>;
   dropped: DroppedBag | null;
   playSeconds: number;
@@ -85,6 +89,8 @@ export function loadSave(spawnX: number, spawnY: number): { data: SaveData; load
       tanks: Array.isArray(d.tanks) ? d.tanks : [],
       taken: d.taken && typeof d.taken === 'object' ? d.taken : {},
     } as SaveData;
+    // Older saves stored real clock times (milliseconds). Restart those timers from now.
+    for (const k of Object.keys(data.taken)) if (data.taken[k] > 1e9) data.taken[k] = data.playSeconds;
     if (!isFinite(data.x) || !isFinite(data.y)) {
       data.x = spawnX;
       data.y = spawnY;

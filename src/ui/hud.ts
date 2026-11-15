@@ -34,6 +34,10 @@ export class Hud {
   private banner = document.getElementById('banner')!;
   private scanBtn = document.getElementById('btn-scan')!;
   private scanLabel = document.getElementById('scan-label')!;
+  private collectBtn = document.getElementById('btn-collect')!;
+  private collectLabel = document.getElementById('collect-label')!;
+  private tagLayer = document.getElementById('tags')!;
+  private tagPool: { el: HTMLElement; name: HTMLElement; text: HTMLElement; key: string }[] = [];
   private chipEls = new Map<MaterialId, { el: HTMLElement; count: HTMLElement }>();
   private bannerText = '';
 
@@ -134,6 +138,52 @@ export class Hud {
     const label = e ? `Unknown ${e.category.toLowerCase()}` : '';
     if (this.scanLabel.textContent !== label) this.scanLabel.textContent = label;
     this.scanLabel.classList.toggle('show', !!e);
+  }
+
+  /** The Collect button: shown only with a material in reach. */
+  setCollect(label: string | null, progress: number): void {
+    this.collectBtn.classList.toggle('ready', !!label);
+    this.collectBtn.style.setProperty('--p', String(progress));
+    const text = label ?? '';
+    if (this.collectLabel.textContent !== text) this.collectLabel.textContent = text;
+    this.collectLabel.classList.toggle('show', !!label);
+  }
+
+  /**
+   * Name tags over things already in the scanner log (the quick ID after a
+   * tap of Scan). Each tag is just the name; the one closest to the diver
+   * also shows the first line of its log entry. sx, sy are screen CSS px.
+   */
+  setTags(tags: { id: string; sx: number; sy: number; detail: boolean; below?: boolean }[], alpha: number): void {
+    while (this.tagPool.length < tags.length) {
+      const el = document.createElement('div');
+      el.className = 'tag';
+      const name = document.createElement('span');
+      const text = document.createElement('p');
+      el.append(name, text);
+      this.tagLayer.appendChild(el);
+      this.tagPool.push({ el, name, text, key: '' });
+    }
+    this.tagPool.forEach((t, i) => {
+      const tag = tags[i];
+      if (!tag) {
+        t.el.style.display = 'none';
+        return;
+      }
+      t.el.style.display = '';
+      const e = entry(tag.id);
+      const key = `${tag.id}|${tag.detail}`;
+      if (t.key !== key && e) {
+        t.key = key;
+        t.name.textContent = e.name;
+        t.text.textContent = tag.detail ? e.text.split('. ')[0].replace(/\.?$/, '.') : '';
+        t.text.style.display = tag.detail ? '' : 'none';
+      }
+      t.el.classList.toggle('below', !!tag.below);
+      t.el.style.left = `${tag.sx}px`;
+      t.el.style.top = `${tag.sy}px`;
+      t.el.style.opacity = String(alpha);
+    });
   }
 
   /** 0 = clear, 1 = fully black. */

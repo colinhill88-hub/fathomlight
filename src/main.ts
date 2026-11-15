@@ -27,6 +27,7 @@ import {
 } from './world/terrain';
 import { clearSave, loadSave, MATERIALS, maxOxygen, SaveData, TANK_BONUS, writeSave } from './game/state';
 import { Scanner } from './game/scanner';
+import { SurfaceFx } from './fx/surface';
 import { Hud } from './ui/hud';
 import { DiveWatch } from './ui/watch';
 
@@ -130,6 +131,9 @@ async function boot(): Promise<void> {
     { id: 'cave', points: () => scenery.scanPoints.cave },
   ]);
   overlayCam.addChild(scanner.overlay);
+  const surfaceFx = new SurfaceFx();
+  /** Seconds left on the quick ID (name tags over things already scanned). */
+  let idTimer = 0;
   const lampLight: Light = {
     x: 0,
     y: 0,
@@ -156,7 +160,7 @@ async function boot(): Promise<void> {
       scenery.over,
     );
     frontCam.addChild(scenery.front);
-    emissiveCam.addChild(scenery.emissive, pickups.emissive, ...fish.map((f) => f.lure), diver.lens);
+    emissiveCam.addChild(scenery.emissive, pickups.emissive, ...fish.map((f) => f.lure), diver.lens, surfaceFx.view);
     glowCam.addChild(scenery.glow, pickups.glow, ...fish.map((f) => f.halo), diver.lensGlow);
   }
   populate();
@@ -269,6 +273,11 @@ async function boot(): Promise<void> {
     const inControl = blackout === 0;
     diver.update(dt, inControl ? s.moveX : 0, inControl ? s.moveY : 0, inControl && s.boost, inControl && s.lamp);
 
+    // Breaking the surface: a splash, then breath vapour with each breath out.
+    const [hx, hy] = diver.helmetPoint();
+    if (diver.splash > 0) surfaceFx.splash(hx, diver.splash, time);
+    if (diver.exhale && hy < 0) surfaceFx.breath(hx + (hx > diver.x ? 10 : -10), hy - 4, hx > diver.x ? 1 : -1);
+
     // The cave in the east cliff is too dark to go further in.
     if (diver.x > CAVE_GATE_X && diver.y > caveTop(CAVE_GATE_X) - 30) {
       diver.x = CAVE_GATE_X;
@@ -282,16 +291,18 @@ async function boot(): Promise<void> {
     );
 
     // ---- Oxygen ----
-    const atSurface = diver.y <= SURFACE_Y;
+    const atSurface = diver.surfaced;
     const maxO2 = maxOxygen(save);
     save.playSeconds += dt;
     if (blackout === 0) {
       if (atSurface) {
-        save.oxygen = Math.min(maxO2, save.oxygen + (maxO2 / 3) * dt);
+        // Air comes in from the first breath after breaking the surface.
+        if (diver.surfaceTime > 0.4) save.oxygen = Math.min(maxO2, save.oxygen + (maxO2 / 3) * dt);
         diveTime = 0;
         lowWarned = false;
       } else {
-        save.oxygen = Math.max(0, save.oxygen - dt * (diver.boosting ? 1.8 : 1));
+        // Hard work uses air faster: boosting, and prying materials loose.
+        save.oxygen = Math.max(0, save.oxygen - dt * (diver.boosting ? 1.8 : pickups.working ? 1.3 : 1));
         diveTime += dt;
       }
       const frac = save.oxygen / maxO2;
@@ -328,6 +339,7 @@ async function boot(): Promise<void> {
         diver.x = SPAWN.x;
         diver.y = SPAWN.y;
         diver.vx = diver.vy = 0;
+        diver.surfaced = false;
         camCX = diver.x;
         camCY = diver.y;
         save.oxygen = maxO2;
@@ -348,8 +360,8 @@ async function boot(): Promise<void> {
     }
 
     // ---- Pickups ----
-    const now = Date.now();
-    for (const ev of pickups.update(dt, time, diver.x, diver.y, save, now)) {
+    const speed = Math.hypot(diver.vx, diver.vy);
+    for (const ev of pickups.update(dt, time, diver.x, diver.y, save, inControl && s.collect && !diver.surfaced, speed)) {
       if (ev.type === 'material') {
         save.bag[ev.kind]++;
         hud.refreshInventory(ev.kind);
@@ -368,6 +380,9 @@ async function boot(): Promise<void> {
       }
       persist();
     }
+    const pt = pickups.target;
+    diver.working = pickups.working && pt ? { x: pt.x, y: pt.y } : null;
+    hud.setCollect(pt && !diver.surfaced ? Pickups.actionLabel(pt.kind) : null, pickups.progress);
 
     // ---- Scanner ----
     const done = new Set(save.scans);
@@ -379,6 +394,12 @@ async function boot(): Promise<void> {
       persist();
     }
     hud.setScanTarget(scanner.target?.id ?? null, scanner.progress);
+    // A tap of Scan names everything nearby that is already in the log, for a few seconds.
+    if (inControl && s.scanTap && save.scans.length) {
+      idTimer = 6;
+      scanner.pulseIdentify(diver.x, diver.y);
+    }
+    idTimer = Math.max(0, idTimer - dt);
 
     for (const f of fish) f.update(dt, time, diver.x, diver.y);
     const [bx, by] = diver.bubblePoint();
@@ -401,7 +422,8 @@ async function boot(): Promise<void> {
     camCY += (lookY - camCY) * k;
     // Keep the camera inside the world (a little sky is allowed at the top).
     camCX = viewW >= WORLD_W ? WORLD_W / 2 : Math.max(viewW / 2, Math.min(WORLD_W - viewW / 2, camCX));
-    camCY = Math.max(viewH / 2 - 70, Math.min(WORLD_H - viewH / 2, camCY));
+    // A little sky is allowed at the top, enough to see a splash.
+    camCY = Math.max(viewH / 2 - 110, Math.min(WORLD_H - viewH / 2, camCY));
     const camX = camCX - viewW / 2;
     const camY = camCY - viewH / 2;
     scenery.update(time, diver.x, diver.y, diver.vx, camX, camX + viewW);
@@ -455,6 +477,9 @@ async function boot(): Promise<void> {
     renderer.render({ container: glowCam, target: glowRT, clear: true, clearColor: [0, 0, 0, 0] });
 
     input.diverScreen = { x: (diver.x - camX) * zoom, y: (diver.y - camY) * zoom };
+    surfaceFx.update(dt, time, camX, camX + viewW, camY, diver.surfaced ? { x: hx } : null);
+    updateTags(camX, camY, viewW);
+
     const depthM = Math.max(0, diver.y - SURFACE_Y + 6) / WU_PER_METRE;
     watch.draw(performance.now(), save.oxygen, maxO2, atSurface ? 0 : depthM, diveTime, atSurface);
     if (pickups.bagPos) {
@@ -466,6 +491,45 @@ async function boot(): Promise<void> {
     if (saveTimer > 5) persist();
     ui.tick(ticker.deltaMS);
   });
+
+  /** Place the quick ID name tags over known things in view. */
+  function updateTags(camX: number, camY: number, viewW: number): void {
+    if (idTimer <= 0) {
+      hud.setTags([], 0);
+      return;
+    }
+    const done = new Set(save.scans);
+    const found: { id: string; x: number; y: number; d: number }[] = [];
+    for (const c of scanner.candidates) {
+      if (!done.has(c.id)) continue;
+      const pts = c
+        .points()
+        .filter((p) => p.x > camX && p.x < camX + viewW && p.y > camY && p.y < camY + VIEW_H)
+        .map((p) => ({ id: c.id, x: p.x, y: p.y, d: Math.hypot(p.x - diver.x, p.y - diver.y) }))
+        .sort((a, b) => a.d - b.d)
+        .slice(0, 2);
+      found.push(...pts);
+    }
+    found.sort((a, b) => a.d - b.d);
+    const tags: { id: string; sx: number; sy: number; detail: boolean; below: boolean }[] = [];
+    for (const f of found) {
+      const sx = (f.x - camX) * zoom;
+      const sy = (f.y - camY) * zoom - 18;
+      // Skip tags behind the touch buttons, or on top of one already placed.
+      if (document.body.classList.contains('touch') && sx > cssW - 200 && sy > cssH - 300) continue;
+      if (tags.some((t) => Math.abs(t.sx - sx) < 110 && Math.abs(t.sy - sy) < 26)) continue;
+      const detail = tags.length === 0 && f.d < 240;
+      // Keep tags on screen, and never cover the diver: a tag that would sits under its thing instead.
+      const cx = Math.max(80, Math.min(cssW - 80, sx));
+      const dsx = (diver.x - camX) * zoom;
+      const dsy = (diver.y - camY) * zoom;
+      const tall = detail ? 90 : 34;
+      const below = Math.abs(dsx - cx) < 140 && dsy < sy + 10 && dsy > sy - tall - 30;
+      tags.push({ id: f.id, sx: cx, sy: below ? sy + 40 : sy, detail, below });
+      if (tags.length >= 8) break;
+    }
+    hud.setTags(tags, Math.min(1, idTimer / 0.8));
+  }
 
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) {
@@ -483,6 +547,7 @@ async function boot(): Promise<void> {
     app,
     save,
     scanner,
+    pickups,
     snap: () => {
       camCX = diver.x;
       camCY = diver.y;

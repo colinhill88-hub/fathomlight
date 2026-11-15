@@ -1,6 +1,6 @@
 # Fathomlight progress
 
-Last updated: 2026-11-15, **milestone 2 (Shallows) deployed**. Colin approved the redesigned explorer suit, which closes milestone 1. Next is milestone 3 (base building), once Colin has played the shallows.
+Last updated: 2026-11-15, **milestone 2 follow-up deployed** (surfacing animation, harder collecting, regrow fix, quick ID). Colin approved the redesigned explorer suit, which closes milestone 1. Next is milestone 3 (base building), once Colin has played the shallows.
 
 Play link: https://colinhill88-hub.github.io/fathomlight/ (live; first successful deploy 2026-11-14)
 
@@ -163,6 +163,46 @@ Cut from High so far: the phone renders at 2× instead of its native 3×. Colin 
   - The frame rate could not be measured, because the test browser draws in software.
 - Deployed: GitHub Actions run 43675143107 built and deployed to Pages successfully from `claude/build-next-milestone-2lynhu`. This branch still needs merging into the default branch `claude/underwater-game-m0-0qqajg` so that branch stays current (a session can only push to its own branch).
 
+### Milestone 2 follow-up: Colin's feedback
+- **Feedback:** Colin likes the progress. He asked for four changes:
+  - an animation for coming up for air;
+  - friction when collecting, instead of just swimming over things;
+  - materials should not regrow when you die (dying, recovering the bag and dying again had become the fastest way to farm);
+  - a way to see the name of something already scanned, without filling the screen with text.
+- **Surfacing** (`src/actors/diver.ts`, `src/fx/surface.ts`):
+  - **The breach:** swimming up into the surface tips the diver upright, treading water, with the whole helmet out of the water. A fast ascent makes them pop up higher, overshoot and settle.
+  - **The splash:** droplets are thrown up and fall back in, and foam rings spread across the surface. Its size depends on how fast you came up.
+  - **Breathing:** the first breath is a big gasp, with the chest heaving and the head tipping back. After that come calmer, slower breaths. Each breath out leaves a puff of vapour above the water and fogs the inside of the visor, which then clears. Water drops run off the glass after the breach.
+  - **At the surface:** small ripples spread while treading water, and a waterline is drawn across the suit where it enters the water.
+  - **Diving back:** push down to duck under, with a small splash.
+  - **Air:** oxygen starts refilling with that first breath, not on touching the surface. Bubbles only come out underwater.
+  - **Sky:** the water shader now fades into hazy daylight air above the surface, and the lighting skips underwater caustics, wobble and fog on anything above the waterline. The camera shows a little more sky at the surface, so the splash fits.
+- **Collecting takes work** (`src/world/pickups.ts`):
+  - Swimming over a material no longer picks it up. Stop next to one and a dashed ring marks it. A **Collect** button appears (touch; C or R on keyboard; X on gamepad) with what the job is.
+  - Hold the button while staying nearly still (under 70 units/s): the diver turns to the spot and works it with the near arm. Kelp fibre takes 1.6 s to cut, scrap 2.2 s to pry loose, copper 2.6 s to dig out and quartz 3.0 s to chip off.
+  - Effects while working: chips fly, sand clouds puff out of copper digs, and sparks come off scrap and quartz. A ring fills around the material and on the button.
+  - Letting go keeps the progress for a moment, then it slips back.
+  - Working uses air faster (1.3×), so collecting deep costs real dive time.
+  - Air tanks and the dropped bag are still picked up by touch.
+  - Gamepad lamp moved to Y only, because X is now Collect.
+- **Regrow timer fixed** (`src/game/state.ts`):
+  - Regrowth now counts **6 minutes of play time**, stored in the save, instead of the real-world clock.
+  - Blackouts, recovering the bag and closing the app never make anything grow back sooner. Waiting with the app closed no longer refills the reef either.
+  - Older saves' timers restart from now.
+  - In testing, the old build also kept collected spots gone after a blackout, so the regrowth Colin saw was most likely the 6-minute real-time clock running out during a long session, or untouched spots near the buoy. Either way the play-time timer closes the loophole. If it still happens, the exact steps would help.
+- **Quick ID** (`src/main.ts`, `src/ui/hud.ts`):
+  - **Tap** Scan (or tap E / B) and an amber ring sweeps out from the diver.
+  - For 6 seconds, small name tags appear over the nearby things you have **already scanned**: up to 8, at most 2 of each kind, never overlapping each other, the diver or the buttons. Only the closest one also shows the first line of its log entry.
+  - Holding Scan still scans new things as before.
+- Tested:
+  - Type check and production build pass.
+  - In the emulated iPhone, scripted checks:
+    - A fast ascent surfaces the diver with a splash, ripples and a head-out pose, and refills oxygen to full.
+    - Parked by a copper nodule, the Collect label reads "Dig out copper nodule", and holding C collects exactly one.
+    - After a forced blackout, that spot stays taken in the save and hidden on screen.
+    - A tap of E shows name tags for scanned kinds, with the closest one expanded.
+  - No console errors.
+
 ## Next
 
 **Milestone 3: Base building.** Snap-together placement on a grid at the Kestrel site with the dome habitat, corridor, current turbine and storage pod, paid for with the materials from milestone 2. When it lands:
@@ -174,7 +214,7 @@ Cut from High so far: the phone renders at 2× instead of its native 3×. Colin 
 
 - ~~GitHub Pages switch~~ Done: Colin set Pages → Source to GitHub Actions, and the deploy now succeeds.
 - **Which branch deploys.** Colin added the deployment-branch rule `claude/*` (Settings → Environments → github-pages) on 2026-11-15, so every `claude/...` session branch now deploys to the play link on push. Before that, only the default branch `claude/underwater-game-m0-0qqajg` could deploy, and milestone 1 builds were copied onto it. The play link shows whichever branch pushed last, so run one session at a time. Keep merging finished work into the default branch so it stays current.
-- **Milestone 2 numbers to tune after Colin plays:** tank size (75 s, `BASE_OXYGEN`), upgrade size (+20 s), the drain while boosting, the regrow time (6 min, `REGROW_MS`) and the scan time (1.4 s). All are single numbers in `src/game/state.ts`, `src/main.ts` and `src/game/scanner.ts`.
+- **Milestone 2 numbers to tune after Colin plays:** tank size (75 s, `BASE_OXYGEN`), upgrade size (+20 s), the drain while boosting or working, the regrow time (6 min of play, `REGROW_SECONDS`), the work time per material (`EFFORT` in `src/world/pickups.ts`) and the scan time (1.4 s). All are single numbers in `src/game/state.ts`, `src/main.ts` and `src/game/scanner.ts`.
 - **Dive light vs. shoulder lamp.** The diver already has a shoulder lamp from milestone 1. DESIGN.md's "dive light" is treated as a stronger light built in milestone 6, which opens the dark cave in the east cliff. The cave message and the sled scan say so. If Colin pictures it differently, change it before milestone 6.
 - **Health** is not in yet. Nothing in the shallows can hurt you, so it arrives with predators and crush depth (milestones 7 and 9).
 - **Things to watch in Colin's review:** whether the kelp is too bright or too busy, how strong the caustics and water wobble are, and how fast the diver swims. Each is a single number in the code and easy to tune.

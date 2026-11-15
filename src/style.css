@@ -246,7 +246,7 @@ body {
 
 #btn-boost.pressed,
 #btn-lamp.pressed,
-#btn-scan.pressed.ready {
+#btn-scan.pressed {
   background: var(--ui-accent);
   color: #1d1a12;
 }
@@ -543,7 +543,7 @@ body.touch .desk-only {
   right: calc(var(--safe-right) + 35px);
   bottom: calc(var(--safe-bottom) + 122px);
   color: var(--ui-dim);
-  opacity: 0.55;
+  opacity: 0.75;
   transition: opacity 0.2s, color 0.2s, border-color 0.2s;
 }
 
@@ -557,8 +557,8 @@ body.touch .desk-only {
 
 #scan-label {
   position: absolute;
-  right: calc(var(--safe-right) + 108px);
-  bottom: calc(var(--safe-bottom) + 142px);
+  right: calc(var(--safe-right) + 30px);
+  bottom: calc(var(--safe-bottom) + 210px);
   padding: 4px 10px;
   border-radius: 8px;
   background: var(--ui-bg);
@@ -635,4 +635,112 @@ body:not(.touch) #scan-label {
 body:not(.touch) #scan-label::after {
   content: ' · hold E';
   color: var(--ui-dim);
+}
+
+/* ---- Milestone 2 follow-up: collecting, quick ID tags ---- */
+
+#btn-collect {
+  position: absolute;
+  display: none;
+  place-items: center;
+  width: 62px;
+  height: 62px;
+  right: calc(var(--safe-right) + 112px);
+  bottom: calc(var(--safe-bottom) + 132px);
+  border-radius: 50%;
+  border: 1px solid rgba(255, 241, 208, 0.7);
+  color: #fff1d0;
+  pointer-events: auto;
+  touch-action: none;
+  background: radial-gradient(circle, rgba(10, 32, 40, 0.82) 60%, transparent 61%),
+    conic-gradient(#fff1d0 calc(var(--p, 0) * 360deg), rgba(10, 32, 40, 0.82) 0);
+}
+
+#btn-collect.pressed {
+  border-color: #fff1d0;
+}
+
+body.touch #btn-collect.ready {
+  display: grid;
+}
+
+#collect-label {
+  position: absolute;
+  right: calc(var(--safe-right) + 184px);
+  bottom: calc(var(--safe-bottom) + 150px);
+  padding: 4px 10px;
+  border-radius: 8px;
+  background: var(--ui-bg);
+  color: #fff1d0;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+#collect-label.show {
+  opacity: 1;
+}
+
+body:not(.touch) #collect-label {
+  right: calc(var(--safe-right) + 24px);
+  bottom: calc(var(--safe-bottom) + 58px);
+}
+
+body:not(.touch) #collect-label::after {
+  content: ' · hold C';
+  color: var(--ui-dim);
+}
+
+#tags {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 7;
+}
+
+.tag {
+  position: absolute;
+  left: 0;
+  top: 0;
+  max-width: 220px;
+  padding: 3px 8px;
+  border-radius: 7px;
+  border: 1px solid rgba(255, 200, 97, 0.45);
+  background: rgba(10, 32, 40, 0.72);
+  color: #ffe2a6;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  transform: translate(-50%, -100%);
+  transition: opacity 0.35s;
+}
+
+.tag::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: -5px;
+  width: 1px;
+  height: 5px;
+  background: rgba(255, 200, 97, 0.6);
+}
+
+.tag p {
+  margin: 2px 0 0;
+  white-space: normal;
+  width: 200px;
+  font-weight: 400;
+  color: var(--ui-text);
+  line-height: 1.35;
+}
+
+.tag.below {
+  transform: translate(-50%, 0);
+}
+
+.tag.below::after {
+  bottom: auto;
+  top: -5px;
 }
