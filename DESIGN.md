@@ -57,6 +57,7 @@ The game is a 2D side-view web app, so one build runs on Colin's iPhone 16 Pro, 
 - **Controls:** touch first, landscape orientation. A virtual stick on the left and context buttons on the right. Keyboard, mouse and gamepad on PC.
 - **Phone install:** the game can be added to the iPhone home screen and run full screen.
 - **Saving:** automatic, stored on the device. Include export and import of a save code so progress can move between phone, iPad and PC.
+- **Steam later (Colin, after milestone 4):** Colin may sell the game on Steam. Keep developing it as a web link in small chunks; wrap it as a desktop app (Electron or Tauri) during the polish milestone, or earlier if he wants a "Coming soon" store page for wishlists. Until then, keep everything the game needs inside the build (no online services it depends on), keep saving behind one module (`src/game/state.ts`) so Steam cloud saves can plug in, and keep making only original, licensable content.
 - **Graphics presets:** two presets, chosen automatically and switchable in settings.
 
 | Preset | Device | Target | Effects |
@@ -103,21 +104,22 @@ Pieces snap together at their connector collars on a grid. A piece works only wh
 | Hatchery | Hatches eggs and breeds creatures |
 | Signal array | Maps zones and decodes alien signals |
 
-**Base growth across biomes (Colin's direction after milestone 3).** The base must keep growing as the player reaches new zones. Each new biome should add base components, including bigger and more complex pieces that are more rewarding to build: they should cost the new zone's materials and give clearly better abilities, not just more of the same. Keep the system open so new pieces slot into the same collar-and-power rules. Plan this into each zone milestone (6, 7, 9 and 10) alongside its gear, and ask Colin before deciding details.
+**Base growth across biomes (Colin's direction after milestone 3).** The base must keep growing as the player reaches new zones. Each new biome should add base components, including bigger and more complex pieces that are more rewarding to build: they should cost the new zone's materials and give clearly better abilities, not just more of the same. Keep the system open so new pieces slot into the same collar-and-power rules. Plan this into each zone milestone (7, 8, 10 and 11) alongside its gear, and ask Colin before deciding details.
 
 **Colin's additions after milestone 3 (built in the milestone 3 follow-up; see PROGRESS.md for the numbers chosen):**
 
 - **Build drone companion.** Base pieces are not built instantly. A small robot helper, found early in the shallows (for example stranded in the survey sled wreck and repaired with a few materials), does the construction. Tapping Build places a frame, and the drone flies over and welds it together over time: roughly 10 s for a corridor up to about 40 s for a dome. The player can keep swimming meanwhile. Later upgrades make it faster or add a second drone, which is the "faster building" reward path.
-- **Material weight.** Collected materials go in a dive bag, and each has a weight (for example copper and scrap heavy, kelp fibre light). As the bag gets heavier the diver swims slower, sinks when idle, climbs to the surface more slowly and uses air faster. That limits how much can be carried at once. It should be a soft, readable penalty shown on the dive watch, not a sudden drowning. In the shallows it stays gentle, in keeping with the "cozy and safe" pillar. Upgrades that raise the limit form their own path: a lift bag, a buoyancy vest, the drone carrying loads, and the sub's cargo bay (milestone 5).
+- **Material weight.** Collected materials go in a dive bag, and each has a weight (for example copper and scrap heavy, kelp fibre light). As the bag gets heavier the diver swims slower, sinks when idle, climbs to the surface more slowly and uses air faster. That limits how much can be carried at once. It should be a soft, readable penalty shown on the dive watch, not a sudden drowning. In the shallows it stays gentle, in keeping with the "cozy and safe" pillar. Upgrades that raise the limit form their own path: a lift bag, a buoyancy vest, the drone carrying loads, and the sub's cargo bay (milestone 6).
 
-**One home base, growing into a factory (Colin's direction after milestone 4; details still to agree).**
+**One home base, growing into a factory (Colin's direction after milestone 4; decisions below).**
 
 - **One main base for the whole game.** It stays at the Kestrel site in the shallows. The player keeps travelling home to expand it and to add creatures. There are no full bases in other biomes (small outposts are still an open question).
-- **The build area must grow a lot.** The current 11 × 3 grid is too small for a base that matters all game. It should unlock larger areas over time (wider, taller, maybe several connected pads), with a zoomable, pannable build view that suits the PC's larger screen and still works on the phone.
-- **Getting home gets faster.** Vehicles (the sub in milestone 5, later faster ones) shorten the trip, and a late-game alien teleport (Choir technology) lets the player jump home from any deep biome.
+- **The build area must be big: wider and deeper.** Colin: "If I learned anything from Satisfactory, it is that the factory needs to be big." The 11 × 3 grid becomes a much wider and taller site along the shallows seabed, with a zoomable, pannable build view that suits the PC's larger screen and still works on the phone.
+- **Tunnelling, later.** Once the space under the water is full, a tunnelling capability lets the base expand down into the rock below the site.
+- **Getting home gets faster.** Vehicles (the sub in milestone 6, later faster ones) shorten the trip, and a late-game alien teleport (Choir technology) lets the player jump home from any deep biome.
 - **Creatures as resource nodes.** Grown, happy creatures put materials into storage (built in milestone 4, and Colin likes it). Later the rate should scale with how many creatures and tanks the base has, so a well-kept aquarium works like a mining node in a factory game such as Factorio or Satisfactory.
-- **Gradual automation.** As the base grows, introduce simple production chains: pieces that combine raw materials (from the reef and from creatures) into refined ones needed for bigger upgrades, gear and sub parts, with materials moving between pieces through the base's connections. Introduce it slowly and keep it readable on a phone; a PC screen may be the best way to manage a large base.
-- **Quality-of-life automation for care.** The filter pump already removes manual cleaning. An **auto feeder** base piece or upgrade should do the same for feeding, arriving around the second biome (kelp forest), when the player is often far from home, so creatures can eventually look after themselves.
+- **Real production chains with rates to balance** (Colin's choice over a few simple combiners). Machines turn raw materials (from the reef and from creature tanks) into refined ones needed for bigger upgrades, gear and sub parts. Materials flow between pieces at real rates (items per minute), so the player balances inputs and outputs, as in Factorio or Satisfactory. Introduce it gradually and keep it readable on a phone; a PC screen may be the best way to manage a large factory.
+- **Auto feeder.** A base piece that feeds joined tanks from the kelp fibre in storage, including what puffcaps produce, so a puffcap tank can keep the others fed. It arrives around the second biome (kelp forest), when the player is often far from home. Like the filter pump for cleaning, it lets creatures eventually look after themselves.
 - **Scarcer reef materials** (done after milestone 4): fewer material spots and slower regrowth, so creatures and automation are the rewarding way to get more.
 
 ### Creature care
@@ -166,20 +168,21 @@ Names are final: the game is Fathomlight, the crew's station is Outpost Kestrel 
 
 ## Milestones
 
-The game is built in twelve slices, one per session, and each ends with a playable build on the link. A large milestone may be split across two sessions; record the split in `PROGRESS.md`.
+The game is built in thirteen slices, one per session, and each ends with a playable build on the link. A large milestone may be split across two sessions; record the split in `PROGRESS.md`.
 
 0. **Setup.** Repository, automatic deploy, an empty scene that opens on the iPhone, both graphics presets wired up.
 1. **Water and diver.** The look-and-feel benchmark: one explorer swimming through a small lit scene with every visual effect on. Do not move on until Colin approves the look.
 2. **Shallows.** The first zone, with oxygen, scanner, collectible materials and saving.
 3. **Base building.** Snap-together placement with dome habitat, corridor, current turbine and storage pod.
 4. **Creatures.** Collecting, creature tank, feeding, filter pump and the three needs.
-5. **Submersible.** A drivable sub with module slots, plus the Moon pool dock.
-6. **First gear gate.** Lab, Workshop and dive light; kelp forest and caves zone with its major site.
-7. **Danger.** Predators, currents, cutter torch and tow line; the wreck shelf zone.
-8. **Breeding.** Hatchery, kelp farm, inherited traits and creatures that act as keys.
-9. **The deep.** Pressure suit tiers, sonar pulse, sub depth plating, the trench zone and the Signal array story fragments.
-10. **Contact.** Alien resonator, the sanctum and the ending.
-11. **Polish.** Sound and music, menus, save transfer between devices, performance tuning for both presets.
+5. **Big base and factory groundwork** (added after milestone 4 at Colin's request). A much wider and deeper build site with a pannable, zoomable build view; materials moving between joined pieces at real rates; the first machine that combines materials into a refined one; creature tanks as resource nodes whose output scales with happy creatures. Plan the details with Colin at the start of the session.
+6. **Submersible.** A drivable sub with module slots, plus the Moon pool dock.
+7. **First gear gate.** Lab, Workshop and dive light; kelp forest and caves zone with its major site; the auto feeder.
+8. **Danger.** Predators, currents, cutter torch and tow line; the wreck shelf zone.
+9. **Breeding.** Hatchery, kelp farm, inherited traits and creatures that act as keys.
+10. **The deep.** Pressure suit tiers, sonar pulse, sub depth plating, the trench zone and the Signal array story fragments.
+11. **Contact.** Alien resonator, the sanctum and the ending.
+12. **Polish.** Sound and music, menus, save transfer between devices, performance tuning for both presets, and the Steam desktop build (see Platform and tech).
 
 ## Kickoff prompts
 
