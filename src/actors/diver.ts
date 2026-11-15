@@ -310,6 +310,33 @@ function coiledHose(g: Graphics, pts: [number, number][], width: number): void {
  * Dive lamp: a chrome canister strapped to the harness on the near
  * shoulder, pointing forward under the helmet.
  */
+/**
+ * A mesh dive bag clipped to the belt at the hip (milestone 3 follow-up).
+ * Drawn full; the diver scales it with how much is in it.
+ */
+function buildDiveBag(): Container {
+  const c = new Container();
+  const g = new Graphics();
+  // Clip and strap from the belt.
+  g.rect(-1.5, -6, 3, 7).fill({ color: C.red });
+  g.circle(0, 1, 2.2).stroke({ color: C.chrome, width: 1.2 });
+  // The sack: a rounded mesh pouch with what is inside showing through.
+  g.moveTo(-8, 2).quadraticCurveTo(-13, 14, -6, 21).quadraticCurveTo(0, 24, 6, 21).quadraticCurveTo(13, 14, 8, 2).closePath();
+  g.fill({ color: 0x3b3a30, alpha: 0.92 });
+  g.circle(-3, 13, 3.4).fill({ color: 0x6a5a4c }); // scrap
+  g.circle(3, 16, 3).fill({ color: 0x6e5440 }); // copper
+  g.circle(4.6, 15, 1.2).fill({ color: 0x5f9a72 });
+  g.poly([0, 8, 1.5, 4, 3, 8, 2.6, 12, 0.4, 12]).fill({ color: 0xe8ecdf, alpha: 0.8 }); // quartz
+  g.moveTo(-6, 7).quadraticCurveTo(-2, 10, -5, 17).stroke({ color: 0xc9a24a, width: 1 }); // fibre
+  // Netting.
+  for (let i = -2; i <= 2; i++) g.moveTo(i * 3.2, 2).quadraticCurveTo(i * 4.4, 13, i * 2.4, 22);
+  for (const y of [7, 12, 17]) g.moveTo(-10.5, y).quadraticCurveTo(0, y + 2.2, 10.5, y);
+  g.stroke({ color: 0x8c876e, width: 0.7, alpha: 0.85 });
+  g.roundRect(-8.5, 1, 17, 3, 1.5).fill({ color: C.rubber });
+  c.addChild(g);
+  return c;
+}
+
 function buildShoulderLamp(): Graphics {
   const g = new Graphics();
   g.rect(33, 7, 3.5, 15).fill({ color: C.red }); // strap round the harness
@@ -482,6 +509,14 @@ export class Diver {
   exhale = false;
   /** Set while collecting: the diver stays still and works at a spot with the near arm. */
   working: { x: number; y: number } | null = null;
+  /**
+   * How heavy the dive bag is: 0 empty, 1 at the rated load, more when
+   * overloaded (milestone 3 follow-up). Slows swimming and climbing, and
+   * the diver slowly sinks when not swimming.
+   */
+  load = 0;
+  /** Set while standing on a floor that holds the diver up (inside a dome): no sinking. */
+  noSink = false;
 
   private body = new Container();
   private nearLeg = buildLeg(false);
@@ -501,6 +536,7 @@ export class Diver {
   private breaths = 0;
   private heave = 0;
   private diveCooldown = 0;
+  private diveBag = buildDiveBag();
   private visorFog!: Container;
   private visorDrops!: Container;
 
@@ -527,11 +563,14 @@ export class Diver {
       this.farLeg.thigh,
       this.farArm.upper,
       torso,
+      this.diveBag,
       helmet,
       buildShoulderLamp(),
       this.nearLeg.thigh,
       this.nearArm.upper,
     );
+    this.diveBag.position.set(-8, 15);
+    this.diveBag.visible = false;
     this.body.position.set(0, 0);
     this.view.addChild(this.body);
 
@@ -581,6 +620,11 @@ export class Diver {
     return this.lampLevel;
   }
 
+  /** Which way the diver faces: 1 right, -1 left. */
+  get facing(): number {
+    return this.face;
+  }
+
   get boosting(): boolean {
     return this.boostTime > 0;
   }
@@ -603,8 +647,9 @@ export class Diver {
         by = 0;
       }
       const l = Math.hypot(bx, by);
-      this.vx += (bx / l) * 260;
-      this.vy += (by / l) * 260;
+      const push = 260 * (1 - 0.2 * Math.min(1.6, this.load));
+      this.vx += (bx / l) * push;
+      this.vy += (by / l) * push;
     }
 
     // Breaking the surface, and ducking back under.
@@ -631,9 +676,15 @@ export class Diver {
 
     // Swim physics: accelerate towards the wanted velocity, with water drag.
     const top = this.boostTime > 0 ? Diver.BOOST_SPEED : Diver.SPEED;
-    const slow = this.surfaced ? 0.5 : this.working ? 0.15 : 1;
+    // A heavy dive bag: slower everywhere, slower still going up, and a slow sink when not swimming.
+    const L = Math.min(1.6, this.load);
+    const heavy = 1 - 0.22 * L;
+    const slow = (this.surfaced ? 0.5 : this.working ? 0.15 : 1) * heavy;
     const wantX = moveX * top * slow;
-    const wantY = this.surfaced ? 0 : moveY * top * slow;
+    const effort = Math.min(1, Math.hypot(moveX, moveY));
+    const climb = moveY < 0 ? 1 - 0.15 * L : 1;
+    const sink = this.surfaced || this.working || this.noSink ? 0 : 30 * L * (1 - 0.75 * effort);
+    const wantY = this.surfaced ? 0 : moveY * top * slow * climb + sink;
     const accel = Math.hypot(moveX, moveY) > 0.05 ? 3.2 : 1.4;
     const k = 1 - Math.exp(-accel * dt);
     this.vx += (wantX - this.vx) * k;
@@ -708,7 +759,12 @@ export class Diver {
   private animateLimbs(dt: number, moving: number): void {
     const s = this.speedNorm;
     const boost = this.boostTime > 0 ? 1 : 0;
-    this.kick += dt * (2.2 + s * 6.5 + boost * 5);
+    // A heavy bag makes the diver kick harder for the same speed.
+    this.kick += dt * (2.2 + s * 6.5 + boost * 5 + Math.min(1.6, this.load) * 1.6 * Math.min(1, s * 3));
+    this.diveBag.visible = this.load > 0.005;
+    const fill = Math.min(1.6, this.load);
+    this.diveBag.scale.set(0.55 + 0.32 * fill, 0.5 + 0.45 * fill);
+    this.diveBag.rotation = -this.pitch * 0.6 + Math.sin(this.kick * 0.5) * 0.06;
     const amp = 0.1 + Math.min(1, s) * 0.32 + boost * 0.12;
     const legs: [Leg, number][] = [
       [this.nearLeg, 0],

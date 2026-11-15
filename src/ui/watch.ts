@@ -8,6 +8,10 @@
  *  - The big number in the middle is the depth in metres.
  *  - Below it is the dive time since leaving the surface, and a thin
  *    lume-tipped hand sweeps once a minute, like a real dive watch.
+ *  - The dive bag's weight (milestone 3 follow-up): a short arc along the
+ *    bottom of the dial fills with the load, with a tick at the rated load.
+ *    Past the tick it turns amber (slower swimming), and the kg readout
+ *    replaces the KESTREL name while anything is carried.
  */
 
 const LUME = '#dfeccb';
@@ -36,7 +40,15 @@ export class DiveWatch {
   }
 
   /** oxygen and max in seconds; depth in metres; diveTime in seconds. Redraws at most ~20 times a second. */
-  draw(now: number, oxygen: number, max: number, depth: number, diveTime: number, atSurface: boolean): void {
+  draw(
+    now: number,
+    oxygen: number,
+    max: number,
+    depth: number,
+    diveTime: number,
+    atSurface: boolean,
+    bag: { kg: number; rated: number; max: number } = { kg: 0, rated: 1, max: 1 },
+  ): void {
     if (now - this.last < 50) return;
     this.last = now;
     this.fit();
@@ -144,9 +156,46 @@ export class DiveWatch {
     const s = Math.floor(diveTime % 60);
     c.font = `500 ${Math.round(S * 0.07)}px ui-monospace, Menlo, monospace`;
     c.fillText(atSurface ? 'SURFACE' : `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`, cx, cy + S * 0.17);
-    c.fillStyle = 'rgba(179,154,78,0.75)';
-    c.font = `700 ${Math.round(S * 0.045)}px -apple-system, system-ui, sans-serif`;
-    c.fillText('KESTREL', cx, cy + S * 0.26);
+    // Dive bag weight: an arc along the bottom of the dial, from 8 to 4 o'clock.
+    const wf = Math.max(0, Math.min(1, bag.kg / bag.max));
+    const over = bag.kg > bag.rated + 0.01;
+    const full = bag.kg >= bag.max - 0.01;
+    const a0 = Math.PI * 0.8;
+    const a1 = Math.PI * 0.2;
+    const span = a0 - a1;
+    const wr = bezelInner - 6.5;
+    c.lineCap = 'round';
+    c.lineWidth = 3;
+    c.strokeStyle = 'rgba(223,236,203,0.1)';
+    c.beginPath();
+    c.arc(cx, cy, wr, a1, a0);
+    c.stroke();
+    if (wf > 0.002) {
+      const wcol = full ? RED : over ? AMBER : LUME;
+      c.strokeStyle = wcol;
+      c.globalAlpha = 0.9;
+      c.beginPath();
+      c.arc(cx, cy, wr, a0 - wf * span, a0);
+      c.stroke();
+      c.globalAlpha = 1;
+    }
+    // Tick at the rated load.
+    const ta = a0 - (bag.rated / bag.max) * span;
+    c.strokeStyle = 'rgba(223,236,203,0.7)';
+    c.lineWidth = 1.2;
+    c.beginPath();
+    c.moveTo(cx + Math.cos(ta) * (wr - 3.5), cy + Math.sin(ta) * (wr - 3.5));
+    c.lineTo(cx + Math.cos(ta) * (wr + 3.5), cy + Math.sin(ta) * (wr + 3.5));
+    c.stroke();
+    if (bag.kg > 0.01) {
+      c.fillStyle = full ? RED : over ? AMBER : 'rgba(223,236,203,0.8)';
+      c.font = `700 ${Math.round(S * 0.058)}px -apple-system, system-ui, sans-serif`;
+      c.fillText(full ? 'FULL' : `${bag.kg.toFixed(1)} kg`, cx, cy + S * 0.255);
+    } else {
+      c.fillStyle = 'rgba(179,154,78,0.75)';
+      c.font = `700 ${Math.round(S * 0.045)}px -apple-system, system-ui, sans-serif`;
+      c.fillText('KESTREL', cx, cy + S * 0.26);
+    }
 
     // Sweep marker: a lume dot that circles the inside of the dial once a minute
     // (no hand across the middle, so the numbers stay readable).

@@ -1,0 +1,302 @@
+import { groundY } from '../world/terrain';
+import { MATERIAL_ORDER, MaterialId } from './state';
+
+/**
+ * The rules of the snap-together base (milestone 3). No drawing here, just
+ * the grid, the pieces, where they may go and which ones have power.
+ *
+ * The base is laid out on a grid of square cells over the sand at the
+ * Kestrel site. Each piece covers a few cells and has connector collars on
+ * some of its sides. A new piece must line one of its collars up with an
+ * open collar on the base, so everything is joined into one structure.
+ * A current turbine powers every piece joined to it through collars, and a
+ * piece only does its job while it has power.
+ */
+
+/** Size of one grid cell in world units (75 wu is about 1 metre, so 1.5 m). */
+export const CELL = 112;
+/** West edge of the build grid. */
+export const GRID_X0 = 380;
+export const GRID_COLS = 11;
+export const GRID_ROWS = 3;
+export const GRID_X1 = GRID_X0 + GRID_COLS * CELL;
+
+/**
+ * The bottom of the grid: just above the highest sand under it, so every
+ * bottom-row piece clears the seabed. Legs reach down to the sand below.
+ */
+export const GRID_BASE = (() => {
+  let top = Infinity;
+  for (let x = GRID_X0; x <= GRID_X1; x += 4) top = Math.min(top, groundY(x));
+  return Math.floor(top) - 6;
+})();
+
+export type PieceKind = 'dome' | 'corridor' | 'turbine' | 'storage';
+export type Dir = 'L' | 'R' | 'U' | 'D';
+
+export interface PieceDef {
+  kind: PieceKind;
+  name: string;
+  /** What the piece does, in one line. */
+  job: string;
+  cost: Partial<Record<MaterialId, number>>;
+  /** Seconds of welding by the build drone. */
+  buildTime: number;
+  /** Footprint in cells, for each rotation the piece has. */
+  shapes: { w: number; h: number; collars: { cx: number; cy: number; dir: Dir }[] }[];
+}
+
+export const PIECES: Record<PieceKind, PieceDef> = {
+  dome: {
+    kind: 'dome',
+    name: 'Dome habitat',
+    job: 'Swim inside to breathe, refill oxygen and save. You wake up here after a blackout.',
+    cost: { scrap: 3, quartz: 4, fibre: 2 },
+    buildTime: 40,
+    shapes: [{ w: 2, h: 2, collars: [{ cx: 0, cy: 0, dir: 'L' }, { cx: 1, cy: 0, dir: 'R' }] }],
+  },
+  corridor: {
+    kind: 'corridor',
+    name: 'Corridor',
+    job: 'Joins pieces and extends the base. Rotate it to run up or down.',
+    cost: { scrap: 2, fibre: 1 },
+    buildTime: 10,
+    shapes: [
+      { w: 1, h: 1, collars: [{ cx: 0, cy: 0, dir: 'L' }, { cx: 0, cy: 0, dir: 'R' }] },
+      { w: 1, h: 1, collars: [{ cx: 0, cy: 0, dir: 'U' }, { cx: 0, cy: 0, dir: 'D' }] },
+    ],
+  },
+  turbine: {
+    kind: 'turbine',
+    name: 'Current turbine',
+    job: 'Turns the reef current into power for every piece joined to it.',
+    cost: { scrap: 2, copper: 4, fibre: 1 },
+    buildTime: 28,
+    shapes: [{ w: 1, h: 2, collars: [{ cx: 0, cy: 0, dir: 'L' }, { cx: 0, cy: 0, dir: 'R' }] }],
+  },
+  storage: {
+    kind: 'storage',
+    name: 'Storage pod',
+    job: 'Swim up to it to unload what you carry. Stored materials are safe from blackouts.',
+    cost: { scrap: 3, copper: 1, fibre: 1 },
+    buildTime: 18,
+    shapes: [
+      {
+        w: 1,
+        h: 1,
+        collars: [
+          { cx: 0, cy: 0, dir: 'L' },
+          { cx: 0, cy: 0, dir: 'R' },
+          { cx: 0, cy: 0, dir: 'U' },
+          { cx: 0, cy: 0, dir: 'D' },
+        ],
+      },
+    ],
+  },
+};
+export const PIECE_ORDER: PieceKind[] = ['dome', 'corridor', 'turbine', 'storage'];
+
+/** How many materials each storage pod holds, all kinds together. */
+export const STORAGE_PER_POD = 40;
+
+/** A piece in the base, as saved. gx, gy is its bottom-left cell; gy counts up from the seabed. */
+export interface Placed {
+  id: number;
+  kind: PieceKind;
+  gx: number;
+  gy: number;
+  rot: number;
+  /** 0..1 while the build drone is welding it (a frame). Missing means finished. */
+  progress?: number;
+}
+
+/** Is the piece finished (not a frame still being welded)? */
+export function isDone(p: { progress?: number }): boolean {
+  return p.progress === undefined || p.progress >= 1;
+}
+
+export function shapeOf(p: { kind: PieceKind; rot: number }) {
+  const s = PIECES[p.kind].shapes;
+  return s[((p.rot % s.length) + s.length) % s.length];
+}
+
+/** World rectangle covered by a piece: x, y is the top-left corner. */
+export function pieceRect(p: { kind: PieceKind; gx: number; gy: number; rot: number }) {
+  const s = shapeOf(p);
+  const x = GRID_X0 + p.gx * CELL;
+  const bottom = GRID_BASE - p.gy * CELL;
+  return { x, y: bottom - s.h * CELL, w: s.w * CELL, h: s.h * CELL };
+}
+
+/** World position of the middle of a grid cell. */
+export function cellCentre(gx: number, gy: number): { x: number; y: number } {
+  return { x: GRID_X0 + (gx + 0.5) * CELL, y: GRID_BASE - (gy + 0.5) * CELL };
+}
+
+/** The grid cell under a world point (may be outside the grid). */
+export function cellAt(x: number, y: number): { gx: number; gy: number } {
+  return { gx: Math.floor((x - GRID_X0) / CELL), gy: Math.floor((GRID_BASE - y) / CELL) };
+}
+
+const OPP: Record<Dir, Dir> = { L: 'R', R: 'L', U: 'D', D: 'U' };
+const STEP: Record<Dir, [number, number]> = { L: [-1, 0], R: [1, 0], U: [0, 1], D: [0, -1] };
+
+/** A collar in grid terms: the cell it is on and the side it faces. */
+export interface Collar {
+  gx: number;
+  gy: number;
+  dir: Dir;
+}
+
+export function collarsOf(p: Placed | Omit<Placed, 'id'>): Collar[] {
+  return shapeOf(p).collars.map((c) => ({ gx: p.gx + c.cx, gy: p.gy + c.cy, dir: c.dir }));
+}
+
+/** Where a collar sits in the world (the middle of the cell edge) and which way it faces. */
+export function collarPoint(c: Collar): { x: number; y: number; dx: number; dy: number } {
+  const m = cellCentre(c.gx, c.gy);
+  const [sx, sy] = STEP[c.dir];
+  return { x: m.x + (sx * CELL) / 2, y: m.y - (sy * CELL) / 2, dx: sx, dy: -sy };
+}
+
+function cellsOf(p: Omit<Placed, 'id'>): [number, number][] {
+  const s = shapeOf(p);
+  const out: [number, number][] = [];
+  for (let i = 0; i < s.w; i++) for (let j = 0; j < s.h; j++) out.push([p.gx + i, p.gy + j]);
+  return out;
+}
+
+/** The base as a whole: which cells are taken, which collars are joined, which pieces have power. */
+export class BaseLayout {
+  pieces: Placed[] = [];
+  private occupied = new Map<string, Placed>();
+  /** Piece id -> ids of the pieces it is joined to. */
+  links = new Map<number, number[]>();
+  powered = new Set<number>();
+
+  constructor(pieces: Placed[]) {
+    this.set(pieces);
+  }
+
+  set(pieces: Placed[]): void {
+    this.pieces = pieces;
+    this.occupied.clear();
+    for (const p of pieces) for (const [x, y] of cellsOf(p)) this.occupied.set(`${x},${y}`, p);
+    this.links.clear();
+    for (const p of pieces) {
+      const list: number[] = [];
+      for (const c of collarsOf(p)) {
+        const o = this.collarPartner(c);
+        if (o && o.id !== p.id && !list.includes(o.id)) list.push(o.id);
+      }
+      this.links.set(p.id, list);
+    }
+    // Power flows from every finished turbine through joined collars.
+    // Frames still being welded neither work nor pass power on.
+    this.powered.clear();
+    const done = new Set(pieces.filter(isDone).map((p) => p.id));
+    const queue = pieces.filter((p) => p.kind === 'turbine' && done.has(p.id)).map((p) => p.id);
+    for (const id of queue) this.powered.add(id);
+    while (queue.length) {
+      const id = queue.shift()!;
+      for (const n of this.links.get(id) ?? []) {
+        if (!this.powered.has(n) && done.has(n)) {
+          this.powered.add(n);
+          queue.push(n);
+        }
+      }
+    }
+  }
+
+  pieceAt(gx: number, gy: number): Placed | undefined {
+    return this.occupied.get(`${gx},${gy}`);
+  }
+
+  /** The piece whose collar meets this one face to face, if any. */
+  collarPartner(c: Collar): Placed | undefined {
+    const [sx, sy] = STEP[c.dir];
+    const o = this.pieceAt(c.gx + sx, c.gy + sy);
+    if (!o) return undefined;
+    const want = OPP[c.dir];
+    return collarsOf(o).some((k) => k.gx === c.gx + sx && k.gy === c.gy + sy && k.dir === want) ? o : undefined;
+  }
+
+  /** Is this collar joined to another piece? */
+  isJoined(c: Collar): boolean {
+    return !!this.collarPartner(c);
+  }
+
+  /** Open collars that a new piece could attach to (the cell beyond them is free and on the grid). */
+  openCollars(): Collar[] {
+    const out: Collar[] = [];
+    for (const p of this.pieces)
+      for (const c of collarsOf(p)) {
+        if (this.isJoined(c)) continue;
+        const [sx, sy] = STEP[c.dir];
+        const nx = c.gx + sx;
+        const ny = c.gy + sy;
+        if (nx < 0 || nx >= GRID_COLS || ny < 0 || ny >= GRID_ROWS || this.pieceAt(nx, ny)) continue;
+        out.push(c);
+      }
+    return out;
+  }
+
+  /** Can a piece go here? Returns null if yes, or the reason it cannot. */
+  check(p: Omit<Placed, 'id'>): string | null {
+    const s = shapeOf(p);
+    if (p.gx < 0 || p.gy < 0 || p.gx + s.w > GRID_COLS || p.gy + s.h > GRID_ROWS) return 'Outside the Kestrel site';
+    for (const [x, y] of cellsOf(p)) if (this.pieceAt(x, y)) return 'Something is already there';
+    if (this.pieces.length === 0) return p.gy === 0 ? null : 'The first piece goes on the seabed';
+    const joins = collarsOf(p).some((c) => {
+      const [sx, sy] = STEP[c.dir];
+      const o = this.pieceAt(c.gx + sx, c.gy + sy);
+      return !!o && collarsOf(o).some((k) => k.gx === c.gx + sx && k.gy === c.gy + sy && k.dir === OPP[c.dir]);
+    });
+    return joins ? null : 'Line up a collar with an open collar on the base';
+  }
+
+  /** Every valid spot for a piece of this kind and rotation. */
+  validSpots(kind: PieceKind, rot: number): { gx: number; gy: number }[] {
+    const out: { gx: number; gy: number }[] = [];
+    for (let gy = 0; gy < GRID_ROWS; gy++)
+      for (let gx = 0; gx < GRID_COLS; gx++) if (!this.check({ kind, gx, gy, rot })) out.push({ gx, gy });
+    return out;
+  }
+
+  count(kind: PieceKind): number {
+    return this.pieces.filter((p) => p.kind === kind).length;
+  }
+
+  /** Finished pieces of a kind (frames still being welded do not count). */
+  countDone(kind: PieceKind): number {
+    return this.pieces.filter((p) => p.kind === kind && isDone(p)).length;
+  }
+
+  /** Frames waiting for the build drone, oldest first. */
+  frames(): Placed[] {
+    return this.pieces.filter((p) => !isDone(p)).sort((a, b) => a.id - b.id);
+  }
+}
+
+/** Total materials available to build with: what the diver carries plus what is in storage. */
+export function available(bag: Record<MaterialId, number>, stored: Record<MaterialId, number>): Record<MaterialId, number> {
+  const out = { ...bag };
+  for (const k of MATERIAL_ORDER) out[k] += stored[k];
+  return out;
+}
+
+export function canAfford(kind: PieceKind, bag: Record<MaterialId, number>, stored: Record<MaterialId, number>): boolean {
+  const have = available(bag, stored);
+  return MATERIAL_ORDER.every((k) => have[k] >= (PIECES[kind].cost[k] ?? 0));
+}
+
+/** Take the cost of a piece, from the carried bag first, then from storage. */
+export function pay(kind: PieceKind, bag: Record<MaterialId, number>, stored: Record<MaterialId, number>): void {
+  for (const k of MATERIAL_ORDER) {
+    let need = PIECES[kind].cost[k] ?? 0;
+    const fromBag = Math.min(need, bag[k]);
+    bag[k] -= fromBag;
+    need -= fromBag;
+    stored[k] -= need;
+  }
+}

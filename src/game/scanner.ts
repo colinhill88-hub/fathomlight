@@ -80,6 +80,12 @@ export const SCAN_ENTRIES: ScanEntry[] = [
     text: 'A towed survey sled from an earlier expedition. Its recorder still holds part of a dive light design; the Lab could read it (milestone 6).',
   },
   {
+    id: 'drone',
+    name: 'Build drone KD-1',
+    category: 'Wreckage',
+    text: 'A Kestrel construction drone that went missing on the sled survey. Patched up with a little scrap, copper and kelp fibre, it welds base frames together while you dive. Later upgrades could make it faster, or add a second drone.',
+  },
+  {
     id: 'beacon',
     name: 'Survey beacon 03',
     category: 'Wreckage',

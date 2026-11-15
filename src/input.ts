@@ -14,6 +14,9 @@
  *           E or Q to scan (tap or hold), hold C or R to collect.
  * Mouse: hold the left button to swim towards the pointer, right-click to boost.
  * Gamepad: left stick to swim, A to boost, Y for the lamp, B to scan, hold X to collect.
+ *
+ * Build mode (src/ui/build.ts) has its own controls; while it is open this
+ * class is `suspended` and reports no swimming input.
  */
 
 export interface InputState {
@@ -58,6 +61,22 @@ export class Input {
   /** Where the diver is on screen (CSS px), so the mouse can steer towards it. */
   diverScreen = { x: 0, y: 0 };
 
+  private _suspended = false;
+  /** While building, the pointer and keys belong to build mode, so swimming controls are ignored. */
+  get suspended(): boolean {
+    return this._suspended;
+  }
+  set suspended(v: boolean) {
+    if (v === this._suspended) return;
+    this._suspended = v;
+    if (v) {
+      this.releaseStick();
+      this.mouseDown = false;
+      this.scanButton = false;
+      this.collectButton = false;
+    }
+  }
+
   constructor(surface: HTMLElement) {
     this.stickBase = document.getElementById('stick-base')!;
     this.stickKnob = document.getElementById('stick-knob')!;
@@ -85,7 +104,7 @@ export class Input {
       if (e.pointerType === 'touch') {
         this.state.lastDevice = 'touch';
         document.body.classList.add('touch');
-        if (this.stickId === null && e.clientX < window.innerWidth * 0.55) {
+        if (this.stickId === null && !this._suspended && e.clientX < window.innerWidth * 0.55) {
           this.stickId = e.pointerId;
           // Keep the stick fully on screen even if the thumb lands at the very edge.
           const m = STICK_RADIUS + 12;
@@ -103,6 +122,7 @@ export class Input {
       } else if (e.pointerType === 'mouse') {
         this.state.lastDevice = 'mouse';
         document.body.classList.remove('touch');
+        if (this._suspended) return;
         if (e.button === 0) this.mouseDown = true;
         if (e.button === 2) this.boostQueued = true;
         this.mouse = { x: e.clientX, y: e.clientY };
@@ -259,6 +279,11 @@ export class Input {
       break;
     }
 
+    if (this._suspended) {
+      x = y = 0;
+      scan = collect = false;
+      this.boostQueued = this.lampQueued = this.scanTapQueued = false;
+    }
     this.state.moveX = x;
     this.state.moveY = y;
     this.state.boost = this.boostQueued;

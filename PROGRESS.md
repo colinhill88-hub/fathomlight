@@ -1,6 +1,6 @@
 # Fathomlight progress
 
-Last updated: 2026-11-15, **milestone 2 follow-up deployed** (surfacing animation, harder collecting, regrow fix, quick ID). Colin approved the redesigned explorer suit, which closes milestone 1. Next is milestone 3 (base building), once Colin has played the shallows.
+Last updated: 2026-11-15, **milestone 3 follow-up deployed, plus a drone redesign from Colin's feedback** (smaller, cuter, no more jitter). Next is milestone 4 (creatures).
 
 Play link: https://colinhill88-hub.github.io/fathomlight/ (live; first successful deploy 2026-11-14)
 
@@ -203,17 +203,150 @@ Cut from High so far: the phone renders at 2× instead of its native 3×. Colin 
     - A tap of E shows name tags for scanned kinds, with the closest one expanded.
   - No console errors.
 
+### Milestone 3: Base building
+- **Feedback on the last build:** "Everything looks good." Nothing was flagged, so this session went straight to milestone 3.
+- **Build mode** (`src/ui/build.ts`):
+  - A **Build** button (hammer, top right) appears when the diver is at the Kestrel site, the sand around the buoy. Keyboard B, gamepad View/Back. A one-time tip points it out on arrival.
+  - The camera zooms out (`VIEW_H_BUILD` = 860 in `src/main.ts`) to show the whole site, with faint grid marks. The swim buttons hide, and the air clock pauses while you plan.
+  - The bar along the bottom has the four pieces, each with a small drawing and what it costs: what you have / what it needs, in red if short. Costs come out of carried materials first, then storage.
+  - Tap a piece and a ghost of it appears at the **nearest spot where it fits**. Drag anywhere to slide it (it moves by how far your finger moves, so your finger never covers it), or tap where you want it. It snaps cell by cell. Pale green outline = fits; red = it doesn't, with the reason above. Collars that will join light up.
+  - **✓** builds it. The piece fades in with welding sparks, and stays in hand for the next one while you can afford it. **⟲** rotates the corridor. **✕** puts the piece back, then closes build mode.
+  - With no piece in hand, tap a built piece to select it (marching outline, its job and power state). **Remove** (tap twice) takes it away and returns all its materials as carried.
+  - Keyboard: 1–4 pick, arrows/WASD move, R rotate, Enter/Space build, Esc let go/close, Tab select, Delete/X remove. Mouse: the piece follows the pointer, click builds, right-click lets go. Gamepad: LB/RB pick, d-pad or stick move, A build, Y rotate, B let go/close, X remove.
+- **The rules** (`src/game/base.ts`):
+  - The site grid is 11 cells wide and 3 high; a cell is 112 units (1.5 m). The bottom of the grid sits just above the highest sand, and pieces on legs reach down to the seabed.
+  - Pieces snap at **connector collars**. The first piece goes on the seabed; after that, a new piece must line one of its collars up with an open collar on the base. Open collars pulse with amber chevrons in build mode.
+  - **Power:** a current turbine powers every piece joined to it through collars (directly or through corridors). A piece only works with power. Each piece has a status lamp: steady pale green with power, slow red blink without.
+
+| Piece | Size (cells) | Collars | Cost | Job |
+| --- | --- | --- | --- | --- |
+| Dome habitat | 2 × 2 | left, right (bottom row) | 3 scrap, 4 quartz, 2 kelp fibre | Swim inside to breathe station air (refills oxygen like the surface) and save. After a blackout you wake inside it instead of at the buoy. |
+| Corridor | 1 × 1 | left/right, or up/down when rotated | 2 scrap, 1 kelp fibre | Joins pieces and extends the base; rotated, it climbs to a higher row |
+| Current turbine | 1 × 2 | left, right (bottom) | 2 scrap, 4 copper, 1 kelp fibre | Powers every piece joined to it |
+| Storage pod | 1 × 1 | all four sides | 3 scrap, 1 copper, 1 kelp fibre | Swim up to it to unload everything carried. Holds 40 items per pod. Stored items are safe from blackouts. |
+
+  - A starter base (dome, turbine, corridor, storage pod) costs 10 scrap, 5 copper, 4 quartz and 5 kelp fibre. The shallows have 10 scrap spots, so the first base takes a full sweep of the zone (or waiting for regrowth).
+- **The look** (`src/world/basegfx.ts`), all drawn by code in the art direction's palette: weathered steel, muted Kestrel yellow and rust red, rivets, panel seams, faded hazard stripes, stencils (`KESTREL HAB-01`, `CT-1`, `STORE 01`, `C-01`), rust streaks, scratches and algae.
+  - **Dome habitat:** a riveted drum with brass portholes under a ribbed glass dome. Inside are a console with screens, a chair, a bunk, a kelp jar and a hanging lamp. With power the interior glows warm and casts a real light on the surroundings. The glass sheen is drawn *over* the diver, so they look like they are inside.
+  - **Current turbine:** a yellow machine house with cooling fins and a lit readout, a mast with a copper cable, and a three-blade rotor in a ducted ring that turns in the current.
+  - **Storage pod:** an upright capsule with a hatch wheel and an amber fill gauge that rises as the base's storage fills.
+  - **Corridor:** a ribbed tube with a yellow band and a porthole that lights with power.
+  - **Collars:** joined collars are bolted flanges; open ones carry a rust-red blanking cap. Collars facing down into the seabed are sealed flush.
+  - **Legs:** steel legs with cross-bracing and foot pads sunk into the sand, reaching to the seabed or to the piece below.
+- **Other changes:**
+  - The material chips by the watch show stored amounts as a small amber **+N** beside what is carried.
+  - The scanner log now has a **Materials** section (carried and stored) and an **Outpost Kestrel** section listing what is built.
+  - An unpowered dome shows a message explaining it needs a turbine; an unpowered storage pod says so when you try to unload.
+  - The low-oxygen warning mentions the dome once one has power.
+  - The save keeps the pieces, stored materials and shown tips. Older saves load with an empty base.
+- Tested:
+  - Type check and production build pass.
+  - Emulated iPhone 15 Pro (landscape), scripted:
+    - Building a dome, turbine, corridor and storage pod from the bottom bar. All four powered; costs deducted correctly.
+    - A corridor dragged to a spot with no matching collar shows red, "Line up a collar with an open collar on the base", and the ✓ is disabled.
+    - Swimming to the pod moved everything carried into storage.
+    - Inside the powered dome, oxygen refilled and the "breathing station air" message showed.
+    - Blacking out far away woke the diver inside the dome. Stored materials were kept; carried ones dropped in the bag as before.
+    - After a reload, all four pieces were back and powered.
+    - Removing the turbine returned its materials and cut power to the other three.
+  - 1280×720 PC with the keyboard: B, 1/3/2/4 and Enter built the same base; R rotated a corridor, which snapped onto the storage pod's top collar.
+  - No console errors. The frame rate could not be measured, because the test browser draws in software.
+- Deployed: GitHub Actions run 43717650882 built and deployed to Pages successfully from `claude/next-milestone-build-deploy-zelm64`. This branch still needs merging into the default branch `claude/underwater-game-m0-0qqajg`.
+
+### Milestone 3 follow-up: build drone and dive bag weight
+- **Feedback on the last build:** "I'm happy with the progress so far. Let's keep going." Nothing was flagged. This session built the follow-up Colin scheduled after milestone 3 (DESIGN.md, The base).
+- **The build drone** (`src/actors/drone.ts`):
+  - **The look:** a small Kestrel construction robot, all drawn by code. It has a weathered yellow hull with a steel belly, a ducted lift fan on top, a rear thruster, an amber sensor eye, a red antenna lamp, the stencil `KD-1`, hazard stripes, rust and algae. A folding arm under the belly holds a welding torch.
+  - **Finding it:** it is stuck in the survey sled wreck in the sand channel, tangled in old cable, battery flat. Its eye flickers faintly every few seconds so it can be spotted. It is also a new scanner log entry (13 entries now).
+  - **Repairing it:** stop next to it and the Collect button reads **Repair build drone**. Hold it for 4 s. It costs **2 scrap, 1 copper, 1 kelp fibre** (carried first, then stored). Without them, the label says exactly what is missing. All of these lie within a short swim of the sled. When it is fixed, the drone shakes off the cable, its eye flickers on and it lifts off.
+  - **Following:** it trails the diver from about half a second behind, a little above and behind, so it stays in open water. After a blackout it comes back with the diver.
+  - **Building needs the drone.** Build mode still opens so you can plan, but ✓ is disabled until the drone is repaired, and the info line says where it is.
+  - **Frames:** ✓ now places a **frame**. Materials are paid straight away. The drone flies over and welds it from the bottom up: a steel scaffold stands around the piece, the finished hull appears as the weld line rises, and there is a hot seam line, a flickering torch light and sparks. Build times (`buildTime` in `PIECES`, `src/game/base.ts`): **corridor 10 s, storage pod 18 s, turbine 28 s, dome 40 s**.
+  - **Swim off meanwhile.** Several frames can be placed; the drone works through them oldest first. A frame does nothing until it is finished: no power, no air, no storage, and it does not pass power on. Its status lamp pulses amber. A toast says when each piece is finished.
+  - If the diver is far away when it finishes, the drone hovers over the base and rejoins the diver when they come back.
+  - Build mode: the piece cards show the build time. Tapping a frame shows "Drone welding: 63% · about 15 s left" or "Waiting for the drone". Removing a frame returns all its materials.
+  - **Removing a piece** now puts its materials back into storage first (while there is room), so the dive bag doesn't suddenly become very heavy.
+  - Old saves keep everything already built. Their drone still has to be found and repaired before anything new can be built.
+- **Dive bag weight** (`src/game/state.ts`, `src/actors/diver.ts`):
+  - Each material weighs something: **copper 3 kg, scrap 2.5 kg, quartz 1.5 kg, kelp fibre 0.5 kg.**
+  - Up to **15 kg** (the rated load) the effects are mild. They grow smoothly with weight:
+    - slower swimming (−22% at 15 kg, up to −35% when full);
+    - an extra slowdown going up;
+    - a weaker boost;
+    - a slow sink when not swimming (about 0.4 m/s at 15 kg);
+    - faster air use (+20% at 15 kg, +32% when full).
+  - There is no sinking while treading water at the surface, while collecting or inside a dome. Nothing about it can suddenly drown you.
+  - At **24 kg** the bag is full. The Collect button says "Dive bag full: unload at a storage pod", and holding it does nothing.
+  - A starter base weighs about 48 kg in materials, so it takes two or three trips. Each single piece fits in one load.
+  - **On the dive watch:** a short arc along the bottom of the dial fills with the weight. It has a tick at 15 kg and turns amber past it, red when full. The kg readout replaces the word KESTREL while anything is carried.
+  - **On the diver:** a mesh bag clipped to the belt swells as it fills, and the diver kicks harder when heavy.
+  - One-time messages explain it the first time the bag gets heavy, then a short "Dive bag heavy" or "Dive bag full".
+  - The scanner log shows the bag weight and each material's weight.
+- **Hooks for later upgrades:**
+  - `bagLimits()` in `src/game/state.ts` returns the rated and full load. A lift bag, buoyancy vest, the drone carrying loads or the sub's cargo bay just raise these.
+  - `droneWeldRate()` sets the welding speed (a faster torch). A second drone would be a second `Drone` taking the next frame from `layout.frames()`.
+- Tested:
+  - Type check and production build pass.
+  - Emulated iPhone 15 Pro (landscape), scripted:
+    - Next to the stranded drone with no materials, the Collect label lists what is missing and holding it gives a warning.
+    - With the parts, holding Collect repaired it, took 2 scrap, 1 copper and 1 fibre, and the drone woke up and followed the diver.
+    - With a 21 kg bag the diver sank slowly when idle and the watch showed the weight.
+    - In build mode, ✓ placed a dome and a turbine as frames (materials paid). The drone flew to the dome and welded it, then the turbine. Once both were finished, both had power.
+    - After a reload, the repaired drone, finished pieces and a half-welded corridor frame were all restored, and the drone went back to the frame.
+  - The test browser draws in software and runs the game at about one sixth speed, so the real welding times and the frame rate have to be checked on the phone. No console errors.
+- Deployed: GitHub Actions run 43727209174 built and deployed to Pages successfully from `claude/next-milestone-build-deploy-ikoapi`. This branch (which also carries milestone 3) still needs merging into the default branch `claude/underwater-game-m0-0qqajg`.
+
+### Milestone 3 follow-up 2: a smaller, cuter drone that holds still
+- **Feedback:** the numbers (weights, build times) feel good; tune later for difficulty. But:
+  - the drone flickered left and right whenever the diver was still or treading water at the surface;
+  - it was too big;
+  - Colin wanted a cuter helper with more personality, shown through animation;
+  - it should start small, so finds in later biomes can upgrade it (and the diver) without filling the screen.
+- **Jitter fixed** (`src/actors/drone.ts`, `src/main.ts`):
+  - The cause: with the diver not moving, the game guessed the diver's facing from which side the drone was on. The drone then aimed for the spot "behind" the diver, on the other side, which flipped the guess, and so on. A "don't crowd the diver" push made it worse.
+  - Now it uses the diver's real facing. It only moves behind the diver while they actually swim (faster than 70 units/s). When they stop, it keeps to whichever side it is on.
+  - It turns only with clear travel, or after a 28-unit dead zone towards what it is looking at, and it settles firmly near its target.
+  - Checked in the emulated iPhone: still at the surface and still underwater, it drifts 1–2 units and never turns around (10 s sampled each).
+- **New look, about half the size** (roughly a third of the diver's length):
+  - a small squat Kestrel-yellow hull with a steel belly;
+  - a big glass dome "head" (the signature dome shape) with a dark camera ball inside and one large amber lens as its eye;
+  - two little ducted fans sticking out at the sides like ears;
+  - a springy antenna with a red tip lamp;
+  - a tiny folding welding arm.
+  - Still weathered: rivets, scratches, rust and algae.
+- **Personality animations:**
+  - the eye rolls inside the dome to look at the diver, or at the weld while working, and blinks every few seconds;
+  - it tilts its head towards what it is looking at;
+  - the antenna wobbles on a spring whenever it speeds up or stops;
+  - a **happy hop with a full roll**, its eye squinting into a smile, when you collect a material, scan something new, find an air tank, finish a piece, and right after it is repaired;
+  - when you stay still for a few seconds it glances around, curious;
+  - parked alone over the base, its eye droops half closed.
+  - All of these are in `src/actors/drone.ts`. `cheer()` triggers the hop, so future events can use it too.
+- **Room to grow:** drone upgrades from later biomes can add visible parts (bigger fans, a second arm, a cargo clamp) to this small base design.
+- Tested: type check and build pass. Close-ups of the new drone idle, mid-roll and smiling, plus the jitter measurements above. No console errors.
+
 ## Next
 
-**Milestone 3: Base building.** Snap-together placement on a grid at the Kestrel site with the dome habitat, corridor, current turbine and storage pod, paid for with the materials from milestone 2. When it lands:
-- The dome habitat becomes the respawn point and an oxygen refill.
-- The storage pod holds materials, so a blackout only drops what is carried.
-- The camera will probably need to zoom out while building (`VIEW_H` in `src/main.ts`).
+**Milestone 4: Creatures.** Collecting creatures, the creature tank, feeding, the filter pump and the three needs (hunger, comfort, water quality). Tanks and filter pumps will be new base pieces using the same collar and power rules (`src/game/base.ts`: add to `PIECES`, then draw them in `src/world/basegfx.ts`).
 
 ## Problems and open questions
 
+- **Build drone and dive bag numbers to tune after Colin plays:**
+  - drone repair cost (`DRONE_REPAIR_COST`) and repair time (`REPAIR_SECONDS`);
+  - build times (`buildTime` in `PIECES`);
+  - material weights (`kg` in `MATERIALS`) and the 15 kg / 24 kg limits (`BAG_RATED_KG`, `BAG_MAX_KG`);
+  - the penalty sizes in `Diver.update` (swim −22% per rated load, sink 30 units/s per rated load) and the air use in `src/main.ts` (+20% per rated load).
+- **Drone upgrade path:** not built yet, by design. Colin wants drone and diver upgrades found in future biomes; the drone starts small so upgrades can show on it. The hooks are in place (see the milestone 3 follow-up notes). When do upgrades arrive: with the Workshop in milestone 6, or earlier? Ask Colin.
+- **The drone doesn't avoid rock on long flights.** It follows the diver's own path, and when idle it parks above the base, so in practice it stays in open water. If it is ever seen clipping through rock, that is the place to look.
+- **Base growth across biomes (Colin, after milestone 3).** Colin wants to expand the base with each new biome, with bigger, more complex and more rewarding pieces. This is recorded in DESIGN.md under The base. When planning milestones 6, 7, 9 and 10, include new base pieces made from that zone's materials. Open questions for Colin:
+  - Should new biomes grow the one base at the Kestrel site (a larger grid and upgraded piece tiers), or allow small outposts in each zone?
+  - Which kind of reward matters most to him: new abilities, faster crafting, comfort and looks, or stronger creature care?
+  - The code is ready for it. A new piece is one entry in `PIECES` (`src/game/base.ts`) plus a drawing in `src/world/basegfx.ts`. The grid size is `GRID_COLS` / `GRID_ROWS`.
+
 - ~~GitHub Pages switch~~ Done: Colin set Pages → Source to GitHub Actions, and the deploy now succeeds.
 - **Which branch deploys.** Colin added the deployment-branch rule `claude/*` (Settings → Environments → github-pages) on 2026-11-15, so every `claude/...` session branch now deploys to the play link on push. Before that, only the default branch `claude/underwater-game-m0-0qqajg` could deploy, and milestone 1 builds were copied onto it. The play link shows whichever branch pushed last, so run one session at a time. Keep merging finished work into the default branch so it stays current.
+- **Milestone 3 numbers to tune after Colin plays:** piece costs (`PIECES` in `src/game/base.ts`), storage per pod (40, `STORAGE_PER_POD`), the grid size (11 × 3 cells of 112 units) and the build-mode zoom (`VIEW_H_BUILD`).
+- **Base pieces are not solid.** The diver swims in front of corridors, turbines and pods, and "inside" domes. This keeps movement smooth. If Colin wants to bump into the base, collisions can be added per piece.
 - **Milestone 2 numbers to tune after Colin plays:** tank size (75 s, `BASE_OXYGEN`), upgrade size (+20 s), the drain while boosting or working, the regrow time (6 min of play, `REGROW_SECONDS`), the work time per material (`EFFORT` in `src/world/pickups.ts`) and the scan time (1.4 s). All are single numbers in `src/game/state.ts`, `src/main.ts` and `src/game/scanner.ts`.
 - **Dive light vs. shoulder lamp.** The diver already has a shoulder lamp from milestone 1. DESIGN.md's "dive light" is treated as a stronger light built in milestone 6, which opens the dark cave in the east cliff. The cave message and the sled scan say so. If Colin pictures it differently, change it before milestone 6.
 - **Health** is not in yet. Nothing in the shallows can hurt you, so it arrives with predators and crush depth (milestones 7 and 9).

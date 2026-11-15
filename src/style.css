@@ -744,3 +744,268 @@ body:not(.touch) #collect-label::after {
   bottom: auto;
   top: -5px;
 }
+
+/* ---- Milestone 3: base building ---- */
+
+#build-btn {
+  display: none;
+  height: 48px;
+  padding: 0 14px 0 11px;
+  gap: 6px;
+  align-items: center;
+  border-radius: 24px;
+  border: 1px solid rgba(255, 192, 112, 0.55);
+  background: var(--ui-bg);
+  color: #ffd9a0;
+  font: 600 14px/1 inherit;
+  font-family: inherit;
+  cursor: pointer;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+
+#build-btn.show {
+  display: flex;
+  animation: build-in 0.4s ease-out;
+}
+
+#build-btn[aria-pressed='true'] {
+  background: var(--ui-accent);
+  border-color: var(--ui-accent);
+  color: #1d1a12;
+}
+
+@keyframes build-in {
+  from { transform: scale(0.7); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+
+.chip small {
+  color: #ffd9a0;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+#build-ui {
+  display: none;
+}
+
+body.building #build-ui {
+  display: block;
+}
+
+/* While building: hide the swimming controls and the hints. */
+body.building #controls,
+body.building #hint,
+body.building #tags,
+body.building #bag-marker,
+body.building #banner,
+body.building #log-btn {
+  display: none !important;
+}
+
+#build-title {
+  position: fixed;
+  top: calc(var(--safe-top) + 14px);
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 6px 14px;
+  border-radius: 10px;
+  background: var(--ui-bg);
+  color: #ffd9a0;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  z-index: 10;
+  pointer-events: none;
+}
+
+#build-info {
+  position: fixed;
+  top: calc(var(--safe-top) + 52px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(500px, calc(100vw - 2 * 235px));
+  padding: 7px 12px;
+  border-radius: 10px;
+  background: var(--ui-bg);
+  font-size: 13px;
+  line-height: 1.35;
+  text-align: center;
+  z-index: 10;
+  pointer-events: none;
+}
+
+#build-info span {
+  display: block;
+  margin-top: 3px;
+  font-weight: 600;
+}
+
+#build-info .why {
+  color: #ff9a80;
+}
+
+#build-info .ok {
+  color: #d8e6a0;
+}
+
+#build-bar {
+  position: fixed;
+  left: calc(var(--safe-left) + 10px);
+  right: calc(var(--safe-right) + 10px);
+  bottom: calc(var(--safe-bottom) + 10px);
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  z-index: 10;
+}
+
+.piece-card {
+  flex: 0 1 190px;
+  min-width: 0;
+  min-height: 70px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px 6px 6px;
+  border-radius: 12px;
+  border: 1px solid var(--ui-line);
+  background: var(--ui-bg);
+  color: var(--ui-text);
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  touch-action: manipulation;
+}
+
+.piece-card > svg {
+  flex: none;
+  width: 44px;
+  height: 36px;
+}
+
+.piece-card b {
+  display: block;
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.piece-card .costs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 7px;
+  margin-top: 3px;
+}
+
+.piece-card .cost {
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.piece-card .cost svg {
+  width: 15px;
+  height: 15px;
+}
+
+.piece-card .cost.short {
+  color: #ff9a80;
+}
+
+.piece-card.short {
+  opacity: 0.72;
+}
+
+.piece-card[aria-pressed='true'] {
+  border-color: #ffc070;
+  box-shadow: 0 0 0 2px rgba(255, 192, 112, 0.5) inset;
+}
+
+#build-actions {
+  position: fixed;
+  right: calc(var(--safe-right) + 14px);
+  bottom: calc(var(--safe-bottom) + 92px);
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  z-index: 10;
+}
+
+#build-actions button {
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  border: 1px solid var(--ui-line);
+  background: var(--ui-bg);
+  color: var(--ui-text);
+  cursor: pointer;
+  touch-action: manipulation;
+  font-family: inherit;
+}
+
+#build-actions button[hidden] {
+  display: none;
+}
+
+#build-actions #build-place {
+  width: 66px;
+  height: 66px;
+  background: #d8e6a0;
+  border-color: #d8e6a0;
+  color: #1d2a12;
+}
+
+#build-actions #build-place:disabled {
+  background: var(--ui-bg);
+  border-color: var(--ui-line);
+  color: rgba(228, 239, 236, 0.35);
+}
+
+#build-actions #build-remove {
+  width: auto;
+  padding: 0 16px;
+  border-radius: 26px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+#build-actions #build-remove.armed {
+  background: #a8402e;
+  border-color: #a8402e;
+}
+
+/* Small phones in landscape: tighter cards. */
+@media (max-height: 440px) {
+  .piece-card {
+    min-height: 60px;
+    padding: 4px 8px 4px 4px;
+  }
+  .piece-card > svg {
+    width: 36px;
+    height: 30px;
+  }
+  #build-actions {
+    bottom: calc(var(--safe-bottom) + 80px);
+  }
+  #build-info {
+    font-size: 12px;
+  }
+}
+
+/* ---- Milestone 3 follow-up: build drone and dive bag weight ---- */
+.piece-card .time {
+  font-size: 11px;
+  opacity: 0.6;
+  font-variant-numeric: tabular-nums;
+}
