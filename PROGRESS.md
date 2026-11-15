@@ -161,6 +161,7 @@ Cut from High so far: the phone renders at 2× instead of its native 3×. Colin 
     - After a reload, the scan, the bag and the position are all still there. The bag arrow points the right way.
     - The log opens.
   - The frame rate could not be measured, because the test browser draws in software.
+- Deployed: GitHub Actions run 43675143107 built and deployed to Pages successfully from `claude/build-next-milestone-2lynhu`. This branch still needs merging into the default branch `claude/underwater-game-m0-0qqajg` so that branch stays current (a session can only push to its own branch).
 
 ## Next
 
