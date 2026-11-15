@@ -1,6 +1,6 @@
 # Fathomlight progress
 
-Last updated: 2026-11-15, milestone 1 follow-up 2 (bigger head, shorter diver, wider view). **Colin approved the water, effects, controls and scenery; the redesigned diver is waiting for his OK before milestone 2.**
+Last updated: 2026-11-15, **milestone 2 (Shallows) deployed**. Colin approved the redesigned explorer suit, which closes milestone 1. Next is milestone 3 (base building), once Colin has played the shallows.
 
 Play link: https://colinhill88-hub.github.io/fathomlight/ (live; first successful deploy 2026-11-14)
 
@@ -112,15 +112,69 @@ Cut from High so far: the phone renders at 2× instead of its native 3×. Colin 
 - **Raised back cowl (follow-up 3):** like the metal rising behind the head on Colin's reference figure, the chrome back unit now sweeps up into a cowl behind the helmet. It has vent ribs, a small port, rivets and the coupling where the coiled hose comes out. The rear port on the back unit became a bolted hatch, so no round "eyes" show.
 - **Camera zoomed out:** the view now shows 640 world units of height instead of 560 (`VIEW_H` in `src/main.ts`), which leaves room for base pieces later. Change that one number to zoom in or out.
 
+### Milestone 2: Shallows
+- **Feedback on the last build:** Colin approved the redesigned explorer suit, so milestone 1 is closed. Nothing else was flagged.
+- **The zone** (`src/world/terrain.ts`, `src/world/scenery.ts`) is about 120 m wide and up to 14 m deep. The milestone 1 test scene grew into it; its outcrop, beacon, drop-off, ledge, grotto and glowfins are all still there, moved east. Left to right:
+  - West rock wall.
+  - **Kestrel site:** flat sand under an orange-red marker buoy, with a weighted crate on the seabed. This is where the diver starts and where the base will go in milestone 3.
+  - **Coral garden:** two rock outcrops, dense coral, kelp groves, an old anchor and a school of silverbar fish.
+  - **Sand channel:** the wreck of an old survey sled ("SLED 2") with scrap metal scattered around it.
+  - **Rocky knoll:** the survey beacon stands on its edge.
+  - **Drop-off, ledge and grotto:** from milestone 1.
+  - **Seagrass meadow:** on a plateau, with swaying grass, a second fish school and a narrow crevice.
+  - **East cliff:** a cave mouth that goes pitch black a few metres in. This is the gear gate to the kelp forest and caves zone. The diver can go in a little, then a message explains that a proper dive light is needed.
+- **Culling:** the art is cut into 1000-unit slices, and only slices near the camera are drawn, so the bigger world costs about the same per frame as the milestone 1 scene. The world is also rebuilt from the same seed when you switch presets, so it no longer reshuffles. That was a small milestone 1 bug.
+- **Oxygen** (`src/main.ts`, `src/game/state.ts`):
+  - The starting tank holds 75 s. It drains 1 s per second underwater, and 1.8 while boosting.
+  - Breathing at the surface refills it in about 3 s, anywhere.
+  - Below 25%: a warning message, then a red pulsing screen edge that grows as the oxygen runs out.
+  - At zero the diver blacks out. The screen fades to black and the diver wakes at the Kestrel buoy with a full tank. Everything carried drops in a **sample bag** on the seabed where they fell. The bag has a blinking amber lamp, and an arrow at the screen edge shows its direction and distance. Swim into the bag to get everything back. A second blackout before recovering it merges both into one bag.
+  - When the base exists (milestone 3), the respawn point should move to the dome habitat.
+- **Air tank upgrades:** two hidden yellow spare cylinders, each worth +20 s for good. One is in the back of the grotto, the other at the bottom of the meadow crevice. Each has a faint warm glow and a twinkle.
+- **Dive watch** (`src/ui/watch.ts`, top left; Colin's request): a steel case and a dark bezel with minute marks.
+  - The bezel ring is the oxygen gauge. Pale lume when full, amber below 35%, pulsing red below 15%.
+  - The dial shows depth in metres, dive time since leaving the surface ("SURFACE" while breathing) and seconds of oxygen left.
+  - A lume dot circles the dial once a minute.
+- **Materials** (`src/world/pickups.ts`): 39 fixed spots, about ten each of scrap metal (wrecks), copper nodules (sand), quartz (on rock) and kelp fibre (golden holdfast tufts).
+  - Swim into one to collect it. Each twinkles every few seconds so it can be spotted.
+  - Collected spots grow back after 6 minutes (real time), so the base will never run short.
+  - Counts show as small chips beside the watch.
+  - There is no storage yet, so everything is carried, and a blackout drops it all. The storage pod in milestone 3 changes that.
+- **Scanner** (`src/game/scanner.ts`): hold **Scan** (touch button above Boost; E or Q on keyboard; B on gamepad) near something not yet in the log.
+  - Amber brackets frame the target, and a label says "Unknown creature / plant / wreckage / place". Holding sends an amber beam from the shoulder lamp and fills a ring. It takes 1.4 s.
+  - There are 12 log entries: silverbar, glowfin, lantern anemone, ribbon kelp, branch coral, sea fan, seagrass, the Kestrel site marker, the old anchor, the survey sled wreck, survey beacon 03 and the dark cave mouth.
+  - The sled entry mentions a dive light design for the Lab (milestone 6), and the beacon entry hints at the lights rising from the deep.
+  - The scanner is amber, never cyan, violet or magenta, which stay reserved for the Choir.
+- **Scanner log** (book button, top right): every entry, with "Unknown" until scanned, plus carried materials with what they are for and air tanks found.
+- **Saving** (`src/game/state.ts`): automatic, on this device (localStorage).
+  - It saves every 5 s, straight after each scan, pickup or blackout, and when the app goes to the background or closes.
+  - Saved: position, oxygen, lamp, materials, scans, air tanks, which spots are regrowing, the dropped bag and play time. Reopening puts you back where you were.
+  - Settings shows "Saved on this device: N s ago" and a **Start over** button that needs two taps.
+  - Save codes for moving between devices are still planned for milestone 11, as DESIGN.md says.
+- Tested:
+  - Type check and production build pass.
+  - A headless browser emulating an iPhone 15 Pro in landscape, and a 1280×720 PC, rendered every area of the zone. The only console messages were the test browser's own graphics driver notes.
+  - Scripted checks:
+    - Scanning the beacon records it.
+    - Swimming onto scrap adds 1.
+    - Draining the oxygen blacks out and respawns the diver at the buoy, with the carried quartz in a bag at the grotto floor.
+    - After a reload, the scan, the bag and the position are all still there. The bag arrow points the right way.
+    - The log opens.
+  - The frame rate could not be measured, because the test browser draws in software.
+
 ## Next
 
-**First, Colin approves the new explorer suit.** Everything else in milestone 1 is approved. If he asks for more suit changes, make them before starting milestone 2.
-
-**Then milestone 2: Shallows.** This is the first real zone: oxygen, scanner, collectible materials and saving. The oxygen and depth readout is a good first home for the dive-watch gauge.
+**Milestone 3: Base building.** Snap-together placement on a grid at the Kestrel site with the dome habitat, corridor, current turbine and storage pod, paid for with the materials from milestone 2. When it lands:
+- The dome habitat becomes the respawn point and an oxygen refill.
+- The storage pod holds materials, so a blackout only drops what is carried.
+- The camera will probably need to zoom out while building (`VIEW_H` in `src/main.ts`).
 
 ## Problems and open questions
 
 - ~~GitHub Pages switch~~ Done: Colin set Pages → Source to GitHub Actions, and the deploy now succeeds.
 - **Which branch deploys.** Colin added the deployment-branch rule `claude/*` (Settings → Environments → github-pages) on 2026-11-15, so every `claude/...` session branch now deploys to the play link on push. Before that, only the default branch `claude/underwater-game-m0-0qqajg` could deploy, and milestone 1 builds were copied onto it. The play link shows whichever branch pushed last, so run one session at a time. Keep merging finished work into the default branch so it stays current.
+- **Milestone 2 numbers to tune after Colin plays:** tank size (75 s, `BASE_OXYGEN`), upgrade size (+20 s), the drain while boosting, the regrow time (6 min, `REGROW_MS`) and the scan time (1.4 s). All are single numbers in `src/game/state.ts`, `src/main.ts` and `src/game/scanner.ts`.
+- **Dive light vs. shoulder lamp.** The diver already has a shoulder lamp from milestone 1. DESIGN.md's "dive light" is treated as a stronger light built in milestone 6, which opens the dark cave in the east cliff. The cave message and the sled scan say so. If Colin pictures it differently, change it before milestone 6.
+- **Health** is not in yet. Nothing in the shallows can hurt you, so it arrives with predators and crush depth (milestones 7 and 9).
 - **Things to watch in Colin's review:** whether the kelp is too bright or too busy, how strong the caustics and water wobble are, and how fast the diver swims. Each is a single number in the code and easy to tune.
 - **Frame rate on the real phone.** Milestone 0: Colin measured a steady 60 fps in both presets. Milestone 1: mid 30s fps on High with the lamp on in the deep grotto (Colin, iPhone). He accepts this; graphics stay as they are. Ultra on the PC is not yet tested. If we tune performance later (milestone 11), the grotto with the lamp on is the scene to profile: there the lighting shader adds up the most lights and the glow layer is busiest.
