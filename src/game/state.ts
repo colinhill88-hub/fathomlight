@@ -28,7 +28,7 @@ export const TOTAL_AIR_TANKS = 2;
  * counting through blackouts and is saved, so neither dying nor closing the
  * app makes anything grow back sooner.
  */
-export const REGROW_SECONDS = 6 * 60;
+export const REGROW_SECONDS = 10 * 60;
 
 /**
  * The dive bag (milestone 3 follow-up). Every material has a weight. Up to

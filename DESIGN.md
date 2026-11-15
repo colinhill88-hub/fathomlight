@@ -110,6 +110,16 @@ Pieces snap together at their connector collars on a grid. A piece works only wh
 - **Build drone companion.** Base pieces are not built instantly. A small robot helper, found early in the shallows (for example stranded in the survey sled wreck and repaired with a few materials), does the construction. Tapping Build places a frame, and the drone flies over and welds it together over time: roughly 10 s for a corridor up to about 40 s for a dome. The player can keep swimming meanwhile. Later upgrades make it faster or add a second drone, which is the "faster building" reward path.
 - **Material weight.** Collected materials go in a dive bag, and each has a weight (for example copper and scrap heavy, kelp fibre light). As the bag gets heavier the diver swims slower, sinks when idle, climbs to the surface more slowly and uses air faster. That limits how much can be carried at once. It should be a soft, readable penalty shown on the dive watch, not a sudden drowning. In the shallows it stays gentle, in keeping with the "cozy and safe" pillar. Upgrades that raise the limit form their own path: a lift bag, a buoyancy vest, the drone carrying loads, and the sub's cargo bay (milestone 5).
 
+**One home base, growing into a factory (Colin's direction after milestone 4; details still to agree).**
+
+- **One main base for the whole game.** It stays at the Kestrel site in the shallows. The player keeps travelling home to expand it and to add creatures. There are no full bases in other biomes (small outposts are still an open question).
+- **The build area must grow a lot.** The current 11 × 3 grid is too small for a base that matters all game. It should unlock larger areas over time (wider, taller, maybe several connected pads), with a zoomable, pannable build view that suits the PC's larger screen and still works on the phone.
+- **Getting home gets faster.** Vehicles (the sub in milestone 5, later faster ones) shorten the trip, and a late-game alien teleport (Choir technology) lets the player jump home from any deep biome.
+- **Creatures as resource nodes.** Grown, happy creatures put materials into storage (built in milestone 4, and Colin likes it). Later the rate should scale with how many creatures and tanks the base has, so a well-kept aquarium works like a mining node in a factory game such as Factorio or Satisfactory.
+- **Gradual automation.** As the base grows, introduce simple production chains: pieces that combine raw materials (from the reef and from creatures) into refined ones needed for bigger upgrades, gear and sub parts, with materials moving between pieces through the base's connections. Introduce it slowly and keep it readable on a phone; a PC screen may be the best way to manage a large base.
+- **Quality-of-life automation for care.** The filter pump already removes manual cleaning. An **auto feeder** base piece or upgrade should do the same for feeding, arriving around the second biome (kelp forest), when the player is often far from home, so creatures can eventually look after themselves.
+- **Scarcer reef materials** (done after milestone 4): fewer material spots and slower regrowth, so creatures and automation are the rewarding way to get more.
+
 ### Creature care
 
 - Creatures are collected as eggs or juveniles and placed in tanks.

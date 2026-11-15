@@ -16,7 +16,7 @@ import type { PointLight } from './scenery';
  * closer and slips into the specimen jar. Boosting nearby startles it, and
  * it darts off for a few seconds. Adults are too big for the jar, but can be
  * scanned. A collected spot fills again after the same play time as
- * materials (6 minutes).
+ * materials (10 minutes of play).
  */
 
 const rand = mulberry32(WORLD_SEED ^ 0x7c3e);

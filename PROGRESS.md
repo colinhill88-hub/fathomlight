@@ -1,6 +1,6 @@
 # Fathomlight progress
 
-Last updated: 2026-11-15, **milestone 4 (creatures) deployed**. Next is milestone 5 (submersible).
+Last updated: 2026-11-15, **milestone 4 deployed, plus scarcer materials from Colin's feedback**. Colin proposed a bigger direction (one growing home base with factory-style automation). It is recorded in DESIGN.md, and the milestone plan needs his answers before milestone 5 starts (see Problems and open questions).
 
 Play link: https://colinhill88-hub.github.io/fathomlight/ (live; first successful deploy 2026-11-14)
 
@@ -388,11 +388,28 @@ Cut from High so far: the phone renders at 2× instead of its native 3×. Colin 
   - No console errors. The frame rate could not be measured, because the test browser draws in software.
 - Deployed: GitHub Actions run 43732834582 built and deployed to Pages successfully from `claude/creature-design-milestone-806kjd`. This branch was started from the default branch `claude/underwater-game-m0-0qqajg` (after PR #2 merged), so merging it back is a clean fast-forward.
 
+### Milestone 4 follow-up: scarcer materials
+- **Feedback:** Colin likes that grown creatures put materials into storage ("a clever way of rewarding the player for collecting different animal specimens"). He has more materials than he needs, and asked for scarcer reef materials so creatures and automatic production feel more rewarding. He also proposed a larger direction (one main base that grows all game, factory-style automation with creatures as resource nodes, an auto feeder around the second biome, faster travel home, a much bigger build area). That is recorded in DESIGN.md under The base; nothing of it is built yet.
+- **Changes:**
+  - Material spots cut from 39 to 28 (`src/world/pickups.ts`): scrap 10 → 8, copper 10 → 7, quartz 10 → 7, kelp fibre 9 → 6. The spots kept are the ones near landmarks (the sled wreck, the grotto, the coral garden), so the shallows still teach where each material lives.
+  - Regrowth after collecting: 6 → **10 minutes** of play (`REGROW_SECONDS` in `src/game/state.ts`). Wild creature spots use the same timer.
+  - Creature production is unchanged (one material every 4 minutes per grown, happy creature), so it now covers a larger share of what the base needs. Puffcaps make kelp fibre, which the feeding uses, so a puffcap tank partly feeds the others.
+  - Scrap is now the bottleneck: no creature makes it. That fits it being salvage from wrecks, but if it feels like a grind, add scrap spots back or let a later creature or machine produce it.
+- Tested: type check and build pass.
+
 ## Next
 
 **Milestone 5: Submersible.** A drivable sub with module slots, plus the Moon pool dock. DESIGN.md also names the sub's cargo bay as one way to raise the dive bag limit (`bagLimits()` in `src/game/state.ts`).
 
 ## Problems and open questions
+
+- **Colin's base and factory direction needs decisions before milestone 5** (DESIGN.md, The base). Questions for Colin:
+  1. Should milestone 5 stay the submersible as planned, or should the next session first enlarge the build area and lay the groundwork for production chains?
+  2. How should the build area grow: one much wider site (scrolling along the seabed), stacked levels, or several pads joined by long corridors?
+  3. How deep should the factory side go: a few simple "combine A + B into C" machines, or real chains with throughput, belts or pipes and rates to balance?
+  4. Should creature output scale only with the number of happy creatures, or also with upgrades (bigger tanks, better food)?
+  5. Auto feeder: a base piece that uses stored kelp fibre, unlocked in the kelp forest (milestone 6). Is that right?
+- **Phone and PC for a big base:** the build view will need panning and zooming for a large base. Keep it usable on the phone, but PC with a mouse may be the best way to manage a big factory, as Colin expects.
 
 - **Creature numbers to tune after Colin plays** (all at the top of `src/game/creatures.ts`): hunger 15 min, feed +60%, dirt per creature 20 min, filter rate, clean +40%, sick below 25%, 6 min sick to dormant, 8 min to grow, 90 s to hatch, 4 min per material, 4 per tank, 2 tanks per pump. Catch times are in `src/world/wildlife.ts`. If losing creatures feels too harsh for the cozy shallows, raise `SICK_SECONDS` or slow `HUNGER_RATE`.
 - **Gamepad can't open Tend yet** (touch and keyboard T work). Add a button when gamepad play matters (milestone 11 polish).
