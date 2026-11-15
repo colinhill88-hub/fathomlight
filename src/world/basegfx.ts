@@ -485,12 +485,124 @@ function drawStorage(n: number): PieceArt {
   return { body, windows, windowGlow, lamp: { x: c, y: 8 }, gauge, gaugeBox };
 }
 
+/** Inside of a creature tank (local): the water the creatures swim in. */
+export const TANK_INNER = { x: 16, y: 16, w: CELL * 2 - 32, h: CELL - 30 };
+
+/**
+ * Creature tank (milestone 4): a long glass aquarium in a riveted steel frame
+ * with rust-red rails, like the kit sheet. The water, sand and rocks are
+ * drawn here; the creatures, plant, murk and front glass are drawn by
+ * TankLife (src/world/tanklife.ts) on top.
+ */
+function drawTank(n: number): PieceArt {
+  const W = CELL * 2;
+  const H = CELL;
+  const body = new Container();
+  const g = body.addChild(new Graphics());
+  const windows = new Graphics();
+  const windowGlow = new Graphics();
+  const I = TANK_INNER;
+  // Collar stubs.
+  tubeH(g, 0, 18, H / 2, 1);
+  tubeH(g, W - 18, W, H / 2, 1);
+  // Back wall and water.
+  g.rect(I.x - 4, I.y - 4, I.w + 8, I.h + 8).fill({ color: PAL.steelDeep });
+  g.rect(I.x, I.y, I.w, I.h).fill({ color: 0x1f4a4c });
+  g.rect(I.x, I.y, I.w, I.h * 0.45).fill({ color: 0x3d7470, alpha: 0.55 });
+  // Sand floor with a few pebbles and a rock.
+  const floor = I.y + I.h - 12;
+  const sand: number[] = [I.x, I.y + I.h];
+  for (let x = I.x; x <= I.x + I.w; x += 8) sand.push(x, floor + Math.sin(x * 0.09) * 2.4 + Math.sin(x * 0.23) * 1.2);
+  sand.push(I.x + I.w, I.y + I.h);
+  g.poly(sand).fill({ color: 0xb7a47a });
+  for (let i = 0; i < 18; i++) g.circle(R(I.x + 4, I.x + I.w - 4), R(floor + 3, I.y + I.h - 2), R(0.8, 2)).fill({ color: rand() < 0.5 ? 0x8a7a58 : 0xd8c8a0, alpha: 0.8 });
+  g.ellipse(I.x + I.w * 0.78, floor, 16, 9).fill({ color: 0x6a6a62 });
+  g.ellipse(I.x + I.w * 0.78 - 4, floor - 4, 9, 3).fill({ color: 0xffffff, alpha: 0.12 });
+  g.ellipse(I.x + I.w * 0.86, floor + 2, 8, 5).fill({ color: 0x585a52 });
+  algaeLine(g, I.x + I.w * 0.72, I.x + I.w * 0.9, floor - 6, 5);
+  // Frame: steel posts, rust-red top and bottom rails.
+  g.rect(8, 6, 10, H - 10).fill({ color: PAL.steel });
+  g.rect(W - 18, 6, 10, H - 10).fill({ color: PAL.steel });
+  g.rect(8, 6, 3, H - 10).fill({ color: 0xffffff, alpha: 0.12 });
+  g.rect(W - 18, 6, 3, H - 10).fill({ color: 0xffffff, alpha: 0.12 });
+  g.roundRect(4, 2, W - 8, 14, 3).fill({ color: PAL.rust });
+  g.roundRect(4, 2, W - 8, 4, 2).fill({ color: 0xffffff, alpha: 0.14 });
+  g.roundRect(4, H - 16, W - 8, 14, 3).fill({ color: PAL.rust });
+  g.rect(4, H - 6, W - 8, 4).fill({ color: PAL.rustDark, alpha: 0.7 });
+  rivets(g, 12, 9, W - 12, 9, 22);
+  rivets(g, 12, H - 9, W - 12, H - 9, 22);
+  // Lamp housing on the top rail.
+  g.roundRect(W / 2 - 40, 4, 80, 8, 2).fill({ color: PAL.steelDark });
+  windows.rect(W / 2 - 36, 10, 72, 3).fill({ color: 0xfff1d0, alpha: 0.9 });
+  windowGlow.rect(W / 2 - 50, 8, 100, 30).fill({ color: PAL.warm, alpha: 0.25 });
+  body.addChild(stencil(`TANK ${n}`, 42, H - 9, 6));
+  streaks(g, 8, W - 8, 14, 16, 16);
+  streaks(g, 8, W - 8, H - 4, 10, 8);
+  scratches(g, 6, 2, W - 6, 14, 8);
+  algaeLine(g, 6, W - 6, H - 3, 24);
+  return { body, windows, windowGlow, lamp: { x: W - 30, y: 8 } };
+}
+
+/**
+ * Filter pump (milestone 4): a squat drum with an impeller behind a grille,
+ * a pressure gauge and pipes to its collars. Clean water is pumped through
+ * the corridors to up to two creature tanks.
+ */
+function drawFilter(n: number): PieceArt {
+  const body = new Container();
+  const g = body.addChild(new Graphics());
+  const windows = new Graphics();
+  const windowGlow = new Graphics();
+  const c = CELL / 2;
+  tubeH(g, 0, 22, c, 1);
+  tubeH(g, CELL - 22, CELL, c, 1);
+  tubeV(g, 0, 18, c, 1);
+  // Drum.
+  g.roundRect(16, 18, CELL - 32, CELL - 30, 10).fill({ color: PAL.steel });
+  g.roundRect(20, 22, 8, CELL - 40, 4).fill({ color: 0xffffff, alpha: 0.12 });
+  g.roundRect(CELL - 36, 22, 14, CELL - 40, 6).fill({ color: PAL.steelDeep, alpha: 0.4 });
+  hazardBand(g, 16, 24, CELL - 32, 8);
+  rivets(g, 22, 36, CELL - 22, 36, 6);
+  rivets(g, 22, CELL - 18, CELL - 22, CELL - 18, 6);
+  // Impeller grille.
+  g.circle(c - 6, 62, 20).fill({ color: PAL.steelDeep });
+  g.circle(c - 6, 62, 20).stroke({ color: PAL.steelDark, width: 3 });
+  const rotor = new Container();
+  const rg = rotor.addChild(new Graphics());
+  for (let i = 0; i < 5; i++) {
+    const a = (i / 5) * Math.PI * 2;
+    rg.poly([Math.cos(a) * 3, Math.sin(a) * 3, Math.cos(a + 0.5) * 16, Math.sin(a + 0.5) * 16, Math.cos(a + 0.9) * 14, Math.sin(a + 0.9) * 14]).fill({ color: PAL.steelLight });
+  }
+  rg.circle(0, 0, 4).fill({ color: PAL.brass });
+  rotor.position.set(c - 6, 62);
+  body.addChild(rotor);
+  const grille = body.addChild(new Graphics());
+  for (let i = -3; i <= 3; i++) grille.rect(c - 6 + i * 5 - 0.8, 44, 1.6, 36).fill({ color: PAL.steelDark, alpha: 0.85 });
+  grille.circle(c - 6, 62, 20).stroke({ color: PAL.steelDark, width: 2 });
+  // Gauge.
+  g.circle(c + 26, 52, 7).fill({ color: PAL.brass });
+  g.circle(c + 26, 52, 5.5).fill({ color: 0xe8e2cc });
+  g.moveTo(c + 26, 52).lineTo(c + 29, 48.5).stroke({ color: PAL.rust, width: 1.2 });
+  // Intake pipe down to the sand.
+  g.rect(c + 20, 66, 10, CELL - 70).fill({ color: PAL.steelDark });
+  g.rect(c + 18, CELL - 14, 14, 6).fill({ color: PAL.rust });
+  body.addChild(stencil(`FP-${n}`, c + 26, 68, 6, -Math.PI / 2));
+  streaks(g, 18, CELL - 18, 32, 8, 18);
+  scratches(g, 18, 20, CELL - 18, CELL - 14, 8);
+  algaeLine(g, 18, CELL - 18, CELL - 12, 14);
+  windows.rect(c + 22, 48, 0.1, 0.1).fill({ color: 0 });
+  windowGlow.rect(c + 22, 48, 0.1, 0.1).fill({ color: 0 });
+  return { body, rotor, windows, windowGlow, lamp: { x: c + 26, y: 40 } };
+}
+
 /** Draw a piece's art. The same drawing is used for placed pieces and the build ghost. */
 export function drawPiece(kind: PieceKind, n: number, rot: number, seed: number): PieceArt {
   rand = mulberry32(WORLD_SEED ^ (seed * 7919 + 0x1b5e));
   if (kind === 'dome') return drawDome(n);
   if (kind === 'corridor') return drawCorridor(n, rot);
   if (kind === 'turbine') return drawTurbine(n);
+  if (kind === 'tank') return drawTank(n);
+  if (kind === 'filter') return drawFilter(n);
   return drawStorage(n);
 }
 
@@ -541,6 +653,7 @@ interface Live {
   phase: number;
   powered: boolean;
   fill: number;
+  spin: number;
   /** While the piece is still a frame being welded by the drone. */
   frame: { mask: Graphics; scaffold: Graphics; seam: Graphics; seamGlow: Graphics; shown: number } | null;
 }
@@ -606,7 +719,7 @@ export class BaseView {
       l.frame?.seamGlow.destroy();
       this.live.delete(id);
     }
-    const counts: Record<PieceKind, number> = { dome: 0, corridor: 0, turbine: 0, storage: 0 };
+    const counts: Record<PieceKind, number> = { dome: 0, corridor: 0, turbine: 0, storage: 0, tank: 0, filter: 0 };
     for (const p of [...layout.pieces].sort((a, b) => a.id - b.id)) {
       counts[p.kind]++;
       if (this.live.has(p.id)) continue;
@@ -632,7 +745,11 @@ export class BaseView {
       this.emissive.addChild(lampG);
       this.glow.addChild(lampHalo);
       const light: PointLight | null =
-        p.kind === 'dome' ? { x: r.x + r.w / 2, y: r.y + r.h - 130, radius: 330, intensity: 0, color: [1, 0.86, 0.66] } : null;
+        p.kind === 'dome'
+          ? { x: r.x + r.w / 2, y: r.y + r.h - 130, radius: 330, intensity: 0, color: [1, 0.86, 0.66] }
+          : p.kind === 'tank'
+            ? { x: r.x + r.w / 2, y: r.y + 30, radius: 170, intensity: 0, color: [1, 0.92, 0.75] }
+            : null;
       const isFresh = fresh.includes(p.id);
       let frame: Live['frame'] = null;
       if (!isDone(p)) {
@@ -649,7 +766,7 @@ export class BaseView {
         this.glow.addChild(seamGlow);
         frame = { mask, scaffold, seam, seamGlow, shown: -1 };
       }
-      this.live.set(p.id, { placed: p, art, root, lampG, lampHalo, light, build: isFresh ? 0 : 1, phase: rand() * 10, powered: false, fill: -1, frame });
+      this.live.set(p.id, { placed: p, art, root, lampG, lampHalo, light, build: isFresh ? 0 : 1, phase: rand() * 10, powered: false, fill: -1, spin: 0, frame });
       if (isFresh) this.burst(r.x + r.w / 2, r.y + r.h / 2, r.w, r.h);
     }
     this.lights.length = 0;
@@ -786,7 +903,13 @@ export class BaseView {
       l.lampHalo.tint = l.lampG.tint;
       l.lampG.alpha = blink * l.root.alpha;
       l.lampHalo.alpha = blink * 0.7 * l.root.alpha;
-      if (l.art.rotor) l.art.rotor.rotation = time * 1.6 + Math.sin(time * 0.4 + l.phase) * 0.4 + l.phase;
+      if (l.art.rotor) {
+        if (l.placed.kind === 'filter') {
+          // The filter impeller only spins with power.
+          l.spin += dt * (powered && !l.frame ? 9 : 0);
+          l.art.rotor.rotation = l.spin;
+        } else l.art.rotor.rotation = time * 1.6 + Math.sin(time * 0.4 + l.phase) * 0.4 + l.phase;
+      }
       if (l.art.gauge && l.art.gaugeBox && Math.abs(l.fill - storedFrac) > 0.001) {
         l.fill = storedFrac;
         const b = l.art.gaugeBox;

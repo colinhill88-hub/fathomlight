@@ -9,7 +9,7 @@ import type { PointLight } from './scenery';
  *  - materials (scrap metal, copper, quartz, kelp fibre). These take work
  *    (Colin's feedback after milestone 2): stop next to one and hold Collect
  *    while the diver chips, pries, digs or cuts it free. They grow back after
- *    6 minutes of play time, a timer that carries on through blackouts and
+ *    10 minutes of play time, a timer that carries on through blackouts and
  *    across closing the app.
  *  - hidden air tank upgrades, picked up by swimming into them,
  *  - the sample bag dropped after blacking out, also picked up by touch.
@@ -39,10 +39,12 @@ const SPOTS: Spot[] = (() => {
       const [x, from] = Array.isArray(p) ? p : [p, 0];
       s.push({ id: `${kind}-${i}`, kind, x, y: surfaceAt(x, from) - (kind === 'quartz' ? 3 : 5) });
     });
-  add('scrap', [3960, 4040, 4210, 4290, 4370, 4930, 5070, 2890, [6120, 760], 7420]);
-  add('copper', [520, 1260, 1560, 2660, 3400, 3720, 4460, 7120, 8170, [6330, 760]]);
-  add('quartz', [280, 2220, 2310, 3140, 4720, 4850, 5310, 6020, 6420, 8330]);
-  add('fibre', [1650, 1910, 2560, 3300, 3460, 6960, 7310, 7900, 8210]);
+  // Scarcer after milestone 4 (Colin: "I seem to have more than I need"), so
+  // kept creatures, which make materials, matter more. 39 spots became 28.
+  add('scrap', [3960, 4040, 4210, 4290, 4930, 7420, [6120, 760], 2890]);
+  add('copper', [520, 1260, 2660, 3400, 4460, 7120, [6330, 760]]);
+  add('quartz', [280, 2220, 3140, 4720, 5310, 6020, 6420]);
+  add('fibre', [1650, 1910, 2560, 3300, 6960, 7900]);
   s.push({ id: 'tank-grotto', kind: 'tank', x: 6720, y: surfaceAt(6720, 760) - 12 });
   s.push({ id: 'tank-crevice', kind: 'tank', x: CREVICE_X, y: surfaceAt(CREVICE_X) - 12 });
   return s;

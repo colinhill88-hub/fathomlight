@@ -27,6 +27,7 @@
     <div id="watch-wrap">
       <canvas id="watch" aria-label="Dive watch: oxygen, depth and dive time"></canvas>
       <div id="inventory" aria-label="Carried materials"></div>
+      <div id="jar-chip" aria-label="Specimen jar"></div>
     </div>
 
     <div id="tags"></div>
@@ -64,8 +65,8 @@
     </div>
 
     <div id="hint">
-      <span class="touch-only">Drag on the left to swim · hold Scan near new things, tap it to name known ones · stop by materials and hold Collect</span>
-      <span class="desk-only">WASD or arrows to swim · Shift boost · L lamp · E scan (hold for new, tap to name known) · hold C to collect · B build at the Kestrel buoy</span>
+      <span class="touch-only">Drag on the left to swim · hold Scan near new things, tap it to name known ones · stop by materials or young creatures and hold Collect</span>
+      <span class="desk-only">WASD or arrows to swim · Shift boost · L lamp · E scan (hold for new, tap to name known) · hold C to collect · B build at the Kestrel buoy · T tend a creature tank</span>
     </div>
 
     <div id="hud">
@@ -75,6 +76,13 @@
           <path fill="currentColor" d="M13.8 3.2l3.4 3.4-1.6 1.6 1.2 1.2 1.6-1.6 2.4 2.4-4.2 4.2-2.4-2.4 1.1-1.1-1.2-1.2-8.5 8.5a1.6 1.6 0 0 1-2.3-2.3l8.5-8.5-1.2-1.2-1.1 1.1-2.1-2.1z" />
         </svg>
         <span class="lbl">Build</span>
+      </button>
+      <button id="tend-btn" type="button" aria-label="Tend the creature tank" aria-pressed="false">
+        <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+          <path fill="currentColor" d="M3 7h18v12a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1zm2 2v9h14V9z" opacity=".9"/>
+          <path fill="currentColor" d="M9.5 13.5c1.5-2 4-2 5.5 0-1.5 2-4 2-5.5 0zm5.5 0l2-1.4v2.8zM7 17h3v1H7zM11.5 4.5l1 1.5h-2z"/>
+        </svg>
+        <span class="lbl">Tend</span>
       </button>
       <button id="log-btn" type="button" aria-label="Scanner log" aria-expanded="false">
         <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
@@ -131,6 +139,10 @@
         </button>
       </div>
       <div id="build-bar" role="toolbar" aria-label="Base pieces"></div>
+    </div>
+
+    <div id="care-ui">
+      <div id="care-panel" role="dialog" aria-label="Tank care"></div>
     </div>
 
     <div id="rotate-hint">

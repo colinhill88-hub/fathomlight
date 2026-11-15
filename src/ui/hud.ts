@@ -1,5 +1,6 @@
 import { MATERIAL_ORDER, MATERIALS, MaterialId, SaveData, TOTAL_AIR_TANKS, maxOxygen, bagLimits, bagWeight } from '../game/state';
 import { SCAN_ENTRIES, entry } from '../game/scanner';
+import { SPECIES, SPECIES_ORDER, statusLine } from '../game/creatures';
 
 /**
  * The on-screen interface around the dive watch: carried materials, short
@@ -132,6 +133,8 @@ export class Hud {
       ['turbine', 'Current turbine'],
       ['storage', 'Storage pod'],
       ['corridor', 'Corridor'],
+      ['tank', 'Creature tank'],
+      ['filter', 'Filter pump'],
     ];
     const base = save.pieces.length
       ? [
@@ -152,7 +155,31 @@ export class Hud {
           ? 'Build drone KD-1: repaired. It welds every frame you place.'
           : 'Build drone: missing. It was lost near the survey sled wreck in the sand channel.'
       }</p>
+      <h2>Creatures</h2>
+      ${this.creatureNotes(save)}
       <p class="note">Air tank upgrades found: ${save.tanks.length} / ${TOTAL_AIR_TANKS} · Dive time ${maxOxygen(save)} s</p>`;
+  }
+
+  private creatureNotes(save: SaveData): string {
+    const rows = save.creatures
+      .map((c) => `<li class="ok"><div class="row"><b>${c.stage === 'egg' ? `${SPECIES[c.species].name} eggs` : SPECIES[c.species].name}${c.stage === 'young' ? ' (young)' : ''}</b><span>Tank</span></div><p>${statusLine(save, c)}</p></li>`)
+      .join('');
+    const dormant = SPECIES_ORDER.filter((s) => save.dormant[s])
+      .map((s) => `${save.dormant[s]} ${SPECIES[s].name.toLowerCase()}`)
+      .join(', ');
+    return `${rows ? `<ul class="log">${rows}</ul>` : '<p class="note">No creatures kept yet. Scan a creature, then hold Collect by a young one (or a glowfin egg clutch) to put it in the specimen jar, and bring it to a creature tank.</p>'}${
+      save.jar ? `<p class="note">In the specimen jar: ${save.jar.stage === 'egg' ? SPECIES[save.jar.species].eggName : SPECIES[save.jar.species].youngName}.</p>` : ''
+    }${dormant ? `<p class="note">Dormant remains in storage: ${dormant}. A Revival pool could wake them (its blueprint is somewhere on the wreck shelf).</p>` : ''}`;
+  }
+
+  /** The specimen jar chip under the watch. */
+  setJar(text: string | null): void {
+    const el = document.getElementById('jar-chip')!;
+    const html = text
+      ? `<svg viewBox="0 0 24 24"><rect x="6" y="3" width="12" height="3" rx="1" fill="#8a9496"/><path d="M6.5 6h11v12a3 3 0 0 1-3 3h-5a3 3 0 0 1-3-3z" fill="#86b3ae" opacity=".5" stroke="#d8e6a0" stroke-width="1"/><circle cx="12" cy="14" r="3" fill="#ffd9a0" opacity=".9"/></svg>${text}`
+      : '';
+    if (el.innerHTML !== html) el.innerHTML = html;
+    el.classList.toggle('show', !!text);
   }
 
   scanAnnounce(id: string): void {

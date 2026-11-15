@@ -1,6 +1,6 @@
 # Fathomlight progress
 
-Last updated: 2026-11-15, **milestone 3 follow-up deployed, plus a drone redesign from Colin's feedback** (smaller, cuter, no more jitter). Next is milestone 4 (creatures).
+Last updated: 2026-11-15, **milestone 4 deployed, plus scarcer materials from Colin's feedback**. Next is the new **milestone 5: big base and factory groundwork** (Colin moved it ahead of the submersible; see Next).
 
 Play link: https://colinhill88-hub.github.io/fathomlight/ (live; first successful deploy 2026-11-14)
 
@@ -325,11 +325,102 @@ Cut from High so far: the phone renders at 2× instead of its native 3×. Colin 
 - **Room to grow:** drone upgrades from later biomes can add visible parts (bigger fans, a second arm, a cargo clamp) to this small base design.
 - Tested: type check and build pass. Close-ups of the new drone idle, mid-roll and smiling, plus the jitter measurements above. No console errors.
 
+### Milestone 4: Creatures
+- **Feedback on the last build:** going well. Colin gave creature direction rather than fixes: be creative; creatures in the first biomes should be **cuter (no teeth) but visually interesting**, and get **scarier deeper down, with more bioluminescence and fear-based elements**. Nothing was flagged as broken. The direction is recorded in DESIGN.md (Art direction, "Creatures get scarier with depth"), with a mood for each zone so later milestones follow it.
+- **Three keepable shallows creatures** (`src/actors/critters.ts`), all drawn by code: round and soft, big friendly eyes with catchlights, closed smiles, no teeth, bold patterns and small warm glows. No cyan, violet or magenta (still kept for the Choir), so the concept art's lavender jelly became peach.
+  - **Glowfin:** a rounder striped fish with a big eye, a little blush and a glowing lure. Grown ones also show a row of lume dots. The wild grotto glowfins got the same big eye and a soft rounded dorsal fin instead of spikes.
+  - **Puffcap:** a small peach jelly with a frilled rim, glowing polka dots, two dark eye spots that read as a face, curly tentacles and two frilly ribbons. It pulses and rises with each squeeze.
+  - **Dapple ray:** a palm-sized sandy ray with dark dapples ringed in cream, big eyes on little bumps, rippling wing edges and a tail with a tiny glowing tip. It glides low and sometimes rests on the sand.
+  - **Glowfin egg clutch:** see-through eggs, each with a curled fry and a dot of an eye, glowing faintly.
+- **Where they live** (`src/world/wildlife.ts`, fixed spots):
+  - Two glowfin egg clutches on the grotto floor, each with a faint glow.
+  - Three big adult puffcaps and two young ones over the drop-off.
+  - One adult dapple ray and two young ones over the seagrass meadow.
+  - Adults are too big for the jar but can be scanned. **Two new scanner entries:** Puffcap and Dapple ray (15 in total). Each entry says what the creature likes.
+- **Collecting: the specimen jar.**
+  - Stop next to a young creature or an egg clutch. The Collect button reads "Coax young puffcap into jar" (or similar). Hold it while keeping still: the creature calms and drifts over to you, and a ring fills (2.6 s, eggs 2 s).
+  - **You must scan the species first** ("Unknown creature: scan it first"), so you know how to keep it. Glowfin eggs need the glowfin scanned.
+  - Boosting nearby startles young ones: they dart off for a few seconds.
+  - The jar holds one creature. A chip under the dive watch shows what is in it.
+  - A collected spot fills again after 6 minutes of play, like materials.
+  - Blacking out with a wild creature in the jar lets it swim home. One taken out of a tank goes back into its tank.
+- **Two new base pieces** (`src/game/base.ts`, drawn in `src/world/basegfx.ts`), using the same collar and power rules as before:
+
+| Piece | Size (cells) | Collars | Cost | Build time | Job |
+| --- | --- | --- | --- | --- | --- |
+| Creature tank | 2 × 1 | left, right | 2 scrap, 3 quartz, 1 kelp fibre | 24 s | Holds up to 4 creatures. A long glass tank with a riveted frame, rust-red rails, sand, a rock and a lamp strip that lights with power. |
+| Filter pump | 1 × 1 | left, right, up | 2 scrap, 2 copper, 2 kelp fibre | 16 s | Keeps the water clean in the nearest 2 tanks joined to it. A drum with an impeller behind a grille (it spins only with power), a gauge and an intake pipe. |
+
+  - Swim up to a finished tank with something in the jar and it goes in automatically.
+  - A tank with creatures in it can't be removed in build mode until they are moved or released.
+- **Tank care** (`src/ui/care.ts`), laid out like the "Tank care on phone" concept board:
+  - At a tank, a **Tend** button appears (top right; keyboard T). The camera zooms in on the tank, the diver and drone fade out of the way, the air clock pauses, and a panel opens on the right.
+  - The panel has a tab for each creature, a one-line status (for example "Hungry. Lantern is dimming."), three bars (**Fed, Comfort, Water quality**) and a ✓ / ✗ list of what helps or hurts its comfort. The selected creature has a ring around it in the tank.
+  - **Feed kelp flakes** costs 1 kelp fibre and feeds the whole tank. Flakes sink and the creatures swim to eat them.
+  - **Clean tank** scrubs the water clean (+40%), with bubbles.
+  - **Plant** one plant per tank: branch coral (1 quartz), ribbon kelp or seagrass (1 kelp fibre each). Each must be scanned on the reef first.
+  - **To jar** moves a creature to another tank (it keeps its needs and growth). **Release** (tap twice) sends it home.
+  - Inside the tank: murk and an algae film build up as the water gets dirty; sick creatures turn pale, slow down and sink.
+- **The rules** (`src/game/creatures.ts`). Every number is one constant at the top of the file. Everything runs on play time, so closing the app never starves anything.
+  - **Fed:** full to empty in 15 minutes. One feed adds 60%.
+  - **Water:** each creature dirties its tank (1 alone takes 20 minutes, 4 take 5). A powered filter pump cleans far faster than that.
+  - **Comfort** starts at 50%, then:
+    - +30% with its favourite plant: glowfin likes branch coral, puffcap ribbon kelp, dapple ray seagrass;
+    - +20% with the right company: glowfins like another glowfin, rays like any tank-mate, puffcaps like space (at most one tank-mate);
+    - −40% if a puffcap shares a tank with a glowfin (its threads sting);
+    - −40% if the tank has no power;
+    - −10% for each creature over 3.
+    - The bar drifts towards that value over about a minute.
+  - **Growing:** with all three needs at 60% or more, a young creature is grown after 8 minutes. Grown ones are bigger and glow brighter. Eggs hatch after 90 s in any tank.
+  - **Payoff:** a grown, happy creature puts 1 material into storage every 4 minutes. Rays turn up copper, puffcaps shed kelp fibre, glowfins leave quartz. Brightness shows how well kept a creature is.
+  - **Sickness:** if any need drops below 25%, it gets sick (a warning message, pale and slow). It recovers once fixed. After 6 minutes sick it goes **dormant**: its remains are kept in storage (listed in the scanner log) until the Revival pool from DESIGN.md is found. From a single feed, neglect takes roughly 17 minutes of play to lose a creature.
+- **Scanner log:** a new **Creatures** section lists each kept creature with its status, what is in the jar and any dormant remains.
+- **Build bar:** now six pieces. Cards shrink to fit the phone, and on short screens their drawings hide. Keyboard 1–6.
+- Tested:
+  - Type check and production build pass.
+  - Emulated iPhone 15 Pro in landscape, scripted:
+    - Holding C next to the young puffcap put it in the jar (jar chip shown). Swimming to the tank put it in tank 1.
+    - In the care panel, planting ribbon kelp took 1 fibre, and feeding took 1 fibre and raised Fed.
+    - 20 simulated minutes without care: the puffcap got sick, then went dormant (1 dormant puffcap recorded).
+    - Eggs hatched. A fed young ray with seagrass and a tank-mate grew up and stored 4 copper. A lone glowfin in a seagrass tank stayed unsettled and did not grow, as the rules say.
+    - Blacking out with a young ray in the jar woke the diver in the dome, and the ray swam home (its spot refilled at once).
+  - Screenshots of the puffcaps, the meadow rays, the grotto eggs, the tank with creatures, and the care panel.
+  - No console errors. The frame rate could not be measured, because the test browser draws in software.
+- Deployed: GitHub Actions run 43732834582 built and deployed to Pages successfully from `claude/creature-design-milestone-806kjd`. This branch was started from the default branch `claude/underwater-game-m0-0qqajg` (after PR #2 merged), so merging it back is a clean fast-forward.
+
+### Milestone 4 follow-up: scarcer materials
+- **Feedback:** Colin likes that grown creatures put materials into storage ("a clever way of rewarding the player for collecting different animal specimens"). He has more materials than he needs, and asked for scarcer reef materials so creatures and automatic production feel more rewarding. He also proposed a larger direction (one main base that grows all game, factory-style automation with creatures as resource nodes, an auto feeder around the second biome, faster travel home, a much bigger build area). That is recorded in DESIGN.md under The base; nothing of it is built yet.
+- **Changes:**
+  - Material spots cut from 39 to 28 (`src/world/pickups.ts`): scrap 10 → 8, copper 10 → 7, quartz 10 → 7, kelp fibre 9 → 6. The spots kept are the ones near landmarks (the sled wreck, the grotto, the coral garden), so the shallows still teach where each material lives.
+  - Regrowth after collecting: 6 → **10 minutes** of play (`REGROW_SECONDS` in `src/game/state.ts`). Wild creature spots use the same timer.
+  - Creature production is unchanged (one material every 4 minutes per grown, happy creature), so it now covers a larger share of what the base needs. Puffcaps make kelp fibre, which the feeding uses, so a puffcap tank partly feeds the others.
+  - Scrap is now the bottleneck: no creature makes it. That fits it being salvage from wrecks, but if it feels like a grind, add scrap spots back or let a later creature or machine produce it.
+- Tested: type check and build pass.
+
 ## Next
 
-**Milestone 4: Creatures.** Collecting creatures, the creature tank, feeding, the filter pump and the three needs (hunger, comfort, water quality). Tanks and filter pumps will be new base pieces using the same collar and power rules (`src/game/base.ts`: add to `PIECES`, then draw them in `src/world/basegfx.ts`).
+**Milestone 5: Big base and factory groundwork** (new; Colin chose it ahead of the submersible). A much wider and deeper build site with a pannable, zoomable build view; materials moving between joined pieces at real rates; the first machine that combines materials into a refined one; creature tanks acting as resource nodes whose output scales with happy creatures. Colin's answers to the open choices are in DESIGN.md (The base, "Milestone 5 decisions"). This is a large milestone; it may be split across two sessions (record the split here).
+
+Where things are now: the grid is `GRID_X0`, `GRID_COLS`, `GRID_ROWS` and `CELL` in `src/game/base.ts`, and the build camera is `VIEW_H_BUILD` in `src/main.ts`. Storage is one shared pool (`save.stored`). Creature output is `tickCare` in `src/game/creatures.ts`. Saves already keep pieces by grid cell, so a bigger grid must keep old bases where they are.
+
+After that: **milestone 6, the submersible.** DESIGN.md also names the sub's cargo bay as one way to raise the dive bag limit (`bagLimits()` in `src/game/state.ts`).
 
 ## Problems and open questions
+
+- **Colin's answers on the base and factory direction (after milestone 4):**
+  1. Build the big base and factory groundwork **before** the submersible. It is now milestone 5; every later milestone moved up by one (the sub is 6, the first gear gate 7, and so on; DESIGN.md has the new list). Milestone numbers in the history above are the old ones.
+  2. The build area must be **wider and deeper**, with plenty of room for factory parts. Later, tunnelling lets the base expand down into the rock once the water space is full.
+  3. **Real production chains with rates to balance**, not just a few simple combiners.
+  4. The **auto feeder** is a base piece that feeds tanks from stored kelp fibre, including what puffcaps produce.
+  5. Steam: keep building as a web link in small chunks; wrap it as a desktop app in the polish milestone (or earlier for a store page).
+- **Colin answered the milestone 5 questions** (written up in DESIGN.md, The base, "Milestone 5 decisions"): a site at least 20 times bigger in a deep basin, different transport for different material kinds, the auto feeder as the first production line, and creature output scaled by both numbers and a rare output-multiplying item that also raises input use. The prompt for the next session is in `docs/prompts/milestone-5.md`.
+- **Phone and PC for a big base:** the build view will need panning and zooming for a large base. Keep it usable on the phone, but PC with a mouse may be the best way to manage a big factory, as Colin expects.
+
+- **Creature numbers to tune after Colin plays** (all at the top of `src/game/creatures.ts`): hunger 15 min, feed +60%, dirt per creature 20 min, filter rate, clean +40%, sick below 25%, 6 min sick to dormant, 8 min to grow, 90 s to hatch, 4 min per material, 4 per tank, 2 tanks per pump. Catch times are in `src/world/wildlife.ts`. If losing creatures feels too harsh for the cozy shallows, raise `SICK_SECONDS` or slow `HUNGER_RATE`.
+- **Gamepad can't open Tend yet** (touch and keyboard T work). Add a button when gamepad play matters (milestone 11 polish).
+- **Grown creatures as keys** (a grown glowfin lighting a passage) and breeding come in milestone 8, as DESIGN.md plans. Grown glowfins already glow brighter, ready for that.
+- **Revival pool** is not built. Dormant remains are counted in the save (`dormant`) for when it is.
+- **Egg cases for puffcaps and rays** have names in the code, but only glowfin eggs exist in the world for now. Breeding (milestone 8) can add the others.
 
 - **Build drone and dive bag numbers to tune after Colin plays:**
   - drone repair cost (`DRONE_REPAIR_COST`) and repair time (`REPAIR_SECONDS`);

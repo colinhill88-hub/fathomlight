@@ -49,6 +49,10 @@ import { DiveWatch } from './ui/watch';
 import { BaseLayout, GRID_BASE, GRID_X0, GRID_X1, isDone, PIECES, pieceRect, Placed } from './game/base';
 import { BaseView, BuildOverlay, storageCapacity } from './world/basegfx';
 import { BuildMode } from './ui/build';
+import { Wildlife } from './world/wildlife';
+import { TankLife } from './world/tanklife';
+import { CareMode } from './ui/care';
+import { creaturesIn, newCreature, SPECIES, tankNumber, tickCare, TANK_CAPACITY } from './game/creatures';
 
 declare const __BUILD_ID__: string;
 
@@ -56,6 +60,8 @@ declare const __BUILD_ID__: string;
 const VIEW_H = 640;
 /** The camera zooms out to this while building, so the whole Kestrel site fits. */
 const VIEW_H_BUILD = 860;
+/** The camera zooms in on a creature tank while tending it. */
+const VIEW_H_CARE = 235;
 
 /*
  * How a frame is drawn (back to front):
@@ -138,6 +144,9 @@ async function boot(): Promise<void> {
   // The build drone: stuck in the sled wreck until repaired (milestone 3 follow-up).
   const drone = new Drone(save.drone === 'active');
   const fish = [0, 0, 1].map((look) => new Glowfin(look, GROTTO));
+  // Milestone 4: wild creatures to collect, and life inside the creature tanks.
+  const wildlife = new Wildlife();
+  const tankLife = new TankLife();
   const schools = [
     new School(22, { x0: 1850, x1: 3500, y0: 200, y1: 380 }),
     new School(16, { x0: 6950, x1: 8250, y0: 300, y1: 450 }),
@@ -158,6 +167,10 @@ async function boot(): Promise<void> {
     { id: 'cave', points: () => scenery.scanPoints.cave },
   ]);
   overlayCam.addChild(scanner.overlay);
+  scanner.candidates.push(
+    { id: 'puffcap', points: () => wildlife.scanPoints('puffcap') },
+    { id: 'ray', points: () => wildlife.scanPoints('ray') },
+  );
   const surfaceFx = new SurfaceFx();
 
   // The base at the Kestrel site.
@@ -166,6 +179,7 @@ async function boot(): Promise<void> {
   drone.teleport(diver.x, diver.y, layout);
   const baseView = new BaseView();
   baseView.sync(layout);
+  tankLife.sync(save, layout);
   const buildOverlay = new BuildOverlay();
   overlayCam.addChild(buildOverlay.view);
   /** Seconds left on the quick ID (name tags over things already scanned). */
@@ -189,7 +203,9 @@ async function boot(): Promise<void> {
     litCam.addChild(
       scenery.view,
       baseView.view,
+      tankLife.view,
       pickups.view,
+      wildlife.view,
       ...schools.map((s) => s.view),
       ...fish.map((f) => f.view),
       drone.view,
@@ -199,8 +215,8 @@ async function boot(): Promise<void> {
       scenery.over,
     );
     frontCam.addChild(scenery.front);
-    emissiveCam.addChild(scenery.emissive, baseView.emissive, pickups.emissive, drone.emissive, ...fish.map((f) => f.lure), diver.lens, surfaceFx.view);
-    glowCam.addChild(scenery.glow, baseView.glow, pickups.glow, drone.glow, ...fish.map((f) => f.halo), diver.lensGlow);
+    emissiveCam.addChild(scenery.emissive, baseView.emissive, tankLife.emissive, pickups.emissive, wildlife.emissive, drone.emissive, ...fish.map((f) => f.lure), diver.lens, surfaceFx.view);
+    glowCam.addChild(scenery.glow, baseView.glow, tankLife.glow, pickups.glow, wildlife.glow, drone.glow, ...fish.map((f) => f.halo), diver.lensGlow);
   }
   populate();
 
@@ -219,6 +235,7 @@ async function boot(): Promise<void> {
     toWorld: (sx, sy) => ({ x: camX + sx / zoom, y: camY + sy / zoom }),
     changed: (fresh) => {
       baseView.sync(layout, fresh);
+      tankLife.sync(save, layout);
       persist();
     },
     toast: (t, k) => hud.toast(t, k),
@@ -227,6 +244,37 @@ async function boot(): Promise<void> {
     droneReady: () => save.drone === 'active',
     welding: () => drone.welding,
   });
+
+  const care = new CareMode({
+    save,
+    layout,
+    toast: (t, k) => hud.toast(t, k),
+    refreshInventory: () => hud.refreshInventory(),
+    persist: () => persist(),
+    fedFx: (id) => tankLife.feed(id),
+    scrubFx: (id) => tankLife.scrub(id),
+    changed: () => tankLife.sync(save, layout),
+    released: (c) => wildlife.release(c.species, c.stage, save),
+    highlight: (id) => (tankLife.highlight = id),
+  });
+  /** The finished creature tank the diver is next to, if any. */
+  function tankAround(x: number, y: number): Placed | null {
+    for (const p of layout.pieces) {
+      if (p.kind !== 'tank' || !isDone(p)) continue;
+      const r = pieceRect(p);
+      if (x > r.x - 50 && x < r.x + r.w + 50 && y > r.y - 60 && y < r.y + r.h + 40) return p;
+    }
+    return null;
+  }
+  let nearTank: number | null = null;
+  let lastViewW = 1000;
+  /** Text for the jar chip. */
+  function jarText(): string | null {
+    const j = save.jar;
+    if (!j) return null;
+    const sp = SPECIES[j.species];
+    return j.stage === 'egg' ? `Jar: ${sp.eggName}` : j.stage === 'young' ? `Jar: ${sp.youngName}` : `Jar: ${sp.name.toLowerCase()}`;
+  }
 
   /** Can the drone repair be paid for (carried first, then stored)? Lists what is missing. */
   function repairMissing(): string[] {
@@ -362,9 +410,12 @@ async function boot(): Promise<void> {
 
     // Build mode: only at the Kestrel site, and not while blacking out.
     const atSite = diver.x > GRID_X0 - 260 && diver.x < GRID_X1 + 260 && diver.y < GRID_BASE + 120;
-    build.setAvailable(atSite && blackout === 0);
+    build.setAvailable(atSite && blackout === 0 && !care.active);
     build.pollPad(dt);
-    input.suspended = build.active;
+    const tankHere = blackout === 0 && !build.active && !diver.surfaced ? tankAround(diver.x, diver.y) : null;
+    care.setAvailable(tankHere?.id ?? (care.active ? care.tankId : null));
+    care.update(dt);
+    input.suspended = build.active || care.active;
     if (atSite && !save.tips.includes('build') && blackout === 0) {
       save.tips.push('build');
       hud.toast(
@@ -377,7 +428,7 @@ async function boot(): Promise<void> {
 
     input.update();
     const s = input.state;
-    const inControl = blackout === 0 && !build.active;
+    const inControl = blackout === 0 && !build.active && !care.active;
     // The dive bag's weight slows the diver (no sinking through a dome's floor).
     diver.load = bagLoad(save);
     diver.noSink = insideDome !== null;
@@ -419,8 +470,8 @@ async function boot(): Promise<void> {
         persist();
       }
     }
-    if (build.active && blackout === 0) {
-      // Planning the base pauses the air clock.
+    if ((build.active || care.active) && blackout === 0) {
+      // Planning the base, or tending a tank, pauses the air clock.
     } else if (blackout === 0) {
       if (atSurface || domeAir) {
         // Air comes in from the first breath after breaking the surface.
@@ -465,6 +516,20 @@ async function boot(): Promise<void> {
           save.dropped = { x: place.x, y: place.y, items };
           hud.refreshInventory();
         }
+        // The specimen jar: a creature taken from a tank goes back to it; a wild one swims home.
+        let jarMsg = '';
+        if (save.jar) {
+          const j = save.jar;
+          if (j.keep && layout.pieces.some((p) => p.id === j.keep!.tank)) {
+            save.creatures.push(j.keep);
+            jarMsg = ` The crew put the ${SPECIES[j.species].name.toLowerCase()} from your jar back in its tank.`;
+          } else {
+            wildlife.release(j.species, j.stage, save);
+            jarMsg = ` The specimen jar came open; the ${SPECIES[j.species].name.toLowerCase()} swam home.`;
+          }
+          save.jar = null;
+          tankLife.sync(save, layout);
+        }
         const home = respawnPoint();
         diver.x = home.x;
         diver.y = home.y;
@@ -479,8 +544,8 @@ async function boot(): Promise<void> {
         hud.setLowOxygen(0);
         const where = home.dome ? 'the dome habitat' : 'the Kestrel buoy';
         blackoutMsg = save.dropped
-          ? `You blacked out. The crew pulled you back to ${where}. Your sample bag is on the seabed where you fell; its amber light is blinking.`
-          : `You blacked out. The crew pulled you back to ${where}.`;
+          ? `You blacked out. The crew pulled you back to ${where}. Your sample bag is on the seabed where you fell; its amber light is blinking.${jarMsg}`
+          : `You blacked out. The crew pulled you back to ${where}.${jarMsg}`;
         blackout = BLACK_IN + 0.0001;
         writeSave(Object.assign(save, { x: diver.x, y: diver.y }));
       }
@@ -496,13 +561,41 @@ async function boot(): Promise<void> {
     const collectHeld = inControl && s.collect && !diver.surfaced;
     // The stranded drone takes the Collect button when the diver is next to it.
     const atDrone = drone.inReach && !diver.surfaced && blackout === 0;
+    // Wild creatures: the specimen jar takes the Collect button when one is in reach.
+    const wt = wildlife.target;
+    const wtKnown = !!wt && save.scans.includes(SPECIES[wt.species].scan);
+    const wildOk = !!wt && wtKnown && !save.jar && !diver.surfaced && !atDrone;
+    for (const ev of wildlife.update(dt, time, diver.x, diver.y, Math.hypot(diver.vx, diver.vy), diver.boosting, save, collectHeld && wildOk, camX - 200, camX + lastViewW + 200)) {
+      save.jar = { species: ev.species, stage: ev.stage };
+      drone.cheer();
+      const sp = SPECIES[ev.species];
+      const name = ev.stage === 'egg' ? sp.eggName : sp.youngName;
+      const hasTank = layout.pieces.some((p) => p.kind === 'tank');
+      hud.toast(
+        `${name.replace(/^./, (m) => m.toUpperCase())} in the specimen jar! ${
+          hasTank ? 'Swim to a creature tank at the base to put it in.' : 'Build a creature tank at the Kestrel site to keep it.'
+        }`,
+        'big',
+      );
+      persist();
+    }
+    const wildTarget = wildlife.target && !atDrone && !diver.surfaced ? wildlife.target : null;
+    if (wildTarget && collectHeld && !wildOk && time - fullWarnAt > 4) {
+      fullWarnAt = time;
+      hud.toast(
+        !save.scans.includes(SPECIES[wildTarget.species].scan)
+          ? `Scan the ${SPECIES[wildTarget.species].name.toLowerCase()} first, to learn how to keep it`
+          : 'The specimen jar is full. Put its creature in a tank first.',
+        'warn',
+      );
+    }
     const prevT = pickups.target;
     const bagFull = !!prevT && !bagHasRoom(save, prevT.kind);
     if (bagFull && collectHeld && !atDrone && time - fullWarnAt > 4) {
       fullWarnAt = time;
       hud.toast(`Dive bag full (${bagLimits(save).max} kg). Unload at a storage pod to carry more.`, 'warn');
     }
-    for (const ev of pickups.update(dt, time, diver.x, diver.y, save, collectHeld && !atDrone && !bagFull, speed)) {
+    for (const ev of pickups.update(dt, time, diver.x, diver.y, save, collectHeld && !atDrone && !bagFull && !wildTarget, speed)) {
       if (ev.type === 'material') {
         save.bag[ev.kind]++;
         drone.cheer();
@@ -526,13 +619,26 @@ async function boot(): Promise<void> {
     const pt = pickups.target;
     const missing = atDrone ? repairMissing() : [];
     const repairing = atDrone && collectHeld && !missing.length && speed < 70;
-    diver.working = pickups.working && pt ? { x: pt.x, y: pt.y } : repairing ? drone.scanPoint() : null;
+    diver.working =
+      wildlife.working && wildTarget ? { x: wildTarget.x, y: wildTarget.y } : pickups.working && pt ? { x: pt.x, y: pt.y } : repairing ? drone.scanPoint() : null;
     if (atDrone) {
       hud.setCollect(missing.length ? `Repair drone: need ${missing.join(', ')}` : 'Repair build drone', drone.repairProgress);
       if (collectHeld && missing.length && time - fullWarnAt > 4) {
         fullWarnAt = time;
         hud.toast(`To repair the drone you need ${missing.join(' and ')} more`, 'warn');
       }
+    } else if (wildTarget) {
+      const sp = SPECIES[wildTarget.species];
+      hud.setCollect(
+        !save.scans.includes(sp.scan)
+          ? `Unknown creature: scan it first`
+          : save.jar
+            ? 'Specimen jar full'
+            : wildTarget.stage === 'egg'
+              ? `Ease ${sp.eggName} into jar`
+              : `Coax ${sp.youngName} into jar`,
+        wildlife.progress,
+      );
     } else if (pt && !diver.surfaced) {
       const fits = bagHasRoom(save, pt.kind);
       hud.setCollect(fits ? Pickups.actionLabel(pt.kind) : 'Dive bag full: unload at a storage pod', pickups.progress);
@@ -588,6 +694,56 @@ async function boot(): Promise<void> {
       }
     }
     if (build.active && drone.welding && Math.floor(time * 4) !== Math.floor((time - dt) * 4)) build.refresh();
+
+    // ---- Creature tanks: swim up with a creature in the jar to put it in ----
+    const tankNow = tankHere?.id ?? null;
+    if (tankNow !== null && tankNow !== nearTank && save.jar) {
+      const n = creaturesIn(save, tankNow).length;
+      if (n >= TANK_CAPACITY) hud.toast(`Tank ${tankNumber(layout, tankNow)} is full (${TANK_CAPACITY} creatures). Build another creature tank.`, 'warn');
+      else {
+        const j = save.jar;
+        if (j.keep) {
+          j.keep.tank = tankNow;
+          save.creatures.push(j.keep);
+        } else newCreature(save, j.species, j.stage === 'egg' ? 'egg' : 'young', tankNow);
+        save.jar = null;
+        tankLife.sync(save, layout);
+        drone.cheer();
+        const sp = SPECIES[j.species];
+        hud.toast(
+          `${j.stage === 'egg' ? `The ${sp.eggName} is` : `The ${sp.name.toLowerCase()} is`} in tank ${tankNumber(layout, tankNow)}. Tap Tend to look after it.`,
+          'big',
+        );
+        if (!save.tips.includes('care')) {
+          save.tips.push('care');
+          setTimeout(
+            () => hud.toast('Creatures need food (kelp flakes), comfort (the right plant and company) and clean water (a filter pump). Happy ones grow and make materials.', 'big'),
+            2500,
+          );
+        }
+        persist();
+      }
+    }
+    nearTank = tankNow;
+    hud.setJar(jarText());
+
+    // ---- Creature care: needs run on play time ----
+    for (const ev of tickCare(save, layout, dt, () => storageCapacity(layout) - MATERIALS_LIST.reduce((a, k) => a + save.stored[k], 0))) {
+      const name = SPECIES[ev.c.species].name;
+      const where = `tank ${tankNumber(layout, ev.c.tank)}`;
+      if (ev.type === 'hatched') hud.toast(`The ${name.toLowerCase()} eggs hatched in ${where}! The fry need feeding.`, 'big');
+      else if (ev.type === 'grown') hud.toast(`The ${name.toLowerCase()} in ${where} is fully grown, and glows brighter`, 'big');
+      else if (ev.type === 'sick') hud.toast(`The ${name.toLowerCase()} in ${where} is sick (${ev.why}). Tend it soon.`, 'warn');
+      else if (ev.type === 'better') hud.toast(`The ${name.toLowerCase()} in ${where} is feeling better`);
+      else if (ev.type === 'dormant')
+        hud.toast(`The ${name.toLowerCase()} in ${where} went dormant. Its remains are kept in storage until a Revival pool is found.`, 'warn');
+      else if (ev.type === 'made') {
+        hud.toast(`+1 ${MATERIALS[ev.kind].name} from the ${name.toLowerCase()} (stored)`);
+        hud.refreshInventory(ev.kind);
+      }
+      if (ev.type !== 'made' && ev.type !== 'better') tankLife.sync(save, layout);
+      persist();
+    }
 
     // ---- Storage: swim up to a powered pod to unload everything carried ----
     let byPod = false;
@@ -654,9 +810,10 @@ async function boot(): Promise<void> {
     }
 
     // Zoom out smoothly while building.
-    viewH += ((build.active ? VIEW_H_BUILD : VIEW_H) - viewH) * (1 - Math.exp(-4 * dt));
+    viewH += ((build.active ? VIEW_H_BUILD : care.active ? VIEW_H_CARE : VIEW_H) - viewH) * (1 - Math.exp(-4 * dt));
     zoom = cssH / viewH;
     const viewW = cssW / zoom;
+    lastViewW = viewW;
     let lookX = diver.x + diver.vx * 0.35 + (diver.vx >= 0 ? 60 : -60);
     let lookY = diver.y + diver.vy * 0.25 + 30;
     if (build.active) {
@@ -667,6 +824,15 @@ async function boot(): Promise<void> {
       lookX = viewW >= siteW || !focus ? mid : Math.max(GRID_X0 - 120 + viewW / 2, Math.min(GRID_X1 + 120 - viewW / 2, focus.x + focus.w / 2));
       // Seabed at the site about three quarters down, above the piece bar.
       lookY = GRID_BASE + 40 - 0.25 * viewH;
+    } else if (care.active && care.tankId !== null) {
+      // The tank sits in the left part of the screen, beside the care panel.
+      const t = layout.pieces.find((p) => p.id === care.tankId);
+      if (t) {
+        const r = pieceRect(t);
+        const panelW = Math.min(360, cssW * 0.44) + 24;
+        lookX = r.x + r.w / 2 + panelW / zoom / 2;
+        lookY = r.y + r.h / 2 + 10;
+      }
     }
     const k = 1 - Math.exp(-3.2 * dt);
     const prevX = camCX;
@@ -676,7 +842,7 @@ async function boot(): Promise<void> {
     // Keep the camera inside the world (a little sky is allowed at the top).
     camCX = viewW >= WORLD_W ? WORLD_W / 2 : Math.max(viewW / 2, Math.min(WORLD_W - viewW / 2, camCX));
     // A little sky is allowed at the top, enough to see a splash.
-    camCY = Math.max(viewH / 2 - (build.active ? 260 : 110), Math.min(WORLD_H - viewH / 2, camCY));
+    camCY = Math.max(viewH / 2 - (build.active ? 260 : care.active ? 0 : 110), Math.min(WORLD_H - viewH / 2, camCY));
     camX = camCX - viewW / 2;
     camY = camCY - viewH / 2;
     scenery.update(time, diver.x, diver.y, diver.vx, camX, camX + viewW);
@@ -689,6 +855,11 @@ async function boot(): Promise<void> {
       buildOverlay.update(time, layout, build.ghost && gs ? { ...build.ghost, ok: gs.ok } : null, build.selected);
     }
     for (const sc of schools) sc.update(dt, time, diver.x, diver.y, camX, camX + viewW);
+    tankLife.update(dt, time, save, camX, camX + viewW);
+    // While tending a tank, the diver and drone fade so they don't hide it.
+    const fade = care.active ? 0.12 : 1;
+    diver.view.alpha += (fade - diver.view.alpha) * Math.min(1, dt * 6);
+    drone.view.alpha = drone.emissive.alpha = drone.glow.alpha = diver.view.alpha;
 
     for (const c of [litCam, emissiveCam, glowCam, overlayCam]) {
       c.scale.set(zoom);
@@ -705,13 +876,13 @@ async function boot(): Promise<void> {
     lampLight.y = lp.y;
     lampLight.dirX = lp.dirX;
     lampLight.dirY = lp.dirY;
-    lampLight.intensity = 1.5 * diver.lamp;
+    lampLight.intensity = 1.5 * diver.lamp * diver.view.alpha;
     diver.lens.position.set(lp.x, lp.y);
-    diver.lens.alpha = 0.25 + 0.75 * diver.lamp;
+    diver.lens.alpha = (0.25 + 0.75 * diver.lamp) * diver.view.alpha;
     diver.lensGlow.position.set(lp.x, lp.y);
-    diver.lensGlow.alpha = diver.lamp;
+    diver.lensGlow.alpha = diver.lamp * diver.view.alpha;
 
-    const lights: Light[] = [lampLight, ...drone.lights, ...scenery.lights, ...baseView.lights, ...pickups.lights, ...fish.map((f) => f.light)];
+    const lights: Light[] = [lampLight, ...drone.lights, ...scenery.lights, ...baseView.lights, ...pickups.lights, ...wildlife.lights, ...fish.map((f) => f.light)];
     const floor = groundY(Math.max(0, Math.min(WORLD_W, diver.x)));
     const height = floor - diver.y;
     lighting.update({
@@ -813,6 +984,10 @@ async function boot(): Promise<void> {
     layout,
     build,
     drone,
+    wildlife,
+    tankLife,
+    care,
+    tickCare: (sec: number) => tickCare(save, layout, sec, () => 99),
     snap: () => {
       camCX = diver.x;
       camCY = diver.y;
