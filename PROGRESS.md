@@ -472,6 +472,8 @@ Cut from High so far: the phone renders at 2× instead of its native 3×. Colin 
   - 1280×720 PC: build mode framing, zooming right out to the whole basin, and picking a dome in the middle of the basin.
   - No console errors. The frame rate couldn't be measured, because the test browser draws in software. Zoomed all the way out it draws the whole basin at once: the software test browser crashed now and then while taking screenshots (at any zoom, and at random; the same test passed when run again). To be safe, on touch screens the zoom-out stops at a view height of 2800 (still almost the whole basin width). Check the frame rate zoomed out on the phone, and on the PC (Ultra).
 
+- Deployed: GitHub Actions run 43752369060 built and deployed to Pages successfully from `claude/great-pascal-vx5iis`. This branch was started from the default branch `claude/underwater-game-m0-0qqajg` after PR #3 merged, so merging it back is a clean fast-forward.
+
 ## Next
 
 **Milestone 5, part 2: refining and tank output on conveyors.** Then milestone 6, the submersible.
