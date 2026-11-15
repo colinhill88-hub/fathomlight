@@ -1,6 +1,6 @@
 # Fathomlight progress
 
-Last updated: 2026-11-15, **milestone 4 deployed, plus scarcer materials from Colin's feedback**. Next is the new **milestone 5: big base and factory groundwork** (Colin moved it ahead of the submersible; see Next).
+Last updated: 2026-11-15, **milestone 5 part 1 deployed (big basin site, conveyors and feed pipes, the auto feeder, scaling creature output, Echo whorls)**. Next is **milestone 5 part 2** (see Next).
 
 Play link: https://colinhill88-hub.github.io/fathomlight/ (live; first successful deploy 2026-11-14)
 
@@ -397,15 +397,112 @@ Cut from High so far: the phone renders at 2× instead of its native 3×. Colin 
   - Scrap is now the bottleneck: no creature makes it. That fits it being salvage from wrecks, but if it feels like a grind, add scrap spots back or let a later creature or machine produce it.
 - Tested: type check and build pass.
 
+### Milestone 5, part 1: the Kestrel basin and the first production line
+- **Feedback on the last build:** milestone 4 and the scarcer materials are good; Colin loves that grown creatures fill storage. He chose milestone 5 (big base and factory groundwork) before the submersible, with the decisions recorded in DESIGN.md (The base, "Milestone 5 decisions").
+- **The split.** Milestone 5 is too big for one session, so it is two playable parts:
+  - **Part 1 (this session):** the big basin site and build camera, conveyors and feed pipes, the auto feeder chain, creature output that scales with happy creatures and tanks, and the Echo whorl.
+  - **Part 2 (next):** the first machine that combines materials into a refined one, tank output carried on conveyors (instead of going straight to storage), faster CB-2 conveyors and FL-2 pipes, and a whole-base rates overview.
+- **The site** (`src/world/terrain.ts`, `src/game/base.ts`):
+  - The grid grew from 11 × 3 cells to **58 × 14 cells** (87 m × 21 m). **About 680 cells are open water**, a bit over 20 times the old site. `OPEN_CELLS` in `src/game/base.ts` has the exact count.
+  - West of the shelf a cliff drops into the **Kestrel basin**: a wide, flat silt floor about 22 m deep, with a steep west wall. The wall has a nook part-way up (an Echo whorl hides there). Boulders, kelp along the walls and four warm lantern anemones on the floor dress it; the middle is left clear for building.
+  - The old shelf by the buoy is the **top east corner** of the grid. The rock under the shelf and the foot of the cliff can't be built in ("Solid rock here (tunnelling comes later)").
+  - **Old saves keep their base where it is.** On load, pieces are shifted by 47 columns and 11 rows (the `site` field in the save marks the new layout).
+  - The world now runs from x = −5600 to 9000 and is 1980 units deep. The rest of the shallows' landmarks didn't move; the plants and corals scattered between landmarks are reshuffled a little. One quartz spot moved from the old west wall to the top of the cliff.
+  - Light below about 11 m now fades at a quarter of the normal rate (`depthLook` in `src/fx/shared.ts`), so the basin floor reads as deep blue rather than black. The grotto keeps its dark rock shadow.
+  - New scanner entry: **Kestrel basin**.
+- **Pieces stand on the seabed wherever it is:** the first piece may go on the basin floor, the shelf or the cliff, and downward collars facing rock are sealed.
+- **Build camera** (`src/ui/build.ts`):
+  - Opening build mode frames what you've built, with a cell or so of room around it (the shelf if nothing is built yet). The **Fit** button (top left; F on keyboard) reframes it.
+  - Zoom goes from about one piece up to the whole basin.
+  - Touch: drag on empty water to pan, pinch to zoom. While holding a piece, one finger still slides the piece; two fingers pan and zoom.
+  - Mouse: the wheel zooms at the pointer; drag with the left button (no piece in hand) or the middle button to pan.
+  - Keyboard: WASD pans, arrows move the piece (or pan with no piece), + / − or E / Q zoom.
+  - Gamepad: the triggers zoom and the right stick pans.
+  - A picked piece appears at the nearest valid spot to the middle of the view, and the view follows a piece you move off screen.
+  - The dive watch hides in build mode, and the near kelp fades away when zoomed far out.
+  - The drone parks over the middle of what's built instead of over the middle of the grid.
+- **Transport** (`src/game/factory.ts` rules, `src/world/linegfx.ts` drawing). Different kinds of material move by different means:
+
+| Line | Carries | Rate (CB-1 / FL-1) | Cost per length | Look |
+| --- | --- | --- | --- | --- |
+| Conveyor | solid items (kelp fibre for now; all solids later) | 6 items/min | 1 scrap per 2 cells + 1 copper per 4 cells | dark rubber belt on steel rollers, transfer boxes at bends; bundles ride along it while it runs |
+| Feed pipe | fluids (feed mash now; filtered water and so on later) | 10 L/min | 1 copper per 2 cells + 1 kelp fibre per 4 cells | weathered copper with brass flanges and verdigris; pulses of mash travel down it |
+
+  - Corridors still carry power and access.
+  - **Drawing a line:** in build mode, tap a piece with an output, then **Conveyor to…** or **Pipe to…**, then tap the target. A dashed preview shows the route, length and cost, and ✓ builds it straight away (no welding).
+    - Keyboard: C or P with a piece selected. Mouse: click the target.
+  - **Routing:** a line leaves the top of the first piece, runs across above both pieces and drops into the top of the second. Lines from the same piece take separate lanes. The longest line is 30 cells.
+  - **Port limits:** a storage pod sends up to 4 conveyors; an auto feeder takes up to 2 conveyors in and sends up to 4 pipes; a tank takes 1 pipe.
+  - **Selecting a line:** tap it to see what it's moving per minute against what it can carry (for example "Moving 0.5 items/min of kelp fibre · can carry 6 items/min (8% used)"). **Remove** (two taps) refunds it.
+  - Removing a piece also removes and refunds its lines. Fibre waiting in a feeder's hopper goes back to storage, and fitted whorls come off.
+- **Auto feeder** (a new piece, 1 × 2 cells, card 7; drawn in `src/world/basegfx.ts`): a funnel hopper on top, a geared press drum, and a mash tank with a sight window. A copper riser carries the mash up to the pipe port. Its hopper and mash levels show live, and the gear turns while it presses.
+  - **Cost and power:** 3 scrap, 3 copper and 2 quartz; 30 s to weld; it needs power.
+  - **The chain:** storage pod → conveyor (kelp fibre) → auto feeder → feed pipes → creature tanks.
+  - **Rate:** it presses **0.5 kelp fibre/min** into **12 L of mash each**, so it makes 6 L/min. The hopper holds 4 fibre and the mash tank 24 L.
+  - **The tanks:** each tank on a feed pipe gets a 12 L **feed trough**. Its creatures eat from it whenever Fed drops below 95%. One litre fills 20% of Fed, so a creature eats about **0.33 L/min**, and one feeder keeps about 18 creatures fed.
+  - **Fibre cost:** per fibre this is the same as feeding by hand (one feed of 1 fibre gives a whole tank +60%). The gain is not having to swim back.
+  - **Supply:** a grown puffcap makes 0.25 fibre/min, enough to feed about nine creatures.
+  - Hand feeding still works. Mash is shared out between a feeder's pipes.
+  - **Readouts:** the selected feeder shows its state (running, waiting for fibre, mash tank full, no power, no conveyor) and its rates. The selected tank shows its trough, what it eats per minute and what it makes per minute. The care panel lists the feed pipe and trough level.
+- **Creature output that scales** (`makeRate` in `src/game/creatures.ts`):
+  - The base rate is unchanged: a grown, happy creature makes 0.25 items/min (one every 4 minutes).
+  - **Shoal bonus:** +15% for each happy tank-mate.
+  - **Reef bonus:** +10% for each other thriving tank (at least two grown, happy creatures), up to +50%.
+  - **Echo whorls** multiply on top.
+  - The care panel shows each grown creature's rate and its bonuses.
+- **Echo whorl** (`src/world/whorl.ts`; pickups in `src/world/pickups.ts`):
+  - **Look:** a thumb-sized spiral of pale nacre with a cold spiral thread of light and rings that pulse out from it, cyan to violet. It's the first thing in the shallows in the Choir's colours. It's an original design, not based on any other game's item.
+  - **Story:** the scanner entry says no animal on record makes it, and that living things and machines near it quicken. The crew think the lights from the deep left it.
+  - **Where:** two in the shallows for now. One is in the nook in the basin's west wall; the other is on the floor just inside the dark cave mouth, before the "too dark" point. Swim into one to take it (it also completes its scan).
+  - **Fitting:** in build mode, select a finished creature tank or auto feeder and tap **Fit whorl** or **Take out whorl**, up to 2 per piece. Fitted whorls show on the piece and pulse.
+  - **Effect:** one whorl gives ×2 output and two give ×3, and inputs go up by the same factor:
+    - a tank's creatures get hungry and foul the water ×2 / ×3 as fast;
+    - a feeder presses fibre ×2 / ×3 as fast.
+    - A whorled tank without a feeder or a filter pump quickly gets hungry or dirty, so it only pays off with the supply to match.
+  - The scanner log shows how many have been found and fitted.
+- Tested:
+  - Type check and production build pass.
+  - Emulated iPhone 15 Pro (landscape), scripted:
+    - An old milestone 4 save (dome, turbine, corridor, storage, tank and filter on the shelf, two grown creatures) loaded with every piece shifted to columns 47–54, row 11. They sat in the same place on the shelf, all powered.
+    - Swam the basin floor, the west wall and the nook. Swimming into the nook whorl picked it up and scanned it.
+    - In build mode, placed an auto feeder, then drew a conveyor (storage → feeder, 7 cells) and a feed pipe (feeder → tank, 9 cells) with the line buttons.
+    - Ran 20 minutes of simulated play: fibre moved from storage to the hopper, the feeder pressed it, and the tank's trough filled to 12 L. Both creatures went from 49% to 97% Fed without hand feeding. With the trough and hopper full the feeder reported "mash tank full".
+    - Fitted the whorl to the tank: its readout showed ×2 output and ×2 eating.
+    - Selected the conveyor and saw its rate readout. After a reload the lines, the fitted whorl and the shifted base were all kept.
+  - 1280×720 PC: build mode framing, zooming right out to the whole basin, and picking a dome in the middle of the basin.
+  - No console errors. The frame rate couldn't be measured, because the test browser draws in software. Zoomed all the way out it draws the whole basin at once: the software test browser crashed now and then while taking screenshots (at any zoom, and at random; the same test passed when run again). To be safe, on touch screens the zoom-out stops at a view height of 2800 (still almost the whole basin width). Check the frame rate zoomed out on the phone, and on the PC (Ultra).
+
+- Deployed: GitHub Actions run 43752369060 built and deployed to Pages successfully from `claude/great-pascal-vx5iis`. This branch was started from the default branch `claude/underwater-game-m0-0qqajg` after PR #3 merged, so merging it back is a clean fast-forward.
+
 ## Next
 
-**Milestone 5: Big base and factory groundwork** (new; Colin chose it ahead of the submersible). A much wider and deeper build site with a pannable, zoomable build view; materials moving between joined pieces at real rates; the first machine that combines materials into a refined one; creature tanks acting as resource nodes whose output scales with happy creatures. Colin's answers to the open choices are in DESIGN.md (The base, "Milestone 5 decisions"). This is a large milestone; it may be split across two sessions (record the split here).
+**Milestone 5, part 2: refining and tank output on conveyors.** Then milestone 6, the submersible.
+- **The first machine that combines materials into a refined one: hull plating** (Colin's choice). A plate press turns scrap and copper (carried in by conveyor) into hull plating for the submersible (milestone 6) and later bigger pieces. Give it its own rates, using the same conveyor rules.
+- **Tank output on conveyors.** A tank's belt-out port could carry what its creatures make to storage or straight to a machine. Today it still goes straight into storage, as in milestone 4.
+- **faster CB-2 conveyors and FL-2 pipes** (faster, costing a later material). A splitter or merger if balancing needs it.
+- **A whole-base rates overview** (made and used per minute, per material). It should suit the PC screen and stay readable on the phone.
+- More Echo whorls in later biomes. There are two in the shallows now.
+- Starting a line from either end (selecting the auto feeder also offers "Conveyor from…"); Colin found starting at the storage pod unclear.
 
-Where things are now: the grid is `GRID_X0`, `GRID_COLS`, `GRID_ROWS` and `CELL` in `src/game/base.ts`, and the build camera is `VIEW_H_BUILD` in `src/main.ts`. Storage is one shared pool (`save.stored`). Creature output is `tickCare` in `src/game/creatures.ts`. Saves already keep pieces by grid cell, so a bigger grid must keep old bases where they are.
+The prompt for the next session is in `docs/prompts/milestone-5-part-2.md`. Merge this branch (`claude/great-pascal-vx5iis`) into the default branch first, so the next session starts from part 1.
 
-After that: **milestone 6, the submersible.** DESIGN.md also names the sub's cargo bay as one way to raise the dive bag limit (`bagLimits()` in `src/game/state.ts`).
+**Colin's decisions for part 2 (after part 1):**
+- The first refined material is **hull plating** for the sub.
+- **Line tiers are named with Kestrel stencil codes, not "Mk"** ("Mk" tiers are strongly tied to Satisfactory). Conveyors are **CB-1, CB-2, …**; feed pipes are **FL-1, FL-2, …**. Today's lines are CB-1 and FL-1. Show the code in the build readouts and stencil it on the line, like CT-1, FP-1 and AF-1 on the pieces.
+- No ready-made test base: Colin is playing the current build from a brand-new save on his PC, start to finish. Expect feedback on the early game as well as the factory.
+
+Where things are: the rules for lines, the feeder and whorls are in `src/game/factory.ts`, with every rate a constant at the top. Pieces declare `ports` and `whorls` in `PIECES` (`src/game/base.ts`). Line drawing is in `src/world/linegfx.ts`, and build-mode linking and camera in `src/ui/build.ts`.
 
 ## Problems and open questions
+
+- **Milestone 5 part 1 numbers to tune after Colin plays** (all in `src/game/factory.ts` and the top of `src/game/creatures.ts`):
+  - conveyor 6 items/min, pipe 10 L/min, line costs, the longest line (30 cells);
+  - feeder 0.5 fibre/min, 12 L per fibre, hopper 4, mash tank 24 L, trough 12 L, 1 L = 20% Fed;
+  - shoal +15%, reef +10% each up to +50%;
+  - whorls ×2 / ×3.
+  - Basin depth and brightness: `BASIN_FLOOR` in `src/world/terrain.ts`, `depthLook` in `src/fx/shared.ts`.
+- **Lines are drawn over pieces.** They run across the tops of pieces and drop into them, so a long line can cross in front of other pieces. That keeps them readable on a phone. If it gets busy, a later option is drawing them behind, or letting Colin pick the lane height.
+- **Old saves and decorations.** The landmarks stayed put, but some procedural plants, corals and rock texture between them moved (the random sequence changed with the bigger world).
 
 - **Colin's answers on the base and factory direction (after milestone 4):**
   1. Build the big base and factory groundwork **before** the submersible. It is now milestone 5; every later milestone moved up by one (the sub is 6, the first gear gate 7, and so on; DESIGN.md has the new list). Milestone numbers in the history above are the old ones.
@@ -417,6 +514,7 @@ After that: **milestone 6, the submersible.** DESIGN.md also names the sub's car
 - **Phone and PC for a big base:** the build view will need panning and zooming for a large base. Keep it usable on the phone, but PC with a mouse may be the best way to manage a big factory, as Colin expects.
 
 - **Creature numbers to tune after Colin plays** (all at the top of `src/game/creatures.ts`): hunger 15 min, feed +60%, dirt per creature 20 min, filter rate, clean +40%, sick below 25%, 6 min sick to dormant, 8 min to grow, 90 s to hatch, 4 min per material, 4 per tank, 2 tanks per pump. Catch times are in `src/world/wildlife.ts`. If losing creatures feels too harsh for the cozy shallows, raise `SICK_SECONDS` or slow `HUNGER_RATE`.
+- **Mixed tanks as the goal (Colin, after milestone 5 part 1).** As new species arrive, the ideal tank should hold two or more species: through **both** tank upgrades (bigger tanks, planters with more than one plant kind) **and** partner species that help each other (Colin chose both, and wants clashes kept). Today's ideal (one species per tank with its own plant) is fine for now. Recorded in DESIGN.md, Creature care. Plan it with Colin when the next species are designed (kelp forest, milestone 7; breeding, milestone 9). Possible small help before then: a "good tank-mates" line in each scanner entry, or a warning before putting a glowfin in with a puffcap.
 - **Gamepad can't open Tend yet** (touch and keyboard T work). Add a button when gamepad play matters (milestone 11 polish).
 - **Grown creatures as keys** (a grown glowfin lighting a passage) and breeding come in milestone 8, as DESIGN.md plans. Grown glowfins already glow brighter, ready for that.
 - **Revival pool** is not built. Dormant remains are counted in the save (`dormant`) for when it is.

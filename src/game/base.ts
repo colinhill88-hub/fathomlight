@@ -15,23 +15,57 @@ import { MATERIAL_ORDER, MaterialId } from './state';
 
 /** Size of one grid cell in world units (75 wu is about 1 metre, so 1.5 m). */
 export const CELL = 112;
+/**
+ * Milestone 5: the site grew from 11 × 3 cells on the sand shelf to 58 × 14
+ * cells over the whole Kestrel basin. The old site is the top east corner of
+ * the new grid, at OLD_SITE, so bases built before keep their place in the
+ * world (old saves are shifted by this much when they load).
+ */
+export const GRID_COLS = 58;
+export const GRID_ROWS = 14;
+export const OLD_SITE = { gx: 47, gy: 11 };
 /** West edge of the build grid. */
-export const GRID_X0 = 380;
-export const GRID_COLS = 11;
-export const GRID_ROWS = 3;
+export const GRID_X0 = 380 - OLD_SITE.gx * CELL;
 export const GRID_X1 = GRID_X0 + GRID_COLS * CELL;
+/** Where the old site's bottom was: just above the highest sand on the shelf. */
+const SHELF_BASE = 423;
+/**
+ * The bottom of the grid, just above the basin floor. Pieces on the basin
+ * floor stand on short legs; pieces on the shelf stand on the shelf.
+ */
+export const GRID_BASE = SHELF_BASE + OLD_SITE.gy * CELL;
 
 /**
- * The bottom of the grid: just above the highest sand under it, so every
- * bottom-row piece clears the seabed. Legs reach down to the sand below.
+ * Which cells are open water. Cells inside rock (under the shelf, and the
+ * foot of the cliff) cannot be built in yet: tunnelling comes later.
  */
-export const GRID_BASE = (() => {
-  let top = Infinity;
-  for (let x = GRID_X0; x <= GRID_X1; x += 4) top = Math.min(top, groundY(x));
-  return Math.floor(top) - 6;
+const OPEN: boolean[] = (() => {
+  const out: boolean[] = [];
+  for (let gy = 0; gy < GRID_ROWS; gy++)
+    for (let gx = 0; gx < GRID_COLS; gx++) {
+      const x0 = GRID_X0 + gx * CELL;
+      const bottom = GRID_BASE - gy * CELL;
+      let open = true;
+      for (let x = x0 + 2; x <= x0 + CELL - 2; x += 6) if (groundY(x) < bottom - 1) open = false;
+      out.push(open);
+    }
+  return out;
 })();
 
-export type PieceKind = 'dome' | 'corridor' | 'turbine' | 'storage' | 'tank' | 'filter';
+/** Is this cell on the grid and open water (not rock)? */
+export function cellOpen(gx: number, gy: number): boolean {
+  return gx >= 0 && gy >= 0 && gx < GRID_COLS && gy < GRID_ROWS && OPEN[gy * GRID_COLS + gx];
+}
+
+/** Does a piece in this cell stand on the seabed (the basin floor, the shelf or the cliff)? */
+export function onSeabed(gx: number, gy: number): boolean {
+  return gy === 0 || !cellOpen(gx, gy - 1);
+}
+
+/** How many cells of the site are open water. */
+export const OPEN_CELLS = OPEN.filter(Boolean).length;
+
+export type PieceKind = 'dome' | 'corridor' | 'turbine' | 'storage' | 'tank' | 'filter' | 'feeder';
 export type Dir = 'L' | 'R' | 'U' | 'D';
 
 export interface PieceDef {
@@ -44,6 +78,10 @@ export interface PieceDef {
   buildTime: number;
   /** Footprint in cells, for each rotation the piece has. */
   shapes: { w: number; h: number; collars: { cx: number; cy: number; dir: Dir }[] }[];
+  /** Milestone 5: which transport lines it takes in and sends out (see LINES). */
+  ports?: Partial<Record<'beltIn' | 'beltOut' | 'pipeIn' | 'pipeOut', true>>;
+  /** Can Echo whorls be fitted to it (milestone 5)? */
+  whorls?: boolean;
 }
 
 export const PIECES: Record<PieceKind, PieceDef> = {
@@ -80,6 +118,7 @@ export const PIECES: Record<PieceKind, PieceDef> = {
     job: 'Swim up to it to unload what you carry. Stored materials are safe from blackouts.',
     cost: { scrap: 3, copper: 1, fibre: 1 },
     buildTime: 18,
+    ports: { beltOut: true },
     shapes: [
       {
         w: 1,
@@ -99,6 +138,8 @@ export const PIECES: Record<PieceKind, PieceDef> = {
     job: 'Houses up to four creatures. Swim up with a creature in your jar to put it in; tap Tend to look after them.',
     cost: { scrap: 2, quartz: 3, fibre: 1 },
     buildTime: 24,
+    ports: { pipeIn: true },
+    whorls: true,
     shapes: [{ w: 2, h: 1, collars: [{ cx: 0, cy: 0, dir: 'L' }, { cx: 1, cy: 0, dir: 'R' }] }],
   },
   filter: {
@@ -119,8 +160,18 @@ export const PIECES: Record<PieceKind, PieceDef> = {
       },
     ],
   },
+  feeder: {
+    kind: 'feeder',
+    name: 'Auto feeder',
+    job: 'Presses kelp fibre from a conveyor into feed mash and pumps it down feed pipes to creature tanks, so they feed themselves.',
+    cost: { scrap: 3, copper: 3, quartz: 2 },
+    buildTime: 30,
+    shapes: [{ w: 1, h: 2, collars: [{ cx: 0, cy: 0, dir: 'L' }, { cx: 0, cy: 0, dir: 'R' }] }],
+    ports: { beltIn: true, pipeOut: true },
+    whorls: true,
+  },
 };
-export const PIECE_ORDER: PieceKind[] = ['dome', 'corridor', 'turbine', 'storage', 'tank', 'filter'];
+export const PIECE_ORDER: PieceKind[] = ['dome', 'corridor', 'turbine', 'storage', 'tank', 'filter', 'feeder'];
 
 /** How many materials each storage pod holds, all kinds together. */
 export const STORAGE_PER_POD = 40;
@@ -261,7 +312,7 @@ export class BaseLayout {
         const [sx, sy] = STEP[c.dir];
         const nx = c.gx + sx;
         const ny = c.gy + sy;
-        if (nx < 0 || nx >= GRID_COLS || ny < 0 || ny >= GRID_ROWS || this.pieceAt(nx, ny)) continue;
+        if (!cellOpen(nx, ny) || this.pieceAt(nx, ny)) continue;
         out.push(c);
       }
     return out;
@@ -271,8 +322,12 @@ export class BaseLayout {
   check(p: Omit<Placed, 'id'>): string | null {
     const s = shapeOf(p);
     if (p.gx < 0 || p.gy < 0 || p.gx + s.w > GRID_COLS || p.gy + s.h > GRID_ROWS) return 'Outside the Kestrel site';
+    for (const [x, y] of cellsOf(p)) if (!cellOpen(x, y)) return 'Solid rock here (tunnelling comes later)';
     for (const [x, y] of cellsOf(p)) if (this.pieceAt(x, y)) return 'Something is already there';
-    if (this.pieces.length === 0) return p.gy === 0 ? null : 'The first piece goes on the seabed';
+    if (this.pieces.length === 0) {
+      for (let i = 0; i < s.w; i++) if (onSeabed(p.gx + i, p.gy)) return null;
+      return 'The first piece goes on the seabed';
+    }
     const joins = collarsOf(p).some((c) => {
       const [sx, sy] = STEP[c.dir];
       const o = this.pieceAt(c.gx + sx, c.gy + sy);
@@ -285,7 +340,7 @@ export class BaseLayout {
   validSpots(kind: PieceKind, rot: number): { gx: number; gy: number }[] {
     const out: { gx: number; gy: number }[] = [];
     for (let gy = 0; gy < GRID_ROWS; gy++)
-      for (let gx = 0; gx < GRID_COLS; gx++) if (!this.check({ kind, gx, gy, rot })) out.push({ gx, gy });
+      for (let gx = 0; gx < GRID_COLS; gx++) if (cellOpen(gx, gy) && !this.check({ kind, gx, gy, rot })) out.push({ gx, gy });
     return out;
   }
 

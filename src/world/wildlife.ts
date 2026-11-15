@@ -23,8 +23,8 @@ const rand = mulberry32(WORLD_SEED ^ 0x7c3e);
 const R = (a: number, b: number) => a + rand() * (b - a);
 
 function floorAt(x: number, from: number): number {
-  for (let y = from; y < 1300; y += 2) if (isSolid(x, y)) return y;
-  return 1300;
+  for (let y = from; y < 1980; y += 2) if (isSolid(x, y)) return y;
+  return 1980;
 }
 
 interface Wild {

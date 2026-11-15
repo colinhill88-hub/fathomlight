@@ -15,6 +15,9 @@ import {
   smooth,
   WORLD_H,
   WORLD_W,
+  WORLD_X0,
+  BASIN_WEST,
+  WALL_NOOK,
 } from './terrain';
 
 /**
@@ -46,7 +49,7 @@ const PAL = {
   algaeLight: 0x8aa154,
 };
 
-const gy = (x: number) => groundY(Math.max(0, Math.min(WORLD_W, x)));
+const gy = (x: number) => groundY(Math.max(WORLD_X0, Math.min(WORLD_W, x)));
 
 export interface PointLight {
   x: number;
@@ -64,7 +67,12 @@ function dab(g: Graphics, x: number, y: number, rx: number, ry: number, color: n
 
 /** How much the floor has turned to grey silt at x (the deep part around the grotto). */
 function siltAt(x: number): number {
-  return smooth((x - 5000) / 700) * (1 - smooth((x - 6600) / 400)) + smooth((x - 3650) / 300) * (1 - smooth((x - 4400) / 300)) * 0.35;
+  return (
+    smooth((x - 5000) / 700) * (1 - smooth((x - 6600) / 400)) +
+    smooth((x - 3650) / 300) * (1 - smooth((x - 4400) / 300)) * 0.35 +
+    // The floor of the Kestrel basin (milestone 5): fine grey silt, patchy.
+    (1 - smooth((x - 150) / 200)) * (0.45 + 0.15 * Math.sin(x * 0.0021))
+  );
 }
 
 /** Sand for one slice of the world, from x0 to x1. */
@@ -530,7 +538,14 @@ export class Scenery {
       groundLayer.addChild(g);
       this.slices.push({ obj: g, x0: x0 - 60, x1: x1 + 60 });
     };
-    rock(-200, 460, (g) => rockPatch(g, -200, 460, 700, detail));
+    // The cliff from the shelf down into the basin, and the rock under the shelf (milestone 5).
+    rock(180, 1760, (g) => {
+      const pts: [number, number][] = [];
+      const top = (x: number) => gy(x) + 90 * smooth((x - 360) / 60) * (1 - smooth((x - 1640) / 120));
+      for (let x = 180; x <= 1760; x += 8) pts.push([x, top(x)]);
+      pts.push([1760, WORLD_H + 300], [180, WORLD_H + 300]);
+      paintRock(g, pts, (x) => (x >= 180 && x <= 1760 ? top(x) : NaN), detail * 0.7);
+    });
     rock(2080, 2500, (g) => rockPatch(g, 2080, 2500, 60, detail));
     rock(3020, 3290, (g) => rockPatch(g, 3020, 3290, 45, detail));
     rock(4580, 4990, (g) => rockPatch(g, 4580, 4990, 60, detail));
@@ -690,6 +705,80 @@ export class Scenery {
       this.anemones.push({ core, halo, light, phase: rand() * 6 });
       this.scanPoints.anemone.push({ x, y: y - dir * 14 });
     }
+
+    // ---- The Kestrel basin (milestone 5), with its own random numbers so
+    // the rest of the shallows is drawn the same as before. ----
+    const keep = rand;
+    rand = mulberry32(WORLD_SEED ^ 0xba51);
+    for (let x0 = WORLD_X0 - 60; x0 < -60; x0 += 1000) {
+      const x1 = Math.min(-60, x0 + 1000);
+      const g = new Graphics();
+      drawGround(g, detail, x0, x1);
+      groundLayer.addChildAt(g, 0);
+      this.slices.push({ obj: g, x0: x0 - 80, x1: x1 + 80 });
+    }
+    // The west wall, with the nook part-way up.
+    rock(WORLD_X0 - 60, BASIN_WEST + 80, (g) => {
+      const pts: [number, number][] = [];
+      for (let x = WORLD_X0 - 60; x <= BASIN_WEST + 80; x += 8) pts.push([x, gy(x)]);
+      pts.push([BASIN_WEST + 80, WORLD_H + 300], [WORLD_X0 - 60, WORLD_H + 300]);
+      paintRock(g, pts, (x) => (x >= WORLD_X0 - 60 && x <= BASIN_WEST + 80 ? gy(x) : NaN), detail * 0.7);
+    });
+    // Boulders on the basin floor, mostly near the walls (the middle is for building).
+    rock(-5000, 300, (g) => {
+      for (const x of [-4880, -4620, -3950, -2420, -1150, -260, 130, 200]) {
+        const y = gy(x);
+        const r = R(18, 46);
+        const pts: [number, number][] = [];
+        for (let k = 0; k < 12; k++) {
+          const a = Math.PI + (k / 11) * Math.PI;
+          pts.push([x + Math.cos(a) * r * R(0.85, 1.2), y + 8 + Math.sin(a) * r * R(0.55, 0.85)]);
+        }
+        paintRock(g, pts, () => y - r * 0.6, 0.4);
+      }
+    });
+    const decorBasin = new Graphics();
+    decorLayer.addChild(decorBasin);
+    this.slices.push({ obj: decorBasin, x0: WORLD_X0 - 100, x1: 600 });
+    // Coral and fans on the nook ledge and along the foot of the walls.
+    for (const x of [WALL_NOOK.x - 60, WALL_NOOK.x - 20, WALL_NOOK.x + 30, -4930, -4800, 160, 240, -3100, -1800]) {
+      const y = gy(x) + 4;
+      if (rand() < 0.6) {
+        drawCoral(decorBasin, x, y, corals[Math.floor(rand() * corals.length)], R(0.6, 1.0));
+        this.scanPoints.coral.push({ x, y: y - 20 });
+      } else {
+        drawFan(decorBasin, x, y, 0x8c5a7a, R(0.7, 1.1));
+        this.scanPoints.fan.push({ x, y: y - 25 });
+      }
+    }
+    // Tall kelp: along the shelf edge, up the cliff and at the foot of the west wall (behind the base).
+    for (const x of [250, 330, 420, 470, -4950, -4870, -4760, -3500, -2000, -700]) addKelp(x, R(260, x < 0 && x > -4700 ? 420 : 600), kelpBack, greens[Math.floor(rand() * greens.length)]);
+    // Warm anemones on the basin floor: a little light down where the sun barely reaches.
+    for (const x of [-4720, -3020, -1320, 60]) {
+      const y = gy(x) + 4;
+      const core = new Graphics();
+      const halo = new Graphics();
+      decorBasin.ellipse(x, y, 13, 6).fill({ color: 0x4a3f4a });
+      for (let k = 0; k < 11; k++) {
+        const a = -Math.PI / 2 + (k / 10 - 0.5) * 2.2;
+        const l = R(16, 30);
+        core
+          .moveTo(0, 0)
+          .quadraticCurveTo(Math.cos(a) * l * 0.5 + R(-5, 5), Math.sin(a) * l * 0.5, Math.cos(a) * l, Math.sin(a) * l)
+          .stroke({ color: 0xd8e07a, width: 2.2, cap: 'round', alpha: 0.95 });
+        core.circle(Math.cos(a) * l, Math.sin(a) * l, 2.4).fill({ color: 0xffffe0 });
+      }
+      core.position.set(x, y);
+      halo.circle(0, -12, 34).fill({ color: 0xd8e07a });
+      halo.position.set(x, y);
+      this.emissive.addChild(core);
+      this.glow.addChild(halo);
+      const light: PointLight = { x, y: y - 18, radius: 260, intensity: 0.9, color: [0.85, 0.9, 0.45] };
+      this.lights.push(light);
+      this.anemones.push({ core, halo, light, phase: rand() * 6 });
+      this.scanPoints.anemone.push({ x, y: y - 14 });
+    }
+    rand = keep;
   }
 
   /** viewX0..viewX1 is the part of the world the camera can see. */

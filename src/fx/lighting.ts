@@ -1,6 +1,6 @@
 import { Geometry, Mesh, Shader, Texture } from 'pixi.js';
 import { FULLSCREEN_VERTEX, GLSL_COMMON } from './shared';
-import { WORLD_H, WORLD_W } from '../world/terrain';
+import { WORLD_H, WORLD_SPAN, WORLD_X0 } from '../world/terrain';
 
 /**
  * Scene lighting. Everything solid (sand, rock, plants, the diver) is first
@@ -34,6 +34,7 @@ uniform vec2 uResolution;
 uniform vec2 uCam;
 uniform vec2 uView;
 uniform vec2 uWorld;
+uniform vec2 uOrigin;
 uniform float uLightCount;
 uniform vec4 uLightA[${MAX_LIGHTS}];
 uniform vec4 uLightB[${MAX_LIGHTS}];
@@ -116,7 +117,7 @@ void main() {
 
   vec3 outRgb = vec3(0.0);
   if (c.a > 0.003) {
-    float vis = texture(uMask, clamp(wp / uWorld, 0.0, 1.0)).r;
+    float vis = texture(uMask, clamp((wp - uOrigin) / uWorld, 0.0, 1.0)).r;
     vec3 sunCol = absorb(d);
     float shade = 1.0;
     if (uShadow.w > 0.0) {
@@ -181,6 +182,7 @@ export class Lighting {
     uCam: Float32Array;
     uView: Float32Array;
     uWorld: Float32Array;
+    uOrigin: Float32Array;
     uLightCount: number;
     uLightA: Float32Array;
     uLightB: Float32Array;
@@ -203,7 +205,8 @@ export class Lighting {
           uResolution: { value: new Float32Array([1, 1]), type: 'vec2<f32>' },
           uCam: { value: new Float32Array([0, 0]), type: 'vec2<f32>' },
           uView: { value: new Float32Array([1, 1]), type: 'vec2<f32>' },
-          uWorld: { value: new Float32Array([WORLD_W, WORLD_H]), type: 'vec2<f32>' },
+          uWorld: { value: new Float32Array([WORLD_SPAN, WORLD_H]), type: 'vec2<f32>' },
+          uOrigin: { value: new Float32Array([WORLD_X0, 0]), type: 'vec2<f32>' },
           uLightCount: { value: 0, type: 'f32' },
           uLightA: { value: new Float32Array(4 * MAX_LIGHTS), type: 'vec4<f32>', size: MAX_LIGHTS },
           uLightB: { value: new Float32Array(4 * MAX_LIGHTS), type: 'vec4<f32>', size: MAX_LIGHTS },

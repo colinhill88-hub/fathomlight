@@ -1372,3 +1372,100 @@ body.caring #build-btn {
     padding: 4px 6px;
   }
 }
+
+/* ---- Milestone 5: big site camera, conveyors, pipes and Echo whorls ---- */
+#build-fit {
+  position: fixed;
+  top: calc(var(--safe-top) + 14px);
+  left: calc(var(--safe-left) + 14px);
+  width: 48px;
+  height: 48px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  border: 1px solid var(--ui-line);
+  background: var(--ui-bg);
+  color: var(--ui-text);
+  cursor: pointer;
+  touch-action: manipulation;
+  z-index: 11;
+}
+
+/* The dive watch and chips stay out of the way of the big build view. */
+body.building #watch-wrap {
+  display: none;
+}
+
+#build-tools {
+  position: fixed;
+  left: calc(var(--safe-left) + 14px);
+  bottom: calc(var(--safe-bottom) + 92px);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  max-width: calc(100vw - 260px);
+  z-index: 10;
+}
+
+#build-tools button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  padding: 0 14px 0 10px;
+  border-radius: 22px;
+  border: 1px solid var(--ui-line);
+  background: var(--ui-bg);
+  color: var(--ui-text);
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+#build-tools button[hidden] {
+  display: none;
+}
+
+#build-tools svg {
+  width: 24px;
+  height: 24px;
+  flex: none;
+}
+
+#build-info .rate {
+  color: #e8dcc0;
+  font-weight: 500;
+}
+
+#build-info svg {
+  width: 15px;
+  height: 15px;
+  vertical-align: -3px;
+}
+
+#build-info .cost {
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+  font-weight: 600;
+}
+
+#build-info .cost.short {
+  color: #ff9a80;
+}
+
+@media (max-height: 440px) {
+  #build-tools {
+    bottom: calc(var(--safe-bottom) + 78px);
+  }
+  #build-tools button {
+    min-height: 40px;
+    font-size: 13px;
+  }
+  #build-fit {
+    width: 44px;
+    height: 44px;
+  }
+}

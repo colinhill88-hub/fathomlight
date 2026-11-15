@@ -9,7 +9,7 @@ import { Graphics } from 'pixi.js';
  * are kept for the Choir (DESIGN.md, Art direction).
  */
 
-export type ScanCategory = 'Creature' | 'Plant' | 'Wreckage' | 'Place';
+export type ScanCategory = 'Creature' | 'Plant' | 'Wreckage' | 'Place' | 'Artefact';
 
 export interface ScanEntry {
   id: string;
@@ -102,6 +102,18 @@ export const SCAN_ENTRIES: ScanEntry[] = [
     name: 'Survey beacon 03',
     category: 'Wreckage',
     text: 'One of the beacons dropped before the crew arrived. Its log shows bursts of light rising from far below, at the same hour every night.',
+  },
+  {
+    id: 'basin',
+    name: 'Kestrel basin',
+    category: 'Place',
+    text: 'A wide hollow west of the buoy, about 22 m deep, floored with fine silt and sheltered from the swell. Room for a whole station: Outpost Kestrel can grow down here, far bigger than the shelf.',
+  },
+  {
+    id: 'whorl',
+    name: 'Echo whorl',
+    category: 'Artefact',
+    text: 'A spiral of pale nacre the size of a thumb, with rings of cold light pulsing slowly inside. No animal on record makes anything like it, and its light is a colour nothing else on the reef gives off. Living things and machines near it quicken: fitted to a creature tank or a machine, one doubles its output and two triple it, but it eats, fouls or uses its inputs just as much faster. The crew think the lights from the deep left it.',
   },
   {
     id: 'cave',

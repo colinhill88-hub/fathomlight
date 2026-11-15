@@ -10,11 +10,13 @@ import {
   PLANTS,
   SPECIES,
   statusLine,
+  makeRate,
   tankDataFor,
   tankNumber,
   TANK_CAPACITY,
 } from '../game/creatures';
 import { CreatureData, MATERIALS, SaveData } from '../game/state';
+import { TROUGH_CAP, whorlMult } from '../game/factory';
 
 /**
  * Tank care (milestone 4), laid out like the "Tank care on phone" concept:
@@ -43,6 +45,17 @@ export interface CareDeps {
   /** A creature was let go into the wild. */
   released(c: CreatureData): void;
   highlight(id: number | null): void;
+}
+
+/** "Makes 0.36 kelp fibre/min (+30% shoal, +10% reef, ×2 whorl)". */
+function makeLine(save: SaveData, layout: BaseLayout, c: CreatureData): string {
+  const r = makeRate(save, layout, c);
+  if (r.perMin <= 0) return 'Makes nothing while unhappy.';
+  const sp = SPECIES[c.species];
+  const parts = [r.shoal > 0 ? `+${Math.round(r.shoal * 100)}% shoal` : '', r.reef > 0 ? `+${Math.round(r.reef * 100)}% reef` : '', r.whorl > 1 ? `×${r.whorl} whorl` : '']
+    .filter(Boolean)
+    .join(', ');
+  return `Makes ${r.perMin.toFixed(2)} ${sp.makes === 'fibre' ? 'kelp fibre' : sp.makes}/min${parts ? ` (${parts})` : ''}. Happy tank-mates and other thriving tanks raise it.`;
 }
 
 export class CareMode {
@@ -244,6 +257,8 @@ export class CareMode {
     const td = tankDataFor(save, this.tankId);
     const filtered = filteredTanks(layout).has(this.tankId);
     const powered = layout.powered.has(this.tankId);
+    const piped = save.lines.some((l) => l.kind === 'pipe' && l.to === this.tankId);
+    const mult = whorlMult(save, this.tankId);
     const pct = (v: number) => `${Math.round(v * 100)}%`;
     const bar = (label: string, v: number, cls: string) =>
       `<div class="need"><div class="row"><span>${label}</span><span>${pct(v)}</span></div><div class="track"><i class="${cls}${v < 0.25 ? ' low' : ''}" style="width:${pct(v)}"></i></div></div>`;
@@ -269,7 +284,11 @@ export class CareMode {
         ${bar('Water quality', td.water, 'water')}
         <ul class="notes">${ct.notes.map((n) => `<li class="${n.good ? 'good' : 'bad'}">${n.good ? '✓' : '✗'} ${n.text}</li>`).join('')}<li class="${
           filtered ? 'good' : 'bad'
-        }">${filtered ? '✓ Filter pump keeps the water clean' : '✗ No filter pump: the water slowly gets dirty'}</li></ul>`;
+        }">${filtered ? '✓ Filter pump keeps the water clean' : '✗ No filter pump: the water slowly gets dirty'}</li>${
+          piped ? `<li class="good">✓ Feed pipe: ${Math.round(td.mash ?? 0)}/${TROUGH_CAP} L of mash in the trough</li>` : ''
+        }${mult > 1 ? `<li class="good">✓ ${mult - 1} Echo whorl${mult > 2 ? 's' : ''}: ×${mult} output, eats and fouls ×${mult}</li>` : ''}</ul>${
+          c.stage === 'grown' ? `<p class="note">${makeLine(save, layout, c)}</p>` : ''
+        }`;
     }
     const plants = PLANT_ORDER.map((p) => {
       const known = save.scans.includes(PLANTS[p].scan);

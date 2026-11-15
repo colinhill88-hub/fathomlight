@@ -111,12 +111,29 @@ export interface JarData {
 export interface TankData {
   water: number;
   plant: PlantId | null;
+  /** Litres of feed mash waiting in the tank's feed trough (milestone 5). */
+  mash?: number;
+}
+
+/** A conveyor or feed pipe between two base pieces (milestone 5; rules in src/game/factory.ts). */
+export interface SavedLine {
+  id: number;
+  kind: 'belt' | 'pipe';
+  from: number;
+  to: number;
+}
+
+/** What a machine holds (milestone 5): an auto feeder's hopper, mash tank and press progress. */
+export interface MachineData {
+  fibre: number;
+  mash: number;
+  press: number;
 }
 
 /** A base piece as saved (see src/game/base.ts). */
 export interface SavedPiece {
   id: number;
-  kind: 'dome' | 'corridor' | 'turbine' | 'storage' | 'tank' | 'filter';
+  kind: 'dome' | 'corridor' | 'turbine' | 'storage' | 'tank' | 'filter' | 'feeder';
   gx: number;
   gy: number;
   rot: number;
@@ -126,6 +143,11 @@ export interface SavedPiece {
 
 export interface SaveData {
   v: 1;
+  /**
+   * Layout of the build site: 1 = the 11 × 3 shelf of milestones 3-4,
+   * 2 = the 58 × 14 basin (milestone 5). Older bases are shifted on load.
+   */
+  site: number;
   x: number;
   y: number;
   oxygen: number;
@@ -157,6 +179,15 @@ export interface SaveData {
   caught: Record<string, number>;
   /** Creatures that died of neglect, kept in storage as dormant remains (revived later). */
   dormant: Partial<Record<SpeciesId, number>>;
+  /** Conveyors and feed pipes between pieces (milestone 5). */
+  lines: SavedLine[];
+  nextLineId: number;
+  /** Base piece id -> what the machine holds (milestone 5). */
+  machines: Record<string, MachineData>;
+  /** Ids of Echo whorls found out in the world (milestone 5). */
+  whorls: string[];
+  /** Base piece id -> how many Echo whorls are fitted to it. */
+  fitted: Record<string, number>;
   /** One-time tips already shown. */
   tips: string[];
   playSeconds: number;
@@ -164,10 +195,13 @@ export interface SaveData {
 }
 
 const KEY = 'fathomlight.save.v1';
+/** Where the milestone 3-4 site sits in the milestone 5 grid (OLD_SITE in src/game/base.ts). */
+const SITE_SHIFT = { gx: 47, gy: 11 };
 
 export function freshSave(spawnX: number, spawnY: number): SaveData {
   return {
     v: 1,
+    site: 2,
     x: spawnX,
     y: spawnY,
     oxygen: BASE_OXYGEN,
@@ -187,6 +221,11 @@ export function freshSave(spawnX: number, spawnY: number): SaveData {
     jar: null,
     caught: {},
     dormant: {},
+    lines: [],
+    nextLineId: 1,
+    machines: {},
+    whorls: [],
+    fitted: {},
     tips: [],
     playSeconds: 0,
     savedAt: 0,
@@ -217,7 +256,21 @@ export function loadSave(spawnX: number, spawnY: number): { data: SaveData; load
       caught: d.caught && typeof d.caught === 'object' ? d.caught : {},
       dormant: d.dormant && typeof d.dormant === 'object' ? d.dormant : {},
       jar: d.jar && typeof d.jar === 'object' ? d.jar : null,
+      lines: Array.isArray(d.lines) ? d.lines : [],
+      machines: d.machines && typeof d.machines === 'object' ? d.machines : {},
+      whorls: Array.isArray(d.whorls) ? d.whorls : [],
+      fitted: d.fitted && typeof d.fitted === 'object' ? d.fitted : {},
+      site: typeof d.site === 'number' ? d.site : 1,
     } as SaveData;
+    // Milestone 5: the build grid grew around the old site. Shift older bases
+    // so every piece keeps its place in the world.
+    if (data.site < 2) {
+      for (const p of data.pieces) {
+        p.gx += SITE_SHIFT.gx;
+        p.gy += SITE_SHIFT.gy;
+      }
+      data.site = 2;
+    }
     // Older saves stored real clock times (milliseconds). Restart those timers from now.
     for (const k of Object.keys(data.taken)) if (data.taken[k] > 1e9) data.taken[k] = data.playSeconds;
     if (!isFinite(data.x) || !isFinite(data.y)) {
