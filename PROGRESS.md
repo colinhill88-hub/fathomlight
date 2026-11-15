@@ -259,6 +259,7 @@ Cut from High so far: the phone renders at 2× instead of its native 3×. Colin 
 
 ## Problems and open questions
 
+- **Build drone and material weight (Colin's ideas after milestone 3).** Both are written up in DESIGN.md under The base, marked as proposed. Waiting on Colin to decide when to build them: a milestone 3 follow-up session before milestone 4, or folded into later milestones.
 - **Base growth across biomes (Colin, after milestone 3).** Colin wants to expand the base with each new biome, with bigger, more complex and more rewarding pieces. This is recorded in DESIGN.md under The base. When planning milestones 6, 7, 9 and 10, include new base pieces made from that zone's materials. Open questions for Colin:
   - Should new biomes grow the one base at the Kestrel site (a larger grid and upgraded piece tiers), or allow small outposts in each zone?
   - Which kind of reward matters most to him: new abilities, faster crafting, comfort and looks, or stronger creature care?
