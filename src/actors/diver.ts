@@ -127,26 +127,26 @@ interface Arm {
 function buildLeg(far: boolean): Leg {
   const tint = far ? 0x9a9a9a : 0xffffff;
   const thigh = new Container();
-  const tg = segment(30, 13, C.suit, C.suitShade);
-  etching(tg, 2, -5, 22, 10, 3);
+  const tg = segment(24, 13, C.suit, C.suitShade);
+  etching(tg, 2, -5, 16, 10, 3);
   // Chrome knee guard.
-  chromeBands(tg, 25, -6.5, 9, 13, 3);
-  rivets(tg, [[29.5, -3.5], [29.5, 3.5]], 0.9);
+  chromeBands(tg, 19, -6.5, 9, 13, 3);
+  rivets(tg, [[23.5, -3.5], [23.5, 3.5]], 0.9);
   tg.tint = tint;
   thigh.addChild(tg);
 
   const shin = new Container();
-  shin.x = 30;
-  const sg = segment(26, 11, C.suit, C.suitShade);
+  shin.x = 24;
+  const sg = segment(21, 11, C.suit, C.suitShade);
   etching(sg, 2, -4, 16, 8, 2);
-  sg.rect(18, -5.5, 5, 11).fill({ color: C.red, alpha: 0.9 }); // ankle strap
+  sg.rect(14, -5.5, 5, 11).fill({ color: C.red, alpha: 0.9 }); // ankle strap
   scratches(sg, 2, -4, 18, 6, 3);
   sg.tint = tint;
   shin.addChild(sg);
   thigh.addChild(shin);
 
   const fin = new Container();
-  fin.x = 28;
+  fin.x = 22;
   const fg = new Graphics();
   fg.roundRect(-5, -6, 12, 12, 4).fill({ color: C.rubber });
   fg.moveTo(2, -6)
@@ -161,6 +161,7 @@ function buildLeg(far: boolean): Leg {
       .lineTo(42, y * 1.25)
       .stroke({ color: 0x3e4140, width: 1, alpha: 0.7 });
   fg.tint = tint;
+  fg.scale.set(0.88, 1);
   fin.addChild(fg);
   shin.addChild(fin);
   return { thigh, shin, fin };
@@ -169,7 +170,7 @@ function buildLeg(far: boolean): Leg {
 function buildArm(far: boolean): Arm {
   const tint = far ? 0x9a9a9a : 0xffffff;
   const upper = new Container();
-  const ug = segment(20, 10, C.sleeve, C.sleeveShade);
+  const ug = segment(17, 10, C.sleeve, C.sleeveShade);
   ug.circle(0, 0, 6).fill({ color: C.chrome }); // shoulder joint ring
   ug.circle(-1, -1.5, 2.5).fill({ color: C.chromeHi, alpha: 0.6 });
   ug.circle(0, 0, 6).stroke({ color: C.chromeDark, width: 1 });
@@ -178,12 +179,12 @@ function buildArm(far: boolean): Arm {
   upper.addChild(ug);
 
   const fore = new Container();
-  fore.x = 20;
-  const fg = segment(17, 9, C.sleeve, C.sleeveShade);
+  fore.x = 17;
+  const fg = segment(14, 9, C.sleeve, C.sleeveShade);
   // Rust-red glove with a chrome cuff ring.
-  fg.roundRect(14, -5.2, 11, 10.4, 4.5).fill({ color: C.red });
-  fg.roundRect(16, 1, 8, 3.5, 1.5).fill({ color: C.redShade, alpha: 0.7 });
-  fg.rect(13, -5, 3, 10).fill({ color: C.chrome });
+  fg.roundRect(11, -5.2, 11, 10.4, 4.5).fill({ color: C.red });
+  fg.roundRect(13, 1, 8, 3.5, 1.5).fill({ color: C.redShade, alpha: 0.7 });
+  fg.rect(10, -5, 3, 10).fill({ color: C.chrome });
   fg.tint = tint;
   fore.addChild(fg);
   upper.addChild(fore);
@@ -298,12 +299,50 @@ function buildHelmet(): Container {
 
   // Inside of the helmet: in shadow, so the glass reads as deep and tinted.
   shell().fill({ color: 0x0e1a17, alpha: 0.55 });
-  // The face, partly lit from the front.
-  g.ellipse(71, 1, 7.5, 9.5).fill({ color: C.skin });
-  g.ellipse(67.5, 2, 4.5, 8.5).fill({ color: 0x3a2a22, alpha: 0.45 });
-  g.ellipse(75, -1.5, 1.3, 1.1).fill({ color: 0x140d0b, alpha: 0.85 }); // eye
-  g.moveTo(64, -7.5).quadraticCurveTo(71, -11.5, 78, -7.5).stroke({ color: 0x4e2a1f, width: 2.2, alpha: 0.85 }); // cap band
-  g.roundRect(73, 5, 7, 4, 2).fill({ color: C.chromeDark }); // mouthpiece
+  // The head in side profile, filling most of the helmet: skull, brow,
+  // nose, lips and chin, with an ear, a cap of hair and the neck below.
+  const head = () =>
+    g
+      .moveTo(60, 19)
+      .bezierCurveTo(56, 12, 50, 4, 51, -6)
+      .bezierCurveTo(52, -17, 62, -23, 71, -22)
+      .bezierCurveTo(78, -21, 82, -16, 82.5, -10)
+      .quadraticCurveTo(83, -7, 82.2, -5)
+      .lineTo(85, 0) // nose
+      .quadraticCurveTo(85.2, 1.6, 82.6, 2)
+      .quadraticCurveTo(83.6, 3.6, 82.4, 5) // lips
+      .quadraticCurveTo(83.2, 7.5, 81.5, 10) // chin
+      .quadraticCurveTo(77, 13, 71, 12.5) // jaw
+      .lineTo(70, 19)
+      .closePath();
+  head().fill({ color: C.skin });
+  // Shading: the back of the head and the jaw fall into shadow.
+  g.moveTo(60, 19)
+    .bezierCurveTo(56, 12, 50, 4, 51, -6)
+    .bezierCurveTo(52, -14, 58, -19, 64, -21)
+    .quadraticCurveTo(60, -4, 70, 12.5)
+    .lineTo(70, 19)
+    .closePath()
+    .fill({ color: 0x3a2a22, alpha: 0.4 });
+  g.moveTo(81.5, 10).quadraticCurveTo(77, 13, 71, 12.5).lineTo(72, 9).quadraticCurveTo(77, 10, 81, 8).closePath().fill({ color: 0x3a2a22, alpha: 0.35 });
+  // Cap of hair over the crown and back of the head.
+  g.moveTo(51.5, -2)
+    .bezierCurveTo(50, -14, 60, -23, 71, -22)
+    .bezierCurveTo(77, -21.5, 80.5, -18, 81.5, -14)
+    .quadraticCurveTo(72, -17, 64, -12)
+    .quadraticCurveTo(58, -8, 57, 0)
+    .closePath()
+    .fill({ color: 0x3b261c });
+  // Ear.
+  g.ellipse(64, -2, 3, 4.2).fill({ color: 0x8a5f49 });
+  g.ellipse(64.5, -2, 1.4, 2.4).fill({ color: 0x5e3f30, alpha: 0.8 });
+  // Brow and eye.
+  g.moveTo(76, -9.5).quadraticCurveTo(79, -10.8, 81.5, -9.5).stroke({ color: 0x2a1a14, width: 1.3, alpha: 0.9 });
+  g.moveTo(77.4, -6.4).quadraticCurveTo(79.2, -7.6, 80.8, -6.2).quadraticCurveTo(79.2, -5.4, 77.4, -6.4).fill({ color: 0xf2ebe2 });
+  g.circle(79.9, -6.4, 0.9).fill({ color: 0x1a120e });
+  // Lips and a lit cheek.
+  g.moveTo(82.2, 3).lineTo(83.3, 3.3).stroke({ color: 0x6a3a2c, width: 0.9 });
+  g.ellipse(77.5, 0, 3.2, 2.4).fill({ color: 0xc08a6c, alpha: 0.35 });
   // Tinted glass shell.
   shell().fill({ color: C.visor, alpha: 0.3 });
   shell().stroke({ color: C.visorEdge, width: 2, alpha: 0.95 });
@@ -377,16 +416,19 @@ export class Diver {
   private boostCooldown = 0;
   private lampLevel = 1;
 
-  private static readonly SCALE = 0.82;
+  private static readonly SCALE = 0.86;
   private static readonly RADIUS = 26;
   private static readonly SPEED = 230;
   private static readonly BOOST_SPEED = 430;
 
   constructor() {
+    // The torso is drawn long and compressed a little here for a stockier build.
     const torso = buildTorso();
+    torso.scale.x = 0.88;
     const helmet = buildHelmet();
-    const hip = { x: -30, y: 5 };
-    const shoulder = { x: 30, y: 6 };
+    helmet.x = -6;
+    const hip = { x: -26, y: 5 };
+    const shoulder = { x: 25, y: 6 };
     this.farLeg.thigh.position.set(hip.x + 2, hip.y - 3);
     this.nearLeg.thigh.position.set(hip.x, hip.y + 2);
     this.farArm.upper.position.set(shoulder.x + 2, shoulder.y - 3);
@@ -400,8 +442,8 @@ export class Diver {
   }
 
   /** Where the headlamp lens sits, in local drawing space. */
-  private static readonly LAMP = { x: 91, y: -23.8 };
-  private static readonly BUBBLE = { x: 54, y: 9 };
+  private static readonly LAMP = { x: 85, y: -23.8 };
+  private static readonly BUBBLE = { x: 47, y: 9 };
 
   private toWorld(lx: number, ly: number): [number, number] {
     const S = Diver.SCALE;

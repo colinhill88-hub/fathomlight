@@ -1,6 +1,6 @@
 # Fathomlight progress
 
-Last updated: 2026-11-15, milestone 1 follow-up (new explorer suit). **Colin approved the water, effects, controls and scenery; the redesigned diver is waiting for his OK before milestone 2.**
+Last updated: 2026-11-15, milestone 1 follow-up 2 (bigger head, shorter diver, wider view). **Colin approved the water, effects, controls and scenery; the redesigned diver is waiting for his OK before milestone 2.**
 
 Play link: https://colinhill88-hub.github.io/fathomlight/ (live; first successful deploy 2026-11-14)
 
@@ -65,7 +65,7 @@ Cut from High so far: the phone renders at 2× instead of its native 3×. Colin 
   - Keyboard: WASD or arrow keys, Shift or Space to boost, L or F for the lamp.
   - Mouse: hold the left button to swim towards the pointer; right-click boosts.
   - Gamepad: left stick, A to boost, X or Y for the lamp.
-- **Camera:** follows the diver smoothly, looking ahead in the swim direction. The view always shows the same 560 world units of height, so the framing matches on phone, iPad and PC.
+- **Camera:** follows the diver smoothly, looking ahead in the swim direction. The view always shows the same world height (560 at first, 640 since follow-up 2), so the framing matches on phone, iPad and PC.
 - **Effects:**
   - *Lighting* (`src/fx/lighting.ts`): sand, rock, plants and the diver are drawn into an off-screen picture, then lit by one shader. It handles depth-tinted sunlight (warm tones fade first), baked soft shadows under rock, animated caustics, up to 8/12 dynamic lights, visible light beams in the water, a water-distortion wobble, depth fog and the Ultra diver shadow.
   - *Dynamic lights:* the headlamp cone, the beacon flash, the glowfin lures and the anemones.
@@ -99,6 +99,15 @@ Cut from High so far: the phone renders at 2× instead of its native 3×. Colin 
   - A chrome back unit with a bolted port and a vent grille.
   - The headlamp is clamped under the crest. Bubbles now come from the chest regulator.
 - Tested: type check and build pass. Close-up renders of the diver idle, swimming and in the dark grotto (lamp on) show no console errors.
+
+### Milestone 1 follow-up 2: head, proportions and camera
+- **Feedback:** the frame rate is still fine. The head looked like a goldfish from the side and was too small inside the helmet. The diver could be a little shorter, and the view will need to zoom out for base building anyway.
+- **Head:** a proper side profile (brow, nose, lips, chin, jaw, ear, hair, shading) that fills most of the helmet. The round mouthpiece is gone; the full-face helmet does not need one.
+- **Shorter, stockier build:**
+  - Thighs, shins, fins, upper arms and forearms are shorter, and the torso is about 12% shorter.
+  - The helmet stays full size, so it reads a little larger relative to the body.
+  - Diver scale went from 0.82 to 0.86.
+- **Camera zoomed out:** the view now shows 640 world units of height instead of 560 (`VIEW_H` in `src/main.ts`), which leaves room for base pieces later. Change that one number to zoom in or out.
 
 ## Next
 

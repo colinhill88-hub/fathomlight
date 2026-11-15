@@ -15,7 +15,7 @@ import { bakeSkyVisibility, groundY, WORLD_H, WORLD_W, WU_PER_METRE } from './wo
 declare const __BUILD_ID__: string;
 
 /** How many world units fit in the screen's height. Fixed, so every device frames the scene the same. */
-const VIEW_H = 560;
+const VIEW_H = 640;
 
 /*
  * How a frame is drawn (back to front):
