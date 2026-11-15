@@ -96,6 +96,8 @@ Pieces snap together at their connector collars on a grid. A piece works only wh
 | Hatchery | Hatches eggs and breeds creatures |
 | Signal array | Maps zones and decodes alien signals |
 
+**Base growth across biomes (Colin's direction after milestone 3).** The base must keep growing as the player reaches new zones. Each new biome should add base components, including bigger and more complex pieces that are more rewarding to build: they should cost the new zone's materials and give clearly better abilities, not just more of the same. Keep the system open so new pieces slot into the same collar-and-power rules. Plan this into each zone milestone (6, 7, 9 and 10) alongside its gear, and ask Colin before deciding details.
+
 ### Creature care
 
 - Creatures are collected as eggs or juveniles and placed in tanks.
