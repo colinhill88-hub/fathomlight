@@ -399,7 +399,7 @@ Cut from High so far: the phone renders at 2× instead of its native 3×. Colin 
 
 ## Next
 
-**Milestone 5: Big base and factory groundwork** (new; Colin chose it ahead of the submersible). A much wider and deeper build site with a pannable, zoomable build view; materials moving between joined pieces at real rates; the first machine that combines materials into a refined one; creature tanks acting as resource nodes whose output scales with happy creatures. Start by asking Colin the few open choices listed under Problems and open questions, then build.
+**Milestone 5: Big base and factory groundwork** (new; Colin chose it ahead of the submersible). A much wider and deeper build site with a pannable, zoomable build view; materials moving between joined pieces at real rates; the first machine that combines materials into a refined one; creature tanks acting as resource nodes whose output scales with happy creatures. Colin's answers to the open choices are in DESIGN.md (The base, "Milestone 5 decisions"). This is a large milestone; it may be split across two sessions (record the split here).
 
 Where things are now: the grid is `GRID_X0`, `GRID_COLS`, `GRID_ROWS` and `CELL` in `src/game/base.ts`, and the build camera is `VIEW_H_BUILD` in `src/main.ts`. Storage is one shared pool (`save.stored`). Creature output is `tickCare` in `src/game/creatures.ts`. Saves already keep pieces by grid cell, so a bigger grid must keep old bases where they are.
 
@@ -413,7 +413,7 @@ After that: **milestone 6, the submersible.** DESIGN.md also names the sub's car
   3. **Real production chains with rates to balance**, not just a few simple combiners.
   4. The **auto feeder** is a base piece that feeds tanks from stored kelp fibre, including what puffcaps produce.
   5. Steam: keep building as a web link in small chunks; wrap it as a desktop app in the polish milestone (or earlier for a store page).
-- **Still to decide at the start of milestone 5** (ask Colin, briefly): how materials move between pieces (through the existing corridors, or new pipes and conveyors), what the first refined material and machine are, how big the new site is, and whether creature output also scales with upgrades (bigger tanks, better food) or only with the number of happy creatures.
+- **Colin answered the milestone 5 questions** (written up in DESIGN.md, The base, "Milestone 5 decisions"): a site at least 20 times bigger in a deep basin, different transport for different material kinds, the auto feeder as the first production line, and creature output scaled by both numbers and a rare output-multiplying item that also raises input use. The prompt for the next session is in `docs/prompts/milestone-5.md`.
 - **Phone and PC for a big base:** the build view will need panning and zooming for a large base. Keep it usable on the phone, but PC with a mouse may be the best way to manage a big factory, as Colin expects.
 
 - **Creature numbers to tune after Colin plays** (all at the top of `src/game/creatures.ts`): hunger 15 min, feed +60%, dirt per creature 20 min, filter rate, clean +40%, sick below 25%, 6 min sick to dormant, 8 min to grow, 90 s to hatch, 4 min per material, 4 per tank, 2 tanks per pump. Catch times are in `src/world/wildlife.ts`. If losing creatures feels too harsh for the cozy shallows, raise `SICK_SECONDS` or slow `HUNGER_RATE`.
