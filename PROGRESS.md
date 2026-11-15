@@ -1,6 +1,6 @@
 # Fathomlight progress
 
-Last updated: 2026-11-15, **milestone 5 part 1 deployed (big basin site, conveyors and feed pipes, the auto feeder, scaling creature output, Echo whorls)**. Next is **milestone 5 part 2** (see Next).
+Last updated: 2026-11-15, **milestone 5 part 2 deployed (plate press and hull plating, tank output on conveyors, CB-2 / FL-2 line tiers, base rates overview, lines from either end)**. Next is **milestone 6, the submersible** (see Next).
 
 Play link: https://colinhill88-hub.github.io/fathomlight/ (live; first successful deploy 2026-11-14)
 
@@ -474,26 +474,73 @@ Cut from High so far: the phone renders at 2× instead of its native 3×. Colin 
 
 - Deployed: GitHub Actions run 43752369060 built and deployed to Pages successfully from `claude/great-pascal-vx5iis`. This branch was started from the default branch `claude/underwater-game-m0-0qqajg` after PR #3 merged, so merging it back is a clean fast-forward.
 
+### Milestone 5, part 2: refining, tank output on conveyors, line tiers and rates
+- **Feedback on the last build:** part 1 is coming together and Colin likes the gameplay. He skipped PC testing for now and asked to keep building.
+- **Hull plating** (a fifth material, `plate` in `src/game/state.ts`): riveted plate pressed from scrap and copper. It weighs 4 kg in the dive bag, against 8 kg for the scrap and copper that go into it. It is only made by the plate press, never found on the reef. Its chip by the watch stays hidden until the base has some.
+- **Plate press** (piece 8, `PP-1`; rules in `src/game/factory.ts`, drawing in `src/world/basegfx.ts`):
+
+| Cost | Size | Build time | Recipe | Rate (×1) | Hoppers | Ports |
+| --- | --- | --- | --- | --- | --- | --- |
+| 4 scrap, 2 copper, 1 quartz | 2 × 1 cells, collars left and right | 34 s | 2 scrap + 1 copper → 1 hull plating | 0.5 plating/min (one stroke every 2 min), using 1 scrap + 0.5 copper/min | 6 scrap, 3 copper, a rack of 4 plates | 2 conveyors in, 2 out |
+
+  - It needs power, and it takes Echo whorls (×2 / ×3, using inputs that much faster too).
+  - **Statuses:** pressing; waiting for scrap and copper; plate rack full (no conveyor out, or storage full); no power; still a frame.
+  - **Look:** a squat hydraulic press. It has a split hopper on the left with scrap and copper level windows, a yellow crossbeam on two steel columns, and a chrome ram. The ram creeps down as a plate builds, then slams with sparks. Finished plates stack on a rack on the right.
+  - **Why these numbers:** the reef gives at most about 0.8 scrap/min, so the press runs on stockpiles in bursts rather than starving everything else.
+- **Conveyors carry whatever the far end needs** (`Factory.tick`):
+  - A storage pod sends kelp fibre to a feeder, and scrap and copper to a press. For a press it sends whichever hopper is emptiest, so the 2:1 ratio holds.
+  - A tank or press can send to a storage pod, which now has conveyor inputs as well (4 in, 4 out).
+  - A link that could never carry anything is refused with the reason, for example press → feeder, or storage → storage.
+- **Tank output on conveyors:**
+  - Creatures no longer put what they make straight into storage. It goes into the tank's **output tray** (4 items). When the tray is full, making pauses.
+  - A conveyor from the tank (up to 2) carries it off to storage, or straight to a machine. For example, puffcap tank → auto feeder closes the feeding loop without storage.
+  - Swimming up to a tank also takes the tray into the dive bag, so early play without conveyors still works.
+  - A one-time tip explains the tray. If the tray holds something none of its conveyors can take (a ray's copper on a belt to the feeder), the tank readout says so and suggests a second conveyor to storage.
+  - The care panel shows the tray.
+- **Line tiers, named with Kestrel stencil codes (never "Mk"):**
+
+| Code | Carries | Rate | Cost per length |
+| --- | --- | --- | --- |
+| CB-1 conveyor | solid items | **4 items/min** (was 6) | 1 scrap / 2 cells + 1 copper / 4 cells |
+| CB-2 conveyor | solid items | 10 items/min | as CB-1, plus 1 hull plating / 4 cells |
+| FL-1 feed pipe | mash | 10 L/min | 1 copper / 2 cells + 1 kelp fibre / 4 cells |
+| FL-2 feed pipe | mash | 25 L/min | as FL-1, plus 1 hull plating / 4 cells |
+
+  - CB-1 dropped from 6 to 4 so that a whorled press can actually fill a belt; otherwise CB-2 had no purpose.
+  - **Choosing a tier:** while drawing a line, a **CB-1 | CB-2** switch appears once the base has some hull plating (keyboard U). Select a built line and **Upgrade to CB-2** (or FL-2) pays only the plating difference.
+  - **Line readouts** show the code and what it carries (for example "CB-1 conveyor: STORE 01 → PP-1 · Moving 1.4 items/min (scrap metal) · can carry 4 (34% used)"). They also say when a line runs flat out and an upgrade would help.
+  - **Stencils:** every line has its code stencilled on a small painted plate on its longest run. CB-2 belts have yellow-and-black hazard rails and run faster; FL-2 pipes are steel-jacketed with steel bands. Bundles on a belt take the colour of what they carry.
+  - Selected pieces list their lines ("Lines: CB-1 in, CB-2 out"), and readouts name pieces by their stencil codes (`pieceCode` in `src/game/base.ts`).
+- **Lines from either end:** a selected piece shows **Conveyor to…** / **Pipe to…** for its outputs and **Conveyor from…** / **Pipe from…** for its inputs. For example, the auto feeder offers "Conveyor from…" and "Pipe to…". Keyboard: C / P draw out of the piece; Shift+C / Shift+P (or a piece with only an input) draw into it.
+- **Whole-base rates overview** (`src/ui/rates.ts`): a **Rates** button beside Fit in build mode (keyboard O; Esc closes).
+  - **The table** has one row per material (plus feed mash in litres), with columns **Made /min, Used /min, Net /min** (green up, red down) and **Stored**. "+N held" counts items waiting in trays and hoppers. A note under each row says who makes and uses it (for example "made by puffcaps: 0.29; used by AF-1: 0.5").
+  - **Below the table:** every machine and stocked tank with its status, max rate and hoppers, then every line, busiest first, with a load bar that turns red when flat out.
+  - On a PC it is a wide two-column panel; on the phone the table keeps its five columns and the panel scrolls. It refreshes twice a second.
+- **Scanner log:** lists plate presses and counts lines by code.
+- **Tested:**
+  - Type check and production build pass.
+  - Emulated iPhone 15 Pro (landscape), with a scripted base: turbine, storage, tank (grown puffcap and ray), auto feeder, plate press and a second storage pod.
+    - 10 simulated minutes: the CB-1 conveyor fed the press scrap and copper at 2:1. The press made 4 plates (8 scrap and 4 copper used, with the hoppers full), and the CB-2 conveyor carried them to storage.
+    - The puffcap's fibre went from the tank's tray by conveyor to the feeder, which kept the tank's trough full (both creatures stayed at 97% Fed). The ray's copper waited in the tray, as expected with only a feeder conveyor.
+    - Selecting the feeder offered "Conveyor from…" and "Pipe to…". Drawing from the feeder back to a storage pod, switching to CB-2 and building it charged the plating.
+    - Upgrading a CB-1 line to CB-2 cost 2 plating and raised its capacity to 10.
+    - The rates panel opened with O and closed with Esc. Swimming up to a tank took 2 copper from its tray into the bag.
+    - Screenshots of the press close-up, the stencilled lines, the press readout and the rates panel. No console errors.
+- Deployed: GitHub Actions run 43760293910 built and deployed to Pages successfully from `claude/milestone-5-part-2-ncs2f6`. Merge it into the default branch `claude/underwater-game-m0-0qqajg` before the next session.
+
 ## Next
 
-**Milestone 5, part 2: refining and tank output on conveyors.** Then milestone 6, the submersible.
-- **The first machine that combines materials into a refined one: hull plating** (Colin's choice). A plate press turns scrap and copper (carried in by conveyor) into hull plating for the submersible (milestone 6) and later bigger pieces. Give it its own rates, using the same conveyor rules.
-- **Tank output on conveyors.** A tank's belt-out port could carry what its creatures make to storage or straight to a machine. Today it still goes straight into storage, as in milestone 4.
-- **faster CB-2 conveyors and FL-2 pipes** (faster, costing a later material). A splitter or merger if balancing needs it.
-- **A whole-base rates overview** (made and used per minute, per material). It should suit the PC screen and stay readable on the phone.
-- More Echo whorls in later biomes. There are two in the shallows now.
-- Starting a line from either end (selecting the auto feeder also offers "Conveyor from…"); Colin found starting at the storage pod unclear.
+**Milestone 6: the submersible** (DESIGN.md): a drivable sub with module slots, plus the Moon pool dock. Hull plating from the plate press is ready to be its main build material.
+- Still open from milestone 5: a splitter or merger if balancing needs one. Today, storage pods act as the hub, a tank can send two conveyors, and a press can send two.
+- More Echo whorls in later biomes (two in the shallows now).
+- Ask Colin before building: what the sub and dock cost (how much hull plating), and which module slots come first.
 
-The prompt for the next session is in `docs/prompts/milestone-5-part-2.md`. Merge this branch (`claude/great-pascal-vx5iis`) into the default branch first, so the next session starts from part 1.
-
-**Colin's decisions for part 2 (after part 1):**
-- The first refined material is **hull plating** for the sub.
-- **Line tiers are named with Kestrel stencil codes, not "Mk"** ("Mk" tiers are strongly tied to Satisfactory). Conveyors are **CB-1, CB-2, …**; feed pipes are **FL-1, FL-2, …**. Today's lines are CB-1 and FL-1. Show the code in the build readouts and stencil it on the line, like CT-1, FP-1 and AF-1 on the pieces.
-- No ready-made test base: Colin is playing the current build from a brand-new save on his PC, start to finish. Expect feedback on the early game as well as the factory.
-
-Where things are: the rules for lines, the feeder and whorls are in `src/game/factory.ts`, with every rate a constant at the top. Pieces declare `ports` and `whorls` in `PIECES` (`src/game/base.ts`). Line drawing is in `src/world/linegfx.ts`, and build-mode linking and camera in `src/ui/build.ts`.
+Where things are: line tiers, conveyor routing, the press and tank trays are in `src/game/factory.ts`, with every rate a constant at the top. Pieces and their port counts are in `PIECES` (`src/game/base.ts`). Drawing is in `src/world/linegfx.ts` (lines) and `src/world/basegfx.ts` (`drawPress`). Build-mode linking is in `src/ui/build.ts`, and the overview in `src/ui/rates.ts`.
 
 ## Problems and open questions
+
+- **Milestone 5 part 2 numbers to tune after Colin plays** (top of `src/game/factory.ts`): press 0.5 plating/min, recipe 2 scrap + 1 copper, hoppers 6 / 3, rack 4; tray 4 per tank; CB-1 4 and CB-2 10 items/min; FL-1 10 and FL-2 25 L/min; tier-2 plating cost (1 per 4 cells); plating weight 4 kg; the press's cost and build time in `PIECES`.
+- **Tank output no longer goes straight to storage.** Without a conveyor, creatures fill the 4-item tray and pause until the diver swims by. If that feels like a chore before conveyors are affordable, a bigger tray or a "crew empties the tray when you visit the dome" rule are easy changes.
 
 - **Milestone 5 part 1 numbers to tune after Colin plays** (all in `src/game/factory.ts` and the top of `src/game/creatures.ts`):
   - conveyor 6 items/min, pipe 10 L/min, line costs, the longest line (30 cells);

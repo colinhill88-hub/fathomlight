@@ -14,6 +14,7 @@ import {
   PIECE_ORDER,
   PIECES,
   PieceKind,
+  pieceCode,
   pieceRect,
   Placed,
   shapeOf,
@@ -25,7 +26,9 @@ import {
   FEEDER_RATE,
   feederStatus,
   HOPPER_CAP,
+  lineCode,
   lineCost,
+  lineRate,
   lineRoute,
   LineKind,
   LINES,
@@ -33,12 +36,23 @@ import {
   machineData,
   MASH_PER_FIBRE,
   mashPerCreature,
+  PRESS_COPPER_CAP,
+  PRESS_PLATE_CAP,
+  PRESS_RATE,
+  PRESS_SCRAP_CAP,
+  pressStatus,
+  stuckInTray,
+  tierDef,
+  tierOf,
+  TRAY_CAP,
+  trayCount,
   TROUGH_CAP,
+  upgradeCost,
   whorlMult,
   whorlsFree,
   WHORLS_PER_PIECE,
 } from '../game/factory';
-import { creaturesIn, HUNGER_RATE, makeRate, SPECIES, tankNumber } from '../game/creatures';
+import { creaturesIn, HUNGER_RATE, makeRate, payCost, SPECIES, tankNumber } from '../game/creatures';
 import { MATERIAL_ICONS } from './hud';
 import { WHORL_ICON } from '../world/whorl';
 
@@ -72,6 +86,8 @@ const PIECE_ICONS: Record<PieceKind, string> = {
     '<svg viewBox="0 0 40 32"><rect x="3" y="8" width="34" height="18" fill="#1f4a4c"/><rect x="3" y="8" width="34" height="7" fill="#3d7470" opacity=".6"/><path d="M3 23q8-2 17 0t17 0v3H3z" fill="#b7a47a"/><path d="M14 17c3-3 7-3 9 0-2 3-6 3-9 0zm9 0l3-2v4z" fill="#d27a86"/><rect x="1" y="5" width="38" height="4" rx="1" fill="#a8402e"/><rect x="1" y="25" width="38" height="4" rx="1" fill="#a8402e"/></svg>',
   feeder:
     '<svg viewBox="0 0 40 32"><path d="M8 1h18l-4 9h-10z" fill="#5b6467"/><path d="M12 3h10l-2 5h-6z" fill="#b8923f"/><rect x="9" y="10" width="20" height="9" rx="2" fill="#b8923f"/><circle cx="15" cy="14.5" r="3.4" fill="#8a9496"/><rect x="9" y="19" width="20" height="12" rx="2" fill="#5b6467"/><rect x="13" y="21" width="4" height="8" fill="#9aa84a"/><rect x="29" y="2" width="3" height="22" fill="#8a6a3a"/><rect x="2" y="23" width="7" height="6" fill="#5b6467"/></svg>',
+  press:
+    '<svg viewBox="0 0 40 32"><rect x="1" y="14" width="4" height="6" fill="#5b6467"/><rect x="35" y="14" width="4" height="6" fill="#5b6467"/><path d="M3 3h11l-2 9H5z" fill="#5b6467"/><rect x="5" y="5" width="3" height="6" fill="#7a685a"/><rect x="9" y="5" width="3" height="6" fill="#5f9a72"/><rect x="13" y="7" width="3" height="18" fill="#3b4448"/><rect x="25" y="7" width="3" height="18" fill="#3b4448"/><rect x="11" y="3" width="19" height="6" rx="1" fill="#b8923f"/><rect x="19" y="9" width="3" height="5" fill="#aab4b5"/><rect x="15" y="14" width="11" height="4" fill="#3b4448"/><rect x="16" y="20" width="9" height="2" fill="#8e9a9c"/><rect x="29" y="16" width="8" height="2" fill="#8e9a9c"/><rect x="29" y="19" width="8" height="2" fill="#8e9a9c"/><rect x="2" y="24" width="36" height="6" rx="1" fill="#3b4448"/><rect x="3" y="26" width="34" height="1.5" fill="#b8923f"/></svg>',
   filter:
     '<svg viewBox="0 0 40 32"><rect x="2" y="12" width="7" height="8" fill="#5b6467"/><rect x="31" y="12" width="7" height="8" fill="#5b6467"/><rect x="17" y="1" width="6" height="6" fill="#5b6467"/><rect x="9" y="6" width="22" height="22" rx="4" fill="#5b6467"/><rect x="9" y="8" width="22" height="2.5" fill="#b8923f"/><circle cx="18" cy="19" r="6" fill="#262d30"/><path d="M18 19l1-5 1 5zM18 19l5 2-5 0zM18 19l-4 3 3-4z" fill="#aab4b5"/><circle cx="27" cy="15" r="2" fill="#a88a4a"/></svg>',
 };
@@ -99,6 +115,8 @@ export interface BuildDeps {
   lineRoute(id: number): [number, number][] | null;
   /** Called after lines or fitted whorls changed. */
   linesChanged(): void;
+  /** Open the whole-base rates overview (milestone 5 part 2). */
+  showRates(): void;
 }
 
 /** The build camera: where it looks (world centre) and how much height it shows. */
@@ -125,8 +143,14 @@ export class BuildMode {
   selected: Placed | null = null;
   /** A selected conveyor or pipe (milestone 5). */
   selectedLine: number | null = null;
-  /** Drawing a conveyor or pipe: from this piece, to the piece tapped next. */
-  link: { kind: LineKind; from: number; to: number | null } | null = null;
+  /**
+   * Drawing a conveyor or pipe. The anchor end is the piece it was started
+   * from (either end, milestone 5 part 2); the other end is the piece tapped
+   * next. `tier` is the line tier being drawn (CB-1 / CB-2, FL-1 / FL-2).
+   */
+  link: { kind: LineKind; from: number | null; to: number | null; anchor: 'from' | 'to'; tier: number } | null = null;
+  /** The tier last drawn, per kind, so the next line starts on it. */
+  private lastTier: Record<LineKind, number> = { belt: 1, pipe: 1 };
   /** Where the build camera looks. main.ts follows it while building. */
   cam: BuildCam = { x: 0, y: 0, h: 860 };
   /** Can the build button be used right now (the diver is at the site)? */
@@ -142,6 +166,11 @@ export class BuildMode {
   private fitBtn = document.getElementById('build-fit') as HTMLButtonElement;
   private beltBtn = document.getElementById('build-belt') as HTMLButtonElement;
   private pipeBtn = document.getElementById('build-pipe') as HTMLButtonElement;
+  private beltInBtn = document.getElementById('build-belt-in') as HTMLButtonElement;
+  private pipeInBtn = document.getElementById('build-pipe-in') as HTMLButtonElement;
+  private tierBtn = document.getElementById('build-tier') as HTMLButtonElement;
+  private upgradeBtn = document.getElementById('build-upgrade') as HTMLButtonElement;
+  private ratesBtn = document.getElementById('build-rates') as HTMLButtonElement;
   private whorlAddBtn = document.getElementById('build-whorl-add') as HTMLButtonElement;
   private whorlTakeBtn = document.getElementById('build-whorl-take') as HTMLButtonElement;
   private cards = new Map<PieceKind, HTMLButtonElement>();
@@ -183,8 +212,13 @@ export class BuildMode {
     tap(this.cancelBtn, () => (this.ghost ? this.pick(null) : this.close()));
     tap(this.removeBtn, () => this.remove());
     tap(this.fitBtn, () => this.fit());
-    tap(this.beltBtn, () => this.startLink('belt'));
-    tap(this.pipeBtn, () => this.startLink('pipe'));
+    tap(this.beltBtn, () => this.startLink('belt', 'from'));
+    tap(this.pipeBtn, () => this.startLink('pipe', 'from'));
+    tap(this.beltInBtn, () => this.startLink('belt', 'to'));
+    tap(this.pipeInBtn, () => this.startLink('pipe', 'to'));
+    tap(this.tierBtn, () => this.cycleTier());
+    tap(this.upgradeBtn, () => this.upgradeLine());
+    tap(this.ratesBtn, () => this.deps.showRates());
     tap(this.whorlAddBtn, () => this.fitWhorl(1));
     tap(this.whorlTakeBtn, () => this.fitWhorl(-1));
 
@@ -395,9 +429,12 @@ export class BuildMode {
     const lines = save.lines.filter((l) => l.from === p.id || l.to === p.id);
     for (const l of lines) this.refund(this.lineCostOf(l));
     save.lines = save.lines.filter((l) => !lines.includes(l));
-    // Kelp fibre waiting in a feeder's hopper goes back too; fitted whorls come off.
+    // What a machine holds goes back too (a feeder's fibre, a press's scrap,
+    // copper and plates, a tank's output tray); fitted whorls come off.
     const m = save.machines[String(p.id)];
-    if (m && m.fibre > 0) this.refund({ fibre: Math.floor(m.fibre) });
+    if (m) this.refund({ fibre: Math.floor(m.fibre), scrap: m.scrap ?? 0, copper: m.copper ?? 0, plate: m.plate ?? 0 });
+    const tray = save.tankData[String(p.id)]?.out;
+    if (tray) this.refund(tray);
     delete save.machines[String(p.id)];
     const whorls = save.fitted[String(p.id)] ?? 0;
     delete save.fitted[String(p.id)];
@@ -429,56 +466,105 @@ export class BuildMode {
 
   // ---- Conveyors and feed pipes (milestone 5) ----
 
-  private lineCostOf(l: { kind: LineKind; from: number; to: number }): Partial<Record<MaterialId, number>> {
-    const route = this.deps.lineRoute((l as { id?: number }).id ?? -1);
-    const a = this.piece(l.from);
-    const b = this.piece(l.to);
-    if (!a || !b) return {};
-    if (route) {
-      let len = 0;
-      for (let i = 1; i < route.length; i++) len += Math.abs(route[i][0] - route[i - 1][0]) + Math.abs(route[i][1] - route[i - 1][1]);
-      return lineCost(l.kind, Math.max(1, Math.ceil(len / CELL)));
-    }
-    return lineCost(l.kind, lineRoute(a, b, l.kind).cells);
+  private lineCostOf(l: { id: number; kind: LineKind; from: number; to: number; tier?: number }): Partial<Record<MaterialId, number>> {
+    return lineCost(l.kind, this.lineCells(l), tierOf(l));
   }
 
   private piece(id: number | null | undefined): Placed | undefined {
     return id === null || id === undefined ? undefined : this.deps.layout.pieces.find((p) => p.id === id);
   }
 
-  /** Start drawing a conveyor or pipe from the selected piece. */
-  startLink(kind: LineKind): void {
+  /**
+   * Start drawing a conveyor or pipe at the selected piece. `anchor` says
+   * which end the selected piece is: 'from' (Conveyor to…) or 'to'
+   * (Conveyor from…).
+   */
+  startLink(kind: LineKind, anchor: 'from' | 'to' = 'from'): void {
     const p = this.selected;
     if (!p) return;
-    this.link = { kind, from: p.id, to: null };
+    this.link = { kind, from: anchor === 'from' ? p.id : null, to: anchor === 'to' ? p.id : null, anchor, tier: this.bestTier(kind) };
     this.selectedLine = null;
     this.refresh();
   }
 
-  /** Pieces a line of this kind could run to from `from`. */
-  private linkTargets(): Placed[] {
+  /** The tier to start a new line on: the last one drawn, if it is unlocked. */
+  private bestTier(kind: LineKind): number {
+    return this.tierUnlocked(kind, this.lastTier[kind]) ? this.lastTier[kind] : 1;
+  }
+
+  /** Higher tiers need hull plating, so they show once the base has made some. */
+  private tierUnlocked(kind: LineKind, tier: number): boolean {
+    if (tier <= 1) return true;
+    const { save } = this.deps;
+    return tier <= LINES[kind].tiers.length && (save.bag.plate + save.stored.plate > 0 || save.lines.some((l) => tierOf(l) >= tier));
+  }
+
+  /** Switch the tier of the line being drawn (CB-1 ⇄ CB-2, FL-1 ⇄ FL-2). */
+  cycleTier(): void {
     const l = this.link;
-    const from = this.piece(l?.from);
-    if (!l || !from) return [];
+    if (!l) return;
+    const n = LINES[l.kind].tiers.length;
+    l.tier = (l.tier % n) + 1;
+    this.lastTier[l.kind] = l.tier;
+    this.refresh();
+  }
+
+  /** The two ends of the line being drawn (the unknown one is undefined). */
+  private linkEnds(): { from?: Placed; to?: Placed } {
+    const l = this.link;
+    return l ? { from: this.piece(l.from), to: this.piece(l.to) } : {};
+  }
+
+  /** The piece the line was started from. */
+  private linkAnchor(): Placed | undefined {
+    const l = this.link;
+    return l ? this.piece(l[l.anchor]) : undefined;
+  }
+
+  /** Why a line between the anchor and `p` can't be built, or null if it can. */
+  private linkWhy(p: Placed): string | null {
+    const l = this.link;
+    const a = this.linkAnchor();
+    if (!l || !a) return 'Pick a piece';
     const { save, layout } = this.deps;
-    return layout.pieces.filter((p) => p.id !== from.id && !linkProblem(save, layout, l.kind, from, p));
+    return l.anchor === 'from' ? linkProblem(save, layout, l.kind, a, p) : linkProblem(save, layout, l.kind, p, a);
+  }
+
+  /** Set the other end of the line being drawn (null clears it). */
+  private setLinkOther(id: number | null): void {
+    const l = this.link;
+    if (!l) return;
+    if (l.anchor === 'from') l.to = id;
+    else l.from = id;
+  }
+
+  /** The other end of the line being drawn, if chosen. */
+  private linkOther(): number | null {
+    const l = this.link;
+    return l ? (l.anchor === 'from' ? l.to : l.from) : null;
+  }
+
+  /** Pieces the line being drawn could join to the anchor. */
+  private linkTargets(): Placed[] {
+    const a = this.linkAnchor();
+    if (!a) return [];
+    return this.deps.layout.pieces.filter((p) => p.id !== a.id && !this.linkWhy(p));
   }
 
   /** What the line being drawn would look like and cost, for the overlay. */
   linkPreview(): { from: Placed; targets: Placed[]; route: [number, number][] | null; ok: boolean } | null {
     const l = this.link;
-    const from = this.piece(l?.from);
-    if (!l || !from) return null;
-    const to = this.piece(l.to);
+    const anchor = this.linkAnchor();
+    if (!l || !anchor) return null;
+    const { from, to } = this.linkEnds();
     const { save } = this.deps;
-    const slot = save.lines.filter((q) => q.kind === l.kind && q.from === from.id).length;
-    return { from, targets: this.linkTargets(), route: to ? lineRoute(from, to, l.kind, slot).pts : null, ok: !this.reason };
+    const route = from && to ? lineRoute(from, to, l.kind, save.lines.filter((q) => q.kind === l.kind && q.from === from.id).length).pts : null;
+    return { from: anchor, targets: this.linkTargets(), route, ok: !this.reason };
   }
 
   private buildLink(): void {
     const l = this.link;
-    const from = this.piece(l?.from);
-    const to = this.piece(l?.to);
+    const { from, to } = this.linkEnds();
     if (!l || !from || !to) return;
     const { save, layout } = this.deps;
     const why = linkProblem(save, layout, l.kind, from, to);
@@ -488,23 +574,16 @@ export class BuildMode {
     }
     const slot = save.lines.filter((q) => q.kind === l.kind && q.from === from.id).length;
     const cells = lineRoute(from, to, l.kind, slot).cells;
-    const cost = lineCost(l.kind, cells);
-    const have = available(save.bag, save.stored);
-    if (MATERIAL_ORDER.some((k) => have[k] < (cost[k] ?? 0))) {
+    const cost = lineCost(l.kind, cells, l.tier);
+    if (!payCost(save, cost)) {
       this.deps.toast(`Not enough materials for this ${LINES[l.kind].name.toLowerCase()}`, 'warn');
       return;
     }
-    for (const k of MATERIAL_ORDER) {
-      let need = cost[k] ?? 0;
-      const fromBag = Math.min(need, save.bag[k]);
-      save.bag[k] -= fromBag;
-      need -= fromBag;
-      save.stored[k] -= need;
-    }
-    save.lines.push({ id: save.nextLineId++, kind: l.kind, from: from.id, to: to.id });
+    const line = { id: save.nextLineId++, kind: l.kind, from: from.id, to: to.id, tier: l.tier };
+    save.lines.push(line);
     const def = LINES[l.kind];
     this.deps.toast(
-      `${def.name} built: ${PIECES[from.kind].name.toLowerCase()} to ${PIECES[to.kind].name.toLowerCase()} (${cells} cell${cells > 1 ? 's' : ''}). It moves up to ${def.rate} ${def.unit}.`,
+      `${lineCode(line)} ${def.name.toLowerCase()} built: ${pieceCode(layout, from)} to ${pieceCode(layout, to)} (${cells} cell${cells > 1 ? 's' : ''}). It moves up to ${lineRate(line)} ${def.unit}.`,
       'big',
     );
     if (!save.tips.includes('lines')) {
@@ -512,13 +591,48 @@ export class BuildMode {
       setTimeout(
         () =>
           this.deps.toast(
-            'Tap a conveyor or pipe to see how much it moves per minute. A storage pod sends kelp fibre to an auto feeder; the feeder pumps mash down feed pipes to creature tanks.',
+            'Tap a conveyor or pipe to see how much it moves per minute. Conveyors carry whatever the far end needs: kelp fibre to a feeder, scrap and copper to a plate press, anything to storage.',
             'big',
           ),
         2600,
       );
     }
     this.link = null;
+    this.deps.linesChanged();
+    this.deps.refreshInventory();
+    this.refresh();
+  }
+
+  /** Cells a built line covers (for refunds and upgrades). */
+  private lineCells(l: { id: number; kind: LineKind; from: number; to: number }): number {
+    const route = this.deps.lineRoute(l.id);
+    if (route) {
+      let len = 0;
+      for (let i = 1; i < route.length; i++) len += Math.abs(route[i][0] - route[i - 1][0]) + Math.abs(route[i][1] - route[i - 1][1]);
+      return Math.max(1, Math.ceil(len / CELL));
+    }
+    const a = this.piece(l.from);
+    const b = this.piece(l.to);
+    return a && b ? lineRoute(a, b, l.kind).cells : 1;
+  }
+
+  /** Upgrade the selected line to the next tier (CB-1 → CB-2, FL-1 → FL-2), paying the difference. */
+  upgradeLine(): void {
+    const { save, layout } = this.deps;
+    const l = save.lines.find((q) => q.id === this.selectedLine);
+    if (!l) return;
+    const tier = tierOf(l);
+    if (tier >= LINES[l.kind].tiers.length) return;
+    const cost = upgradeCost(l.kind, this.lineCells(l), tier);
+    if (!payCost(save, cost)) {
+      const missing = MATERIAL_ORDER.filter((k) => (cost[k] ?? 0) > save.bag[k] + save.stored[k]).map((k) => MATERIALS[k].name.toLowerCase());
+      this.deps.toast(`Need more ${missing.join(' and ')}${missing.includes('hull plating') ? ' (made by a plate press)' : ''}`, 'warn');
+      return;
+    }
+    l.tier = tier + 1;
+    this.lastTier[l.kind] = tier + 1;
+    void layout;
+    this.deps.toast(`Upgraded to ${lineCode(l)}: it now moves up to ${lineRate(l)} ${LINES[l.kind].unit}`, 'big');
     this.deps.linesChanged();
     this.deps.refreshInventory();
     this.refresh();
@@ -727,9 +841,9 @@ export class BuildMode {
       const w = this.deps.toWorld(e.clientX, e.clientY);
       const c = cellAt(w.x, w.y);
       const p = this.deps.layout.pieceAt(c.gx, c.gy);
-      const to = p && this.linkTargets().includes(p) ? p.id : null;
-      if (to !== this.link.to) {
-        this.link.to = to;
+      const other = p && this.linkTargets().includes(p) ? p.id : null;
+      if (other !== this.linkOther()) {
+        this.setLinkOther(other);
         this.refresh();
       }
       return;
@@ -778,17 +892,17 @@ export class BuildMode {
     const c = cellAt(w.x, w.y);
     const hit = this.deps.layout.pieceAt(c.gx, c.gy) ?? null;
     if (this.link) {
-      // Choose where the line goes.
+      // Choose the other end of the line.
       if (!hit) return;
-      const from = this.piece(this.link.from);
-      if (from && hit.id === from.id) {
+      const anchor = this.linkAnchor();
+      if (anchor && hit.id === anchor.id) {
         this.link = null;
         this.refresh();
         return;
       }
-      const why = from ? linkProblem(this.deps.save, this.deps.layout, this.link.kind, from, hit) : 'Pick a piece';
+      const why = this.linkWhy(hit);
       if (why) this.deps.toast(why, 'warn');
-      this.link.to = why ? null : hit.id;
+      this.setLinkOther(why ? null : hit.id);
       this.refresh();
       // On a computer, a click on a valid target builds straight away.
       if (!why && d.mouse) this.place();
@@ -813,7 +927,7 @@ export class BuildMode {
       return;
     }
     if (!this.active) return;
-    const idx = ['1', '2', '3', '4', '5', '6', '7'].indexOf(k);
+    const idx = ['1', '2', '3', '4', '5', '6', '7', '8'].indexOf(k);
     const step = (this.cam.h * 0.12);
     if (idx >= 0) this.pick(PIECE_ORDER[idx]);
     else if (k === 'arrowleft') this.nudge(-1, 0);
@@ -827,8 +941,19 @@ export class BuildMode {
     else if (k === '=' || k === '+' || k === 'e') this.zoomAt(window.innerWidth / 2, window.innerHeight / 2, 1 / 1.2);
     else if (k === '-' || k === 'q') this.zoomAt(window.innerWidth / 2, window.innerHeight / 2, 1.2);
     else if (k === 'f') this.fit();
-    else if (k === 'c' && this.selected && PIECES[this.selected.kind].ports?.beltOut) this.startLink('belt');
-    else if (k === 'p' && this.selected && PIECES[this.selected.kind].ports?.pipeOut) this.startLink('pipe');
+    else if ((k === 'c' || k === 'p') && this.selected && !this.ghost) {
+      // C / P draw a conveyor / pipe out of the selected piece; with Shift (or
+      // when the piece only takes one in), into it.
+      const kind: LineKind = k === 'c' ? 'belt' : 'pipe';
+      const ports = PIECES[this.selected.kind].ports;
+      const out = ports?.[kind === 'belt' ? 'beltOut' : 'pipeOut'];
+      const inn = ports?.[kind === 'belt' ? 'beltIn' : 'pipeIn'];
+      if (inn && (e.shiftKey || !out)) this.startLink(kind, 'to');
+      else if (out) this.startLink(kind, 'from');
+    } else if (k === 'u') {
+      if (this.link) this.cycleTier();
+      else this.upgradeLine();
+    } else if (k === 'o') this.deps.showRates();
     else if (k === 'r') this.rotate();
     else if (k === 'enter' || k === ' ') this.place();
     else if (k === 'escape') {
@@ -938,20 +1063,32 @@ export class BuildMode {
     return { ok: !this.reason };
   }
 
-  /** Readout lines for a selected piece (milestone 5: machines, troughs, rates, whorls). */
+  /** Readout lines for a selected piece (milestone 5: machines, troughs, trays, rates, whorls). */
   private pieceDetails(p: Placed): string {
     const { save, layout, factory } = this.deps;
     const out: string[] = [];
     const m = whorlMult(save, p.id);
     const fitted = save.fitted[String(p.id)] ?? 0;
     const whorlNote = fitted ? ` · ${WHORL_ICON}×${m}` : '';
+    const ins = save.lines.filter((l) => l.to === p.id).map((l) => `${lineCode(l)} in`);
+    const outs = save.lines.filter((l) => l.from === p.id).map((l) => `${lineCode(l)} out`);
     if (p.kind === 'feeder') {
       const md = machineData(save, p.id);
       const state = factory.feederState.get(p.id);
       const rate = FEEDER_RATE * m;
       out.push(`<span class="${state === 'running' || state === 'full' ? 'ok' : 'why'}">${feederStatus(state)}</span>`);
       out.push(
-        `<span class="rate">Presses up to ${fmt(rate)} kelp fibre/min → ${fmt(rate * MASH_PER_FIBRE)} L/min mash${whorlNote} · hopper ${Math.floor(md.fibre)}/${HOPPER_CAP} · mash ${Math.round(md.mash)}/${FEEDER_MASH_CAP} L</span>`,
+        `<span class="rate">${pieceCode(layout, p)} presses up to ${fmt(rate)} kelp fibre/min → ${fmt(rate * MASH_PER_FIBRE)} L/min mash${whorlNote} · hopper ${Math.floor(md.fibre)}/${HOPPER_CAP} · mash ${Math.round(md.mash)}/${FEEDER_MASH_CAP} L</span>`,
+      );
+    } else if (p.kind === 'press') {
+      const md = machineData(save, p.id);
+      const state = factory.pressState.get(p.id);
+      const rate = PRESS_RATE * m;
+      out.push(`<span class="${state === 'running' || state === 'full' ? 'ok' : 'why'}">${pressStatus(state)}</span>`);
+      out.push(
+        `<span class="rate">${pieceCode(layout, p)} · 2 scrap + 1 copper → 1 plating · up to ${fmt(rate)}/min${whorlNote} · hopper ${md.scrap ?? 0}/${PRESS_SCRAP_CAP} scrap, ${
+          md.copper ?? 0
+        }/${PRESS_COPPER_CAP} copper · rack ${md.plate ?? 0}/${PRESS_PLATE_CAP}${state === 'running' ? ` · next ${Math.round(md.press * 100)}%` : ''}</span>`,
       );
     } else if (p.kind === 'tank') {
       const td = save.tankData[String(p.id)];
@@ -967,16 +1104,28 @@ export class BuildMode {
         }
       }
       const fed = save.lines.some((l) => l.kind === 'pipe' && l.to === p.id);
+      const belt = save.lines.some((l) => l.kind === 'belt' && l.from === p.id);
+      const tray = trayCount(td);
       out.push(
         `<span class="rate">Tank ${tankNumber(layout, p.id)}: ${cs.length} creature${cs.length === 1 ? '' : 's'} · ${
           fed ? `feed trough ${Math.round(td?.mash ?? 0)}/${TROUGH_CAP} L, eats ${fmt(eat)} L/min` : 'fed by hand (no feed pipe)'
         } · makes ${make > 0 ? `${fmt(make)}/min ${[...kinds].join(' + ')}` : 'nothing yet'}${whorlNote}</span>`,
       );
+      out.push(
+        `<span class="${tray >= TRAY_CAP ? 'why' : 'rate'}">Output tray ${tray}/${TRAY_CAP}${
+          belt ? ' · a conveyor carries it off' : ' · no conveyor out: swim up to take it, or tap Conveyor to…'
+        }${tray >= TRAY_CAP ? ' · full, making paused' : ''}</span>`,
+      );
+      const stuck = stuckInTray(save, layout, p.id);
+      if (stuck.length)
+        out.push(
+          `<span class="why">No conveyor here takes its ${stuck.map((k) => MATERIALS[k].name.toLowerCase()).join(' or ')}: run another conveyor from this tank to a storage pod</span>`,
+        );
     } else if (p.kind === 'storage') {
       const total = MATERIAL_ORDER.reduce((a, k) => a + save.stored[k], 0);
-      const belts = save.lines.filter((l) => l.from === p.id).length;
-      out.push(`<span class="rate">Base storage ${total}/${this.deps.capacity()}${belts ? ` · ${belts} conveyor${belts > 1 ? 's' : ''} out` : ''}</span>`);
+      out.push(`<span class="rate">Base storage ${total}/${this.deps.capacity()}</span>`);
     }
+    if (ins.length || outs.length) out.push(`<span class="rate">Lines: ${[...ins, ...outs].join(', ')}</span>`);
     if (PIECES[p.kind].whorls && fitted) out.push(`<span class="rate">${fitted} Echo whorl${fitted > 1 ? 's' : ''} fitted: works ×${m}, and uses its inputs ×${m}</span>`);
     return out.join('');
   }
@@ -985,7 +1134,7 @@ export class BuildMode {
     const { save, layout, factory } = this.deps;
     if (this.selected && !layout.pieces.includes(this.selected)) this.selected = layout.pieces.find((p) => p.id === this.selected!.id) ?? null;
     if (this.selectedLine !== null && !save.lines.some((l) => l.id === this.selectedLine)) this.selectedLine = null;
-    if (this.link && !this.piece(this.link.from)) this.link = null;
+    if (this.link && !this.linkAnchor()) this.link = null;
     const have = available(save.bag, save.stored);
     for (const [kind, card] of this.cards) {
       const def = PIECES[kind];
@@ -1004,19 +1153,21 @@ export class BuildMode {
     const g = this.ghost;
     const drone = this.deps.droneReady();
     const link = this.link;
-    const linkFrom = this.piece(link?.from);
-    const linkTo = this.piece(link?.to);
+    const { from: linkFrom, to: linkTo } = this.linkEnds();
+    const linkAnchor = this.linkAnchor();
     let linkCost: Partial<Record<MaterialId, number>> = {};
     let linkCells = 0;
     if (link && linkFrom && linkTo) {
       const slot = save.lines.filter((q) => q.kind === link.kind && q.from === linkFrom.id).length;
       linkCells = lineRoute(linkFrom, linkTo, link.kind, slot).cells;
-      linkCost = lineCost(link.kind, linkCells);
+      linkCost = lineCost(link.kind, linkCells, link.tier);
     }
     if (link) {
-      this.reason = !linkTo
-        ? 'Tap the piece to run it to'
-        : linkProblem(save, layout, link.kind, linkFrom!, linkTo) ??
+      this.reason = !linkFrom || !linkTo
+        ? link.anchor === 'from'
+          ? 'Tap the piece to run it to'
+          : 'Tap the piece to run it from'
+        : linkProblem(save, layout, link.kind, linkFrom, linkTo) ??
           (MATERIAL_ORDER.some((k) => have[k] < (linkCost[k] ?? 0)) ? `Need more ${MATERIAL_ORDER.filter((k) => have[k] < (linkCost[k] ?? 0)).map((k) => MATERIALS[k].plural.toLowerCase()).join(' and ')}` : null);
     } else this.reason = g ? (drone ? layout.check(g) : 'Needs the build drone first (lost by the survey sled wreck)') : null;
     if (g && !this.reason && !canAfford(g.kind, save.bag, save.stored)) {
@@ -1035,6 +1186,29 @@ export class BuildMode {
     const showTools = !!sel && !g && !link;
     this.beltBtn.hidden = !(showTools && ports?.beltOut);
     this.pipeBtn.hidden = !(showTools && ports?.pipeOut);
+    this.beltInBtn.hidden = !(showTools && ports?.beltIn);
+    this.pipeInBtn.hidden = !(showTools && ports?.pipeIn);
+    // Tier switch while drawing (shown once a higher tier can be afforded or exists).
+    const tiers = link ? LINES[link.kind].tiers : [];
+    this.tierBtn.hidden = !link || !this.tierUnlocked(link.kind, 2);
+    if (link) {
+      const html = tiers.map((t, i) => `<b class="${i + 1 === link.tier ? 'on' : ''}">${t.code}</b>`).join('');
+      if (this.tierBtn.innerHTML !== html) this.tierBtn.innerHTML = html;
+      this.tierBtn.setAttribute('aria-label', `Line tier: ${tiers[link.tier - 1].code}. Tap to switch.`);
+    }
+    // Upgrade a selected line.
+    const selLine = this.selectedLine !== null ? save.lines.find((q) => q.id === this.selectedLine) : undefined;
+    const canUp = !!selLine && !g && !link && tierOf(selLine) < LINES[selLine.kind].tiers.length;
+    this.upgradeBtn.hidden = !canUp;
+    if (selLine && canUp) {
+      const cost = upgradeCost(selLine.kind, this.lineCells(selLine), tierOf(selLine));
+      const next = tierDef(selLine.kind, tierOf(selLine) + 1);
+      const html = `<span>Upgrade to ${next.code}</span>${MATERIAL_ORDER.filter((k) => cost[k])
+        .map((k) => `<span class="cost ${have[k] >= cost[k]! ? '' : 'short'}">${MATERIAL_ICONS[k]}${cost[k]}</span>`)
+        .join('')}`;
+      if (this.upgradeBtn.innerHTML !== html) this.upgradeBtn.innerHTML = html;
+    }
+    this.ratesBtn.hidden = !layout.pieces.length || !!g || !!link;
     const canWhorl = showTools && !!sel && !!PIECES[sel.kind].whorls && isDone(sel) && (save.whorls.length > 0 || !!save.fitted[String(sel.id)]);
     const fittedHere = sel ? save.fitted[String(sel.id)] ?? 0 : 0;
     this.whorlAddBtn.hidden = !canWhorl || fittedHere >= WHORLS_PER_PIECE || whorlsFree(save) === 0;
@@ -1044,16 +1218,21 @@ export class BuildMode {
     this.whorlTakeBtn.innerHTML = `${WHORL_ICON}<span>Take out whorl</span>`;
 
     let text = '';
-    if (link && linkFrom) {
+    if (link && linkAnchor) {
       const def = LINES[link.kind];
+      const td = tierDef(link.kind, link.tier);
       const costTxt = MATERIAL_ORDER.filter((k) => linkCost[k])
         .map((k) => `<span class="cost ${have[k] >= linkCost[k]! ? '' : 'short'}">${MATERIAL_ICONS[k]}${linkCost[k]}</span>`)
         .join(' ');
-      text = `<b>${def.name}</b> (${def.carries}, up to ${def.rate} ${def.unit}) from the ${PIECES[linkFrom.kind].name.toLowerCase()}.`;
-      if (linkTo) text += ` To the ${PIECES[linkTo.kind].name.toLowerCase()}: ${linkCells} cell${linkCells > 1 ? 's' : ''} · ${costTxt}`;
+      const aName = `${PIECES[linkAnchor.kind].name.toLowerCase()} (${pieceCode(layout, linkAnchor)})`;
+      text = `<b>${td.code} ${def.name.toLowerCase()}</b> (${def.carries}, up to ${td.rate} ${def.unit}) ${link.anchor === 'from' ? 'from' : 'into'} the ${aName}.`;
+      if (linkFrom && linkTo) {
+        const other = link.anchor === 'from' ? linkTo : linkFrom;
+        text += ` ${link.anchor === 'from' ? 'To' : 'From'} the ${PIECES[other.kind].name.toLowerCase()} (${pieceCode(layout, other)}): ${linkCells} cell${linkCells > 1 ? 's' : ''} · ${costTxt}`;
+      }
       text += this.reason ? `<span class="why">${this.reason}</span>` : '<span class="ok">Tap ✓ to build it (no welding needed)</span>';
-      if (!linkTo && !this.linkTargets().length)
-        text += `<span class="why">Nothing here can take it yet. ${link.kind === 'belt' ? 'Build an auto feeder.' : 'Build a creature tank.'}</span>`;
+      if ((!linkFrom || !linkTo) && !this.linkTargets().length)
+        text += `<span class="why">Nothing here can ${link.anchor === 'from' ? 'take it' : 'feed it'} yet.</span>`;
     } else if (g) {
       text = `<b>${PIECES[g.kind].name}</b>: ${PIECES[g.kind].job}`;
       text += this.reason ? `<span class="why">${this.reason}</span>` : '<span class="ok">Fits here: tap ✓ to place the frame</span>';
@@ -1062,11 +1241,16 @@ export class BuildMode {
       const def = LINES[l.kind];
       const a = this.piece(l.from);
       const b = this.piece(l.to);
-      const rate = factory.flows.get(l.id)?.rate ?? 0;
-      const what = l.kind === 'belt' ? 'kelp fibre' : 'feed mash';
-      text = `<b>${def.name}</b>: ${a ? PIECES[a.kind].name.toLowerCase() : '?'} → ${b ? PIECES[b.kind].name.toLowerCase() : '?'}<span class="rate">Moving ${fmt(rate)} ${
+      const fl = factory.flows.get(l.id);
+      const rate = fl?.rate ?? 0;
+      const cap = lineRate(l);
+      const what = l.kind === 'belt' ? (fl?.item ? MATERIALS[fl.item].name.toLowerCase() : 'nothing yet') : 'feed mash';
+      const maxed = (fl?.busy ?? 0) > 0.8 && rate > cap * 0.75;
+      text = `<b>${lineCode(l)} ${def.name.toLowerCase()}</b>: ${a ? pieceCode(layout, a) : '?'} → ${b ? pieceCode(layout, b) : '?'}<span class="rate">Moving ${fmt(rate)} ${
         l.kind === 'belt' ? 'items' : 'L'
-      }/min of ${what} · can carry ${def.rate} ${def.unit} (${Math.round((rate / def.rate) * 100)}% used)</span>`;
+      }/min (${what}) · can carry ${cap} ${def.unit} (${Math.round((rate / cap) * 100)}% used)</span>${
+        maxed && tierOf(l) < def.tiers.length ? `<span class="why">Running flat out: upgrading to ${tierDef(l.kind, tierOf(l) + 1).code} would move more</span>` : ''
+      }`;
     } else if (sel && !isDone(sel)) {
       const pct = Math.floor((sel.progress ?? 0) * 100);
       const left = Math.ceil((1 - (sel.progress ?? 0)) * PIECES[sel.kind].buildTime);

@@ -2,7 +2,7 @@ import { Container, Graphics } from 'pixi.js';
 import { mulberry32, WORLD_SEED } from '../rng';
 import { isSolid, CREVICE_X, caveBottom, groundY, WALL_NOOK, WORLD_H } from './terrain';
 import { WhorlArt } from './whorl';
-import { MATERIALS, MaterialId, REGROW_SECONDS, SaveData, DroppedBag } from '../game/state';
+import { MATERIALS, MaterialId, ReefMaterial, REGROW_SECONDS, SaveData, DroppedBag } from '../game/state';
 import type { PointLight } from './scenery';
 
 /**
@@ -28,14 +28,14 @@ function surfaceAt(x: number, from = 0): number {
 
 interface Spot {
   id: string;
-  kind: MaterialId | 'tank' | 'whorl';
+  kind: ReefMaterial | 'tank' | 'whorl';
   x: number;
   y: number;
 }
 
 const SPOTS: Spot[] = (() => {
   const s: Spot[] = [];
-  const add = (kind: MaterialId, xs: (number | [number, number])[]) =>
+  const add = (kind: ReefMaterial, xs: (number | [number, number])[]) =>
     xs.forEach((p, i) => {
       const [x, from] = Array.isArray(p) ? p : [p, 0];
       s.push({ id: `${kind}-${i}`, kind, x, y: surfaceAt(x, from) - (kind === 'quartz' ? 3 : 5) });
@@ -141,7 +141,7 @@ interface Item {
 }
 
 /** Seconds of work to free one of each material, and what the work is called. */
-export const EFFORT: Record<MaterialId, { seconds: number; verb: string }> = {
+export const EFFORT: Record<ReefMaterial, { seconds: number; verb: string }> = {
   fibre: { seconds: 1.6, verb: 'Cut' },
   scrap: { seconds: 2.2, verb: 'Pry loose' },
   copper: { seconds: 2.6, verb: 'Dig out' },
@@ -164,7 +164,7 @@ interface Bit {
 }
 
 export type PickupEvent =
-  | { type: 'material'; kind: MaterialId; x: number; y: number }
+  | { type: 'material'; kind: ReefMaterial; x: number; y: number }
   | { type: 'tank'; id: string }
   | { type: 'whorl'; id: string }
   | { type: 'bag'; items: Partial<Record<MaterialId, number>> };
@@ -232,7 +232,7 @@ export class Pickups {
   /** Where the dropped bag is, if there is one (for the off-screen marker). */
   bagPos: { x: number; y: number } | null = null;
   /** The material within reach that Collect would work on, if any. */
-  target: { id: string; kind: MaterialId; x: number; y: number } | null = null;
+  target: { id: string; kind: ReefMaterial; x: number; y: number } | null = null;
   /** 0..1 work done on the target. */
   progress = 0;
   /** True while the diver is actually working (held, in reach and still). */
@@ -340,7 +340,7 @@ export class Pickups {
     }
 
     // ---- Working on a material ----
-    const t = best ? { id: best.spot.id, kind: best.spot.kind as MaterialId, x: best.spot.x, y: best.spot.y } : null;
+    const t = best ? { id: best.spot.id, kind: best.spot.kind as ReefMaterial, x: best.spot.x, y: best.spot.y } : null;
     if (!t || t.id !== this.lastTarget) this.progress = 0;
     this.lastTarget = t?.id ?? '';
     this.target = t;
@@ -392,8 +392,8 @@ export class Pickups {
     return events;
   }
 
-  private strike(kind: MaterialId, x: number, y: number): void {
-    const colors: Record<MaterialId, number[]> = {
+  private strike(kind: ReefMaterial, x: number, y: number): void {
+    const colors: Record<ReefMaterial, number[]> = {
       scrap: [0x8a3a20, 0x6a5a4c, 0xa8a199],
       copper: [0x9f8d66, 0xcdb98c, 0x5f9a72],
       quartz: [0xe8ecdf, 0xffffff, 0xa9b5ad],
@@ -452,7 +452,7 @@ export class Pickups {
   }
 
   /** The label for the Collect button, e.g. "Chip off quartz". */
-  static actionLabel(kind: MaterialId): string {
+  static actionLabel(kind: ReefMaterial): string {
     return `${EFFORT[kind].verb} ${MATERIALS[kind].name.toLowerCase()}`;
   }
 

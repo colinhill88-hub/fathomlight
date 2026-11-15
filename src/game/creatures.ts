@@ -1,6 +1,6 @@
 import { BaseLayout, isDone, Placed } from './base';
 import { CreatureData, MaterialId, MATERIAL_ORDER, PlantId, SaveData, SpeciesId, TankData } from './state';
-import { EAT_BELOW, MASH_FED, whorlMult } from './factory';
+import { EAT_BELOW, MASH_FED, TRAY_CAP, trayCount, whorlMult } from './factory';
 
 /**
  * Creature care (milestone 4). No drawing here, just the rules.
@@ -301,10 +301,9 @@ export type CareEvent =
   | { type: 'made'; c: CreatureData; kind: MaterialId; stored: boolean };
 
 /**
- * Run the needs forward by dt seconds of play. room() says how many more
- * materials fit in storage.
+ * Run the needs forward by dt seconds of play.
  */
-export function tickCare(save: SaveData, layout: BaseLayout, dt: number, room: () => number): CareEvent[] {
+export function tickCare(save: SaveData, layout: BaseLayout, dt: number): CareEvent[] {
   const ev: CareEvent[] = [];
   const filtered = filteredTanks(layout);
   const thriving = thrivingTanks(save, layout);
@@ -369,12 +368,14 @@ export function tickCare(save: SaveData, layout: BaseLayout, dt: number, room: (
       c.make += (makeRate(save, layout, c, thriving).perMin / 60) * dt;
       if (c.make >= 1) {
         const kind = SPECIES[c.species].makes;
-        const fits = room() > 0;
-        // Only made when there is somewhere to put it.
-        if (fits) {
-          save.stored[kind]++;
+        // Milestone 5 part 2: it goes in the tank's output tray, for a
+        // conveyor (or the diver) to take away. A full tray pauses making.
+        const td = tankDataFor(save, c.tank);
+        if (trayCount(td) < TRAY_CAP) {
+          td.out ??= {};
+          td.out[kind] = (td.out[kind] ?? 0) + 1;
           c.make = 0;
-          ev.push({ type: 'made', c, kind, stored: true });
+          ev.push({ type: 'made', c, kind, stored: false });
         } else c.make = 1;
       }
     }

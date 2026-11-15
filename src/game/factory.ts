@@ -1,5 +1,5 @@
-import { BaseLayout, CELL, isDone, PIECES, pieceRect, Placed } from './base';
-import { MachineData, MaterialId, SaveData } from './state';
+import { BaseLayout, CELL, isDone, PieceKind, PIECES, pieceRect, Placed } from './base';
+import { MachineData, MATERIAL_ORDER, MATERIALS, MaterialId, SaveData, TankData } from './state';
 
 /**
  * Factory groundwork (milestone 5): moving materials between base pieces at
@@ -31,16 +31,24 @@ import { MachineData, MaterialId, SaveData } from './state';
 
 export type LineKind = 'belt' | 'pipe';
 
+/** One tier of a line: its Kestrel stencil code, capacity and cost. */
+export interface TierDef {
+  /** Stencil code (CB-1, CB-2, FL-1, FL-2). Tiers use Kestrel codes, never "Mk". */
+  code: string;
+  /** Capacity, per minute. */
+  rate: number;
+  /** Materials per cell of length: one of `k` for every `per` cells (rounded up). */
+  cost: { k: MaterialId; per: number }[];
+}
+
 export interface LineDef {
   kind: LineKind;
   name: string;
   /** What it carries, in a few words. */
   carries: string;
-  /** Capacity of the first tier (CB-1 conveyor, FL-1 pipe), per minute. Tiers use Kestrel stencil codes, not "Mk". */
-  rate: number;
   unit: string;
-  /** Materials per cell of length: one of `a` for every `per` cells (rounded up). */
-  cost: { k: MaterialId; per: number }[];
+  /** Tier 1 first. Higher tiers move more and cost hull plating (milestone 5 part 2). */
+  tiers: TierDef[];
 }
 
 export const LINES: Record<LineKind, LineDef> = {
@@ -48,30 +56,73 @@ export const LINES: Record<LineKind, LineDef> = {
     kind: 'belt',
     name: 'Conveyor',
     carries: 'solid items',
-    rate: 6,
     unit: 'items/min',
-    cost: [
-      { k: 'scrap', per: 2 },
-      { k: 'copper', per: 4 },
+    tiers: [
+      {
+        code: 'CB-1',
+        rate: 4,
+        cost: [
+          { k: 'scrap', per: 2 },
+          { k: 'copper', per: 4 },
+        ],
+      },
+      {
+        code: 'CB-2',
+        rate: 10,
+        cost: [
+          { k: 'scrap', per: 2 },
+          { k: 'copper', per: 4 },
+          { k: 'plate', per: 4 },
+        ],
+      },
     ],
   },
   pipe: {
     kind: 'pipe',
     name: 'Feed pipe',
     carries: 'feed mash and other fluids',
-    rate: 10,
     unit: 'L/min',
-    cost: [
-      { k: 'copper', per: 2 },
-      { k: 'fibre', per: 4 },
+    tiers: [
+      {
+        code: 'FL-1',
+        rate: 10,
+        cost: [
+          { k: 'copper', per: 2 },
+          { k: 'fibre', per: 4 },
+        ],
+      },
+      {
+        code: 'FL-2',
+        rate: 25,
+        cost: [
+          { k: 'copper', per: 2 },
+          { k: 'fibre', per: 4 },
+          { k: 'plate', per: 4 },
+        ],
+      },
     ],
   },
 };
 
+/** A line's tier, 1-based (old saves have none: tier 1). */
+export function tierOf(l: { kind: LineKind; tier?: number }): number {
+  return Math.max(1, Math.min(LINES[l.kind].tiers.length, l.tier ?? 1));
+}
+export function tierDef(kind: LineKind, tier: number): TierDef {
+  const t = LINES[kind].tiers;
+  return t[Math.max(0, Math.min(t.length - 1, tier - 1))];
+}
+/** What a line can carry per minute. */
+export function lineRate(l: { kind: LineKind; tier?: number }): number {
+  return tierDef(l.kind, tierOf(l)).rate;
+}
+/** The stencil code of a line: CB-1, CB-2, FL-1, FL-2. */
+export function lineCode(l: { kind: LineKind; tier?: number }): string {
+  return tierDef(l.kind, tierOf(l)).code;
+}
+
 /** The longest line, in cells. */
 export const MAX_LINE_CELLS = 30;
-/** Most lines one port can have (per kind and direction). */
-const PORT_LIMITS = { beltOut: 4, beltIn: 2, pipeOut: 4, pipeIn: 1 };
 
 // ---- The auto feeder ----
 /** Kelp fibre pressed per minute, before Echo whorls. */
@@ -88,6 +139,24 @@ export const TROUGH_CAP = 12;
 export const MASH_FED = 0.2;
 /** Creatures top up from the trough once Fed drops below this. */
 export const EAT_BELOW = 0.95;
+
+// ---- The plate press (milestone 5 part 2) ----
+/** Hull plating made per minute, before Echo whorls (one stroke every 2 minutes). */
+export const PRESS_RATE = 0.5;
+/** What one plate takes. */
+export const PLATE_RECIPE: Partial<Record<MaterialId, number>> = { scrap: 2, copper: 1 };
+/** What the press's hoppers and output rack hold. */
+export const PRESS_SCRAP_CAP = 6;
+export const PRESS_COPPER_CAP = 3;
+export const PRESS_PLATE_CAP = 4;
+
+// ---- Creature tank output (milestone 5 part 2) ----
+/** Items a tank's output tray holds. When it is full its creatures pause making. */
+export const TRAY_CAP = 4;
+
+export function trayCount(td: TankData | undefined): number {
+  return td?.out ? MATERIAL_ORDER.reduce((a, k) => a + (td.out![k] ?? 0), 0) : 0;
+}
 
 // ---- Echo whorls ----
 export const WHORLS_PER_PIECE = 2;
@@ -106,14 +175,19 @@ export function whorlsFree(save: SaveData): number {
 export function machineData(save: SaveData, id: number): MachineData {
   const k = String(id);
   if (!save.machines[k]) save.machines[k] = { fibre: 0, mash: 0, press: 0 };
-  return save.machines[k];
+  const m = save.machines[k];
+  m.scrap ??= 0;
+  m.copper ??= 0;
+  m.plate ??= 0;
+  return m;
 }
 
-/** Where a line leaves or enters a piece: a port on its top, belts left of centre, pipes right. */
-export function portPoint(p: Placed, kind: LineKind): { x: number; y: number } {
+/** Where a line leaves or enters a piece: a port on its top. */
+export function portPoint(p: Placed, kind: LineKind, dir: 'in' | 'out'): { x: number; y: number } {
   const r = pieceRect(p);
   const cx = r.x + r.w / 2;
-  if (p.kind === 'tank') return { x: cx + 28, y: r.y + 12 };
+  if (p.kind === 'tank') return { x: cx + (kind === 'pipe' ? 28 : -28), y: r.y + 12 };
+  if (p.kind === 'press') return { x: cx + (dir === 'in' ? -62 : 62), y: r.y + 14 };
   return { x: cx + (kind === 'belt' ? -22 : 22), y: r.y + 10 };
 }
 
@@ -122,8 +196,8 @@ export function portPoint(p: Placed, kind: LineKind): { x: number; y: number } {
  * second. `slot` spreads lines from the same piece onto separate lanes.
  */
 export function lineRoute(a: Placed, b: Placed, kind: LineKind, slot = 0): { pts: [number, number][]; cells: number } {
-  const p = portPoint(a, kind);
-  const q = portPoint(b, kind);
+  const p = portPoint(a, kind, 'out');
+  const q = portPoint(b, kind, 'in');
   const lane = Math.min(p.y, q.y) - (kind === 'belt' ? 30 : 46) - slot * 12;
   const pts: [number, number][] = [
     [p.x, p.y],
@@ -142,25 +216,74 @@ export function lineSlot(save: SaveData, line: { id: number; kind: LineKind; fro
   return i < 0 ? same.length : i;
 }
 
-export function lineCost(kind: LineKind, cells: number): Partial<Record<MaterialId, number>> {
+export function lineCost(kind: LineKind, cells: number, tier = 1): Partial<Record<MaterialId, number>> {
   const out: Partial<Record<MaterialId, number>> = {};
-  for (const c of LINES[kind].cost) out[c.k] = (out[c.k] ?? 0) + Math.ceil(cells / c.per);
+  for (const c of tierDef(kind, tier).cost) out[c.k] = (out[c.k] ?? 0) + Math.ceil(cells / c.per);
   return out;
 }
 
+/** What upgrading a line to the next tier costs: the difference between the two. */
+export function upgradeCost(kind: LineKind, cells: number, tier: number): Partial<Record<MaterialId, number>> {
+  const a = lineCost(kind, cells, tier);
+  const b = lineCost(kind, cells, tier + 1);
+  const out: Partial<Record<MaterialId, number>> = {};
+  for (const k of MATERIAL_ORDER) if ((b[k] ?? 0) > (a[k] ?? 0)) out[k] = (b[k] ?? 0) - (a[k] ?? 0);
+  return out;
+}
+
+/** Solid materials a piece can send out on a conveyor (null: anything it holds). */
+function sends(kind: PieceKind): MaterialId[] | null {
+  if (kind === 'storage' || kind === 'tank') return null;
+  if (kind === 'press') return ['plate'];
+  return [];
+}
+/** Solid materials a piece takes in from a conveyor (null: anything). */
+function takes(kind: PieceKind): MaterialId[] | null {
+  if (kind === 'storage') return null;
+  if (kind === 'feeder') return ['fibre'];
+  if (kind === 'press') return ['scrap', 'copper'];
+  return [];
+}
+
+/** Does a conveyor into this kind of piece accept this material? */
+export function accepts(kind: PieceKind, k: MaterialId): boolean {
+  const t = takes(kind);
+  return t === null || t.includes(k);
+}
+
+/** Materials waiting in a tank's tray that none of its conveyors can carry anywhere. */
+export function stuckInTray(save: SaveData, layout: BaseLayout, tankId: number): MaterialId[] {
+  const out = save.tankData[String(tankId)]?.out;
+  if (!out) return [];
+  const targets = save.lines.filter((l) => l.kind === 'belt' && l.from === tankId).map((l) => layout.pieces.find((p) => p.id === l.to));
+  if (!targets.length) return [];
+  return MATERIAL_ORDER.filter((k) => out[k] && !targets.some((t) => t && accepts(t.kind, k)));
+}
+
+const PORT_NAME = (kind: LineKind, dir: 'in' | 'out') => (kind === 'belt' ? (dir === 'in' ? 'beltIn' : 'beltOut') : dir === 'in' ? 'pipeIn' : 'pipeOut');
+
 /** Can a line of this kind run from one piece to another? Null if yes, else why not. */
 export function linkProblem(save: SaveData, layout: BaseLayout, kind: LineKind, from: Placed, to: Placed): string | null {
-  const out = PIECES[from.kind].ports?.[kind === 'belt' ? 'beltOut' : 'pipeOut'];
-  const inn = PIECES[to.kind].ports?.[kind === 'belt' ? 'beltIn' : 'pipeIn'];
+  const nameA = PIECES[from.kind].name.toLowerCase();
+  const nameB = PIECES[to.kind].name.toLowerCase();
+  const line = LINES[kind].name.toLowerCase();
+  const outLimit = PIECES[from.kind].ports?.[PORT_NAME(kind, 'out')] ?? 0;
+  const inLimit = PIECES[to.kind].ports?.[PORT_NAME(kind, 'in')] ?? 0;
   if (from.id === to.id) return 'Pick another piece';
-  if (!out) return `A ${PIECES[from.kind].name.toLowerCase()} has nothing to send down a ${LINES[kind].name.toLowerCase()}`;
-  if (!inn) return `A ${PIECES[to.kind].name.toLowerCase()} can't take a ${LINES[kind].name.toLowerCase()}`;
+  if (!outLimit) return `A ${nameA} has nothing to send down a ${line}`;
+  if (!inLimit) return `A ${nameB} can't take a ${line} in`;
+  if (from.kind === 'storage' && to.kind === 'storage') return 'Storage pods already share everything they hold';
+  if (kind === 'belt') {
+    const s = sends(from.kind);
+    const t = takes(to.kind);
+    if (s && t && !s.some((k) => t.includes(k)))
+      return `A ${nameA} sends ${s.map((k) => MATERIALS[k].name.toLowerCase()).join(', ')}; a ${nameB} has no use for it`;
+  }
   if (save.lines.some((l) => l.kind === kind && l.from === from.id && l.to === to.id)) return 'These two are already linked';
   const outs = save.lines.filter((l) => l.kind === kind && l.from === from.id).length;
   const ins = save.lines.filter((l) => l.kind === kind && l.to === to.id).length;
-  if (outs >= PORT_LIMITS[kind === 'belt' ? 'beltOut' : 'pipeOut']) return `That ${PIECES[from.kind].name.toLowerCase()} already has ${outs} ${LINES[kind].name.toLowerCase()}s out`;
-  if (ins >= PORT_LIMITS[kind === 'belt' ? 'beltIn' : 'pipeIn'])
-    return `That ${PIECES[to.kind].name.toLowerCase()} already has ${ins === 1 ? 'a' : ins} ${LINES[kind].name.toLowerCase()}${ins === 1 ? '' : 's'} in`;
+  if (outs >= outLimit) return `That ${nameA} already has ${outs === 1 ? 'a' : outs} ${line}${outs === 1 ? '' : 's'} out`;
+  if (ins >= inLimit) return `That ${nameB} already has ${ins === 1 ? 'a' : ins} ${line}${ins === 1 ? '' : 's'} in`;
   const { cells } = lineRoute(from, to, kind, outs);
   if (cells > MAX_LINE_CELLS) return `Too far: ${cells} cells (a line can be up to ${MAX_LINE_CELLS})`;
   void layout;
@@ -177,28 +300,41 @@ export interface LineFlow {
   rate: number;
   /** 0..1 phase of the items or pulses drawn moving along it. */
   phase: number;
+  /** The material last carried (belts), for the readouts and the bundles drawn on it. */
+  item: MaterialId | null;
+  /** Smoothed share of its capacity it is being asked for (1 = flat out or more). */
+  busy: number;
 }
 
-/** What a feeder is doing right now, for the readouts. */
-export type FeederState = 'running' | 'no-power' | 'frame' | 'no-fibre' | 'full' | 'no-belt';
+/** What a machine is doing right now, for the readouts. */
+export type MachineState = 'running' | 'no-power' | 'frame' | 'no-input' | 'full' | 'no-belt' | 'no-out';
+/** Kept for older call sites. */
+export type FeederState = MachineState;
 
 export class Factory {
   readonly flows = new Map<number, LineFlow>();
-  readonly feederState = new Map<number, FeederState>();
+  /** What each auto feeder or plate press is doing. */
+  readonly feederState = new Map<number, MachineState>();
+  readonly pressState = new Map<number, MachineState>();
   /** Smoothed fibre pressed per minute, per feeder. */
   readonly pressRate = new Map<number, number>();
+  /** A short press-stroke animation timer per plate press (seconds since the last plate). */
+  readonly stroke = new Map<number, number>();
 
   flow(id: number): LineFlow {
     let f = this.flows.get(id);
     if (!f) {
-      f = { acc: 0, moved: 0, rate: 0, phase: Math.random() };
+      f = { acc: 0, moved: 0, rate: 0, phase: Math.random(), item: null, busy: 0 };
       this.flows.set(id, f);
     }
     return f;
   }
 
-  /** Run the base's machines and lines forward by dt seconds of play. */
-  tick(save: SaveData, layout: BaseLayout, dt: number): void {
+  /**
+   * Run the base's machines and lines forward by dt seconds of play.
+   * room() says how many more items fit in the base's storage.
+   */
+  tick(save: SaveData, layout: BaseLayout, dt: number, room: () => number = () => 0): void {
     if (dt <= 0) return;
     const byId = new Map(layout.pieces.map((p) => [p.id, p]));
     // Lines and fitted whorls whose pieces are gone go too (removing a piece
@@ -207,36 +343,89 @@ export class Factory {
     for (const k of Object.keys(save.fitted)) if (!byId.has(Number(k)) || !save.fitted[k]) delete save.fitted[k];
     for (const k of Object.keys(save.machines)) if (!byId.has(Number(k))) delete save.machines[k];
     for (const l of save.lines) this.flow(l.id).moved = 0;
+    const on = (p: Placed) => isDone(p) && layout.powered.has(p.id);
 
+    // ---- Conveyors: each carries what its source has and its target wants ----
+    const has = (p: Placed, k: MaterialId): boolean => {
+      if (p.kind === 'storage') return save.stored[k] > 0;
+      if (p.kind === 'tank') return (save.tankData[String(p.id)]?.out?.[k] ?? 0) > 0;
+      if (p.kind === 'press') return k === 'plate' && (machineData(save, p.id).plate ?? 0) > 0;
+      return false;
+    };
+    /** How full the target is of k (0..1), or null if it has no room or no use for it. */
+    const want = (p: Placed, k: MaterialId): number | null => {
+      if (p.kind === 'storage') return room() > 0 ? 0 : null;
+      if (p.kind === 'feeder') return k === 'fibre' && machineData(save, p.id).fibre < HOPPER_CAP ? machineData(save, p.id).fibre / HOPPER_CAP : null;
+      if (p.kind === 'press') {
+        const m = machineData(save, p.id);
+        if (k === 'scrap') return m.scrap! < PRESS_SCRAP_CAP ? m.scrap! / PRESS_SCRAP_CAP : null;
+        if (k === 'copper') return m.copper! < PRESS_COPPER_CAP ? m.copper! / PRESS_COPPER_CAP : null;
+      }
+      return null;
+    };
+    const take = (p: Placed, k: MaterialId) => {
+      if (p.kind === 'storage') save.stored[k]--;
+      else if (p.kind === 'tank') {
+        const o = save.tankData[String(p.id)]!.out!;
+        o[k] = (o[k] ?? 0) - 1;
+        if (!o[k]) delete o[k];
+      } else if (p.kind === 'press') machineData(save, p.id).plate!--;
+    };
+    const give = (p: Placed, k: MaterialId) => {
+      if (p.kind === 'storage') save.stored[k]++;
+      else if (p.kind === 'feeder') machineData(save, p.id).fibre++;
+      else if (p.kind === 'press') {
+        const m = machineData(save, p.id);
+        if (k === 'scrap') m.scrap!++;
+        else if (k === 'copper') m.copper!++;
+      }
+    };
+    for (const l of save.lines) {
+      if (l.kind !== 'belt') continue;
+      const fl = this.flow(l.id);
+      const src = byId.get(l.from)!;
+      const dst = byId.get(l.to)!;
+      let pick: MaterialId | null = null;
+      if (on(src) && on(dst)) {
+        let best = Infinity;
+        for (const k of MATERIAL_ORDER) {
+          if (!has(src, k)) continue;
+          const w = want(dst, k);
+          if (w !== null && w < best) {
+            best = w;
+            pick = k;
+          }
+        }
+      }
+      fl.busy += ((pick ? 1 : 0) - fl.busy) * Math.min(1, dt / 20);
+      if (!pick) {
+        fl.acc = Math.min(fl.acc, 1);
+        continue;
+      }
+      fl.acc += (lineRate(l) / 60) * dt;
+      while (fl.acc >= 1 && pick) {
+        fl.acc -= 1;
+        take(src, pick);
+        give(dst, pick);
+        fl.moved += 1;
+        fl.item = pick;
+        // Pick again for the next item this tick (rare: only on long ticks).
+        const k: MaterialId = pick;
+        pick = has(src, k) && want(dst, k) !== null ? k : null;
+      }
+    }
+
+    // ---- Auto feeders: press fibre into mash, pump it down feed pipes ----
     for (const f of layout.pieces) {
       if (f.kind !== 'feeder') continue;
       const m = machineData(save, f.id);
-      const on = isDone(f) && layout.powered.has(f.id);
       const mult = whorlMult(save, f.id);
-      const belts = save.lines.filter((l) => l.kind === 'belt' && l.to === f.id);
-      // Kelp fibre arrives from storage on the conveyor(s).
-      for (const l of belts) {
-        const fl = this.flow(l.id);
-        const src = byId.get(l.from)!;
-        const ok = on && src.kind === 'storage' && isDone(src) && layout.powered.has(src.id) && save.stored.fibre > 0 && m.fibre < HOPPER_CAP;
-        if (!ok) {
-          fl.acc = Math.min(fl.acc, 1);
-          continue;
-        }
-        fl.acc += (LINES.belt.rate / 60) * dt;
-        if (fl.acc >= 1) {
-          fl.acc -= 1;
-          save.stored.fibre--;
-          m.fibre++;
-          fl.moved += 1;
-        }
-      }
-      // Press fibre into mash.
-      let state: FeederState = 'running';
+      const belts = save.lines.some((l) => l.kind === 'belt' && l.to === f.id);
+      let state: MachineState = 'running';
       let pressed = 0;
       if (!isDone(f)) state = 'frame';
-      else if (!on) state = 'no-power';
-      else if (m.fibre < 1) state = belts.length ? 'no-fibre' : 'no-belt';
+      else if (!on(f)) state = 'no-power';
+      else if (m.fibre < 1) state = belts ? 'no-input' : 'no-belt';
       else if (m.mash > FEEDER_MASH_CAP - MASH_PER_FIBRE) state = 'full';
       else {
         m.press += ((FEEDER_RATE * mult) / 60) * dt;
@@ -256,16 +445,51 @@ export class Factory {
         const l = pipes[i];
         const fl = this.flow(l.id);
         const t = byId.get(l.to)!;
-        if (!on || t.kind !== 'tank' || !isDone(t)) continue;
+        if (!on(f) || t.kind !== 'tank' || !isDone(t)) {
+          fl.busy += (0 - fl.busy) * Math.min(1, dt / 20);
+          continue;
+        }
         const td = (save.tankData[String(t.id)] ??= { water: 1, plant: null });
         const share = m.mash / (pipes.length - i);
-        const give = Math.max(0, Math.min((LINES.pipe.rate / 60) * dt, TROUGH_CAP - (td.mash ?? 0), share));
+        const cap = (lineRate(l) / 60) * dt;
+        const room = TROUGH_CAP - (td.mash ?? 0);
+        const give = Math.max(0, Math.min(cap, room, share));
+        // Busy = the trough wanted at least the pipe's full flow and the feeder had it.
+        fl.busy += ((room > cap * 1.01 && share > cap * 1.01 ? 1 : 0) - fl.busy) * Math.min(1, dt / 20);
         if (give <= 0) continue;
         td.mash = (td.mash ?? 0) + give;
         m.mash -= give;
         fl.moved += give;
       }
     }
+
+    // ---- Plate presses: 2 scrap + 1 copper -> 1 hull plating ----
+    for (const p of layout.pieces) {
+      if (p.kind !== 'press') continue;
+      const m = machineData(save, p.id);
+      const mult = whorlMult(save, p.id);
+      const beltIn = save.lines.some((l) => l.kind === 'belt' && l.to === p.id);
+      const beltOut = save.lines.some((l) => l.kind === 'belt' && l.from === p.id);
+      const enough = MATERIAL_ORDER.every((k) => ((m as unknown as Record<string, number>)[k] ?? 0) >= (PLATE_RECIPE[k] ?? 0));
+      let state: MachineState = 'running';
+      if (!isDone(p)) state = 'frame';
+      else if (!on(p)) state = 'no-power';
+      else if (m.plate! >= PRESS_PLATE_CAP) state = beltOut ? 'full' : 'no-out';
+      else if (!enough) state = beltIn ? 'no-input' : 'no-belt';
+      else {
+        m.press += ((PRESS_RATE * mult) / 60) * dt;
+        if (m.press >= 1) {
+          m.press -= 1;
+          m.scrap! -= PLATE_RECIPE.scrap ?? 0;
+          m.copper! -= PLATE_RECIPE.copper ?? 0;
+          m.plate!++;
+          this.stroke.set(p.id, 0);
+        }
+      }
+      this.pressState.set(p.id, state);
+      this.stroke.set(p.id, (this.stroke.get(p.id) ?? 99) + dt);
+    }
+
     for (const l of save.lines) {
       const fl = this.flow(l.id);
       fl.rate += ((fl.moved / dt) * 60 - fl.rate) * Math.min(1, dt / 30);
@@ -276,20 +500,40 @@ export class Factory {
 }
 
 /** Plain-language status of an auto feeder. */
-export function feederStatus(state: FeederState | undefined): string {
+export function feederStatus(state: MachineState | undefined): string {
   switch (state) {
     case 'frame':
       return 'Still a frame: the drone has to finish it';
     case 'no-power':
       return 'No power: join it to a current turbine';
     case 'no-belt':
-      return 'Needs kelp fibre: run a conveyor to it from a storage pod';
-    case 'no-fibre':
+      return 'Needs kelp fibre: run a conveyor to it from a storage pod or a puffcap tank';
+    case 'no-input':
       return 'Waiting for kelp fibre (is there any in storage?)';
     case 'full':
       return 'Mash tank full: the tanks are fed';
     default:
       return 'Pressing kelp fibre into feed mash';
+  }
+}
+
+/** Plain-language status of a plate press. */
+export function pressStatus(state: MachineState | undefined): string {
+  switch (state) {
+    case 'frame':
+      return 'Still a frame: the drone has to finish it';
+    case 'no-power':
+      return 'No power: join it to a current turbine';
+    case 'no-belt':
+      return 'Needs scrap and copper: run a conveyor to it from a storage pod';
+    case 'no-input':
+      return 'Waiting for scrap and copper (2 scrap + 1 copper per plate)';
+    case 'no-out':
+      return 'Plate rack full: run a conveyor from it to a storage pod';
+    case 'full':
+      return 'Plate rack full: waiting for room in storage';
+    default:
+      return 'Pressing hull plating';
   }
 }
 

@@ -55,7 +55,8 @@ import { Wildlife } from './world/wildlife';
 import { TankLife } from './world/tanklife';
 import { CareMode } from './ui/care';
 import { creaturesIn, newCreature, SPECIES, tankNumber, tickCare, TANK_CAPACITY } from './game/creatures';
-import { Factory, FEEDER_MASH_CAP, HOPPER_CAP, machineData, whorlMult } from './game/factory';
+import { RatesPanel } from './ui/rates';
+import { Factory, FEEDER_MASH_CAP, HOPPER_CAP, machineData, PRESS_COPPER_CAP, PRESS_PLATE_CAP, PRESS_SCRAP_CAP, whorlMult } from './game/factory';
 import { LinesView } from './world/linegfx';
 
 declare const __BUILD_ID__: string;
@@ -188,6 +189,8 @@ async function boot(): Promise<void> {
   overlayCam.addChild(buildOverlay.view);
   // Milestone 5: conveyors, feed pipes and the machines they join.
   const factory = new Factory();
+  /** How many more items fit in the base's storage pods. */
+  const storageRoom = () => storageCapacity(layout) - MATERIALS_LIST.reduce((a, k) => a + save.stored[k], 0);
   const linesView = new LinesView();
   linesView.sync(save, layout);
   const readings = {
@@ -195,6 +198,17 @@ async function boot(): Promise<void> {
     feeder: (id: number) => {
       const m = machineData(save, id);
       return { hopper: Math.min(1, m.fibre / HOPPER_CAP), mash: Math.min(1, m.mash / FEEDER_MASH_CAP), run: factory.feederState.get(id) === 'running' };
+    },
+    press: (id: number) => {
+      const m = machineData(save, id);
+      return {
+        scrap: Math.min(1, (m.scrap ?? 0) / PRESS_SCRAP_CAP),
+        copper: Math.min(1, (m.copper ?? 0) / PRESS_COPPER_CAP),
+        plates: Math.min(PRESS_PLATE_CAP, m.plate ?? 0),
+        progress: m.press,
+        since: factory.stroke.get(id) ?? 99,
+        run: factory.pressState.get(id) === 'running',
+      };
     },
   };
   /** Seconds left on the quick ID (name tags over things already scanned). */
@@ -245,7 +259,9 @@ async function boot(): Promise<void> {
   let camX = 0;
   let camY = 0;
   let viewH = VIEW_H;
+  const rates = new RatesPanel(() => ({ save, layout, factory, capacity: storageCapacity(layout) }));
   const build = new BuildMode(host, {
+    showRates: () => rates.toggle(),
     save,
     layout,
     toWorld: (sx, sy) => ({ x: camX + sx / zoom, y: camY + sy / zoom }),
@@ -436,6 +452,8 @@ async function boot(): Promise<void> {
     const atSite = diver.x > GRID_X0 - 260 && diver.x < GRID_X1 + 260 && diver.y < GRID_BASE + 120;
     build.setAvailable(atSite && blackout === 0 && !care.active);
     build.pollPad(dt);
+    if (!build.active && rates.open) rates.close();
+    rates.update(dt);
     const tankHere = blackout === 0 && !build.active && !diver.surfaced ? tankAround(diver.x, diver.y) : null;
     care.setAvailable(tankHere?.id ?? (care.active ? care.tankId : null));
     care.update(dt);
@@ -758,14 +776,38 @@ async function boot(): Promise<void> {
         persist();
       }
     }
+    // Milestone 5 part 2: take what is waiting in the tank's output tray.
+    if (tankNow !== null && tankNow !== nearTank && !build.active && blackout === 0) {
+      const td = save.tankData[String(tankNow)];
+      if (td?.out) {
+        let took = 0;
+        const what: string[] = [];
+        for (const k of MATERIALS_LIST) {
+          let n = 0;
+          while ((td.out[k] ?? 0) > 0 && bagHasRoom(save, k)) {
+            td.out[k]!--;
+            save.bag[k]++;
+            n++;
+          }
+          if (!td.out[k]) delete td.out[k];
+          if (n) what.push(`${n} ${MATERIALS[k].name.toLowerCase()}`);
+          took += n;
+        }
+        if (took) {
+          hud.toast(`Took ${what.join(' and ')} from tank ${tankNumber(layout, tankNow)}'s output tray`, 'item');
+          hud.refreshInventory();
+          persist();
+        } else if (MATERIALS_LIST.some((k) => td.out![k])) hud.toast('Dive bag full: the output tray stays where it is', 'warn');
+      }
+    }
     nearTank = tankNow;
     hud.setJar(jarText());
 
     // ---- Factory (milestone 5): conveyors, the auto feeder and feed pipes ----
-    factory.tick(save, layout, dt);
+    factory.tick(save, layout, dt, storageRoom);
 
     // ---- Creature care: needs run on play time ----
-    for (const ev of tickCare(save, layout, dt, () => storageCapacity(layout) - MATERIALS_LIST.reduce((a, k) => a + save.stored[k], 0))) {
+    for (const ev of tickCare(save, layout, dt)) {
       const name = SPECIES[ev.c.species].name;
       const where = `tank ${tankNumber(layout, ev.c.tank)}`;
       if (ev.type === 'hatched') hud.toast(`The ${name.toLowerCase()} eggs hatched in ${where}! The fry need feeding.`, 'big');
@@ -775,8 +817,19 @@ async function boot(): Promise<void> {
       else if (ev.type === 'dormant')
         hud.toast(`The ${name.toLowerCase()} in ${where} went dormant. Its remains are kept in storage until a Revival pool is found.`, 'warn');
       else if (ev.type === 'made') {
-        hud.toast(`+1 ${MATERIALS[ev.kind].name} from the ${name.toLowerCase()} (stored)`);
-        hud.refreshInventory(ev.kind);
+        const belt = save.lines.some((l) => l.kind === 'belt' && l.from === ev.c.tank);
+        hud.toast(`+1 ${MATERIALS[ev.kind].name} from the ${name.toLowerCase()} (${belt ? 'on the conveyor' : `in ${where}'s output tray`})`);
+        if (!belt && !save.tips.includes('tray')) {
+          save.tips.push('tray');
+          setTimeout(
+            () =>
+              hud.toast(
+                "What creatures make now waits in their tank's output tray (4 items). Swim up to the tank to take it, or run a conveyor from the tank to a storage pod or a machine.",
+                'big',
+              ),
+            2400,
+          );
+        }
       }
       if (ev.type !== 'made' && ev.type !== 'better') tankLife.sync(save, layout);
       persist();
@@ -810,7 +863,7 @@ async function boot(): Promise<void> {
           room -= n;
           moved += n;
         }
-        if (moved) hud.toast(`Stored ${moved} item${moved === 1 ? '' : 's'} in the base${save.bag.scrap + save.bag.copper + save.bag.quartz + save.bag.fibre ? ' (storage is full)' : ''}`, 'big');
+        if (moved) hud.toast(`Stored ${moved} item${moved === 1 ? '' : 's'} in the base${MATERIALS_LIST.some((k) => save.bag[k]) ? ' (storage is full)' : ''}`, 'big');
         else hud.toast('Storage is full: build another storage pod', 'warn');
         hud.refreshInventory();
         persist();
@@ -1031,14 +1084,15 @@ async function boot(): Promise<void> {
     wildlife,
     tankLife,
     care,
-    tickCare: (sec: number) => tickCare(save, layout, sec, () => 99),
+    tickCare: (sec: number) => tickCare(save, layout, sec),
     factory,
     linesView,
+    rates,
     whorlMult: (id: number) => whorlMult(save, id),
     tickFactory: (sec: number) => {
       for (let t = 0; t < sec; t += 0.5) {
-        factory.tick(save, layout, 0.5);
-        tickCare(save, layout, 0.5, () => 99);
+        factory.tick(save, layout, 0.5, storageRoom);
+        tickCare(save, layout, 0.5);
       }
     },
     snap: () => {
