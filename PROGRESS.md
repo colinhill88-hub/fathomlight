@@ -386,6 +386,7 @@ Cut from High so far: the phone renders at 2× instead of its native 3×. Colin 
     - Blacking out with a young ray in the jar woke the diver in the dome, and the ray swam home (its spot refilled at once).
   - Screenshots of the puffcaps, the meadow rays, the grotto eggs, the tank with creatures, and the care panel.
   - No console errors. The frame rate could not be measured, because the test browser draws in software.
+- Deployed: GitHub Actions run 43732834582 built and deployed to Pages successfully from `claude/creature-design-milestone-806kjd`. This branch was started from the default branch `claude/underwater-game-m0-0qqajg` (after PR #2 merged), so merging it back is a clean fast-forward.
 
 ## Next
 
