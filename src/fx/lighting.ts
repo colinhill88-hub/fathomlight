@@ -79,11 +79,14 @@ float caustics(vec2 wp, float t) {
 void main() {
   vec2 wp = uCam + vUV * uView;
   float d = wp.y;
+  // 1 above the water (a head out at the surface), 0 below. Same wave as the water shader.
+  float wave = sin(wp.x * 0.021 + uTime * 1.3) * 4.0 + sin(wp.x * 0.047 - uTime * 1.9) * 2.5 + sin(wp.x * 0.11 + uTime * 2.7) * 1.0;
+  float air = smoothstep(wave + 1.0, wave - 1.0, d);
 
   // Water distortion: nudge where we read the picture by a pixel or so.
   vec2 wob = vec2(sin(wp.y * 0.05 + uTime * 1.6) + 0.5 * sin(wp.x * 0.031 - uTime * 1.1),
                   cos(wp.x * 0.043 + uTime * 1.3) + 0.5 * sin(wp.y * 0.027 + uTime * 0.9));
-  vec2 uv = vUV + wob * uFlags.y / uResolution;
+  vec2 uv = vUV + wob * (1.0 - air) * uFlags.y / uResolution;
   vec4 c = texture(uScene, uv);
 
   // Dynamic lights. A is position, radius, intensity; B colour and cone
@@ -124,7 +127,7 @@ void main() {
     vec3 ambient = sunCol * 0.2 + vec3(0.012, 0.028, 0.04);
 
     // Caustics, strongest in the shallows.
-    float cK = uFlags.z * vis * shade * exp(-max(d, 0.0) / 430.0);
+    float cK = uFlags.z * vis * shade * exp(-max(d, 0.0) / 430.0) * (1.0 - air);
     vec3 caus;
     if (uFlags.x > 0.5) {
       caus = vec3(caustics(wp + vec2(1.8, 0.6), uTime), caustics(wp, uTime), caustics(wp - vec2(1.8, 0.6), uTime));
@@ -133,18 +136,18 @@ void main() {
     }
     caus *= cK * sunCol;
 
-    vec3 col = c.rgb * (sun + ambient + caus + lit * 1.1);
+    vec3 col = c.rgb * (sun * (1.0 + air * 0.15) + ambient + caus + lit * 1.1);
 
     // Depth fog pulls distant-looking colour towards the water. Our own
     // lights cut through it.
     float fog = (0.12 + 0.3 * smoothstep(300.0, 1150.0, d)) * (1.0 - clamp(dot(lit, vec3(0.33)), 0.0, 0.85));
-    col = mix(col, waterColor(d) * mix(0.45, 1.0, vis) * c.a, fog);
+    col = mix(col, waterColor(d) * mix(0.45, 1.0, vis) * c.a, fog * (1.0 - air * 0.8));
     outRgb = col;
   }
 
   // Light scattered by the water itself (visible beams), added on top.
   float dark = 1.0 - 0.75 * clamp(dot(absorb(d), vec3(0.33)), 0.0, 1.0);
-  outRgb += haze * dark * (1.0 - c.a * 0.6);
+  outRgb += haze * dark * (1.0 - c.a * 0.6) * (1.0 - air * 0.7);
 
   // Fine grain against banding.
   outRgb += (hash(vUV * uResolution + fract(uTime * 0.37)) - 0.5) / 255.0;

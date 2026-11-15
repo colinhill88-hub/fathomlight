@@ -6,6 +6,10 @@ interface SettingsDeps {
   getPixelSize(): [number, number];
   getRendererName(): string;
   setChoice(c: PresetChoice): void;
+  /** When the game was last saved (ms since 1970), 0 if never. */
+  getSavedAt(): number;
+  /** Wipe the save and start over. */
+  resetProgress(): void;
   buildId: string;
 }
 
@@ -20,6 +24,23 @@ export function initSettingsUI(deps: SettingsDeps) {
   const statRenderer = document.getElementById('stat-renderer')!;
   const statBuild = document.getElementById('stat-build')!;
   statBuild.textContent = deps.buildId;
+  const statSaved = document.getElementById('stat-saved')!;
+  const resetBtn = document.getElementById('reset-btn') as HTMLButtonElement;
+  let resetArmed = 0;
+  resetBtn.addEventListener('click', () => {
+    // Two taps, so progress is never wiped by accident.
+    if (Date.now() - resetArmed < 4000) {
+      deps.resetProgress();
+      return;
+    }
+    resetArmed = Date.now();
+    resetBtn.textContent = 'Tap again to erase everything';
+    resetBtn.classList.add('armed');
+    setTimeout(() => {
+      resetBtn.textContent = 'Start over';
+      resetBtn.classList.remove('armed');
+    }, 4000);
+  });
 
   btn.addEventListener('click', () => {
     panel.hidden = !panel.hidden;
@@ -51,7 +72,12 @@ export function initSettingsUI(deps: SettingsDeps) {
     frames++;
     elapsed += deltaMS;
     if (elapsed >= 500) {
-      if (!panel.hidden) statFps.textContent = `${Math.round((frames * 1000) / elapsed)} fps`;
+      if (!panel.hidden) {
+        statFps.textContent = `${Math.round((frames * 1000) / elapsed)} fps`;
+        const at = deps.getSavedAt();
+        const ago = Math.round((Date.now() - at) / 1000);
+        statSaved.textContent = at ? (ago < 2 ? 'just now' : ago < 120 ? `${ago} s ago` : `${Math.round(ago / 60)} min ago`) : 'not yet';
+      }
       frames = 0;
       elapsed = 0;
     }

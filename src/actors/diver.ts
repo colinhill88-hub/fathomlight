@@ -425,6 +425,29 @@ function buildHelmet(): Container {
   // down to the regulator port on the chest.
   coiledHose(g, [[44, -42], [60, -46], [59, -8], [51, 3]], 4.2);
   c.addChild(g);
+
+  // Breath fogging the inside of the glass after surfacing (faded in and out by the Diver).
+  const fog = new Graphics();
+  fog
+    .moveTo(48, 13)
+    .bezierCurveTo(40, 4, 40, -17, 55, -23)
+    .bezierCurveTo(66, -28, 80, -24, 86, -13)
+    .bezierCurveTo(90, -4, 89, 7, 82, 13)
+    .quadraticCurveTo(64, 19, 48, 13)
+    .closePath()
+    .fill({ color: 0xeef4ee, alpha: 0.75 });
+  fog.ellipse(78, 2, 7, 5).fill({ color: 0xffffff, alpha: 0.4 }); // densest in front of the mouth
+  fog.label = 'visorFog';
+  fog.alpha = 0;
+  // Water running off the glass after breaking the surface.
+  const drops = new Graphics();
+  for (const [x, y, r] of [[62, -22, 1.6], [74, -19, 1.2], [84, -8, 1.5], [86, 3, 1.1], [70, -12, 0.9], [57, -14, 1.2], [80, 9, 1.3]]) {
+    drops.ellipse(x, y, r * 0.8, r * 1.2).fill({ color: 0xffffff, alpha: 0.55 });
+    drops.moveTo(x, y + r).lineTo(x, y + r + 4).stroke({ color: 0xffffff, width: 0.6, alpha: 0.3 });
+  }
+  drops.label = 'visorDrops';
+  drops.alpha = 0;
+  c.addChild(fog, drops);
   return c;
 }
 
@@ -449,6 +472,17 @@ export class Diver {
   /** 0..1, how fast the diver is going relative to normal top speed. */
   speedNorm = 0;
 
+  /** True while treading water with the head above the surface. */
+  surfaced = false;
+  /** Seconds since breaking the surface (for the oxygen refill to start after the first breath). */
+  surfaceTime = 0;
+  /** Set for one frame: how hard (0..1) the diver hit the surface, or ducked back under. Read by main. */
+  splash = 0;
+  /** Set for one frame when the diver breathes out above water. */
+  exhale = false;
+  /** Set while collecting: the diver stays still and works at a spot with the near arm. */
+  working: { x: number; y: number } | null = null;
+
   private body = new Container();
   private nearLeg = buildLeg(false);
   private farLeg = buildLeg(true);
@@ -462,6 +496,13 @@ export class Diver {
   private boostTime = 0;
   private boostCooldown = 0;
   private lampLevel = 1;
+  private popStrength = 0;
+  private breathClock = 0;
+  private breaths = 0;
+  private heave = 0;
+  private diveCooldown = 0;
+  private visorFog!: Container;
+  private visorDrops!: Container;
 
   private static readonly SCALE = 0.86;
   private static readonly RADIUS = 26;
@@ -474,6 +515,8 @@ export class Diver {
     torso.scale.x = 0.88;
     const helmet = buildHelmet();
     helmet.x = -6;
+    this.visorFog = helmet.getChildByLabel('visorFog')!;
+    this.visorDrops = helmet.getChildByLabel('visorDrops')!;
     const hip = { x: -26, y: 5 };
     const shoulder = { x: 25, y: 6 };
     this.farLeg.thigh.position.set(hip.x + 2, hip.y - 3);
@@ -494,6 +537,11 @@ export class Diver {
 
     this.lens.circle(0, 0, 2.4).fill({ color: 0xfff3d0 });
     this.lensGlow.circle(0, 0, 14).fill({ color: 0xffe9b0, alpha: 0.9 });
+  }
+
+  /** The middle of the helmet, in world space (for breath vapour and the surface splash). */
+  helmetPoint(): [number, number] {
+    return this.toWorld(58, -5);
   }
 
   /** Where the shoulder lamp's lens sits, in local drawing space. */
@@ -559,10 +607,33 @@ export class Diver {
       this.vy += (by / l) * 260;
     }
 
+    // Breaking the surface, and ducking back under.
+    this.splash = 0;
+    this.exhale = false;
+    this.diveCooldown = Math.max(0, this.diveCooldown - dt);
+    if (this.surfaced) {
+      if (moveY > 0.4) {
+        this.surfaced = false;
+        this.vy = 170;
+        this.splash = 0.35;
+        this.diveCooldown = 0.8;
+      }
+    } else if (this.y <= 48 && moveY < 0.25 && this.vy <= 40 && this.diveCooldown <= 0) {
+      this.surfaced = true;
+      this.surfaceTime = 0;
+      const hit = Math.max(0, -this.vy) / 300;
+      this.popStrength = Math.min(1, 0.3 + hit);
+      this.splash = hit > 0.12 ? Math.min(1, 0.3 + hit) : 0;
+      this.breathClock = 0.35; // first gasp straight away
+      this.breaths = 0;
+      if (this.splash > 0) this.visorDrops.alpha = 1;
+    }
+
     // Swim physics: accelerate towards the wanted velocity, with water drag.
     const top = this.boostTime > 0 ? Diver.BOOST_SPEED : Diver.SPEED;
-    const wantX = moveX * top;
-    const wantY = moveY * top;
+    const slow = this.surfaced ? 0.5 : this.working ? 0.15 : 1;
+    const wantX = moveX * top * slow;
+    const wantY = this.surfaced ? 0 : moveY * top * slow;
     const accel = Math.hypot(moveX, moveY) > 0.05 ? 3.2 : 1.4;
     const k = 1 - Math.exp(-accel * dt);
     this.vx += (wantX - this.vx) * k;
@@ -572,6 +643,7 @@ export class Diver {
 
     this.x += this.vx * dt;
     this.y += this.vy * dt;
+    if (this.surfaced) this.treadWater(dt);
     this.collide();
 
     const speed = Math.hypot(this.vx, this.vy);
@@ -583,17 +655,54 @@ export class Diver {
     this.faceAnim += (this.face - this.faceAnim) * Math.min(1, dt * 9);
     if (Math.abs(this.faceAnim) < 0.08) this.faceAnim = this.face * 0.08; // never quite zero width
 
-    const moving = Math.min(1, speed / 60);
+    const moving = this.surfaced ? 0 : Math.min(1, speed / 60);
     const swimAngle = Math.atan2(this.vy, Math.abs(this.vx) + 25);
     const idleAngle = -0.22 + Math.sin(this.time * 0.9) * 0.04;
-    const targetPitch = Math.max(-1.15, Math.min(1.15, swimAngle * moving + idleAngle * (1 - moving)));
-    this.pitch += (targetPitch - this.pitch) * Math.min(1, dt * 5);
+    let targetPitch = Math.max(-1.15, Math.min(1.15, swimAngle * moving + idleAngle * (1 - moving)));
+    // Upright and treading water at the surface; the head tips back a little with each breath in.
+    if (this.surfaced) targetPitch = -1.08 - this.heave * 0.12 + Math.sin(this.time * 1.3) * 0.04;
+    if (this.working) targetPitch = Math.atan2(this.working.y - this.y, Math.abs(this.working.x - this.x) + 30) * 0.8;
+    this.pitch += (targetPitch - this.pitch) * Math.min(1, dt * (this.surfaced ? 7 : 5));
+
+    // Breath fog on the glass clears slowly; drops of water run off.
+    this.visorFog.alpha = Math.max(0, this.visorFog.alpha - dt * 0.35);
+    this.visorDrops.alpha = Math.max(0, this.visorDrops.alpha - dt * 0.22);
 
     this.view.position.set(this.x, this.y);
-    this.body.scale.set(this.faceAnim * Diver.SCALE, Diver.SCALE);
+    const chest = 1 + this.heave * 0.035;
+    this.body.scale.set(this.faceAnim * Diver.SCALE * (1 + this.heave * 0.01), Diver.SCALE * chest);
     this.body.rotation = this.pitch * this.face;
 
     this.animateLimbs(dt, moving);
+  }
+
+  /**
+   * Treading water at the surface: the body bobs on the swell, pops up
+   * after a fast breach and settles, and breathes in and out. The first
+   * breath after a dive is a big gasp.
+   */
+  private treadWater(dt: number): void {
+    this.surfaceTime += dt;
+    const t = this.surfaceTime;
+    // Breathing: a big gasp first, then slower, calmer breaths.
+    const period = this.breaths < 1 ? 1.5 : this.breaths < 3 ? 2.1 : 2.8;
+    const before = this.breathClock;
+    this.breathClock += dt / period;
+    const ph = this.breathClock % 1;
+    // In-breath over the first 40% of the cycle, then a slower breath out.
+    const amp = this.breaths < 1 ? 1 : this.breaths < 3 ? 0.6 : 0.4;
+    this.heave = (ph < 0.4 ? Math.sin((ph / 0.4) * Math.PI * 0.5) : Math.cos(((ph - 0.4) / 0.6) * Math.PI * 0.5)) * amp;
+    if (Math.floor(before + 0.6) !== Math.floor(this.breathClock + 0.6)) {
+      // Crossed into the breath out.
+      this.exhale = true;
+      this.visorFog.alpha = Math.min(0.55, this.visorFog.alpha + (this.breaths < 1 ? 0.45 : 0.18));
+      this.breaths++;
+    }
+    // Pop up out of the water after a fast breach, overshoot and settle.
+    const pop = -30 * this.popStrength * Math.exp(-2.6 * t) * Math.cos(5.5 * t);
+    const targetY = 30 + Math.sin(this.time * 1.7) * 2.5 + pop - this.heave * 3;
+    this.y += (targetY - this.y) * Math.min(1, dt * 9);
+    this.vy = 0;
   }
 
   private animateLimbs(dt: number, moving: number): void {
@@ -618,6 +727,15 @@ export class Diver {
       [this.nearArm, 0],
       [this.farArm, 0.8],
     ];
+    if (this.working) {
+      // Working at a spot: the near arm chips, pries or cuts with short strokes.
+      const strike = Math.sin(this.time * 13);
+      this.nearArm.upper.rotation = 1.75 + strike * 0.22;
+      this.nearArm.fore.rotation = -0.35 + Math.max(0, strike) * 0.45;
+      this.farArm.upper.rotation = 1.45 + Math.sin(this.time * 2) * 0.05;
+      this.farArm.fore.rotation = -0.6;
+      return;
+    }
     for (const [arm, off] of arms) {
       const idleUpper = 1.05 + Math.sin(this.time * 2.1 + off) * 0.22;
       const idleFore = -0.9 + scull * 0.15;
@@ -662,9 +780,9 @@ export class Diver {
         this.vy -= ny * vn;
       }
     }
-    // The surface: the helmet can break it but no higher.
-    if (this.y < 34) {
-      this.y = 34;
+    // The surface: the helmet can break it but the diver cannot leave the water.
+    if (this.y < 18) {
+      this.y = 18;
       if (this.vy < 0) this.vy = 0;
     }
   }
