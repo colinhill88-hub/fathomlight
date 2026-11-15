@@ -135,6 +135,10 @@ Pieces snap together at their connector collars on a grid. A piece works only wh
 - Each creature has three needs: hunger, comfort and water quality. Comfort depends on tank size, the right plants and compatible tank-mates.
 - Well-kept creatures grow, glow brighter, breed and pass traits such as colour and glow pattern to their young.
 - Care pays off. Healthy creatures produce materials, and some grown creatures act as keys in the world. A grown glowfin, for example, lights passages that the dive light cannot.
+- **Mixed tanks should become the best setup (Colin, after milestone 5 part 1).** Today one species per tank, each with its own plant, is ideal, because a tank holds one plant and most species prefer their own kind. Colin likes having to think before putting creatures together, and wants that kept. As more species arrive, though, the *ideal* tank should hold two or more species. Ways to get there, to plan with Colin when new species are added:
+  - **Tank upgrades:** bigger tanks (for example 3 × 1 or 3 × 2 cells, holding more creatures), and planters that hold two or more plant kinds, so two species can both have their favourite plant and reach 100% comfort.
+  - **Partner species:** pairings that help each other (for example one species cleans another, or one shelters another), giving a comfort or output bonus that a single-species tank can't get.
+  - Keep the clashes (like puffcap threads stinging glowfins) so pairings still need thought.
 - Neglected creatures can die. A creature becomes visibly sick first, which gives the player time to act; if its needs stay unmet it dies and leaves dormant remains that can be kept in storage. Revival is locked behind exploration: the blueprint for a Revival pool base piece is hidden in a side area of the wreck shelf, and each revival uses a rare glowing bloom gathered in the deeper zones.
 
 ### Gear progression
