@@ -65,7 +65,8 @@ export function onSeabed(gx: number, gy: number): boolean {
 /** How many cells of the site are open water. */
 export const OPEN_CELLS = OPEN.filter(Boolean).length;
 
-export type PieceKind = 'dome' | 'corridor' | 'turbine' | 'storage' | 'tank' | 'filter' | 'feeder';
+export type PieceKind = 'dome' | 'corridor' | 'turbine' | 'storage' | 'tank' | 'filter' | 'feeder' | 'press';
+export type PortKind = 'beltIn' | 'beltOut' | 'pipeIn' | 'pipeOut';
 export type Dir = 'L' | 'R' | 'U' | 'D';
 
 export interface PieceDef {
@@ -78,8 +79,11 @@ export interface PieceDef {
   buildTime: number;
   /** Footprint in cells, for each rotation the piece has. */
   shapes: { w: number; h: number; collars: { cx: number; cy: number; dir: Dir }[] }[];
-  /** Milestone 5: which transport lines it takes in and sends out (see LINES). */
-  ports?: Partial<Record<'beltIn' | 'beltOut' | 'pipeIn' | 'pipeOut', true>>;
+  /**
+   * Milestone 5: which transport lines it takes in and sends out (see LINES
+   * in src/game/factory.ts), and how many of each it can have.
+   */
+  ports?: Partial<Record<PortKind, number>>;
   /** Can Echo whorls be fitted to it (milestone 5)? */
   whorls?: boolean;
 }
@@ -118,7 +122,7 @@ export const PIECES: Record<PieceKind, PieceDef> = {
     job: 'Swim up to it to unload what you carry. Stored materials are safe from blackouts.',
     cost: { scrap: 3, copper: 1, fibre: 1 },
     buildTime: 18,
-    ports: { beltOut: true },
+    ports: { beltOut: 4, beltIn: 4 },
     shapes: [
       {
         w: 1,
@@ -138,7 +142,7 @@ export const PIECES: Record<PieceKind, PieceDef> = {
     job: 'Houses up to four creatures. Swim up with a creature in your jar to put it in; tap Tend to look after them.',
     cost: { scrap: 2, quartz: 3, fibre: 1 },
     buildTime: 24,
-    ports: { pipeIn: true },
+    ports: { pipeIn: 1, beltOut: 2 },
     whorls: true,
     shapes: [{ w: 2, h: 1, collars: [{ cx: 0, cy: 0, dir: 'L' }, { cx: 1, cy: 0, dir: 'R' }] }],
   },
@@ -167,11 +171,21 @@ export const PIECES: Record<PieceKind, PieceDef> = {
     cost: { scrap: 3, copper: 3, quartz: 2 },
     buildTime: 30,
     shapes: [{ w: 1, h: 2, collars: [{ cx: 0, cy: 0, dir: 'L' }, { cx: 0, cy: 0, dir: 'R' }] }],
-    ports: { beltIn: true, pipeOut: true },
+    ports: { beltIn: 2, pipeOut: 4 },
+    whorls: true,
+  },
+  press: {
+    kind: 'press',
+    name: 'Plate press',
+    job: 'Presses scrap and copper into hull plating. Conveyors in and out.',
+    cost: { scrap: 4, copper: 2, quartz: 1 },
+    buildTime: 34,
+    shapes: [{ w: 2, h: 1, collars: [{ cx: 0, cy: 0, dir: 'L' }, { cx: 1, cy: 0, dir: 'R' }] }],
+    ports: { beltIn: 2, beltOut: 2 },
     whorls: true,
   },
 };
-export const PIECE_ORDER: PieceKind[] = ['dome', 'corridor', 'turbine', 'storage', 'tank', 'filter', 'feeder'];
+export const PIECE_ORDER: PieceKind[] = ['dome', 'corridor', 'turbine', 'storage', 'tank', 'filter', 'feeder', 'press'];
 
 /** How many materials each storage pod holds, all kinds together. */
 export const STORAGE_PER_POD = 40;
@@ -380,4 +394,22 @@ export function pay(kind: PieceKind, bag: Record<MaterialId, number>, stored: Re
     need -= fromBag;
     stored[k] -= need;
   }
+}
+
+/** The stencil prefix painted on each kind of piece (see src/world/basegfx.ts). */
+const CODE_PREFIX: Record<PieceKind, string> = {
+  dome: 'HAB-0',
+  corridor: 'C-',
+  turbine: 'CT-',
+  storage: 'STORE 0',
+  tank: 'TANK ',
+  filter: 'FP-',
+  feeder: 'AF-',
+  press: 'PP-',
+};
+
+/** A piece's stencil code, as painted on it: CT-1, AF-2, PP-1, TANK 3. Pieces are numbered per kind in build order. */
+export function pieceCode(layout: BaseLayout, p: Placed): string {
+  const n = layout.pieces.filter((q) => q.kind === p.kind && q.id <= p.id).length;
+  return `${CODE_PREFIX[p.kind]}${p.kind === 'corridor' ? String(n).padStart(2, '0') : n}`;
 }

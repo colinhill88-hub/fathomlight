@@ -129,6 +129,11 @@
       <button id="build-fit" type="button" aria-label="Fit the view to the base" title="Fit view (F)">
         <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5" /><rect x="9" y="10" width="6" height="5" rx="1" fill="currentColor" opacity=".7" /></svg>
       </button>
+      <button id="build-rates" type="button" aria-label="Base rates overview" title="Base rates (O)" hidden>
+        <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" d="M4 20V10M10 20V4M16 20v-7M21 20H3" /></svg>
+        <span>Rates</span>
+      </button>
+      <div id="rates-panel" role="dialog" aria-label="Base rates" hidden></div>
       <div id="build-tools">
         <button id="build-belt" type="button" hidden>
           <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="10" width="20" height="5" rx="1" fill="#2b2a26" stroke="#8a9496" stroke-width="1.2"/><circle cx="6" cy="16.5" r="1.4" fill="#8a9496"/><circle cx="12" cy="16.5" r="1.4" fill="#8a9496"/><circle cx="18" cy="16.5" r="1.4" fill="#8a9496"/><rect x="5" y="7" width="4" height="3" rx=".6" fill="#c8a050"/><rect x="13" y="7" width="4" height="3" rx=".6" fill="#c8a050"/></svg>
@@ -138,6 +143,16 @@
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 15h9a3 3 0 0 0 3-3V4" fill="none" stroke="#b8894a" stroke-width="4"/><rect x="6" y="12" width="2" height="6" fill="#a88a4a"/><rect x="12" y="6" width="6" height="2" fill="#a88a4a"/><circle cx="9" cy="15" r="1.3" fill="#d8e6a0"/></svg>
           <span>Pipe to…</span>
         </button>
+        <button id="build-belt-in" type="button" hidden>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="10" width="20" height="5" rx="1" fill="#2b2a26" stroke="#8a9496" stroke-width="1.2"/><circle cx="6" cy="16.5" r="1.4" fill="#8a9496"/><circle cx="12" cy="16.5" r="1.4" fill="#8a9496"/><circle cx="18" cy="16.5" r="1.4" fill="#8a9496"/><rect x="5" y="7" width="4" height="3" rx=".6" fill="#c8a050"/><rect x="13" y="7" width="4" height="3" rx=".6" fill="#c8a050"/></svg>
+          <span>Conveyor from…</span>
+        </button>
+        <button id="build-pipe-in" type="button" hidden>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 15h9a3 3 0 0 0 3-3V4" fill="none" stroke="#b8894a" stroke-width="4"/><rect x="6" y="12" width="2" height="6" fill="#a88a4a"/><rect x="12" y="6" width="6" height="2" fill="#a88a4a"/><circle cx="9" cy="15" r="1.3" fill="#d8e6a0"/></svg>
+          <span>Pipe from…</span>
+        </button>
+        <button id="build-tier" type="button" hidden></button>
+        <button id="build-upgrade" type="button" hidden></button>
         <button id="build-whorl-add" type="button" hidden></button>
         <button id="build-whorl-take" type="button" hidden></button>
       </div>

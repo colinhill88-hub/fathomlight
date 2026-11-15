@@ -29,6 +29,8 @@ export interface PieceReadings {
   whorls(id: number): number;
   /** An auto feeder's hopper and mash levels (0..1) and whether it is pressing. */
   feeder(id: number): { hopper: number; mash: number; run: boolean } | null;
+  /** A plate press (milestone 5 part 2): hopper levels (0..1), plates on the rack, stroke progress, seconds since the last plate. */
+  press(id: number): { scrap: number; copper: number; plates: number; progress: number; since: number; run: boolean } | null;
 }
 
 /**
@@ -206,6 +208,14 @@ interface PieceArt {
   levels?: { g: Graphics; hopper: { x: number; y: number; w: number; h: number }; mash: { x: number; y: number; w: number; h: number } };
   /** Where fitted Echo whorls show on the piece (local). */
   whorlAt?: { x: number; y: number };
+  /** Plate press (milestone 5 part 2): the ram, hopper windows and plate rack. */
+  press?: {
+    g: Graphics;
+    ram: Container;
+    scrap: { x: number; y: number; w: number; h: number };
+    copper: { x: number; y: number; w: number; h: number };
+    rack: { x: number; y: number; w: number };
+  };
 }
 
 function drawDome(n: number): PieceArt {
@@ -695,6 +705,93 @@ function drawFeeder(n: number): PieceArt {
   return { body, rotor, windows, windowGlow, lamp: { x: W - 34, y: 182 }, levels, whorlAt: { x: 80, y: 112 } };
 }
 
+/**
+ * Plate press (milestone 5 part 2): a squat hydraulic press. Scrap and
+ * copper drop from the conveyor into a split hopper on the left; a yellow
+ * crossbeam on two steel columns carries a chrome cylinder whose ram stamps
+ * them into riveted hull plates on the die bed; finished plates stack on a
+ * rack on the right, where the out conveyor picks them up.
+ */
+function drawPress(n: number): PieceArt {
+  const W = CELL * 2;
+  const H = CELL;
+  const body = new Container();
+  const g = body.addChild(new Graphics());
+  const windows = new Graphics();
+  const windowGlow = new Graphics();
+  const cy = H / 2;
+  tubeH(g, 0, 16, cy, 1);
+  tubeH(g, W - 16, W, cy, 1);
+  // Bed with a hazard band.
+  g.roundRect(10, H - 34, W - 20, 22, 4).fill({ color: PAL.steelDark });
+  g.rect(12, H - 33, W - 24, 3).fill({ color: 0xffffff, alpha: 0.1 });
+  hazardBand(g, 14, H - 18, W - 28, 5);
+  rivets(g, 18, H - 26, W - 18, H - 26, 12);
+  // Die block under the ram.
+  g.rect(W / 2 - 30, H - 42, 60, 9).fill({ color: PAL.steelLight });
+  g.rect(W / 2 - 30, H - 42, 60, 2).fill({ color: 0xffffff, alpha: 0.2 });
+  // Columns and crossbeam.
+  for (const x of [W / 2 - 40, W / 2 + 32]) {
+    g.rect(x, 16, 8, H - 50).fill({ color: PAL.steel });
+    g.rect(x, 16, 2.5, H - 50).fill({ color: 0xffffff, alpha: 0.14 });
+    g.rect(x - 2, H - 40, 12, 6).fill({ color: PAL.steelDark });
+  }
+  g.roundRect(W / 2 - 50, 8, 100, 20, 4).fill({ color: PAL.yellow });
+  g.roundRect(W / 2 - 48, 9, 96, 4, 2).fill({ color: 0xffffff, alpha: 0.15 });
+  g.rect(W / 2 - 50, 24, 100, 4).fill({ color: PAL.yellowDark, alpha: 0.7 });
+  rivets(g, W / 2 - 44, 18, W / 2 + 44, 18, 9);
+  // Cylinder.
+  g.rect(W / 2 - 9, 28, 18, 14).fill({ color: PAL.steelLight });
+  g.rect(W / 2 - 9, 28, 5, 14).fill({ color: 0xffffff, alpha: 0.25 });
+  // The ram moves (a child container).
+  const ram = new Container();
+  const rg = ram.addChild(new Graphics());
+  rg.rect(-4, 0, 8, 22).fill({ color: 0xc8d0d2 });
+  rg.rect(-4, 0, 2, 22).fill({ color: 0xffffff, alpha: 0.4 });
+  rg.roundRect(-28, 20, 56, 12, 2).fill({ color: PAL.steelDark });
+  rg.rect(-28, 20, 56, 3).fill({ color: PAL.yellow });
+  rg.rect(-24, 30, 48, 3).fill({ color: PAL.steelDeep });
+  ram.position.set(W / 2, 40);
+  body.addChild(ram);
+  // Split hopper on the left: scrap (rust) and copper (verdigris) windows.
+  g.poly([22, 6, 80, 6, 72, 52, 30, 52]).fill({ color: PAL.steel });
+  g.poly([26, 9, 76, 9, 69, 48, 33, 48]).fill({ color: PAL.steelDeep });
+  g.rect(50, 9, 2, 39).fill({ color: PAL.steel });
+  hazardBand(g, 22, 4, 58, 6);
+  g.rect(42, 52, 18, 10).fill({ color: PAL.steelDark });
+  g.rect(58, 56, 20, 6).fill({ color: PAL.steelDark });
+  const scrap = { x: 36, y: 14, w: 12, h: 32 };
+  const copper = { x: 54, y: 14, w: 12, h: 32 };
+  // Plate rack on the right.
+  const rx0 = W - 82;
+  g.rect(rx0, 22, 4, H - 56).fill({ color: PAL.steelDark });
+  g.rect(W - 26, 22, 4, H - 56).fill({ color: PAL.steelDark });
+  g.rect(rx0, H - 38, W - 22 - rx0, 4).fill({ color: PAL.rust });
+  const rack = { x: rx0 + 6, y: H - 40, w: W - 32 - rx0 };
+  // Chute up to the out port.
+  g.rect(W / 2 + 58, 8, 10, 16).fill({ color: PAL.steelDark });
+  const levels = new Graphics();
+  body.addChild(levels);
+  body.addChild(stencil(`PP-${n}`, W / 2, 18, 7));
+  body.addChild(stencil('2 SCRAP + 1 CU', 51, 58, 4));
+  streaks(g, 14, W - 14, H - 34, 8, 14);
+  streaks(g, W / 2 - 48, W / 2 + 48, 28, 4, 10);
+  scratches(g, 12, H - 34, W - 12, H - 14, 8);
+  algaeLine(g, 14, W - 14, H - 13, 18);
+  algaeLine(g, 24, 78, 8, 5);
+  // A small lit readout on the crossbeam.
+  windows.rect(W / 2 + 30, 12, 10, 5).fill({ color: 0xfff1d0, alpha: 0.9 });
+  windowGlow.rect(W / 2 + 24, 6, 22, 17).fill({ color: PAL.warm, alpha: 0.3 });
+  return {
+    body,
+    windows,
+    windowGlow,
+    lamp: { x: W / 2 - 34, y: 13 },
+    whorlAt: { x: W / 2 + 30, y: 38 },
+    press: { g: levels, ram, scrap, copper, rack },
+  };
+}
+
 /** Draw a piece's art. The same drawing is used for placed pieces and the build ghost. */
 export function drawPiece(kind: PieceKind, n: number, rot: number, seed: number): PieceArt {
   rand = mulberry32(WORLD_SEED ^ (seed * 7919 + 0x1b5e));
@@ -704,6 +801,7 @@ export function drawPiece(kind: PieceKind, n: number, rot: number, seed: number)
   if (kind === 'tank') return drawTank(n);
   if (kind === 'filter') return drawFilter(n);
   if (kind === 'feeder') return drawFeeder(n);
+  if (kind === 'press') return drawPress(n);
   return drawStorage(n);
 }
 
@@ -826,7 +924,7 @@ export class BaseView {
       for (const w of l.whorls) this.dropWhorl(w);
       this.live.delete(id);
     }
-    const counts: Record<PieceKind, number> = { dome: 0, corridor: 0, turbine: 0, storage: 0, tank: 0, filter: 0, feeder: 0 };
+    const counts: Record<PieceKind, number> = { dome: 0, corridor: 0, turbine: 0, storage: 0, tank: 0, filter: 0, feeder: 0, press: 0 };
     for (const p of [...layout.pieces].sort((a, b) => a.id - b.id)) {
       counts[p.kind]++;
       if (this.live.has(p.id)) continue;
@@ -1035,6 +1133,41 @@ export class BaseView {
             }
           }
           if (l.art.rotor) l.art.rotor.rotation += dt * (f.run && l.powered ? 2.4 : 0);
+        }
+        const pa = l.art.press;
+        const pr = pa && !l.frame ? readings.press(l.placed.id) : null;
+        if (pa && pr) {
+          const key = `${pr.scrap.toFixed(2)}|${pr.copper.toFixed(2)}|${pr.plates}`;
+          if (key !== l.levelKey) {
+            l.levelKey = key;
+            const g = pa.g.clear();
+            for (const [b, v, col, hi] of [
+              [pa.scrap, pr.scrap, 0x7a5a48, 0xa8402e],
+              [pa.copper, pr.copper, 0x6e5440, 0x5f9a72],
+            ] as const) {
+              const h = b.h * v;
+              if (h > 0.5) {
+                g.rect(b.x, b.y + b.h - h, b.w, h).fill({ color: col });
+                for (let i = 1; i < b.w; i += 4) g.circle(b.x + i + 1, b.y + b.h - h + 2, 1.6).fill({ color: hi, alpha: 0.8 });
+              }
+            }
+            for (let i = 0; i < pr.plates; i++) {
+              const y = pa.rack.y - 6 - i * 7;
+              g.rect(pa.rack.x, y, pa.rack.w, 6).fill({ color: 0x8e9a9c });
+              g.rect(pa.rack.x, y, pa.rack.w, 1.5).fill({ color: 0xffffff, alpha: 0.3 });
+              g.circle(pa.rack.x + 5, y + 3.5, 1).fill({ color: PAL.steelDeep });
+              g.circle(pa.rack.x + pa.rack.w - 5, y + 3.5, 1).fill({ color: PAL.steelDeep });
+            }
+          }
+          // The ram creeps down as a stroke builds, slams on each plate, then lifts.
+          const slam = pr.since < 0.25 ? 1 : pr.since < 1.2 ? 1 - (pr.since - 0.25) / 0.95 : 0;
+          const creep = pr.run && l.powered ? pr.progress * 0.35 : 0;
+          const down = Math.max(slam, creep);
+          pa.ram.y = 40 + down * 18;
+          if (pr.since < dt + 0.001 && l.powered) {
+            const r = pieceRect(l.placed);
+            this.burst(r.x + r.w / 2, r.y + r.h - 40, 50, 6, 14);
+          }
         }
       }
       const powered = layout.powered.has(l.placed.id);

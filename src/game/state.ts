@@ -8,7 +8,9 @@
  * planned for milestone 11.
  */
 
-export type MaterialId = 'scrap' | 'copper' | 'quartz' | 'fibre';
+export type MaterialId = 'scrap' | 'copper' | 'quartz' | 'fibre' | 'plate';
+/** Materials found on the reef. Hull plating (milestone 5 part 2) is only made by the plate press. */
+export type ReefMaterial = Exclude<MaterialId, 'plate'>;
 
 /** kg: how heavy one piece is in the dive bag (milestone 3 follow-up, Colin's idea). */
 export const MATERIALS: Record<MaterialId, { name: string; plural: string; blurb: string; kg: number }> = {
@@ -16,8 +18,14 @@ export const MATERIALS: Record<MaterialId, { name: string; plural: string; blurb
   copper: { name: 'Copper nodule', plural: 'Copper nodules', blurb: 'Green-crusted lumps half buried in sand. Wiring and turbines.', kg: 3 },
   quartz: { name: 'Quartz', plural: 'Quartz', blurb: 'Clear crystal that grows on reef rock. Dome glass.', kg: 1.5 },
   fibre: { name: 'Kelp fibre', plural: 'Kelp fibre', blurb: 'Tough golden strands from kelp holdfasts. Seals and filters.', kg: 0.5 },
+  plate: {
+    name: 'Hull plating',
+    plural: 'Hull plating',
+    blurb: 'Scrap and copper pressed into riveted plate by a plate press. For the submersible, CB-2 conveyors and FL-2 pipes.',
+    kg: 4,
+  },
 };
-export const MATERIAL_ORDER: MaterialId[] = ['scrap', 'copper', 'quartz', 'fibre'];
+export const MATERIAL_ORDER: MaterialId[] = ['scrap', 'copper', 'quartz', 'fibre', 'plate'];
 
 /** Oxygen, in seconds of breathing, for the starting tank and for each tank upgrade. */
 export const BASE_OXYGEN = 75;
@@ -113,6 +121,11 @@ export interface TankData {
   plant: PlantId | null;
   /** Litres of feed mash waiting in the tank's feed trough (milestone 5). */
   mash?: number;
+  /**
+   * Milestone 5 part 2: what its creatures made, waiting in the tank's output
+   * tray for a conveyor (or the diver) to take it away.
+   */
+  out?: Partial<Record<MaterialId, number>>;
 }
 
 /** A conveyor or feed pipe between two base pieces (milestone 5; rules in src/game/factory.ts). */
@@ -121,19 +134,28 @@ export interface SavedLine {
   kind: 'belt' | 'pipe';
   from: number;
   to: number;
+  /** Line tier: 1 = CB-1 / FL-1, 2 = CB-2 / FL-2 (milestone 5 part 2). Missing means 1. */
+  tier?: number;
 }
 
-/** What a machine holds (milestone 5): an auto feeder's hopper, mash tank and press progress. */
+/**
+ * What a machine holds (milestone 5): an auto feeder's hopper, mash tank and
+ * press progress; a plate press's scrap and copper hoppers, finished plates
+ * and stroke progress (part 2).
+ */
 export interface MachineData {
   fibre: number;
   mash: number;
   press: number;
+  scrap?: number;
+  copper?: number;
+  plate?: number;
 }
 
 /** A base piece as saved (see src/game/base.ts). */
 export interface SavedPiece {
   id: number;
-  kind: 'dome' | 'corridor' | 'turbine' | 'storage' | 'tank' | 'filter' | 'feeder';
+  kind: 'dome' | 'corridor' | 'turbine' | 'storage' | 'tank' | 'filter' | 'feeder' | 'press';
   gx: number;
   gy: number;
   rot: number;
@@ -206,14 +228,14 @@ export function freshSave(spawnX: number, spawnY: number): SaveData {
     y: spawnY,
     oxygen: BASE_OXYGEN,
     lampOn: true,
-    bag: { scrap: 0, copper: 0, quartz: 0, fibre: 0 },
+    bag: { scrap: 0, copper: 0, quartz: 0, fibre: 0, plate: 0 },
     scans: [],
     tanks: [],
     taken: {},
     dropped: null,
     pieces: [],
     nextPieceId: 1,
-    stored: { scrap: 0, copper: 0, quartz: 0, fibre: 0 },
+    stored: { scrap: 0, copper: 0, quartz: 0, fibre: 0, plate: 0 },
     drone: 'stranded',
     creatures: [],
     nextCreatureId: 1,

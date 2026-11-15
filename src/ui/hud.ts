@@ -21,6 +21,8 @@ export const MATERIAL_ICONS: Record<MaterialId, string> = {
     '<svg viewBox="0 0 24 24"><path d="M10 21V8l2-5 2 5v13z" fill="#e8ecdf"/><path d="M12 3l2 5v13h-2z" fill="#a9b5ad"/><path d="M5 21v-8l2-3 2 3v8z" fill="#dfe5d8"/><path d="M15 21v-7l2-3 2 3v7z" fill="#cfd8cc"/></svg>',
   fibre:
     '<svg viewBox="0 0 24 24"><g stroke="#c9a24a" stroke-width="1.6" fill="none" stroke-linecap="round"><path d="M12 18C10 12 6 9 4 5"/><path d="M12 18c0-6 0-10 0-14"/><path d="M12 18c2-6 6-9 8-13"/><path d="M12 18C9 14 7 13 5 11" stroke="#a4823a"/><path d="M12 18c3-4 5-5 7-7" stroke="#a4823a"/></g><ellipse cx="12" cy="19" rx="4" ry="2.4" fill="#8a6d32"/></svg>',
+  plate:
+    '<svg viewBox="0 0 24 24"><path d="M3 9l9-4 9 4v7l-9 4-9-4z" fill="#6b777a"/><path d="M3 9l9-4 9 4-9 4z" fill="#a9b4b6"/><path d="M12 13v7l9-4V9z" fill="#4e585b"/><path d="M5.5 9.3l6.5-2.9 6.5 2.9" fill="none" stroke="#c9a24a" stroke-width="1.1"/><circle cx="7" cy="10" r=".9" fill="#3b4448"/><circle cx="12" cy="7.6" r=".9" fill="#3b4448"/><circle cx="17" cy="10" r=".9" fill="#3b4448"/><circle cx="12" cy="12" r=".9" fill="#3b4448"/></svg>',
 };
 
 export class Hud {
@@ -46,7 +48,8 @@ export class Hud {
   constructor(private readonly getSave: () => SaveData) {
     for (const id of MATERIAL_ORDER) {
       const el = document.createElement('div');
-      el.className = 'chip';
+      // Hull plating is only made at the base: its chip hides until there is some.
+      el.className = id === 'plate' ? 'chip optional' : 'chip';
       el.title = MATERIALS[id].name;
       el.innerHTML = `${MATERIAL_ICONS[id]}<span></span><small></small>`;
       this.chips.appendChild(el);
@@ -136,6 +139,7 @@ export class Hud {
       ['tank', 'Creature tank'],
       ['filter', 'Filter pump'],
       ['feeder', 'Auto feeder'],
+      ['press', 'Plate press'],
     ];
     const base = save.pieces.length
       ? [
@@ -143,7 +147,13 @@ export class Hud {
           ...(frames ? [`${frames} frame${frames > 1 ? 's' : ''} being welded`] : []),
           ...(save.lines.length
             ? [
-                `${save.lines.filter((l) => l.kind === 'belt').length} conveyor(s), ${save.lines.filter((l) => l.kind === 'pipe').length} feed pipe(s)`,
+                ['CB-1', 'CB-2', 'FL-1', 'FL-2']
+                  .map((code) => {
+                    const n = save.lines.filter((l) => `${l.kind === 'belt' ? 'CB' : 'FL'}-${l.tier ?? 1}` === code).length;
+                    return n ? `${n} × ${code} ${code.startsWith('CB') ? 'conveyor' : 'feed pipe'}` : '';
+                  })
+                  .filter(Boolean)
+                  .join(', '),
               ]
             : []),
         ].join(' · ')

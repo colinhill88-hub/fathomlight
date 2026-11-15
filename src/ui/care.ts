@@ -16,7 +16,21 @@ import {
   TANK_CAPACITY,
 } from '../game/creatures';
 import { CreatureData, MATERIALS, SaveData } from '../game/state';
-import { TROUGH_CAP, whorlMult } from '../game/factory';
+import { TRAY_CAP, trayCount, TROUGH_CAP, whorlMult } from '../game/factory';
+import { MATERIAL_ORDER, TankData } from '../game/state';
+
+/** The output tray (milestone 5 part 2): what is waiting, and how it leaves. */
+function trayLine(save: SaveData, td: TankData): string {
+  const n = trayCount(td);
+  const what = MATERIAL_ORDER.filter((k) => td.out?.[k])
+    .map((k) => `${td.out![k]} ${MATERIALS[k].name.toLowerCase()}`)
+    .join(', ');
+  const belt = save.lines.some((l) => l.kind === 'belt' && save.tankData[String(l.from)] === td);
+  const good = n < TRAY_CAP;
+  return `<li class="${good ? 'good' : 'bad'}">${good ? '✓' : '✗'} Output tray ${n}/${TRAY_CAP}${what ? ` (${what})` : ''}${
+    belt ? ': a conveyor carries it away' : n ? ': swim up to the tank to take it, or run a conveyor from the tank' : ''
+  }${good ? '' : '. Full: making is paused'}</li>`;
+}
 
 /**
  * Tank care (milestone 4), laid out like the "Tank care on phone" concept:
@@ -286,7 +300,7 @@ export class CareMode {
           filtered ? 'good' : 'bad'
         }">${filtered ? '✓ Filter pump keeps the water clean' : '✗ No filter pump: the water slowly gets dirty'}</li>${
           piped ? `<li class="good">✓ Feed pipe: ${Math.round(td.mash ?? 0)}/${TROUGH_CAP} L of mash in the trough</li>` : ''
-        }${mult > 1 ? `<li class="good">✓ ${mult - 1} Echo whorl${mult > 2 ? 's' : ''}: ×${mult} output, eats and fouls ×${mult}</li>` : ''}</ul>${
+        }${trayLine(save, td)}${mult > 1 ? `<li class="good">✓ ${mult - 1} Echo whorl${mult > 2 ? 's' : ''}: ×${mult} output, eats and fouls ×${mult}</li>` : ''}</ul>${
           c.stage === 'grown' ? `<p class="note">${makeLine(save, layout, c)}</p>` : ''
         }`;
     }

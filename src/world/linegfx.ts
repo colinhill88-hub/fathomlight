@@ -1,7 +1,7 @@
-import { Container, Graphics } from 'pixi.js';
+import { Container, Graphics, Text } from 'pixi.js';
 import { BaseLayout } from '../game/base';
-import { Factory, lineRoute, lineSlot, LineKind } from '../game/factory';
-import { SaveData } from '../game/state';
+import { Factory, lineCode, lineRoute, lineSlot, LineKind, tierOf } from '../game/factory';
+import { MaterialId, SaveData } from '../game/state';
 import { mulberry32, WORLD_SEED } from '../rng';
 
 /**
@@ -12,6 +12,11 @@ import { mulberry32, WORLD_SEED } from '../rng';
  * runs. A feed pipe is weathered copper with brass flanges and green
  * verdigris; soft pulses of mash travel down it while it pumps.
  *
+ * Milestone 5 part 2: every line carries its Kestrel stencil code (CB-1,
+ * CB-2, FL-1, FL-2) on a small painted plate. CB-2 belts have yellow-and-
+ * black hazard rails and run faster; FL-2 pipes are steel-jacketed with
+ * hull-plating bands. Bundles on a belt take the colour of what they carry.
+ *
  * Lines are drawn in front of the base pieces (they run along the near side
  * of the base) but behind the diver.
  */
@@ -20,6 +25,14 @@ let rand = mulberry32(1);
 const R = (a: number, b: number) => a + rand() * (b - a);
 
 const BELT = 10;
+/** Bundle colours on a belt, by what it carries: body and highlight. */
+const ITEM_COLOURS: Record<MaterialId, [number, number]> = {
+  fibre: [0xc8a050, 0xf0d890],
+  scrap: [0x7a685a, 0xb0a8a0],
+  copper: [0x7d6048, 0x7fc39a],
+  quartz: [0xd8ded0, 0xffffff],
+  plate: [0x8e9a9c, 0xdfe6e8],
+};
 const PIPE = 9;
 
 /** Length of a polyline. */
@@ -44,7 +57,7 @@ export function pointAlong(pts: [number, number][], d: number): [number, number]
   return pts[pts.length - 1];
 }
 
-function drawBelt(g: Graphics, pts: [number, number][]): void {
+function drawBelt(g: Graphics, pts: [number, number][], tier = 1): void {
   for (let i = 1; i < pts.length; i++) {
     const [ax, ay] = pts[i - 1];
     const [bx, by] = pts[i];
@@ -59,12 +72,14 @@ function drawBelt(g: Graphics, pts: [number, number][]): void {
       g.rect(x0, ay - BELT / 2, len, 2).fill({ color: 0x5a5850, alpha: 0.9 });
       g.rect(x0, ay + BELT / 2, len, 3).fill({ color: 0x5b6467 });
       for (let x = x0 + 8; x < x0 + len - 4; x += 20) g.circle(x, ay + BELT / 2 + 1.5, 2.2).fill({ color: 0x8a9496 });
+      if (tier > 1) for (let x = x0; x < x0 + len - 6; x += 12) g.rect(x, ay + BELT / 2, Math.min(6, x0 + len - x), 3).fill({ color: x % 24 < 12 ? 0xb8923f : 0x1c1c1a });
     } else {
       g.rect(ax - BELT / 2 - 2, y0, BELT + 5, len).fill({ color: 0x3b4448 });
       g.rect(ax - BELT / 2, y0, BELT, len).fill({ color: 0x2b2a26 });
       g.rect(ax - BELT / 2, y0, 2, len).fill({ color: 0x5a5850, alpha: 0.9 });
       g.rect(ax + BELT / 2, y0, 3, len).fill({ color: 0x5b6467 });
       for (let y = y0 + 8; y < y0 + len - 4; y += 20) g.circle(ax + BELT / 2 + 1.5, y, 2.2).fill({ color: 0x8a9496 });
+      if (tier > 1) for (let y = y0; y < y0 + len - 6; y += 12) g.rect(ax + BELT / 2, y, 3, Math.min(6, y0 + len - y)).fill({ color: y % 24 < 12 ? 0xb8923f : 0x1c1c1a });
     }
     // Rust streaks and algae specks.
     for (let k = 0; k < len / 40; k++) {
@@ -88,7 +103,7 @@ function drawBelt(g: Graphics, pts: [number, number][]): void {
   }
 }
 
-function drawPipe(g: Graphics, pts: [number, number][]): void {
+function drawPipe(g: Graphics, pts: [number, number][], tier = 1): void {
   for (let i = 1; i < pts.length; i++) {
     const [ax, ay] = pts[i - 1];
     const [bx, by] = pts[i];
@@ -98,19 +113,21 @@ function drawPipe(g: Graphics, pts: [number, number][]): void {
     const len = horiz ? Math.abs(bx - ax) : Math.abs(by - ay);
     if (len < 1) continue;
     if (horiz) {
+      if (tier > 1) g.rect(x0, ay - PIPE / 2 - 2, len, PIPE + 4).fill({ color: 0x5b6467 });
       g.rect(x0, ay - PIPE / 2, len, PIPE).fill({ color: 0x8a6a3a });
       g.rect(x0, ay - PIPE / 2 + 1, len, 2.2).fill({ color: 0xd4aa6a, alpha: 0.55 });
       g.rect(x0, ay + PIPE / 2 - 3, len, 3).fill({ color: 0x4a3820, alpha: 0.6 });
       for (let x = x0 + 24; x < x0 + len - 10; x += 48) {
-        g.rect(x - 2, ay - PIPE / 2 - 2.5, 4, PIPE + 5).fill({ color: 0xa88a4a });
+        g.rect(x - 2, ay - PIPE / 2 - 2.5, 4, PIPE + 5).fill({ color: tier > 1 ? 0x8e9a9c : 0xa88a4a });
         g.rect(x - 2, ay - PIPE / 2 - 2.5, 1.2, PIPE + 5).fill({ color: 0xffffff, alpha: 0.2 });
       }
     } else {
+      if (tier > 1) g.rect(ax - PIPE / 2 - 2, y0, PIPE + 4, len).fill({ color: 0x5b6467 });
       g.rect(ax - PIPE / 2, y0, PIPE, len).fill({ color: 0x8a6a3a });
       g.rect(ax - PIPE / 2 + 1, y0, 2.2, len).fill({ color: 0xd4aa6a, alpha: 0.55 });
       g.rect(ax + PIPE / 2 - 3, y0, 3, len).fill({ color: 0x4a3820, alpha: 0.6 });
       for (let y = y0 + 24; y < y0 + len - 10; y += 48) {
-        g.rect(ax - PIPE / 2 - 2.5, y - 2, PIPE + 5, 4).fill({ color: 0xa88a4a });
+        g.rect(ax - PIPE / 2 - 2.5, y - 2, PIPE + 5, 4).fill({ color: tier > 1 ? 0x8e9a9c : 0xa88a4a });
         g.rect(ax - PIPE / 2 - 2.5, y - 2, PIPE + 5, 1.2).fill({ color: 0xffffff, alpha: 0.2 });
       }
     }
@@ -145,23 +162,69 @@ export class LinesView {
   readonly view = new Container();
   private still = new Graphics();
   private moving = new Graphics();
-  private routes = new Map<number, { kind: LineKind; pts: [number, number][]; len: number; x0: number; x1: number }>();
+  private labels = new Container();
+  private routes = new Map<number, { kind: LineKind; tier: number; pts: [number, number][]; len: number; x0: number; x1: number }>();
 
   constructor() {
-    this.view.addChild(this.still, this.moving);
+    this.view.addChild(this.still, this.labels, this.moving);
+  }
+
+  /** A stencilled code plate (CB-1, FL-2...) on the longest stretch of a line. */
+  private label(code: string, kind: LineKind, pts: [number, number][]): void {
+    let best = 1;
+    let bestLen = -1;
+    for (let i = 1; i < pts.length; i++) {
+      const l = Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]);
+      if (l > bestLen) {
+        bestLen = l;
+        best = i;
+      }
+    }
+    if (bestLen < 40) return;
+    const [ax, ay] = pts[best - 1];
+    const [bx, by] = pts[best];
+    const horiz = Math.abs(by - ay) < 0.5;
+    const mx = (ax + bx) / 2;
+    const my = (ay + by) / 2;
+    const plate = new Graphics();
+    const w = 30;
+    const h = 11;
+    plate.roundRect(-w / 2, -h / 2, w, h, 2).fill({ color: kind === 'belt' ? 0x2a3033 : 0x4a3820 });
+    plate.roundRect(-w / 2, -h / 2, w, 2, 1).fill({ color: 0xffffff, alpha: 0.12 });
+    plate.circle(-w / 2 + 2.5, 0, 0.9).fill({ color: 0x8a9496 });
+    plate.circle(w / 2 - 2.5, 0, 0.9).fill({ color: 0x8a9496 });
+    const t = new Text({
+      text: code,
+      style: { fontFamily: 'Courier New, monospace', fontSize: 8, fontWeight: 'bold', fill: 0xe8d8a8, letterSpacing: 0.4 },
+      resolution: 6,
+    });
+    t.anchor.set(0.5);
+    t.alpha = 0.85;
+    const c = new Container();
+    c.addChild(plate, t);
+    // On a horizontal run it hangs just under the belt or pipe; on a vertical one it sits beside it.
+    if (horiz) c.position.set(mx, my + (kind === 'belt' ? 13 : 12));
+    else {
+      c.position.set(mx + 14, my);
+      c.rotation = -Math.PI / 2;
+    }
+    this.labels.addChild(c);
   }
 
   sync(save: SaveData, layout: BaseLayout): void {
     this.still.clear();
     this.routes.clear();
+    for (const c of this.labels.removeChildren()) c.destroy({ children: true });
     for (const l of save.lines) {
       const pts = routeFor(save, layout, l);
       if (!pts) continue;
       rand = mulberry32(WORLD_SEED ^ (l.id * 4447 + 0x71e));
-      if (l.kind === 'belt') drawBelt(this.still, pts);
-      else drawPipe(this.still, pts);
+      const tier = tierOf(l);
+      if (l.kind === 'belt') drawBelt(this.still, pts, tier);
+      else drawPipe(this.still, pts, tier);
+      this.label(lineCode(l), l.kind, pts);
       const xs = pts.map((p) => p[0]);
-      this.routes.set(l.id, { kind: l.kind, pts, len: polyLength(pts), x0: Math.min(...xs), x1: Math.max(...xs) });
+      this.routes.set(l.id, { kind: l.kind, tier, pts, len: polyLength(pts), x0: Math.min(...xs), x1: Math.max(...xs) });
     }
   }
 
@@ -173,14 +236,15 @@ export class LinesView {
       const fl = factory.flows.get(id);
       if (!fl || fl.rate <= 0.02 || r.x1 < viewX0 - 50 || r.x0 > viewX1 + 50) continue;
       if (r.kind === 'belt') {
-        fl.phase = (fl.phase + (dt * 24) / 28) % 1;
+        fl.phase = (fl.phase + (dt * (r.tier > 1 ? 44 : 24)) / 28) % 1;
+        const [col, hi] = ITEM_COLOURS[fl.item ?? 'fibre'];
         for (let d = fl.phase * 28; d < r.len - 6; d += 28) {
           const [x, y] = pointAlong(r.pts, d);
-          g.roundRect(x - 3.5, y - 7, 7, 5, 1.5).fill({ color: 0xc8a050 });
-          g.rect(x - 3, y - 6.5, 6, 1.2).fill({ color: 0xf0d890, alpha: 0.7 });
+          g.roundRect(x - 3.5, y - 7, 7, 5, 1.5).fill({ color: col });
+          g.rect(x - 3, y - 6.5, 6, 1.2).fill({ color: hi, alpha: 0.7 });
         }
       } else {
-        fl.phase = (fl.phase + (dt * 40) / 60) % 1;
+        fl.phase = (fl.phase + (dt * (r.tier > 1 ? 70 : 40)) / 60) % 1;
         for (let d = fl.phase * 60; d < r.len; d += 60) {
           const [x, y] = pointAlong(r.pts, d);
           g.circle(x, y, 3.2).fill({ color: 0xd8e6a0, alpha: 0.5 });
