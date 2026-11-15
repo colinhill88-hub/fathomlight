@@ -408,7 +408,7 @@ Cut from High so far: the phone renders at 2× instead of its native 3×. Colin 
   - The old shelf by the buoy is the **top east corner** of the grid. The rock under the shelf and the foot of the cliff can't be built in ("Solid rock here (tunnelling comes later)").
   - **Old saves keep their base where it is.** On load, pieces are shifted by 47 columns and 11 rows (the `site` field in the save marks the new layout).
   - The world now runs from x = −5600 to 9000 and is 1980 units deep. The rest of the shallows' landmarks didn't move; the plants and corals scattered between landmarks are reshuffled a little. One quartz spot moved from the old west wall to the top of the cliff.
-  - Light below about 12 m now fades more slowly (`depthLook` in `src/fx/shared.ts`), so the basin floor reads as deep blue rather than black. The grotto keeps its dark rock shadow.
+  - Light below about 11 m now fades at a quarter of the normal rate (`depthLook` in `src/fx/shared.ts`), so the basin floor reads as deep blue rather than black. The grotto keeps its dark rock shadow.
   - New scanner entry: **Kestrel basin**.
 - **Pieces stand on the seabed wherever it is:** the first piece may go on the basin floor, the shelf or the cliff, and downward collars facing rock are sealed.
 - **Build camera** (`src/ui/build.ts`):
@@ -470,7 +470,7 @@ Cut from High so far: the phone renders at 2× instead of its native 3×. Colin 
     - Fitted the whorl to the tank: its readout showed ×2 output and ×2 eating.
     - Selected the conveyor and saw its rate readout. After a reload the lines, the fitted whorl and the shifted base were all kept.
   - 1280×720 PC: build mode framing, zooming right out to the whole basin, and picking a dome in the middle of the basin.
-  - No console errors. The frame rate couldn't be measured, because the test browser draws in software. Zoomed all the way out it draws the whole basin at once, so the frame rate there needs checking on the phone.
+  - No console errors. The frame rate couldn't be measured, because the test browser draws in software. Zoomed all the way out it draws the whole basin at once: the software test browser crashed now and then while taking screenshots (at any zoom, and at random; the same test passed when run again). To be safe, on touch screens the zoom-out stops at a view height of 2800 (still almost the whole basin width). Check the frame rate zoomed out on the phone, and on the PC (Ultra).
 
 ## Next
 

@@ -19,10 +19,10 @@ float noise(vec2 p) {
              mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), u.x), u.y);
 }
 
-// Milestone 5: below about 12 m light fades more slowly, so the floor of the
+// Milestone 5: below about 11 m light fades more slowly, so the floor of the
 // 22 m Kestrel basin (where the factory goes) stays readable instead of black.
 float depthLook(float d) {
-  return d < 900.0 ? d : 900.0 + (d - 900.0) * 0.4;
+  return d < 800.0 ? d : 800.0 + (d - 800.0) * 0.25;
 }
 
 // Water colour at a depth (world units, 75 per metre). Warm tones fade first,
@@ -64,7 +64,7 @@ function mix3(a: number[], b: number[], t: number): [number, number, number] {
 
 /** TypeScript copy of the shader's waterColor. Returns r, g, b in 0..1. */
 export function waterColor(d: number): [number, number, number] {
-  if (d > 900) d = 900 + (d - 900) * 0.4;
+  if (d > 800) d = 800 + (d - 800) * 0.25;
   let c = mix3(stops[0], stops[1], smoothstep(0, 380, d));
   c = mix3(c, stops[2], smoothstep(250, 800, d));
   c = mix3(c, stops[3], smoothstep(700, 1250, d));

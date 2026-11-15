@@ -559,7 +559,10 @@ export class BuildMode {
     const H = window.innerHeight;
     const siteW = GRID_X1 - GRID_X0 + 500;
     const siteH = GRID_BASE + 300;
-    return Math.max(siteH, (siteW * H) / W) * 1.1;
+    const whole = Math.max(siteH, (siteW * H) / W) * 1.1;
+    // Phones stop a little short of the whole site (it still shows almost all
+    // of its width), which keeps the frame rate up; a PC sees everything.
+    return document.body.classList.contains('touch') ? Math.min(2800, whole) : whole;
   }
 
   private clampCam(): void {
