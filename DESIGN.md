@@ -139,6 +139,7 @@ Pieces snap together at their connector collars on a grid. A piece works only wh
   - **Tank upgrades:** bigger tanks (for example 3 × 1 or 3 × 2 cells, holding more creatures), and planters that hold two or more plant kinds, so two species can both have their favourite plant and reach 100% comfort.
   - **Partner species:** pairings that help each other (for example one species cleans another, or one shelters another), giving a comfort or output bonus that a single-species tank can't get.
   - Keep the clashes (like puffcap threads stinging glowfins) so pairings still need thought.
+  - **Decided (Colin): build both** tank upgrades and partner species, and keep clashes. Plan the details with Colin when the next species are designed.
 - Neglected creatures can die. A creature becomes visibly sick first, which gives the player time to act; if its needs stay unmet it dies and leaves dormant remains that can be kept in storage. Revival is locked behind exploration: the blueprint for a Revival pool base piece is hidden in a side area of the wreck shelf, and each revival uses a rare glowing bloom gathered in the deeper zones.
 
 ### Gear progression
