@@ -36,7 +36,7 @@ export interface LineDef {
   name: string;
   /** What it carries, in a few words. */
   carries: string;
-  /** Mk 1 capacity, per minute. */
+  /** Capacity of the first tier (CB-1 conveyor, FL-1 pipe), per minute. Tiers use Kestrel stencil codes, not "Mk". */
   rate: number;
   unit: string;
   /** Materials per cell of length: one of `a` for every `per` cells (rounded up). */

@@ -401,7 +401,7 @@ Cut from High so far: the phone renders at 2× instead of its native 3×. Colin 
 - **Feedback on the last build:** milestone 4 and the scarcer materials are good; Colin loves that grown creatures fill storage. He chose milestone 5 (big base and factory groundwork) before the submersible, with the decisions recorded in DESIGN.md (The base, "Milestone 5 decisions").
 - **The split.** Milestone 5 is too big for one session, so it is two playable parts:
   - **Part 1 (this session):** the big basin site and build camera, conveyors and feed pipes, the auto feeder chain, creature output that scales with happy creatures and tanks, and the Echo whorl.
-  - **Part 2 (next):** the first machine that combines materials into a refined one, tank output carried on conveyors (instead of going straight to storage), Mk 2 conveyors and pipes, and a whole-base rates overview.
+  - **Part 2 (next):** the first machine that combines materials into a refined one, tank output carried on conveyors (instead of going straight to storage), faster CB-2 conveyors and FL-2 pipes, and a whole-base rates overview.
 - **The site** (`src/world/terrain.ts`, `src/game/base.ts`):
   - The grid grew from 11 × 3 cells to **58 × 14 cells** (87 m × 21 m). **About 680 cells are open water**, a bit over 20 times the old site. `OPEN_CELLS` in `src/game/base.ts` has the exact count.
   - West of the shelf a cliff drops into the **Kestrel basin**: a wide, flat silt floor about 22 m deep, with a steep west wall. The wall has a nook part-way up (an Echo whorl hides there). Boulders, kelp along the walls and four warm lantern anemones on the floor dress it; the middle is left clear for building.
@@ -423,7 +423,7 @@ Cut from High so far: the phone renders at 2× instead of its native 3×. Colin 
   - The drone parks over the middle of what's built instead of over the middle of the grid.
 - **Transport** (`src/game/factory.ts` rules, `src/world/linegfx.ts` drawing). Different kinds of material move by different means:
 
-| Line | Carries | Mk 1 rate | Cost per length | Look |
+| Line | Carries | Rate (CB-1 / FL-1) | Cost per length | Look |
 | --- | --- | --- | --- | --- |
 | Conveyor | solid items (kelp fibre for now; all solids later) | 6 items/min | 1 scrap per 2 cells + 1 copper per 4 cells | dark rubber belt on steel rollers, transfer boxes at bends; bundles ride along it while it runs |
 | Feed pipe | fluids (feed mash now; filtered water and so on later) | 10 L/min | 1 copper per 2 cells + 1 kelp fibre per 4 cells | weathered copper with brass flanges and verdigris; pulses of mash travel down it |
@@ -477,11 +477,16 @@ Cut from High so far: the phone renders at 2× instead of its native 3×. Colin 
 ## Next
 
 **Milestone 5, part 2: refining and tank output on conveyors.** Then milestone 6, the submersible.
-- **The first machine that combines materials into a refined one.** For example, a press that turns scrap and copper into hull plating for the sub (milestone 6) and bigger pieces. It needs its own rates, using the same conveyor rules. Ask Colin which refined material matters most to him.
+- **The first machine that combines materials into a refined one: hull plating** (Colin's choice). A plate press turns scrap and copper (carried in by conveyor) into hull plating for the submersible (milestone 6) and later bigger pieces. Give it its own rates, using the same conveyor rules.
 - **Tank output on conveyors.** A tank's belt-out port could carry what its creatures make to storage or straight to a machine. Today it still goes straight into storage, as in milestone 4.
-- **Mk 2 conveyors and pipes** (faster, costing a later material). A splitter or merger if balancing needs it.
+- **faster CB-2 conveyors and FL-2 pipes** (faster, costing a later material). A splitter or merger if balancing needs it.
 - **A whole-base rates overview** (made and used per minute, per material). It should suit the PC screen and stay readable on the phone.
 - More Echo whorls in later biomes. There are two in the shallows now.
+
+**Colin's decisions for part 2 (after part 1):**
+- The first refined material is **hull plating** for the sub.
+- **Line tiers are named with Kestrel stencil codes, not "Mk"** ("Mk" tiers are strongly tied to Satisfactory). Conveyors are **CB-1, CB-2, …**; feed pipes are **FL-1, FL-2, …**. Today's lines are CB-1 and FL-1. Show the code in the build readouts and stencil it on the line, like CT-1, FP-1 and AF-1 on the pieces.
+- No ready-made test base: Colin is playing the current build from a brand-new save on his PC, start to finish. Expect feedback on the early game as well as the factory.
 
 Where things are: the rules for lines, the feeder and whorls are in `src/game/factory.ts`, with every rate a constant at the top. Pieces declare `ports` and `whorls` in `PIECES` (`src/game/base.ts`). Line drawing is in `src/world/linegfx.ts`, and build-mode linking and camera in `src/ui/build.ts`.
 
