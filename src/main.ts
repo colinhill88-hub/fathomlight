@@ -22,7 +22,9 @@ import {
   inCaveTunnel,
   SPAWN,
   WORLD_H,
+  WORLD_SPAN,
   WORLD_W,
+  WORLD_X0,
   WU_PER_METRE,
 } from './world/terrain';
 import {
@@ -53,13 +55,13 @@ import { Wildlife } from './world/wildlife';
 import { TankLife } from './world/tanklife';
 import { CareMode } from './ui/care';
 import { creaturesIn, newCreature, SPECIES, tankNumber, tickCare, TANK_CAPACITY } from './game/creatures';
+import { Factory, FEEDER_MASH_CAP, HOPPER_CAP, machineData, whorlMult } from './game/factory';
+import { LinesView } from './world/linegfx';
 
 declare const __BUILD_ID__: string;
 
 /** How many world units fit in the screen's height. Fixed, so every device frames the scene the same. */
 const VIEW_H = 640;
-/** The camera zooms out to this while building, so the whole Kestrel site fits. */
-const VIEW_H_BUILD = 860;
 /** The camera zooms in on a creature tank while tending it. */
 const VIEW_H_CARE = 235;
 
@@ -170,6 +172,8 @@ async function boot(): Promise<void> {
   scanner.candidates.push(
     { id: 'puffcap', points: () => wildlife.scanPoints('puffcap') },
     { id: 'ray', points: () => wildlife.scanPoints('ray') },
+    { id: 'whorl', points: () => pickups.whorlPoints() },
+    { id: 'basin', points: () => [{ x: -2200, y: groundY(-2200) - 60 }, { x: 150, y: 1200 }] },
   );
   const surfaceFx = new SurfaceFx();
 
@@ -182,6 +186,17 @@ async function boot(): Promise<void> {
   tankLife.sync(save, layout);
   const buildOverlay = new BuildOverlay();
   overlayCam.addChild(buildOverlay.view);
+  // Milestone 5: conveyors, feed pipes and the machines they join.
+  const factory = new Factory();
+  const linesView = new LinesView();
+  linesView.sync(save, layout);
+  const readings = {
+    whorls: (id: number) => save.fitted[String(id)] ?? 0,
+    feeder: (id: number) => {
+      const m = machineData(save, id);
+      return { hopper: Math.min(1, m.fibre / HOPPER_CAP), mash: Math.min(1, m.mash / FEEDER_MASH_CAP), run: factory.feederState.get(id) === 'running' };
+    },
+  };
   /** Seconds left on the quick ID (name tags over things already scanned). */
   let idTimer = 0;
   const lampLight: Light = {
@@ -204,6 +219,7 @@ async function boot(): Promise<void> {
       scenery.view,
       baseView.view,
       tankLife.view,
+      linesView.view,
       pickups.view,
       wildlife.view,
       ...schools.map((s) => s.view),
@@ -236,6 +252,7 @@ async function boot(): Promise<void> {
     changed: (fresh) => {
       baseView.sync(layout, fresh);
       tankLife.sync(save, layout);
+      linesView.sync(save, layout);
       persist();
     },
     toast: (t, k) => hud.toast(t, k),
@@ -243,6 +260,13 @@ async function boot(): Promise<void> {
     capacity: () => storageCapacity(layout),
     droneReady: () => save.drone === 'active',
     welding: () => drone.welding,
+    factory,
+    lineAt: (x, y, reach) => linesView.lineAt(x, y, reach),
+    lineRoute: (id) => linesView.route(id),
+    linesChanged: () => {
+      linesView.sync(save, layout);
+      persist();
+    },
   });
 
   const care = new CareMode({
@@ -605,6 +629,16 @@ async function boot(): Promise<void> {
         save.oxygen = maxOxygen(save);
         hud.toast(`Air tank upgrade! Dive time +${TANK_BONUS} s`, 'big');
         drone.cheer();
+      } else if (ev.type === 'whorl') {
+        drone.cheer();
+        hud.toast(
+          `Echo whorl found (${save.whorls.length})! In build mode, select a creature tank or an auto feeder and fit it: ×2 output with one, ×3 with two, but it uses its inputs that much faster too.`,
+          'big',
+        );
+        if (!save.scans.includes('whorl')) {
+          save.scans.push('whorl');
+          hud.scanAnnounce('whorl');
+        }
       } else {
         let n = 0;
         for (const [k, v] of Object.entries(ev.items) as [keyof typeof save.bag, number][]) {
@@ -693,7 +727,7 @@ async function boot(): Promise<void> {
         persist();
       }
     }
-    if (build.active && drone.welding && Math.floor(time * 4) !== Math.floor((time - dt) * 4)) build.refresh();
+    if (build.active && (drone.welding || build.selected || build.selectedLine !== null) && Math.floor(time * 2) !== Math.floor((time - dt) * 2)) build.refresh();
 
     // ---- Creature tanks: swim up with a creature in the jar to put it in ----
     const tankNow = tankHere?.id ?? null;
@@ -726,6 +760,9 @@ async function boot(): Promise<void> {
     }
     nearTank = tankNow;
     hud.setJar(jarText());
+
+    // ---- Factory (milestone 5): conveyors, the auto feeder and feed pipes ----
+    factory.tick(save, layout, dt);
 
     // ---- Creature care: needs run on play time ----
     for (const ev of tickCare(save, layout, dt, () => storageCapacity(layout) - MATERIALS_LIST.reduce((a, k) => a + save.stored[k], 0))) {
@@ -809,21 +846,17 @@ async function boot(): Promise<void> {
       if (hintTimer > 2.5) hintEl.classList.add('gone');
     }
 
-    // Zoom out smoothly while building.
-    viewH += ((build.active ? VIEW_H_BUILD : care.active ? VIEW_H_CARE : VIEW_H) - viewH) * (1 - Math.exp(-4 * dt));
+    // Zoom out while building (the build camera is steered by pan and pinch).
+    const wantH = build.active ? build.cam.h : care.active ? VIEW_H_CARE : VIEW_H;
+    viewH += (wantH - viewH) * (1 - Math.exp(-(build.active ? 10 : 4) * dt));
     zoom = cssH / viewH;
     const viewW = cssW / zoom;
     lastViewW = viewW;
     let lookX = diver.x + diver.vx * 0.35 + (diver.vx >= 0 ? 60 : -60);
     let lookY = diver.y + diver.vy * 0.25 + 30;
     if (build.active) {
-      // Frame the whole site if it fits, else follow the piece being placed.
-      const siteW = GRID_X1 - GRID_X0 + 240;
-      const focus = build.ghost ? pieceRect(build.ghost) : build.selected ? pieceRect(build.selected) : null;
-      const mid = (GRID_X0 + GRID_X1) / 2;
-      lookX = viewW >= siteW || !focus ? mid : Math.max(GRID_X0 - 120 + viewW / 2, Math.min(GRID_X1 + 120 - viewW / 2, focus.x + focus.w / 2));
-      // Seabed at the site about three quarters down, above the piece bar.
-      lookY = GRID_BASE + 40 - 0.25 * viewH;
+      lookX = build.cam.x;
+      lookY = build.cam.y;
     } else if (care.active && care.tankId !== null) {
       // The tank sits in the left part of the screen, beside the care panel.
       const t = layout.pieces.find((p) => p.id === care.tankId);
@@ -834,25 +867,34 @@ async function boot(): Promise<void> {
         lookY = r.y + r.h / 2 + 10;
       }
     }
-    const k = 1 - Math.exp(-3.2 * dt);
+    const k = 1 - Math.exp(-(build.active ? 10 : 3.2) * dt);
     const prevX = camCX;
     const prevY = camCY;
     camCX += (lookX - camCX) * k;
     camCY += (lookY - camCY) * k;
-    // Keep the camera inside the world (a little sky is allowed at the top).
-    camCX = viewW >= WORLD_W ? WORLD_W / 2 : Math.max(viewW / 2, Math.min(WORLD_W - viewW / 2, camCX));
-    // A little sky is allowed at the top, enough to see a splash.
-    camCY = Math.max(viewH / 2 - (build.active ? 260 : care.active ? 0 : 110), Math.min(WORLD_H - viewH / 2, camCY));
+    if (!build.active) {
+      // Keep the camera inside the world (a little sky is allowed at the top, enough to see a splash).
+      camCX = viewW >= WORLD_SPAN ? WORLD_X0 + WORLD_SPAN / 2 : Math.max(WORLD_X0 + viewW / 2, Math.min(WORLD_W - viewW / 2, camCX));
+      camCY = Math.max(viewH / 2 - (care.active ? 0 : 110), Math.min(WORLD_H - viewH / 2, camCY));
+    }
     camX = camCX - viewW / 2;
     camY = camCY - viewH / 2;
     scenery.update(time, diver.x, diver.y, diver.vx, camX, camX + viewW);
     const storedNow = MATERIALS_LIST.reduce((a, k) => a + save.stored[k], 0);
     const cap = storageCapacity(layout);
-    baseView.update(dt, time, layout, cap ? storedNow / cap : 0, camX, camX + viewW, drone.welding?.id ?? null);
+    baseView.update(dt, time, layout, cap ? storedNow / cap : 0, camX, camX + viewW, drone.welding?.id ?? null, readings);
+    linesView.update(dt, factory, camX, camX + viewW);
     buildOverlay.view.visible = build.active;
     if (build.active) {
       const gs = build.ghostState();
-      buildOverlay.update(time, layout, build.ghost && gs ? { ...build.ghost, ok: gs.ok } : null, build.selected);
+      buildOverlay.update(
+        time,
+        layout,
+        build.ghost && gs ? { ...build.ghost, ok: gs.ok } : null,
+        build.link ? null : build.selected,
+        build.linkPreview(),
+        build.selectedLine !== null ? linesView.route(build.selectedLine) : null,
+      );
     }
     for (const sc of schools) sc.update(dt, time, diver.x, diver.y, camX, camX + viewW);
     tankLife.update(dt, time, save, camX, camX + viewW);
@@ -869,6 +911,8 @@ async function boot(): Promise<void> {
     const fz = zoom * 1.25;
     frontCam.scale.set(fz);
     frontCam.position.set(cssW / 2 - camCX * 1.3 * fz + WORLD_W * 0.15 * fz, cssH / 2 - camCY * fz + 40 * zoom);
+    // Far out in build mode the near kelp would fill the screen: fade it away.
+    frontCam.alpha = Math.max(0, Math.min(1, (1300 - viewH) / 400));
 
     // Shoulder lamp.
     const lp = diver.lampPose();
@@ -883,7 +927,7 @@ async function boot(): Promise<void> {
     diver.lensGlow.alpha = diver.lamp * diver.view.alpha;
 
     const lights: Light[] = [lampLight, ...drone.lights, ...scenery.lights, ...baseView.lights, ...pickups.lights, ...wildlife.lights, ...fish.map((f) => f.light)];
-    const floor = groundY(Math.max(0, Math.min(WORLD_W, diver.x)));
+    const floor = groundY(Math.max(WORLD_X0, Math.min(WORLD_W, diver.x)));
     const height = floor - diver.y;
     lighting.update({
       time,
@@ -988,6 +1032,15 @@ async function boot(): Promise<void> {
     tankLife,
     care,
     tickCare: (sec: number) => tickCare(save, layout, sec, () => 99),
+    factory,
+    linesView,
+    whorlMult: (id: number) => whorlMult(save, id),
+    tickFactory: (sec: number) => {
+      for (let t = 0; t < sec; t += 0.5) {
+        factory.tick(save, layout, 0.5);
+        tickCare(save, layout, 0.5, () => 99);
+      }
+    },
     snap: () => {
       camCX = diver.x;
       camCY = diver.y;

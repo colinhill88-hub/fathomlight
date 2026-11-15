@@ -1,9 +1,10 @@
 import { Container, Graphics, Text } from 'pixi.js';
 import { mulberry32, WORLD_SEED } from '../rng';
-import { groundY, WORLD_W } from './terrain';
+import { groundY, WORLD_W, WORLD_X0 } from './terrain';
 import {
   BaseLayout,
   CELL,
+  cellOpen,
   Collar,
   collarPoint,
   collarsOf,
@@ -12,6 +13,7 @@ import {
   GRID_ROWS,
   GRID_X0,
   isDone,
+  onSeabed,
   PieceKind,
   pieceRect,
   Placed,
@@ -19,6 +21,15 @@ import {
   STORAGE_PER_POD,
 } from '../game/base';
 import type { PointLight } from './scenery';
+import { WhorlArt } from './whorl';
+
+/** Live machine readings for drawing (milestone 5). */
+export interface PieceReadings {
+  /** Echo whorls fitted to a piece. */
+  whorls(id: number): number;
+  /** An auto feeder's hopper and mash levels (0..1) and whether it is pressing. */
+  feeder(id: number): { hopper: number; mash: number; run: boolean } | null;
+}
 
 /**
  * Drawing the base pieces (milestone 3), all with code: weathered steel,
@@ -191,6 +202,10 @@ interface PieceArt {
   /** Storage fill gauge (redrawn as the pod fills). */
   gauge?: Graphics;
   gaugeBox?: { x: number; y: number; w: number; h: number };
+  /** Auto feeder (milestone 5): hopper and mash levels, redrawn as they change. */
+  levels?: { g: Graphics; hopper: { x: number; y: number; w: number; h: number }; mash: { x: number; y: number; w: number; h: number } };
+  /** Where fitted Echo whorls show on the piece (local). */
+  whorlAt?: { x: number; y: number };
 }
 
 function drawDome(n: number): PieceArt {
@@ -540,7 +555,7 @@ function drawTank(n: number): PieceArt {
   streaks(g, 8, W - 8, H - 4, 10, 8);
   scratches(g, 6, 2, W - 6, 14, 8);
   algaeLine(g, 6, W - 6, H - 3, 24);
-  return { body, windows, windowGlow, lamp: { x: W - 30, y: 8 } };
+  return { body, windows, windowGlow, lamp: { x: W - 30, y: 8 }, whorlAt: { x: W - 30, y: 26 } };
 }
 
 /**
@@ -592,7 +607,92 @@ function drawFilter(n: number): PieceArt {
   algaeLine(g, 18, CELL - 18, CELL - 12, 14);
   windows.rect(c + 22, 48, 0.1, 0.1).fill({ color: 0 });
   windowGlow.rect(c + 22, 48, 0.1, 0.1).fill({ color: 0 });
-  return { body, rotor, windows, windowGlow, lamp: { x: c + 26, y: 40 } };
+  return { body, rotor, windows, windowGlow, lamp: { x: c + 26, y: 40 }, whorlAt: { x: 26, y: 30 } };
+}
+
+/**
+ * Auto feeder (milestone 5): a tall press. Kelp fibre drops from the
+ * conveyor into a funnel hopper on top, a geared press drum grinds it, and
+ * the mash collects in a tank with a glass sight window at the bottom. A
+ * copper riser carries the mash back up to the feed pipe port on top.
+ */
+function drawFeeder(n: number): PieceArt {
+  const W = CELL;
+  const H = CELL * 2;
+  const body = new Container();
+  const g = body.addChild(new Graphics());
+  const windows = new Graphics();
+  const windowGlow = new Graphics();
+  const cy = H - CELL / 2;
+  tubeH(g, 0, 18, cy, 1);
+  tubeH(g, W - 18, W, cy, 1);
+  // Frame posts the whole height.
+  g.rect(12, 20, 7, H - 26).fill({ color: PAL.steelDark });
+  g.rect(W - 26, 20, 7, H - 26).fill({ color: PAL.steelDark });
+  // Copper riser from the mash tank up to the pipe port.
+  const px = W / 2 + 22;
+  g.rect(px - 5, 6, 10, H - 70).fill({ color: 0x8a6a3a });
+  g.rect(px - 5, 6, 3, H - 70).fill({ color: 0xffffff, alpha: 0.16 });
+  for (let y = 22; y < H - 70; y += 34) g.rect(px - 7, y, 14, 4).fill({ color: PAL.brass });
+  dab(g, px, H - 110, 6, 14, 0x5e8a6e, 0.5);
+  // Hopper: a funnel open at the top, where the conveyor drops in.
+  const hx0 = 8;
+  const hx1 = 66;
+  g.poly([hx0, 6, hx1, 6, hx1 - 14, 66, hx0 + 14, 66]).fill({ color: PAL.steel });
+  g.poly([hx0 + 5, 10, hx1 - 5, 10, hx1 - 17, 60, hx0 + 17, 60]).fill({ color: PAL.steelDeep });
+  const hopper = { x: hx0 + 18, y: 14, w: hx1 - hx0 - 36, h: 44 };
+  hazardBand(g, hx0, 4, hx1 - hx0, 7);
+  rivets(g, hx0 + 4, 16, hx0 + 16, 62, 4);
+  rivets(g, hx1 - 4, 16, hx1 - 16, 62, 4);
+  // Press drum with a big gear.
+  g.roundRect(12, 70, W - 24, 58, 10).fill({ color: PAL.yellow });
+  g.roundRect(14, 72, W - 28, 6, 3).fill({ color: 0xffffff, alpha: 0.15 });
+  g.roundRect(12, 116, W - 24, 12, 4).fill({ color: PAL.yellowDark, alpha: 0.6 });
+  rivets(g, 18, 75, W - 18, 75, 8);
+  rivets(g, 18, 123, W - 18, 123, 8);
+  g.circle(40, 99, 22).fill({ color: PAL.steelDeep });
+  const rotor = new Container();
+  const rg = rotor.addChild(new Graphics());
+  const teeth: number[] = [];
+  for (let i = 0; i < 20; i++) {
+    const a = (i / 20) * Math.PI * 2;
+    const rr = i % 2 ? 15 : 19;
+    teeth.push(Math.cos(a) * rr, Math.sin(a) * rr);
+  }
+  rg.poly(teeth).fill({ color: PAL.steelLight });
+  rg.circle(0, 0, 10).fill({ color: PAL.steel });
+  for (let i = 0; i < 4; i++) {
+    const a = (i / 4) * Math.PI * 2 + 0.4;
+    rg.circle(Math.cos(a) * 6, Math.sin(a) * 6, 2).fill({ color: PAL.steelDeep });
+  }
+  rg.circle(0, 0, 3).fill({ color: PAL.brass });
+  rotor.position.set(40, 99);
+  body.addChild(rotor);
+  g.circle(78, 92, 7).fill({ color: PAL.brass });
+  g.circle(78, 92, 5.5).fill({ color: 0xe8e2cc });
+  g.moveTo(78, 92).lineTo(81, 88.5).stroke({ color: PAL.rust, width: 1.2 });
+  // Mash tank with a sight window.
+  g.roundRect(14, 134, W - 28, H - 146, 8).fill({ color: PAL.steel });
+  g.roundRect(18, 138, 6, H - 156, 3).fill({ color: 0xffffff, alpha: 0.12 });
+  g.roundRect(W - 34, 138, 12, H - 156, 5).fill({ color: PAL.steelDeep, alpha: 0.4 });
+  const mash = { x: 32, y: 146, w: 18, h: 54 };
+  g.roundRect(mash.x - 4, mash.y - 4, mash.w + 8, mash.h + 8, 4).fill({ color: PAL.brass });
+  g.rect(mash.x, mash.y, mash.w, mash.h).fill({ color: 0x1c2a2e });
+  rivets(g, 20, H - 16, W - 20, H - 16, 7);
+  const levels = { g: new Graphics(), hopper, mash };
+  body.addChild(levels.g);
+  // Glass sheen over the sight window, above the level.
+  const sheen = body.addChild(new Graphics());
+  sheen.rect(mash.x + 2, mash.y + 2, 3, mash.h - 4).fill({ color: 0xffffff, alpha: 0.22 });
+  body.addChild(stencil(`AF-${n}`, 70, 150, 6, -Math.PI / 2));
+  streaks(g, 14, W - 14, 128, 10, 22);
+  streaks(g, 14, W - 14, 60, 6, 14);
+  scratches(g, 12, 70, W - 12, H - 14, 10);
+  algaeLine(g, 14, W - 14, H - 14, 16);
+  algaeLine(g, hx0 + 4, hx1 - 4, 8, 6);
+  windows.rect(W - 40, 140, 10, 4).fill({ color: 0xfff1d0, alpha: 0.9 });
+  windowGlow.rect(W - 46, 132, 24, 18).fill({ color: PAL.warm, alpha: 0.3 });
+  return { body, rotor, windows, windowGlow, lamp: { x: W - 34, y: 182 }, levels, whorlAt: { x: 80, y: 112 } };
 }
 
 /** Draw a piece's art. The same drawing is used for placed pieces and the build ghost. */
@@ -603,6 +703,7 @@ export function drawPiece(kind: PieceKind, n: number, rot: number, seed: number)
   if (kind === 'turbine') return drawTurbine(n);
   if (kind === 'tank') return drawTank(n);
   if (kind === 'filter') return drawFilter(n);
+  if (kind === 'feeder') return drawFeeder(n);
   return drawStorage(n);
 }
 
@@ -656,6 +757,10 @@ interface Live {
   spin: number;
   /** While the piece is still a frame being welded by the drone. */
   frame: { mask: Graphics; scaffold: Graphics; seam: Graphics; seamGlow: Graphics; shown: number } | null;
+  /** Fitted Echo whorls (milestone 5). */
+  whorls: WhorlArt[];
+  /** Last drawn feeder levels. */
+  levelKey: string;
 }
 
 /** A steel scaffold drawn over a frame until the drone finishes welding it. */
@@ -697,11 +802,12 @@ export class BaseView {
   private legs = new Graphics();
   private collarG = new Graphics();
   private pieceLayer = new Container();
+  private whorlLayer = new Container();
   private live = new Map<number, Live>();
   private sparks: Spark[] = [];
 
   constructor() {
-    this.view.addChild(this.legs, this.pieceLayer, this.collarG);
+    this.view.addChild(this.legs, this.pieceLayer, this.collarG, this.whorlLayer);
   }
 
   /** Bring the drawing in line with the layout. `fresh` ids get the assembly animation. */
@@ -717,9 +823,10 @@ export class BaseView {
       l.lampHalo.destroy();
       l.frame?.seam.destroy();
       l.frame?.seamGlow.destroy();
+      for (const w of l.whorls) this.dropWhorl(w);
       this.live.delete(id);
     }
-    const counts: Record<PieceKind, number> = { dome: 0, corridor: 0, turbine: 0, storage: 0, tank: 0, filter: 0 };
+    const counts: Record<PieceKind, number> = { dome: 0, corridor: 0, turbine: 0, storage: 0, tank: 0, filter: 0, feeder: 0 };
     for (const p of [...layout.pieces].sort((a, b) => a.id - b.id)) {
       counts[p.kind]++;
       if (this.live.has(p.id)) continue;
@@ -766,7 +873,22 @@ export class BaseView {
         this.glow.addChild(seamGlow);
         frame = { mask, scaffold, seam, seamGlow, shown: -1 };
       }
-      this.live.set(p.id, { placed: p, art, root, lampG, lampHalo, light, build: isFresh ? 0 : 1, phase: rand() * 10, powered: false, fill: -1, spin: 0, frame });
+      this.live.set(p.id, {
+        placed: p,
+        art,
+        root,
+        lampG,
+        lampHalo,
+        light,
+        build: isFresh ? 0 : 1,
+        phase: rand() * 10,
+        powered: false,
+        fill: -1,
+        spin: 0,
+        frame,
+        whorls: [],
+        levelKey: '',
+      });
       if (isFresh) this.burst(r.x + r.w / 2, r.y + r.h / 2, r.w, r.h);
     }
     this.lights.length = 0;
@@ -791,7 +913,7 @@ export class BaseView {
         const x0 = r.x + i * CELL;
         for (const lx of [x0 + 22, x0 + CELL - 22]) {
           const top = r.y + r.h - (p.kind === 'corridor' && p.rot % 2 === 0 ? CELL / 2 - TUBE / 2 + 2 : 14);
-          const bot = below >= 0 ? GRID_BASE - (below + 1) * CELL : groundY(Math.max(0, Math.min(WORLD_W, lx))) + 6;
+          const bot = below >= 0 ? GRID_BASE - (below + 1) * CELL : groundY(Math.max(WORLD_X0, Math.min(WORLD_W, lx))) + 6;
           if (bot - top < 4) continue;
           g.rect(lx - 4, top, 8, bot - top).fill({ color: PAL.steelDark });
           g.rect(lx - 4, top, 2.5, bot - top).fill({ color: 0xffffff, alpha: 0.1 });
@@ -817,9 +939,31 @@ export class BaseView {
     for (const p of layout.pieces)
       for (const k of collarsOf(p)) {
         // A collar facing down into the seabed is sealed flush: nothing can join there.
-        if (k.dir === 'D' && k.gy === 0) continue;
+        if (k.dir === 'D' && onSeabed(k.gx, k.gy)) continue;
         drawCollar(c, k, layout.isJoined(k));
       }
+  }
+
+  private dropWhorl(w: WhorlArt): void {
+    w.shell.destroy();
+    w.light.destroy({ children: true });
+    w.halo.destroy();
+  }
+
+  /** Show the Echo whorls fitted to each piece, side by side at its whorl spot. */
+  private syncWhorls(l: Live, n: number): void {
+    while (l.whorls.length > n) this.dropWhorl(l.whorls.pop()!);
+    const at = l.art.whorlAt;
+    if (!at) return;
+    while (l.whorls.length < n) {
+      const w = new WhorlArt(0.8);
+      this.whorlLayer.addChild(w.shell);
+      this.emissive.addChild(w.light);
+      this.glow.addChild(w.halo);
+      l.whorls.push(w);
+    }
+    const r = pieceRect(l.placed);
+    l.whorls.forEach((w, i) => w.setPosition(r.x + at.x - i * 17, r.y + at.y));
   }
 
   /** Welding sparks around a newly placed piece. */
@@ -853,10 +997,46 @@ export class BaseView {
   }
 
   /** weldId: the frame the drone is welding right now (its seam glows). */
-  update(dt: number, time: number, layout: BaseLayout, storedFrac: number, viewX0: number, viewX1: number, weldId: number | null = null): void {
+  update(
+    dt: number,
+    time: number,
+    layout: BaseLayout,
+    storedFrac: number,
+    viewX0: number,
+    viewX1: number,
+    weldId: number | null = null,
+    readings: PieceReadings | null = null,
+  ): void {
     const visible = viewX1 > GRID_X0 - 300 && viewX0 < GRID_X0 + GRID_COLS * CELL + 300;
     this.view.visible = this.front.visible = visible;
     for (const l of this.live.values()) {
+      if (readings) {
+        const n = l.frame ? 0 : readings.whorls(l.placed.id);
+        if (n !== l.whorls.length) this.syncWhorls(l, n);
+        for (const w of l.whorls) w.pulse(time, l.powered ? 1 : 0.4);
+        const lv = l.art.levels;
+        const f = lv && !l.frame ? readings.feeder(l.placed.id) : null;
+        if (lv && f) {
+          const key = `${f.hopper.toFixed(2)}|${f.mash.toFixed(2)}`;
+          if (key !== l.levelKey) {
+            l.levelKey = key;
+            const g = lv.g.clear();
+            const hb = lv.hopper;
+            const hh = hb.h * f.hopper;
+            if (hh > 0.5) {
+              g.rect(hb.x, hb.y + hb.h - hh, hb.w, hh).fill({ color: 0xb8923f });
+              for (let i = 0; i < hb.w; i += 4) g.rect(hb.x + i, hb.y + hb.h - hh, 2, Math.min(hh, 6)).fill({ color: 0xe0c070, alpha: 0.8 });
+            }
+            const mb = lv.mash;
+            const mh = mb.h * f.mash;
+            if (mh > 0.5) {
+              g.rect(mb.x, mb.y + mb.h - mh, mb.w, mh).fill({ color: 0x9aa84a });
+              g.rect(mb.x, mb.y + mb.h - mh, mb.w, 2).fill({ color: 0xd8e6a0 });
+            }
+          }
+          if (l.art.rotor) l.art.rotor.rotation += dt * (f.run && l.powered ? 2.4 : 0);
+        }
+      }
       const powered = layout.powered.has(l.placed.id);
       l.powered = powered;
       const r = pieceRect(l.placed);
@@ -903,7 +1083,7 @@ export class BaseView {
       l.lampHalo.tint = l.lampG.tint;
       l.lampG.alpha = blink * l.root.alpha;
       l.lampHalo.alpha = blink * 0.7 * l.root.alpha;
-      if (l.art.rotor) {
+      if (l.art.rotor && l.placed.kind !== 'feeder') {
         if (l.placed.kind === 'filter') {
           // The filter impeller only spins with power.
           l.spin += dt * (powered && !l.frame ? 9 : 0);
@@ -955,28 +1135,60 @@ export class BuildOverlay {
   private select = new Graphics();
   private ghostKey = '';
 
-  constructor() {
-    this.view.addChild(this.grid, this.ghostRoot, this.ghostOutline, this.marks, this.select);
-    this.view.visible = false;
-  }
+  private links = new Graphics();
 
-  update(
-    time: number,
-    layout: BaseLayout,
-    ghost: { kind: PieceKind; gx: number; gy: number; rot: number; ok: boolean } | null,
-    selected: Placed | null,
-  ): void {
-    // Faint cell corners over free cells.
+  constructor() {
+    this.view.addChild(this.grid, this.links, this.ghostRoot, this.ghostOutline, this.marks, this.select);
+    this.view.visible = false;
+    // Faint cell corners over open water, drawn once (the site is big).
     const g = this.grid;
-    g.clear();
     for (let gx = 0; gx <= GRID_COLS; gx++)
       for (let gy = 0; gy <= GRID_ROWS; gy++) {
+        if (!cellOpen(gx, gy) && !cellOpen(gx - 1, gy) && !cellOpen(gx, gy - 1) && !cellOpen(gx - 1, gy - 1)) continue;
         const x = GRID_X0 + gx * CELL;
         const y = GRID_BASE - gy * CELL;
         g.moveTo(x - 6, y).lineTo(x + 6, y).moveTo(x, y - 6).lineTo(x, y + 6);
       }
     g.stroke({ color: 0xfff1d0, width: 1.5, alpha: 0.35 });
-    g.rect(GRID_X0, GRID_BASE - GRID_ROWS * CELL, GRID_COLS * CELL, GRID_ROWS * CELL).stroke({ color: 0xfff1d0, width: 1, alpha: 0.18 });
+    // The edge of the site: along the top and sides, and around the rock under the shelf.
+    for (let gx = 0; gx < GRID_COLS; gx++)
+      for (let gy = 0; gy < GRID_ROWS; gy++) {
+        if (!cellOpen(gx, gy)) continue;
+        const x = GRID_X0 + gx * CELL;
+        const y = GRID_BASE - (gy + 1) * CELL;
+        if (!cellOpen(gx - 1, gy)) g.moveTo(x, y).lineTo(x, y + CELL);
+        if (!cellOpen(gx + 1, gy)) g.moveTo(x + CELL, y).lineTo(x + CELL, y + CELL);
+        if (!cellOpen(gx, gy + 1)) g.moveTo(x, y).lineTo(x + CELL, y);
+        if (gy > 0 && !cellOpen(gx, gy - 1)) g.moveTo(x, y + CELL).lineTo(x + CELL, y + CELL);
+      }
+    g.stroke({ color: 0xfff1d0, width: 2, alpha: 0.22 });
+  }
+
+  /**
+   * link: a conveyor or pipe being drawn (milestone 5): where it would run,
+   * whether it can, and the pieces it could go to. line: the selected line's path.
+   */
+  update(
+    time: number,
+    layout: BaseLayout,
+    ghost: { kind: PieceKind; gx: number; gy: number; rot: number; ok: boolean } | null,
+    selected: Placed | null,
+    link: { from: Placed; targets: Placed[]; route: [number, number][] | null; ok: boolean } | null = null,
+    line: [number, number][] | null = null,
+  ): void {
+    const lg = this.links;
+    lg.clear();
+    if (link) {
+      const pulse = 0.5 + 0.5 * Math.sin(time * 5);
+      for (const t of link.targets) {
+        const r = pieceRect(t);
+        lg.roundRect(r.x - 4, r.y - 4, r.w + 8, r.h + 8, 8).stroke({ color: 0xd8e6a0, width: 2.5, alpha: 0.35 + 0.5 * pulse });
+      }
+      const fr = pieceRect(link.from);
+      lg.roundRect(fr.x - 5, fr.y - 5, fr.w + 10, fr.h + 10, 8).stroke({ color: 0xffc070, width: 3 });
+      if (link.route) dashed(lg, link.route, time, link.ok ? 0xd8e6a0 : 0xe05a40);
+    }
+    if (line) dashed(lg, line, time, 0xffc070);
 
     // Open collars pulse, so it is clear where the next piece can join.
     const m = this.marks;
@@ -1064,4 +1276,22 @@ export class BuildOverlay {
       s.stroke({ color: 0xffc070, width: 2.5 });
     }
   }
+}
+
+/** A marching dashed path, for line previews and the selected line. */
+function dashed(g: Graphics, pts: [number, number][], time: number, color: number): void {
+  for (let i = 1; i < pts.length; i++) g.moveTo(pts[i - 1][0], pts[i - 1][1]).lineTo(pts[i][0], pts[i][1]);
+  g.stroke({ color, width: 16, alpha: 0.18, cap: 'round', join: 'round' });
+  const off = (time * 40) % 24;
+  for (let i = 1; i < pts.length; i++) {
+    const [ax, ay] = pts[i - 1];
+    const [bx, by] = pts[i];
+    const l = Math.hypot(bx - ax, by - ay);
+    if (l < 1) continue;
+    for (let d = off; d < l; d += 24) {
+      const e = Math.min(l, d + 12);
+      g.moveTo(ax + ((bx - ax) * d) / l, ay + ((by - ay) * d) / l).lineTo(ax + ((bx - ax) * e) / l, ay + ((by - ay) * e) / l);
+    }
+  }
+  g.stroke({ color, width: 3, alpha: 0.95, cap: 'round' });
 }

@@ -19,9 +19,16 @@ float noise(vec2 p) {
              mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), u.x), u.y);
 }
 
+// Milestone 5: below about 12 m light fades more slowly, so the floor of the
+// 22 m Kestrel basin (where the factory goes) stays readable instead of black.
+float depthLook(float d) {
+  return d < 900.0 ? d : 900.0 + (d - 900.0) * 0.4;
+}
+
 // Water colour at a depth (world units, 75 per metre). Warm tones fade first,
 // so it goes from pale sunlit teal to blue-green to blue-black.
 vec3 waterColor(float d) {
+  d = depthLook(d);
   vec3 c0 = vec3(0.64, 0.82, 0.78);
   vec3 c1 = vec3(0.25, 0.53, 0.55);
   vec3 c2 = vec3(0.08, 0.26, 0.33);
@@ -34,6 +41,7 @@ vec3 waterColor(float d) {
 
 // How much sunlight of each colour survives down to a depth.
 vec3 absorb(float d) {
+  d = depthLook(d);
   return exp(-max(d, 0.0) * vec3(0.00095, 0.00036, 0.00026));
 }
 `;
@@ -56,6 +64,7 @@ function mix3(a: number[], b: number[], t: number): [number, number, number] {
 
 /** TypeScript copy of the shader's waterColor. Returns r, g, b in 0..1. */
 export function waterColor(d: number): [number, number, number] {
+  if (d > 900) d = 900 + (d - 900) * 0.4;
   let c = mix3(stops[0], stops[1], smoothstep(0, 380, d));
   c = mix3(c, stops[2], smoothstep(250, 800, d));
   c = mix3(c, stops[3], smoothstep(700, 1250, d));

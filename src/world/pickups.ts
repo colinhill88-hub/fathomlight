@@ -1,6 +1,7 @@
 import { Container, Graphics } from 'pixi.js';
 import { mulberry32, WORLD_SEED } from '../rng';
-import { isSolid, CREVICE_X } from './terrain';
+import { isSolid, CREVICE_X, caveBottom, groundY, WALL_NOOK, WORLD_H } from './terrain';
+import { WhorlArt } from './whorl';
 import { MATERIALS, MaterialId, REGROW_SECONDS, SaveData, DroppedBag } from '../game/state';
 import type { PointLight } from './scenery';
 
@@ -21,13 +22,13 @@ const R = (a: number, b: number) => a + rand() * (b - a);
 
 /** The first solid y at x, searching down from `from`. */
 function surfaceAt(x: number, from = 0): number {
-  for (let y = from; y < 1300; y += 2) if (isSolid(x, y)) return y;
-  return 1300;
+  for (let y = from; y < WORLD_H; y += 2) if (isSolid(x, y)) return y;
+  return WORLD_H;
 }
 
 interface Spot {
   id: string;
-  kind: MaterialId | 'tank';
+  kind: MaterialId | 'tank' | 'whorl';
   x: number;
   y: number;
 }
@@ -43,10 +44,15 @@ const SPOTS: Spot[] = (() => {
   // kept creatures, which make materials, matter more. 39 spots became 28.
   add('scrap', [3960, 4040, 4210, 4290, 4930, 7420, [6120, 760], 2890]);
   add('copper', [520, 1260, 2660, 3400, 4460, 7120, [6330, 760]]);
-  add('quartz', [280, 2220, 3140, 4720, 5310, 6020, 6420]);
+  // quartz-0 moved from the old west wall (now the basin) to the top of the cliff.
+  add('quartz', [372, 2220, 3140, 4720, 5310, 6020, 6420]);
   add('fibre', [1650, 1910, 2560, 3300, 6960, 7900]);
   s.push({ id: 'tank-grotto', kind: 'tank', x: 6720, y: surfaceAt(6720, 760) - 12 });
   s.push({ id: 'tank-crevice', kind: 'tank', x: CREVICE_X, y: surfaceAt(CREVICE_X) - 12 });
+  // Echo whorls (milestone 5): rare, glowing in the Choir's colours. One in
+  // the nook in the basin's west wall, one just inside the dark cave mouth.
+  s.push({ id: 'whorl-nook', kind: 'whorl', x: WALL_NOOK.x, y: groundY(WALL_NOOK.x) - 9 });
+  s.push({ id: 'whorl-cave', kind: 'whorl', x: 8660, y: caveBottom(8660) - 9 });
   return s;
 })();
 
@@ -121,6 +127,7 @@ const DRAW: Record<Spot['kind'], (g: Graphics) => void> = {
   quartz: drawQuartz,
   fibre: drawFibre,
   tank: drawTank,
+  whorl: () => undefined,
 };
 
 interface Item {
@@ -159,6 +166,7 @@ interface Bit {
 export type PickupEvent =
   | { type: 'material'; kind: MaterialId; x: number; y: number }
   | { type: 'tank'; id: string }
+  | { type: 'whorl'; id: string }
   | { type: 'bag'; items: Partial<Record<MaterialId, number>> };
 
 export class Pickups {
@@ -173,10 +181,18 @@ export class Pickups {
   private bagHalo = new Graphics();
   private bagLight: PointLight = { x: 0, y: 0, radius: 160, intensity: 0, color: [1, 0.7, 0.3] };
   private tankLights = new Map<string, PointLight>();
+  private whorls = new Map<string, WhorlArt>();
 
   constructor() {
     for (const spot of SPOTS) {
-      const view = new Graphics();
+      let view = new Graphics();
+      if (spot.kind === 'whorl') {
+        const art = new WhorlArt(1.1);
+        view = art.shell;
+        this.emissive.addChild(art.light);
+        this.glow.addChild(art.halo);
+        this.whorls.set(spot.id, art);
+      }
       DRAW[spot.kind](view);
       view.position.set(spot.x, spot.y);
       view.rotation = spot.kind === 'tank' ? R(-0.15, 0.15) : R(-0.25, 0.25);
@@ -188,9 +204,13 @@ export class Pickups {
       this.view.addChild(view);
       this.emissive.addChild(glint);
       this.items.push({ spot, view, glint, present: true, pull: 0, phase: rand() * 10 });
-      if (spot.kind === 'tank') {
-        // A faint warm light makes the hidden tanks findable in the dark.
-        const l: PointLight = { x: spot.x, y: spot.y - 10, radius: 110, intensity: 0.5, color: [1, 0.85, 0.5] };
+      if (spot.kind === 'tank' || spot.kind === 'whorl') {
+        // A faint warm light makes the hidden tanks findable in the dark;
+        // a whorl's own cold light gives it away.
+        const l: PointLight =
+          spot.kind === 'whorl'
+            ? { x: spot.x, y: spot.y - 6, radius: 150, intensity: 0.6, color: [0.55, 0.7, 1.0] }
+            : { x: spot.x, y: spot.y - 10, radius: 110, intensity: 0.5, color: [1, 0.85, 0.5] };
         this.tankLights.set(spot.id, l);
         this.lights.push(l);
       }
@@ -202,6 +222,11 @@ export class Pickups {
     this.emissive.addChild(this.bagLamp);
     this.glow.addChild(this.bagHalo);
     this.lights.push(this.bagLight);
+  }
+
+  /** Echo whorls still lying out in the world (for the scanner). */
+  whorlPoints(): { x: number; y: number }[] {
+    return this.items.filter((it) => it.spot.kind === 'whorl' && it.present).map((it) => ({ x: it.spot.x, y: it.spot.y }));
   }
 
   /** Where the dropped bag is, if there is one (for the off-screen marker). */
@@ -239,10 +264,21 @@ export class Pickups {
     let bestD = REACH;
     for (const it of this.items) {
       const { spot } = it;
-      const isTank = spot.kind === 'tank';
-      const taken = isTank ? save.tanks.includes(spot.id) : spot.id in save.taken;
+      const isWhorl = spot.kind === 'whorl';
+      // Air tanks and whorls are picked up by touch, once.
+      const isTank = spot.kind === 'tank' || isWhorl;
+      const found = (id: string) => (isWhorl ? save.whorls.includes(id) : save.tanks.includes(id));
+      const taken = isTank ? found(spot.id) : spot.id in save.taken;
       if (!isTank && taken && now - save.taken[spot.id] > REGROW_SECONDS) delete save.taken[spot.id];
-      const gone = isTank ? save.tanks.includes(spot.id) : spot.id in save.taken;
+      const gone = isTank ? found(spot.id) : spot.id in save.taken;
+      const art = this.whorls.get(spot.id);
+      if (art) {
+        art.setPosition(it.view.x, it.view.y);
+        art.light.visible = art.halo.visible = it.view.visible && !gone;
+        art.light.scale.set(it.view.scale.x);
+        art.halo.scale.set(it.view.scale.x);
+        art.pulse(time);
+      }
 
       if (it.pull > 0) {
         // Being pulled in: slide towards the diver and shrink, then vanish.
@@ -288,8 +324,13 @@ export class Pickups {
       if (isTank) {
         if (dist < 46) {
           it.pull = 0.0001;
-          save.tanks.push(spot.id);
-          events.push({ type: 'tank', id: spot.id });
+          if (isWhorl) {
+            save.whorls.push(spot.id);
+            events.push({ type: 'whorl', id: spot.id });
+          } else {
+            save.tanks.push(spot.id);
+            events.push({ type: 'tank', id: spot.id });
+          }
           if (l) l.intensity = 0;
         }
       } else if (dist < bestD) {
@@ -424,7 +465,7 @@ export class Pickups {
 /** Somewhere sensible to put the bag: on the seabed below where the diver blacked out. */
 export function bagRestingPlace(x: number, y: number): { x: number; y: number } {
   let yy = y;
-  while (yy < 1300 && !isSolid(x, yy + 12)) yy += 4;
+  while (yy < WORLD_H && !isSolid(x, yy + 12)) yy += 4;
   return { x, y: Math.min(yy, 1290) };
 }
 

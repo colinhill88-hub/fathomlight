@@ -1,5 +1,6 @@
 import { BaseLayout, isDone, Placed } from './base';
 import { CreatureData, MaterialId, MATERIAL_ORDER, PlantId, SaveData, SpeciesId, TankData } from './state';
+import { EAT_BELOW, MASH_FED, whorlMult } from './factory';
 
 /**
  * Creature care (milestone 4). No drawing here, just the rules.
@@ -119,8 +120,47 @@ export const HAPPY_AT = 0.6;
 export const GROW_SECONDS = 480;
 /** Egg to young, in any tank (90 seconds). */
 export const HATCH_SECONDS = 90;
-/** A grown, happy creature makes one material this often (4 minutes). */
+/** A grown, happy creature makes one material this often (4 minutes), before bonuses. */
 export const MAKE_SECONDS = 240;
+/**
+ * Milestone 5: output scales with how many happy creatures and tanks the
+ * base has. Each happy tank-mate adds this much (a shoal works together)...
+ */
+export const SHOAL_BONUS = 0.15;
+/** ...and each other thriving tank in the base adds this much (a healthy reef), */
+export const REEF_BONUS = 0.1;
+/** up to this. A tank thrives with at least two grown, happy creatures. */
+export const REEF_MAX = 0.5;
+
+/** Is this creature happy enough to grow and make things? */
+export function isHappy(save: SaveData, c: CreatureData): boolean {
+  return c.stage !== 'egg' && c.sickness === 0 && worstNeed(save, c).value >= HAPPY_AT;
+}
+
+/** Tanks with at least two grown, happy creatures. */
+export function thrivingTanks(save: SaveData, layout: BaseLayout): Set<number> {
+  const out = new Set<number>();
+  for (const t of tanks(layout)) if (creaturesIn(save, t.id).filter((c) => c.stage === 'grown' && isHappy(save, c)).length >= 2) out.add(t.id);
+  return out;
+}
+
+/**
+ * How fast a grown creature makes its material, in items per minute, and
+ * the parts of that number for the readouts. Zero unless it is happy.
+ */
+export function makeRate(
+  save: SaveData,
+  layout: BaseLayout,
+  c: CreatureData,
+  thriving = thrivingTanks(save, layout),
+): { perMin: number; shoal: number; reef: number; whorl: number } {
+  const mates = creaturesIn(save, c.tank).filter((m) => m.id !== c.id && isHappy(save, m)).length;
+  const shoal = SHOAL_BONUS * mates;
+  const reef = Math.min(REEF_MAX, REEF_BONUS * (thriving.size - (thriving.has(c.tank) ? 1 : 0)));
+  const whorl = whorlMult(save, c.tank);
+  const base = c.stage === 'grown' && isHappy(save, c) ? 60 / MAKE_SECONDS : 0;
+  return { perMin: base * (1 + shoal) * (1 + reef) * whorl, shoal, reef, whorl };
+}
 
 export function tankDataFor(save: SaveData, tankId: number): TankData {
   const k = String(tankId);
@@ -267,12 +307,14 @@ export type CareEvent =
 export function tickCare(save: SaveData, layout: BaseLayout, dt: number, room: () => number): CareEvent[] {
   const ev: CareEvent[] = [];
   const filtered = filteredTanks(layout);
+  const thriving = thrivingTanks(save, layout);
   const live = new Set(layout.pieces.filter((p) => p.kind === 'tank').map((p) => p.id));
   // Water.
   for (const t of tanks(layout)) {
     const td = tankDataFor(save, t.id);
     const n = creaturesIn(save, t.id).filter((c) => c.stage !== 'egg').length;
-    td.water -= n * DIRT_RATE * dt;
+    // Echo whorls quicken the whole tank: its creatures foul the water faster too.
+    td.water -= n * DIRT_RATE * whorlMult(save, t.id) * dt;
     if (filtered.has(t.id)) td.water += FILTER_RATE * dt;
     td.water = Math.max(0, Math.min(1, td.water));
   }
@@ -289,7 +331,15 @@ export function tickCare(save: SaveData, layout: BaseLayout, dt: number, room: (
       }
       continue;
     }
-    c.fed = Math.max(0, c.fed - HUNGER_RATE * dt);
+    c.fed = Math.max(0, c.fed - HUNGER_RATE * whorlMult(save, c.tank) * dt);
+    // Milestone 5: creatures eat from the tank's feed trough (filled by an
+    // auto feeder through a feed pipe) whenever they get peckish.
+    const trough = tankDataFor(save, c.tank);
+    if (c.fed < EAT_BELOW && (trough.mash ?? 0) > 0) {
+      const eat = Math.min(trough.mash ?? 0, (EAT_BELOW + 0.03 - c.fed) / MASH_FED);
+      trough.mash = (trough.mash ?? 0) - eat;
+      c.fed = Math.min(1, c.fed + eat * MASH_FED);
+    }
     const { target } = comfortTarget(save, layout, c);
     c.comfort += (target - c.comfort) * Math.min(1, dt / 40);
     const w = worstNeed(save, c);
@@ -316,7 +366,7 @@ export function tickCare(save: SaveData, layout: BaseLayout, dt: number, room: (
         ev.push({ type: 'grown', c });
       }
     } else if (c.stage === 'grown' && happy) {
-      c.make += dt / MAKE_SECONDS;
+      c.make += (makeRate(save, layout, c, thriving).perMin / 60) * dt;
       if (c.make >= 1) {
         const kind = SPECIES[c.species].makes;
         const fits = room() > 0;

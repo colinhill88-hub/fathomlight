@@ -5,8 +5,12 @@ import { mulberry32, WORLD_SEED } from '../rng';
  * y = 0 is the water surface and y grows downwards. 75 wu is about 1 metre.
  *
  * Layout, left to right (x):
- *     0 -  300  a rock wall at the west edge
- *   300 - 1700  Kestrel site: flat sand under a marker buoy, where the base goes (milestone 3)
+ * -5600 - -5000  the basin's west wall, rising to just under the surface (milestone 5)
+ * -5000 -   300  the Kestrel basin: a wide, flat-floored hollow about 22 m deep,
+ *                the big build site for the factory base (milestone 5)
+ *   300 -  380  a cliff up to the shelf
+ *   300 - 1700  Kestrel shelf: flat sand under a marker buoy, where the first
+ *               base went (milestone 3); it is the top east corner of the site
  *  1700 - 3600  coral garden with two rock outcrops
  *  3600 - 4700  a sand channel with the wreck of an old survey sled
  *  4700 - 5000  a rocky knoll with the survey beacon on its edge
@@ -16,8 +20,12 @@ import { mulberry32, WORLD_SEED } from '../rng';
  *               gear gate to the kelp forest and caves zone: it needs a real dive light)
  */
 
+/** West edge of the world (milestone 5 added the basin west of the old wall). */
+export const WORLD_X0 = -5600;
 export const WORLD_W = 9000;
-export const WORLD_H = 1180;
+/** Width of the whole world, from WORLD_X0 to WORLD_W. */
+export const WORLD_SPAN = WORLD_W - WORLD_X0;
+export const WORLD_H = 1980;
 export const WU_PER_METRE = 75;
 
 /** Where the diver starts, and comes back to after blacking out: the Kestrel buoy at the surface. */
@@ -45,11 +53,45 @@ export function smooth(t: number): number {
 
 const bump = (x: number, cx: number, w: number, h: number) => Math.exp(-(((x - cx) / w) ** 2)) * h;
 
+/**
+ * The Kestrel basin (milestone 5). Its floor sits a little below the bottom
+ * row of the build grid (see GRID_BASE in src/game/base.ts), so every
+ * bottom-row cell is open water. BASIN_EAST is where the cliff up to the
+ * old shelf starts; BASIN_WEST where the far wall starts to rise.
+ */
+export const BASIN_FLOOR = 1700;
+export const BASIN_EAST = 300;
+export const BASIN_WEST = -4990;
+/** A nook in the west wall (an Echo whorl hides there). */
+export const WALL_NOOK = { x: -5225, y: 770 };
+
+function basinGround(x: number): number {
+  // Gentle ripples on the floor, and a few low sand mounds.
+  let y = BASIN_FLOOR + 6 + Math.sin(x * 0.004) * 6 + Math.sin(x * 0.0113 + 2) * 4;
+  y -= bump(x, -3300, 260, 10) + bump(x, -1450, 320, 12);
+  // The cliff up to the shelf: steep, with a shoulder part-way up.
+  const up = smooth((x - (BASIN_EAST - 10)) / 85);
+  y += (430 - y) * up;
+  y += bump(x, BASIN_EAST + 10, 22, 90) * (1 - up);
+  // The west wall: a steep rise with a ledge (the nook) part-way up.
+  const w = smooth((BASIN_WEST - x) / 170);
+  y += (WALL_NOOK.y + 26 - y) * w;
+  y -= bump(x, WALL_NOOK.x + 35, 30, 14) * w; // a lip at the front of the nook
+  const w2 = smooth((BASIN_WEST - 290 - x) / 170);
+  y += (110 - y) * w2;
+  return y;
+}
+
 /** Height of the seabed at x: the first solid y below the water (ignoring the ledge and the cave). */
 export function groundY(x: number): number {
+  if (x < 380) {
+    // The basin (milestone 5). East of 380 the shallows are unchanged.
+    let y = basinGround(x);
+    const k = 0.35 + 0.65 * smooth((x - 290) / 85);
+    for (const b of bumps) y += Math.sin(x * b.f + b.p) * b.a * k;
+    return y;
+  }
   let y = 430;
-  // West wall.
-  y -= smooth((300 - x) / 300) * 330;
   // Coral garden: a gentle slope down, with two outcrops.
   y += smooth((x - 1700) / 1200) * 50;
   y -= bump(x, 2270, 150, 120) + bump(x, 2410, 70, 50);
@@ -126,7 +168,7 @@ function inPolygon(x: number, y: number, poly: [number, number][]): boolean {
 
 /** Is this point inside rock or sand? Used for collisions. */
 export function isSolid(x: number, y: number): boolean {
-  if (x < 0 || x > WORLD_W) return true;
+  if (x < WORLD_X0 || x > WORLD_W) return true;
   if (y >= groundY(x)) return !inCave(x, y);
   if (y > 540 && y < 780 && x > 5690 && x < 6880 && inPolygon(x, y, LEDGE)) return true;
   return false;
@@ -144,11 +186,11 @@ export function inCaveTunnel(x: number, y: number): boolean {
  * The lighting shader reads it every frame, so shadows cost nothing at runtime.
  */
 export function bakeSkyVisibility(cell: number, blurPasses: number): HTMLCanvasElement {
-  const w = Math.ceil(WORLD_W / cell);
+  const w = Math.ceil(WORLD_SPAN / cell);
   const h = Math.ceil(WORLD_H / cell);
   const vis = new Float32Array(w * h);
   for (let i = 0; i < w; i++) {
-    const x = (i + 0.5) * cell;
+    const x = WORLD_X0 + (i + 0.5) * cell;
     let rock = 0;
     for (let j = 0; j < h; j++) {
       const y = (j + 0.5) * cell;

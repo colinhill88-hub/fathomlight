@@ -135,11 +135,17 @@ export class Hud {
       ['corridor', 'Corridor'],
       ['tank', 'Creature tank'],
       ['filter', 'Filter pump'],
+      ['feeder', 'Auto feeder'],
     ];
     const base = save.pieces.length
       ? [
           ...names.filter(([k]) => counts[k]).map(([k, n]) => `${counts[k]} × ${n}`),
           ...(frames ? [`${frames} frame${frames > 1 ? 's' : ''} being welded`] : []),
+          ...(save.lines.length
+            ? [
+                `${save.lines.filter((l) => l.kind === 'belt').length} conveyor(s), ${save.lines.filter((l) => l.kind === 'pipe').length} feed pipe(s)`,
+              ]
+            : []),
         ].join(' · ')
       : 'Nothing built yet. Swim to the Kestrel buoy and tap Build.';
     this.logPanel.innerHTML = `
@@ -157,7 +163,10 @@ export class Hud {
       }</p>
       <h2>Creatures</h2>
       ${this.creatureNotes(save)}
-      <p class="note">Air tank upgrades found: ${save.tanks.length} / ${TOTAL_AIR_TANKS} · Dive time ${maxOxygen(save)} s</p>`;
+      <p class="note">Air tank upgrades found: ${save.tanks.length} / ${TOTAL_AIR_TANKS} · Dive time ${maxOxygen(save)} s</p>
+      <p class="note">Echo whorls found: ${save.whorls.length}${
+        save.whorls.length ? ` (${Object.values(save.fitted).reduce((a, b) => a + b, 0)} fitted)` : ''
+      }. Rare; they glow in colours nothing else on the reef does.</p>`;
   }
 
   private creatureNotes(save: SaveData): string {

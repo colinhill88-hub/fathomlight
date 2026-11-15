@@ -1,7 +1,7 @@
 import { Container, Graphics } from 'pixi.js';
 import { mulberry32, WORLD_SEED } from '../rng';
 import { groundY, isSolid, SLED_X } from '../world/terrain';
-import { BaseLayout, CELL, GRID_BASE, GRID_ROWS, GRID_X0, GRID_X1, PIECES, pieceRect, Placed } from '../game/base';
+import { BaseLayout, CELL, GRID_BASE, GRID_ROWS, GRID_X1, PIECES, pieceRect, Placed } from '../game/base';
 import type { PointLight } from '../world/scenery';
 
 /**
@@ -282,6 +282,19 @@ export class Drone {
     return { x: this.x, y: this.y };
   }
 
+  /** Where to wait when parked: just above the middle of what is built (or the shelf). */
+  private home(layout: BaseLayout): { x: number; y: number } {
+    if (!layout.pieces.length) return { x: GRID_X1 - 5 * CELL, y: GRID_BASE - GRID_ROWS * CELL - 30 };
+    let x = 0;
+    let top = Infinity;
+    for (const p of layout.pieces) {
+      const r = pieceRect(p);
+      x += r.x + r.w / 2;
+      top = Math.min(top, r.y);
+    }
+    return { x: x / layout.pieces.length, y: Math.max(60, top - 50) };
+  }
+
   update(dt: number, time: number, inp: DroneInput): DroneEvent[] {
     this.time += dt;
     const events: DroneEvent[] = [];
@@ -365,9 +378,10 @@ export class Drone {
           lookY = this.y + this.glance.y;
         }
       } else if (this.mode === 'parked') {
-        // Hover over the middle of the site, waiting for the diver to come back.
-        tx = (GRID_X0 + GRID_X1) / 2 + Math.sin(this.time * 0.25) * 110;
-        ty = GRID_BASE - GRID_ROWS * CELL - 30 + Math.sin(this.time * 0.7) * 8;
+        // Hover over the base, waiting for the diver to come back.
+        const home = this.home(inp.layout);
+        tx = home.x + Math.sin(this.time * 0.25) * 110;
+        ty = home.y + Math.sin(this.time * 0.7) * 8;
         lookX = tx + this.face * 100;
         lookY = ty + 60;
       } else {

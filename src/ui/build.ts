@@ -8,6 +8,7 @@ import {
   GRID_COLS,
   GRID_ROWS,
   GRID_X0,
+  GRID_X1,
   isDone,
   pay,
   PIECE_ORDER,
@@ -17,8 +18,29 @@ import {
   Placed,
   shapeOf,
 } from '../game/base';
-import { MATERIAL_ORDER, MATERIALS, SaveData } from '../game/state';
+import { MATERIAL_ORDER, MATERIALS, MaterialId, SaveData } from '../game/state';
+import {
+  Factory,
+  FEEDER_MASH_CAP,
+  FEEDER_RATE,
+  feederStatus,
+  HOPPER_CAP,
+  lineCost,
+  lineRoute,
+  LineKind,
+  LINES,
+  linkProblem,
+  machineData,
+  MASH_PER_FIBRE,
+  mashPerCreature,
+  TROUGH_CAP,
+  whorlMult,
+  whorlsFree,
+  WHORLS_PER_PIECE,
+} from '../game/factory';
+import { creaturesIn, HUNGER_RATE, makeRate, SPECIES, tankNumber } from '../game/creatures';
 import { MATERIAL_ICONS } from './hud';
+import { WHORL_ICON } from '../world/whorl';
 
 /**
  * Build mode (milestone 3): lay out the base at the Kestrel site.
@@ -48,6 +70,8 @@ const PIECE_ICONS: Record<PieceKind, string> = {
     '<svg viewBox="0 0 40 32"><rect x="12" y="3" width="16" height="26" rx="6" fill="#5b6467"/><rect x="12" y="8" width="16" height="2.5" fill="#b8923f"/><circle cx="18" cy="18" r="3" fill="none" stroke="#a8402e" stroke-width="1.4"/><rect x="23" y="13" width="2.5" height="9" fill="#c9a24a"/><rect x="4" y="13" width="8" height="7" fill="#5b6467"/><rect x="28" y="13" width="8" height="7" fill="#5b6467"/></svg>',
   tank:
     '<svg viewBox="0 0 40 32"><rect x="3" y="8" width="34" height="18" fill="#1f4a4c"/><rect x="3" y="8" width="34" height="7" fill="#3d7470" opacity=".6"/><path d="M3 23q8-2 17 0t17 0v3H3z" fill="#b7a47a"/><path d="M14 17c3-3 7-3 9 0-2 3-6 3-9 0zm9 0l3-2v4z" fill="#d27a86"/><rect x="1" y="5" width="38" height="4" rx="1" fill="#a8402e"/><rect x="1" y="25" width="38" height="4" rx="1" fill="#a8402e"/></svg>',
+  feeder:
+    '<svg viewBox="0 0 40 32"><path d="M8 1h18l-4 9h-10z" fill="#5b6467"/><path d="M12 3h10l-2 5h-6z" fill="#b8923f"/><rect x="9" y="10" width="20" height="9" rx="2" fill="#b8923f"/><circle cx="15" cy="14.5" r="3.4" fill="#8a9496"/><rect x="9" y="19" width="20" height="12" rx="2" fill="#5b6467"/><rect x="13" y="21" width="4" height="8" fill="#9aa84a"/><rect x="29" y="2" width="3" height="22" fill="#8a6a3a"/><rect x="2" y="23" width="7" height="6" fill="#5b6467"/></svg>',
   filter:
     '<svg viewBox="0 0 40 32"><rect x="2" y="12" width="7" height="8" fill="#5b6467"/><rect x="31" y="12" width="7" height="8" fill="#5b6467"/><rect x="17" y="1" width="6" height="6" fill="#5b6467"/><rect x="9" y="6" width="22" height="22" rx="4" fill="#5b6467"/><rect x="9" y="8" width="22" height="2.5" fill="#b8923f"/><circle cx="18" cy="19" r="6" fill="#262d30"/><path d="M18 19l1-5 1 5zM18 19l5 2-5 0zM18 19l-4 3 3-4z" fill="#aab4b5"/><circle cx="27" cy="15" r="2" fill="#a88a4a"/></svg>',
 };
@@ -67,6 +91,21 @@ export interface BuildDeps {
   droneReady(): boolean;
   /** The frame the drone is welding right now, if any. */
   welding(): Placed | null;
+  /** Milestone 5: the machines and lines, for readouts. */
+  factory: Factory;
+  /** The conveyor or pipe drawn near a world point, if any. */
+  lineAt(x: number, y: number, reach: number): number | null;
+  /** The drawn path of a line. */
+  lineRoute(id: number): [number, number][] | null;
+  /** Called after lines or fitted whorls changed. */
+  linesChanged(): void;
+}
+
+/** The build camera: where it looks (world centre) and how much height it shows. */
+export interface BuildCam {
+  x: number;
+  y: number;
+  h: number;
 }
 
 /** Said whenever the build drone is still missing. */
@@ -84,6 +123,12 @@ export class BuildMode {
   active = false;
   ghost: Ghost | null = null;
   selected: Placed | null = null;
+  /** A selected conveyor or pipe (milestone 5). */
+  selectedLine: number | null = null;
+  /** Drawing a conveyor or pipe: from this piece, to the piece tapped next. */
+  link: { kind: LineKind; from: number; to: number | null } | null = null;
+  /** Where the build camera looks. main.ts follows it while building. */
+  cam: BuildCam = { x: 0, y: 0, h: 860 };
   /** Can the build button be used right now (the diver is at the site)? */
   available = false;
 
@@ -94,9 +139,18 @@ export class BuildMode {
   private rotateBtn = document.getElementById('build-rotate') as HTMLButtonElement;
   private cancelBtn = document.getElementById('build-cancel') as HTMLButtonElement;
   private removeBtn = document.getElementById('build-remove') as HTMLButtonElement;
+  private fitBtn = document.getElementById('build-fit') as HTMLButtonElement;
+  private beltBtn = document.getElementById('build-belt') as HTMLButtonElement;
+  private pipeBtn = document.getElementById('build-pipe') as HTMLButtonElement;
+  private whorlAddBtn = document.getElementById('build-whorl-add') as HTMLButtonElement;
+  private whorlTakeBtn = document.getElementById('build-whorl-take') as HTMLButtonElement;
   private cards = new Map<PieceKind, HTMLButtonElement>();
   private removeArmed = 0;
   private reason: string | null = null;
+  /** Touch points on the screen, for pinch and pan. */
+  private touches = new Map<number, { x: number; y: number }>();
+  private pinch: { d0: number; h0: number; wx: number; wy: number } | null = null;
+  private pan: { id: number; sx: number; sy: number; cx: number; cy: number } | null = null;
 
   // Dragging the ghost with a finger (relative, so the finger never hides it).
   private drag: { id: number; sx: number; sy: number; wx: number; wy: number; t: number; moved: boolean; mouse: boolean } | null = null;
@@ -128,11 +182,22 @@ export class BuildMode {
     tap(this.rotateBtn, () => this.rotate());
     tap(this.cancelBtn, () => (this.ghost ? this.pick(null) : this.close()));
     tap(this.removeBtn, () => this.remove());
+    tap(this.fitBtn, () => this.fit());
+    tap(this.beltBtn, () => this.startLink('belt'));
+    tap(this.pipeBtn, () => this.startLink('pipe'));
+    tap(this.whorlAddBtn, () => this.fitWhorl(1));
+    tap(this.whorlTakeBtn, () => this.fitWhorl(-1));
 
     host.addEventListener('pointerdown', (e) => this.down(e));
     host.addEventListener('pointermove', (e) => this.move(e));
     host.addEventListener('pointerup', (e) => this.up(e));
-    host.addEventListener('pointercancel', () => (this.drag = null));
+    host.addEventListener('pointercancel', (e) => {
+      this.drag = null;
+      this.pan = null;
+      this.touches.delete(e.pointerId);
+      if (this.touches.size < 2) this.pinch = null;
+    });
+    host.addEventListener('wheel', (e) => this.wheel(e), { passive: false });
     host.addEventListener('contextmenu', (e) => {
       if (this.active) {
         e.preventDefault();
@@ -151,7 +216,10 @@ export class BuildMode {
     if (this.active) return;
     this.active = true;
     this.selected = null;
+    this.selectedLine = null;
+    this.link = null;
     this.ghost = null;
+    this.fit(true);
     document.body.classList.add('building');
     this.btn.setAttribute('aria-pressed', 'true');
     this.refresh();
@@ -162,7 +230,12 @@ export class BuildMode {
     this.active = false;
     this.ghost = null;
     this.selected = null;
+    this.selectedLine = null;
+    this.link = null;
     this.drag = null;
+    this.pan = null;
+    this.pinch = null;
+    this.touches.clear();
     document.body.classList.remove('building');
     this.btn.setAttribute('aria-pressed', 'false');
   }
@@ -170,6 +243,8 @@ export class BuildMode {
   /** Pick a piece to place (null lets go of it). It appears at the nearest spot where it fits. */
   pick(kind: PieceKind | null): void {
     this.selected = null;
+    this.selectedLine = null;
+    this.link = null;
     if (!kind) {
       this.ghost = null;
       this.refresh();
@@ -192,20 +267,8 @@ export class BuildMode {
     const g = this.ghost;
     if (!g) return;
     const layout = this.deps.layout;
-    let target = near;
-    if (!target) {
-      if (layout.pieces.length) {
-        // Near the middle of what is built so far.
-        let sx = 0;
-        let sy = 0;
-        for (const p of layout.pieces) {
-          const r = pieceRect(p);
-          sx += r.x + r.w / 2;
-          sy += r.y + r.h / 2;
-        }
-        target = { x: sx / layout.pieces.length, y: sy / layout.pieces.length };
-      } else target = this.deps.toWorld(window.innerWidth / 2, window.innerHeight / 2);
-    }
+    // Near the middle of the view (the site is big: start where you are looking).
+    const target = near ?? { x: this.cam.x, y: this.cam.y };
     let best: { gx: number; gy: number } | null = null;
     let bestD = Infinity;
     for (const s of layout.validSpots(g.kind, g.rot)) {
@@ -222,6 +285,7 @@ export class BuildMode {
       g.gy = best.gy;
     } else this.moveGhostTo(target.x, target.y);
     this.float = this.ghostCentre(g);
+    this.keepInView(pieceRect(g));
   }
 
   /** Put the ghost's centre as near a world point as the grid allows. */
@@ -244,6 +308,10 @@ export class BuildMode {
   }
 
   place(): void {
+    if (this.link) {
+      this.buildLink();
+      return;
+    }
     const g = this.ghost;
     if (!g) return;
     const { save, layout } = this.deps;
@@ -280,28 +348,10 @@ export class BuildMode {
     this.refresh();
   }
 
-  remove(): void {
-    const p = this.selected;
-    if (!p) return;
-    if (Date.now() - this.removeArmed > 3000) {
-      this.removeArmed = Date.now();
-      this.refresh();
-      return;
-    }
-    this.removeArmed = 0;
-    const { save, layout } = this.deps;
-    if (p.kind === 'tank' && save.creatures.some((c) => c.tank === p.id)) {
-      this.deps.toast('Creatures live in this tank. Move them to another tank or release them first (tap Tend at the tank).', 'warn');
-      this.refresh();
-      return;
-    }
-    layout.set(layout.pieces.filter((q) => q.id !== p.id));
-    save.pieces = layout.pieces;
-    // Everything comes back: into storage while there is room (so the dive
-    // bag does not suddenly weigh a tonne), the rest carried.
-    const cap = this.deps.capacity();
-    const cost = PIECES[p.kind].cost;
-    let room = cap - MATERIAL_ORDER.reduce((a, k) => a + save.stored[k], 0);
+  /** Put materials back: into storage while there is room, the rest carried. */
+  private refund(cost: Partial<Record<MaterialId, number>>): void {
+    const { save } = this.deps;
+    let room = this.deps.capacity() - MATERIAL_ORDER.reduce((a, k) => a + save.stored[k], 0);
     for (const k of MATERIAL_ORDER) {
       const n = cost[k] ?? 0;
       const s = Math.max(0, Math.min(room, n));
@@ -309,7 +359,55 @@ export class BuildMode {
       save.bag[k] += n - s;
       room -= s;
     }
+  }
+
+  remove(): void {
+    const p = this.selected;
+    const lineId = this.selectedLine;
+    if (!p && lineId === null) return;
+    if (Date.now() - this.removeArmed > 3000) {
+      this.removeArmed = Date.now();
+      this.refresh();
+      return;
+    }
+    this.removeArmed = 0;
+    const { save, layout } = this.deps;
+    if (!p) {
+      // A conveyor or pipe: its materials come back.
+      const l = save.lines.find((q) => q.id === lineId);
+      this.selectedLine = null;
+      if (l) {
+        this.refund(this.lineCostOf(l));
+        save.lines = save.lines.filter((q) => q.id !== l.id);
+        this.deps.toast(`Removed: ${LINES[l.kind].name}. Materials returned.`);
+        this.deps.linesChanged();
+        this.deps.refreshInventory();
+      }
+      this.refresh();
+      return;
+    }
+    if (p.kind === 'tank' && save.creatures.some((c) => c.tank === p.id)) {
+      this.deps.toast('Creatures live in this tank. Move them to another tank or release them first (tap Tend at the tank).', 'warn');
+      this.refresh();
+      return;
+    }
+    // Its lines go too, and come back as materials.
+    const lines = save.lines.filter((l) => l.from === p.id || l.to === p.id);
+    for (const l of lines) this.refund(this.lineCostOf(l));
+    save.lines = save.lines.filter((l) => !lines.includes(l));
+    // Kelp fibre waiting in a feeder's hopper goes back too; fitted whorls come off.
+    const m = save.machines[String(p.id)];
+    if (m && m.fibre > 0) this.refund({ fibre: Math.floor(m.fibre) });
+    delete save.machines[String(p.id)];
+    const whorls = save.fitted[String(p.id)] ?? 0;
+    delete save.fitted[String(p.id)];
+    layout.set(layout.pieces.filter((q) => q.id !== p.id));
+    save.pieces = layout.pieces;
+    // Everything comes back: into storage while there is room (so the dive
+    // bag does not suddenly weigh a tonne), the rest carried.
+    this.refund(PIECES[p.kind].cost);
     // If a storage pod went, what no longer fits is handed back to carry.
+    const cap = this.deps.capacity();
     let over = MATERIAL_ORDER.reduce((a, k) => a + save.stored[k], 0) - cap;
     for (const k of MATERIAL_ORDER) {
       if (over <= 0) break;
@@ -318,32 +416,319 @@ export class BuildMode {
       save.bag[k] += n;
       over -= n;
     }
-    this.deps.toast(`Removed: ${PIECES[p.kind].name}${isDone(p) ? '' : ' frame'}. Materials returned.`);
+    const extra = [lines.length ? `${lines.length} line${lines.length > 1 ? 's' : ''} with it` : '', whorls ? `${whorls} whorl${whorls > 1 ? 's' : ''} taken out` : '']
+      .filter(Boolean)
+      .join(', ');
+    this.deps.toast(`Removed: ${PIECES[p.kind].name}${isDone(p) ? '' : ' frame'}${extra ? ` (${extra})` : ''}. Materials returned.`);
     this.selected = null;
     this.deps.changed([]);
+    if (lines.length || whorls) this.deps.linesChanged();
     this.deps.refreshInventory();
     this.refresh();
+  }
+
+  // ---- Conveyors and feed pipes (milestone 5) ----
+
+  private lineCostOf(l: { kind: LineKind; from: number; to: number }): Partial<Record<MaterialId, number>> {
+    const route = this.deps.lineRoute((l as { id?: number }).id ?? -1);
+    const a = this.piece(l.from);
+    const b = this.piece(l.to);
+    if (!a || !b) return {};
+    if (route) {
+      let len = 0;
+      for (let i = 1; i < route.length; i++) len += Math.abs(route[i][0] - route[i - 1][0]) + Math.abs(route[i][1] - route[i - 1][1]);
+      return lineCost(l.kind, Math.max(1, Math.ceil(len / CELL)));
+    }
+    return lineCost(l.kind, lineRoute(a, b, l.kind).cells);
+  }
+
+  private piece(id: number | null | undefined): Placed | undefined {
+    return id === null || id === undefined ? undefined : this.deps.layout.pieces.find((p) => p.id === id);
+  }
+
+  /** Start drawing a conveyor or pipe from the selected piece. */
+  startLink(kind: LineKind): void {
+    const p = this.selected;
+    if (!p) return;
+    this.link = { kind, from: p.id, to: null };
+    this.selectedLine = null;
+    this.refresh();
+  }
+
+  /** Pieces a line of this kind could run to from `from`. */
+  private linkTargets(): Placed[] {
+    const l = this.link;
+    const from = this.piece(l?.from);
+    if (!l || !from) return [];
+    const { save, layout } = this.deps;
+    return layout.pieces.filter((p) => p.id !== from.id && !linkProblem(save, layout, l.kind, from, p));
+  }
+
+  /** What the line being drawn would look like and cost, for the overlay. */
+  linkPreview(): { from: Placed; targets: Placed[]; route: [number, number][] | null; ok: boolean } | null {
+    const l = this.link;
+    const from = this.piece(l?.from);
+    if (!l || !from) return null;
+    const to = this.piece(l.to);
+    const { save } = this.deps;
+    const slot = save.lines.filter((q) => q.kind === l.kind && q.from === from.id).length;
+    return { from, targets: this.linkTargets(), route: to ? lineRoute(from, to, l.kind, slot).pts : null, ok: !this.reason };
+  }
+
+  private buildLink(): void {
+    const l = this.link;
+    const from = this.piece(l?.from);
+    const to = this.piece(l?.to);
+    if (!l || !from || !to) return;
+    const { save, layout } = this.deps;
+    const why = linkProblem(save, layout, l.kind, from, to);
+    if (why) {
+      this.deps.toast(why, 'warn');
+      return;
+    }
+    const slot = save.lines.filter((q) => q.kind === l.kind && q.from === from.id).length;
+    const cells = lineRoute(from, to, l.kind, slot).cells;
+    const cost = lineCost(l.kind, cells);
+    const have = available(save.bag, save.stored);
+    if (MATERIAL_ORDER.some((k) => have[k] < (cost[k] ?? 0))) {
+      this.deps.toast(`Not enough materials for this ${LINES[l.kind].name.toLowerCase()}`, 'warn');
+      return;
+    }
+    for (const k of MATERIAL_ORDER) {
+      let need = cost[k] ?? 0;
+      const fromBag = Math.min(need, save.bag[k]);
+      save.bag[k] -= fromBag;
+      need -= fromBag;
+      save.stored[k] -= need;
+    }
+    save.lines.push({ id: save.nextLineId++, kind: l.kind, from: from.id, to: to.id });
+    const def = LINES[l.kind];
+    this.deps.toast(
+      `${def.name} built: ${PIECES[from.kind].name.toLowerCase()} to ${PIECES[to.kind].name.toLowerCase()} (${cells} cell${cells > 1 ? 's' : ''}). It moves up to ${def.rate} ${def.unit}.`,
+      'big',
+    );
+    if (!save.tips.includes('lines')) {
+      save.tips.push('lines');
+      setTimeout(
+        () =>
+          this.deps.toast(
+            'Tap a conveyor or pipe to see how much it moves per minute. A storage pod sends kelp fibre to an auto feeder; the feeder pumps mash down feed pipes to creature tanks.',
+            'big',
+          ),
+        2600,
+      );
+    }
+    this.link = null;
+    this.deps.linesChanged();
+    this.deps.refreshInventory();
+    this.refresh();
+  }
+
+  /** Fit (+1) or take out (-1) an Echo whorl on the selected piece. */
+  fitWhorl(step: 1 | -1): void {
+    const p = this.selected;
+    if (!p || !PIECES[p.kind].whorls) return;
+    const { save } = this.deps;
+    const k = String(p.id);
+    const n = save.fitted[k] ?? 0;
+    if (step > 0) {
+      if (n >= WHORLS_PER_PIECE) return this.deps.toast(`Two whorls is the most one piece can hold`, 'warn');
+      if (!whorlsFree(save)) return this.deps.toast('No spare Echo whorls. They are rare: look in hidden corners of the reef.', 'warn');
+      save.fitted[k] = n + 1;
+    } else {
+      if (!n) return;
+      if (n > 1) save.fitted[k] = n - 1;
+      else delete save.fitted[k];
+    }
+    const m = whorlMult(save, p.id);
+    this.deps.toast(
+      step > 0
+        ? `Echo whorl fitted: the ${PIECES[p.kind].name.toLowerCase()} works ×${m} as fast, and uses its ${p.kind === 'tank' ? 'feed (and fouls the water)' : 'kelp fibre'} ×${m} as fast too`
+        : `Echo whorl taken out (×${m} now)`,
+      'big',
+    );
+    this.deps.linesChanged();
+    this.refresh();
+  }
+
+  // ---- Camera (milestone 5: the site is big) ----
+
+  /** The most height the camera may show: the whole site with a margin. */
+  private maxH(): number {
+    const W = window.innerWidth;
+    const H = window.innerHeight;
+    const siteW = GRID_X1 - GRID_X0 + 500;
+    const siteH = GRID_BASE + 300;
+    return Math.max(siteH, (siteW * H) / W) * 1.1;
+  }
+
+  private clampCam(): void {
+    const c = this.cam;
+    c.h = Math.max(320, Math.min(this.maxH(), c.h));
+    c.x = Math.max(GRID_X0 - 100, Math.min(GRID_X1 + 100, c.x));
+    c.y = Math.max(-150, Math.min(GRID_BASE + 150, c.y));
+  }
+
+  /**
+   * Frame what is built so far (with room around it for the next pieces),
+   * or the shelf by the buoy if nothing is built yet.
+   */
+  fit(quiet = false): void {
+    const { layout } = this.deps;
+    let x0 = Infinity;
+    let y0 = Infinity;
+    let x1 = -Infinity;
+    let y1 = -Infinity;
+    for (const p of layout.pieces) {
+      const r = pieceRect(p);
+      x0 = Math.min(x0, r.x);
+      y0 = Math.min(y0, r.y - 60);
+      x1 = Math.max(x1, r.x + r.w);
+      y1 = Math.max(y1, r.y + r.h);
+    }
+    if (!layout.pieces.length) {
+      x0 = GRID_X1 - 11 * CELL;
+      x1 = GRID_X1;
+      y0 = 80;
+      y1 = 460;
+    }
+    x0 -= CELL * 1.5;
+    x1 += CELL * 1.5;
+    y0 -= CELL;
+    y1 += CELL * 0.6;
+    const W = window.innerWidth;
+    const H = window.innerHeight;
+    // Leave room for the info box at the top and the piece bar at the bottom.
+    const useH = 0.66;
+    this.cam.h = Math.max(860, (y1 - y0) / useH, ((x1 - x0) * H) / W);
+    this.cam.x = (x0 + x1) / 2;
+    // The middle of the usable band sits a little above the screen's middle.
+    this.cam.y = (y0 + y1) / 2 + this.cam.h * 0.04;
+    this.clampCam();
+    if (!quiet) this.refresh();
+  }
+
+  /** Pan so a rectangle (a piece being placed) is on screen. */
+  private keepInView(r: { x: number; y: number; w: number; h: number }): void {
+    const W = window.innerWidth;
+    const H = window.innerHeight;
+    const c = this.cam;
+    const vw = (c.h * W) / H;
+    const mx = Math.min(vw * 0.3, 220);
+    const top = c.y - c.h * 0.32;
+    const bot = c.y + c.h * 0.28;
+    if (r.x < c.x - vw / 2 + mx) c.x = r.x - mx + vw / 2;
+    if (r.x + r.w > c.x + vw / 2 - mx) c.x = r.x + r.w + mx - vw / 2;
+    if (r.y < top) c.y += r.y - top;
+    if (r.y + r.h > bot) c.y += r.y + r.h - bot;
+    this.clampCam();
+  }
+
+  /** World point under a screen point, using where the camera is heading. */
+  private camWorld(sx: number, sy: number): { x: number; y: number } {
+    const H = window.innerHeight;
+    const W = window.innerWidth;
+    const k = this.cam.h / H;
+    return { x: this.cam.x + (sx - W / 2) * k, y: this.cam.y + (sy - H / 2) * k };
+  }
+
+  /** Zoom by a factor, keeping the world point under a screen point still. */
+  private zoomAt(sx: number, sy: number, factor: number): void {
+    const w = this.camWorld(sx, sy);
+    const H = window.innerHeight;
+    const W = window.innerWidth;
+    this.cam.h *= factor;
+    this.clampCam();
+    const k = this.cam.h / H;
+    this.cam.x = w.x - (sx - W / 2) * k;
+    this.cam.y = w.y - (sy - H / 2) * k;
+    this.clampCam();
+  }
+
+  private wheel(e: WheelEvent): void {
+    if (!this.active) return;
+    e.preventDefault();
+    const d = e.deltaMode === 1 ? e.deltaY * 30 : e.deltaY;
+    this.zoomAt(e.clientX, e.clientY, Math.exp(Math.max(-0.5, Math.min(0.5, d * 0.0016))));
   }
 
   // ---- Pointer ----
 
   private down(e: PointerEvent): void {
     if (!this.active) return;
-    const w = this.deps.toWorld(e.clientX, e.clientY);
     const mouse = e.pointerType === 'mouse';
+    // Middle mouse button: pan the view.
+    if (mouse && e.button === 1) {
+      e.preventDefault();
+      this.pan = { id: e.pointerId, sx: e.clientX, sy: e.clientY, cx: this.cam.x, cy: this.cam.y };
+      return;
+    }
     if (mouse && e.button !== 0) return;
+    if (!mouse) {
+      this.touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (this.touches.size === 2) {
+        // Two fingers: pinch to zoom and drag to pan. Cancels the one-finger gesture.
+        const [a, b] = [...this.touches.values()];
+        const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+        const w = this.camWorld(mid.x, mid.y);
+        this.pinch = { d0: Math.max(20, Math.hypot(a.x - b.x, a.y - b.y)), h0: this.cam.h, wx: w.x, wy: w.y };
+        this.drag = null;
+        this.pan = null;
+        return;
+      }
+      if (this.touches.size > 2) return;
+    }
+    const w = this.deps.toWorld(e.clientX, e.clientY);
     this.drag = { id: e.pointerId, sx: e.clientX, sy: e.clientY, wx: w.x, wy: w.y, t: performance.now(), moved: false, mouse };
     if (this.ghost) this.float = this.ghostCentre(this.ghost);
+    else this.pan = { id: e.pointerId, sx: e.clientX, sy: e.clientY, cx: this.cam.x, cy: this.cam.y };
   }
 
   private move(e: PointerEvent): void {
     if (!this.active) return;
+    if (this.touches.has(e.pointerId)) this.touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (this.pinch && this.touches.size >= 2) {
+      const [a, b] = [...this.touches.values()];
+      const d = Math.max(20, Math.hypot(a.x - b.x, a.y - b.y));
+      const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+      this.cam.h = this.pinch.h0 * (this.pinch.d0 / d);
+      this.clampCam();
+      const k = this.cam.h / window.innerHeight;
+      this.cam.x = this.pinch.wx - (mid.x - window.innerWidth / 2) * k;
+      this.cam.y = this.pinch.wy - (mid.y - window.innerHeight / 2) * k;
+      this.clampCam();
+      return;
+    }
+    const pan = this.pan;
+    if (pan && pan.id === e.pointerId) {
+      const moved = Math.hypot(e.clientX - pan.sx, e.clientY - pan.sy) > 8;
+      if (this.drag && this.drag.id === e.pointerId && moved) this.drag.moved = true;
+      if (moved || !this.drag) {
+        const k = this.cam.h / window.innerHeight;
+        this.cam.x = pan.cx - (e.clientX - pan.sx) * k;
+        this.cam.y = pan.cy - (e.clientY - pan.sy) * k;
+        this.clampCam();
+      }
+      return;
+    }
     if (e.pointerType === 'mouse' && this.ghost) {
       // The ghost follows the mouse.
       const w = this.deps.toWorld(e.clientX, e.clientY);
       const before = `${this.ghost.gx},${this.ghost.gy}`;
       this.moveGhostTo(w.x, w.y);
       if (before !== `${this.ghost.gx},${this.ghost.gy}`) this.refresh();
+      return;
+    }
+    if (e.pointerType === 'mouse' && this.link && !this.drag) {
+      // Hovering over a piece previews the line to it.
+      const w = this.deps.toWorld(e.clientX, e.clientY);
+      const c = cellAt(w.x, w.y);
+      const p = this.deps.layout.pieceAt(c.gx, c.gy);
+      const to = p && this.linkTargets().includes(p) ? p.id : null;
+      if (to !== this.link.to) {
+        this.link.to = to;
+        this.refresh();
+      }
       return;
     }
     const d = this.drag;
@@ -356,10 +741,21 @@ export class BuildMode {
     const y = this.float.y + (w.y - d.wy);
     const before = `${this.ghost.gx},${this.ghost.gy}`;
     this.moveGhostTo(x, y);
-    if (before !== `${this.ghost.gx},${this.ghost.gy}`) this.refresh();
+    if (before !== `${this.ghost.gx},${this.ghost.gy}`) {
+      this.keepInView(pieceRect(this.ghost));
+      this.refresh();
+    }
   }
 
   private up(e: PointerEvent): void {
+    this.touches.delete(e.pointerId);
+    if (this.pinch) {
+      if (this.touches.size < 2) this.pinch = null;
+      this.drag = null;
+      this.pan = null;
+      return;
+    }
+    if (this.pan?.id === e.pointerId) this.pan = null;
     const d = this.drag;
     if (!this.active || !d || d.id !== e.pointerId) return;
     this.drag = null;
@@ -377,7 +773,29 @@ export class BuildMode {
       return;
     }
     const c = cellAt(w.x, w.y);
-    this.selected = this.deps.layout.pieceAt(c.gx, c.gy) ?? null;
+    const hit = this.deps.layout.pieceAt(c.gx, c.gy) ?? null;
+    if (this.link) {
+      // Choose where the line goes.
+      if (!hit) return;
+      const from = this.piece(this.link.from);
+      if (from && hit.id === from.id) {
+        this.link = null;
+        this.refresh();
+        return;
+      }
+      const why = from ? linkProblem(this.deps.save, this.deps.layout, this.link.kind, from, hit) : 'Pick a piece';
+      if (why) this.deps.toast(why, 'warn');
+      this.link.to = why ? null : hit.id;
+      this.refresh();
+      // On a computer, a click on a valid target builds straight away.
+      if (!why && d.mouse) this.place();
+      return;
+    }
+    // Lines are thin: prefer one under the tap, then a piece.
+    const k = this.cam.h / window.innerHeight;
+    const line = this.deps.lineAt(w.x, w.y, Math.max(14, 22 * k));
+    this.selectedLine = line !== null && (!hit || this.deps.lineAt(w.x, w.y, Math.max(8, 10 * k)) !== null) ? line : null;
+    this.selected = this.selectedLine === null ? hit : null;
     this.removeArmed = 0;
     this.refresh();
   }
@@ -385,23 +803,36 @@ export class BuildMode {
   // ---- Keyboard and gamepad ----
 
   private key(e: KeyboardEvent): void {
-    if (e.repeat) return;
+    if (e.repeat && !['arrowleft', 'arrowright', 'arrowup', 'arrowdown', 'w', 'a', 's', 'd', '=', '+', '-', 'q', 'e'].includes(e.key.toLowerCase())) return;
     const k = e.key.toLowerCase();
     if (k === 'b') {
       this.toggle();
       return;
     }
     if (!this.active) return;
-    const idx = ['1', '2', '3', '4', '5', '6'].indexOf(k);
+    const idx = ['1', '2', '3', '4', '5', '6', '7'].indexOf(k);
+    const step = (this.cam.h * 0.12);
     if (idx >= 0) this.pick(PIECE_ORDER[idx]);
-    else if (k === 'arrowleft' || k === 'a') this.nudge(-1, 0);
-    else if (k === 'arrowright' || k === 'd') this.nudge(1, 0);
-    else if (k === 'arrowup' || k === 'w') this.nudge(0, 1);
-    else if (k === 'arrowdown' || k === 's') this.nudge(0, -1);
+    else if (k === 'arrowleft') this.nudge(-1, 0);
+    else if (k === 'arrowright') this.nudge(1, 0);
+    else if (k === 'arrowup') this.nudge(0, 1);
+    else if (k === 'arrowdown') this.nudge(0, -1);
+    else if (k === 'a') this.panBy(-step, 0);
+    else if (k === 'd') this.panBy(step, 0);
+    else if (k === 'w') this.panBy(0, -step);
+    else if (k === 's') this.panBy(0, step);
+    else if (k === '=' || k === '+' || k === 'e') this.zoomAt(window.innerWidth / 2, window.innerHeight / 2, 1 / 1.2);
+    else if (k === '-' || k === 'q') this.zoomAt(window.innerWidth / 2, window.innerHeight / 2, 1.2);
+    else if (k === 'f') this.fit();
+    else if (k === 'c' && this.selected && PIECES[this.selected.kind].ports?.beltOut) this.startLink('belt');
+    else if (k === 'p' && this.selected && PIECES[this.selected.kind].ports?.pipeOut) this.startLink('pipe');
     else if (k === 'r') this.rotate();
     else if (k === 'enter' || k === ' ') this.place();
     else if (k === 'escape') {
-      if (this.ghost) this.pick(null);
+      if (this.link) {
+        this.link = null;
+        this.refresh();
+      } else if (this.ghost) this.pick(null);
       else this.close();
     } else if (k === 'tab') this.cycleSelection();
     else if (k === 'delete' || k === 'backspace' || k === 'x') this.remove();
@@ -409,16 +840,23 @@ export class BuildMode {
     e.preventDefault();
   }
 
+  private panBy(dx: number, dy: number): void {
+    this.cam.x += dx;
+    this.cam.y += dy;
+    this.clampCam();
+  }
+
   private nudge(dx: number, dy: number): void {
     const g = this.ghost;
     if (!g) {
-      if (dx || dy) this.cycleSelection(dx < 0 || dy < 0 ? -1 : 1);
+      this.panBy(dx * this.cam.h * 0.12, -dy * this.cam.h * 0.12);
       return;
     }
     const s = shapeOf(g);
     g.gx = Math.max(0, Math.min(GRID_COLS - s.w, g.gx + dx));
     g.gy = Math.max(0, Math.min(GRID_ROWS - s.h, g.gy + dy));
     this.float = this.ghostCentre(g);
+    this.keepInView(pieceRect(g));
     this.refresh();
   }
 
@@ -426,8 +864,11 @@ export class BuildMode {
     const ps = [...this.deps.layout.pieces].sort((a, b) => a.gx - b.gx || a.gy - b.gy);
     if (!ps.length) return;
     this.ghost = null;
+    this.link = null;
+    this.selectedLine = null;
     const i = this.selected ? ps.findIndex((p) => p.id === this.selected!.id) : -1;
     this.selected = ps[(i + step + ps.length) % ps.length];
+    this.keepInView(pieceRect(this.selected));
     this.removeArmed = 0;
     this.refresh();
   }
@@ -442,7 +883,10 @@ export class BuildMode {
     if (this.active) {
       if (pressed(0)) this.place();
       if (pressed(1)) {
-        if (this.ghost) this.pick(null);
+        if (this.link) {
+          this.link = null;
+          this.refresh();
+        } else if (this.ghost) this.pick(null);
         else this.close();
       }
       if (pressed(3)) this.rotate();
@@ -450,6 +894,13 @@ export class BuildMode {
       const cur = this.ghost ? PIECE_ORDER.indexOf(this.ghost.kind) : -1;
       if (pressed(5)) this.pick(PIECE_ORDER[(cur + 1) % PIECE_ORDER.length]);
       if (pressed(4)) this.pick(PIECE_ORDER[(cur - 1 + PIECE_ORDER.length) % PIECE_ORDER.length]);
+      // Triggers zoom; the right stick pans.
+      const lt = pad.buttons[6]?.value ?? 0;
+      const rt = pad.buttons[7]?.value ?? 0;
+      if (lt > 0.1 || rt > 0.1) this.zoomAt(window.innerWidth / 2, window.innerHeight / 2, Math.exp((lt - rt) * dt * 1.6));
+      const rx = pad.axes[2] ?? 0;
+      const ry = pad.axes[3] ?? 0;
+      if (Math.abs(rx) > 0.2 || Math.abs(ry) > 0.2) this.panBy(rx * this.cam.h * dt, ry * this.cam.h * dt);
       // D-pad, or the stick with a repeat delay.
       let dx = (btn(15) ? 1 : 0) - (btn(14) ? 1 : 0);
       let dy = (btn(12) ? 1 : 0) - (btn(13) ? 1 : 0);
@@ -484,8 +935,54 @@ export class BuildMode {
     return { ok: !this.reason };
   }
 
+  /** Readout lines for a selected piece (milestone 5: machines, troughs, rates, whorls). */
+  private pieceDetails(p: Placed): string {
+    const { save, layout, factory } = this.deps;
+    const out: string[] = [];
+    const m = whorlMult(save, p.id);
+    const fitted = save.fitted[String(p.id)] ?? 0;
+    const whorlNote = fitted ? ` · ${WHORL_ICON}×${m}` : '';
+    if (p.kind === 'feeder') {
+      const md = machineData(save, p.id);
+      const state = factory.feederState.get(p.id);
+      const rate = FEEDER_RATE * m;
+      out.push(`<span class="${state === 'running' || state === 'full' ? 'ok' : 'why'}">${feederStatus(state)}</span>`);
+      out.push(
+        `<span class="rate">Presses up to ${fmt(rate)} kelp fibre/min → ${fmt(rate * MASH_PER_FIBRE)} L/min mash${whorlNote} · hopper ${Math.floor(md.fibre)}/${HOPPER_CAP} · mash ${Math.round(md.mash)}/${FEEDER_MASH_CAP} L</span>`,
+      );
+    } else if (p.kind === 'tank') {
+      const td = save.tankData[String(p.id)];
+      const cs = creaturesIn(save, p.id).filter((c) => c.stage !== 'egg');
+      const eat = cs.length * mashPerCreature(HUNGER_RATE) * m;
+      let make = 0;
+      const kinds = new Set<string>();
+      for (const c of cs) {
+        const r = makeRate(save, layout, c).perMin;
+        if (r > 0) {
+          make += r;
+          kinds.add(SPECIES[c.species].makes === 'fibre' ? 'kelp fibre' : SPECIES[c.species].makes);
+        }
+      }
+      const fed = save.lines.some((l) => l.kind === 'pipe' && l.to === p.id);
+      out.push(
+        `<span class="rate">Tank ${tankNumber(layout, p.id)}: ${cs.length} creature${cs.length === 1 ? '' : 's'} · ${
+          fed ? `feed trough ${Math.round(td?.mash ?? 0)}/${TROUGH_CAP} L, eats ${fmt(eat)} L/min` : 'fed by hand (no feed pipe)'
+        } · makes ${make > 0 ? `${fmt(make)}/min ${[...kinds].join(' + ')}` : 'nothing yet'}${whorlNote}</span>`,
+      );
+    } else if (p.kind === 'storage') {
+      const total = MATERIAL_ORDER.reduce((a, k) => a + save.stored[k], 0);
+      const belts = save.lines.filter((l) => l.from === p.id).length;
+      out.push(`<span class="rate">Base storage ${total}/${this.deps.capacity()}${belts ? ` · ${belts} conveyor${belts > 1 ? 's' : ''} out` : ''}</span>`);
+    }
+    if (PIECES[p.kind].whorls && fitted) out.push(`<span class="rate">${fitted} Echo whorl${fitted > 1 ? 's' : ''} fitted: works ×${m}, and uses its inputs ×${m}</span>`);
+    return out.join('');
+  }
+
   refresh(): void {
-    const { save, layout } = this.deps;
+    const { save, layout, factory } = this.deps;
+    if (this.selected && !layout.pieces.includes(this.selected)) this.selected = layout.pieces.find((p) => p.id === this.selected!.id) ?? null;
+    if (this.selectedLine !== null && !save.lines.some((l) => l.id === this.selectedLine)) this.selectedLine = null;
+    if (this.link && !this.piece(this.link.from)) this.link = null;
     const have = available(save.bag, save.stored);
     for (const [kind, card] of this.cards) {
       const def = PIECES[kind];
@@ -496,48 +993,89 @@ export class BuildMode {
           return `<span class="cost ${have[k] >= need ? '' : 'short'}">${MATERIAL_ICONS[k]}${have[k]}/${need}</span>`;
         })
         .join('');
-      card.innerHTML = `${PIECE_ICONS[kind]}<div><b>${def.name}</b><div class="costs">${cost}<span class="time">${def.buildTime} s</span></div></div>`;
+      const html = `${PIECE_ICONS[kind]}<div><b>${def.name}</b><div class="costs">${cost}<span class="time">${def.buildTime} s</span></div></div>`;
+      if (card.innerHTML !== html) card.innerHTML = html;
       card.classList.toggle('short', !afford);
       card.setAttribute('aria-pressed', String(this.ghost?.kind === kind));
     }
     const g = this.ghost;
     const drone = this.deps.droneReady();
-    this.reason = g ? (drone ? layout.check(g) : 'Needs the build drone first (lost by the survey sled wreck)') : null;
+    const link = this.link;
+    const linkFrom = this.piece(link?.from);
+    const linkTo = this.piece(link?.to);
+    let linkCost: Partial<Record<MaterialId, number>> = {};
+    let linkCells = 0;
+    if (link && linkFrom && linkTo) {
+      const slot = save.lines.filter((q) => q.kind === link.kind && q.from === linkFrom.id).length;
+      linkCells = lineRoute(linkFrom, linkTo, link.kind, slot).cells;
+      linkCost = lineCost(link.kind, linkCells);
+    }
+    if (link) {
+      this.reason = !linkTo
+        ? 'Tap the piece to run it to'
+        : linkProblem(save, layout, link.kind, linkFrom!, linkTo) ??
+          (MATERIAL_ORDER.some((k) => have[k] < (linkCost[k] ?? 0)) ? `Need more ${MATERIAL_ORDER.filter((k) => have[k] < (linkCost[k] ?? 0)).map((k) => MATERIALS[k].plural.toLowerCase()).join(' and ')}` : null);
+    } else this.reason = g ? (drone ? layout.check(g) : 'Needs the build drone first (lost by the survey sled wreck)') : null;
     if (g && !this.reason && !canAfford(g.kind, save.bag, save.stored)) {
       const missing = MATERIAL_ORDER.filter((k) => (PIECES[g.kind].cost[k] ?? 0) > have[k]).map((k) => MATERIALS[k].plural.toLowerCase());
       this.reason = `Need more ${missing.join(' and ')}`;
     }
-    this.placeBtn.hidden = !g;
+    const sel = this.selected;
+    const ports = sel ? PIECES[sel.kind].ports : undefined;
+    this.placeBtn.hidden = !g && !link;
     this.placeBtn.disabled = !!this.reason;
     this.rotateBtn.hidden = !g || PIECES[g.kind].shapes.length < 2;
-    this.removeBtn.hidden = !this.selected || !!g;
+    this.removeBtn.hidden = (!sel && this.selectedLine === null) || !!g || !!link;
     this.removeBtn.textContent = Date.now() - this.removeArmed < 3000 ? 'Tap again to remove' : 'Remove';
     this.removeBtn.classList.toggle('armed', Date.now() - this.removeArmed < 3000);
-    this.cancelBtn.setAttribute('aria-label', g ? 'Put the piece back' : 'Close build mode');
+    this.cancelBtn.setAttribute('aria-label', g ? 'Put the piece back' : link ? 'Stop drawing the line' : 'Close build mode');
+    const showTools = !!sel && !g && !link;
+    this.beltBtn.hidden = !(showTools && ports?.beltOut);
+    this.pipeBtn.hidden = !(showTools && ports?.pipeOut);
+    const canWhorl = showTools && !!sel && !!PIECES[sel.kind].whorls && isDone(sel) && (save.whorls.length > 0 || !!save.fitted[String(sel.id)]);
+    const fittedHere = sel ? save.fitted[String(sel.id)] ?? 0 : 0;
+    this.whorlAddBtn.hidden = !canWhorl || fittedHere >= WHORLS_PER_PIECE || whorlsFree(save) === 0;
+    this.whorlTakeBtn.hidden = !canWhorl || fittedHere === 0;
+    const free = whorlsFree(save);
+    this.whorlAddBtn.innerHTML = `${WHORL_ICON}<span>Fit whorl (${free} spare)</span>`;
+    this.whorlTakeBtn.innerHTML = `${WHORL_ICON}<span>Take out whorl</span>`;
 
     let text = '';
-    if (g) {
+    if (link && linkFrom) {
+      const def = LINES[link.kind];
+      const costTxt = MATERIAL_ORDER.filter((k) => linkCost[k])
+        .map((k) => `<span class="cost ${have[k] >= linkCost[k]! ? '' : 'short'}">${MATERIAL_ICONS[k]}${linkCost[k]}</span>`)
+        .join(' ');
+      text = `<b>${def.name}</b> (${def.carries}, up to ${def.rate} ${def.unit}) from the ${PIECES[linkFrom.kind].name.toLowerCase()}.`;
+      if (linkTo) text += ` To the ${PIECES[linkTo.kind].name.toLowerCase()}: ${linkCells} cell${linkCells > 1 ? 's' : ''} · ${costTxt}`;
+      text += this.reason ? `<span class="why">${this.reason}</span>` : '<span class="ok">Tap ✓ to build it (no welding needed)</span>';
+      if (!linkTo && !this.linkTargets().length)
+        text += `<span class="why">Nothing here can take it yet. ${link.kind === 'belt' ? 'Build an auto feeder.' : 'Build a creature tank.'}</span>`;
+    } else if (g) {
       text = `<b>${PIECES[g.kind].name}</b>: ${PIECES[g.kind].job}`;
       text += this.reason ? `<span class="why">${this.reason}</span>` : '<span class="ok">Fits here: tap ✓ to place the frame</span>';
-    } else if (this.selected && !isDone(this.selected)) {
-      const p = this.selected;
-      const pct = Math.floor((p.progress ?? 0) * 100);
-      const left = Math.ceil((1 - (p.progress ?? 0)) * PIECES[p.kind].buildTime);
+    } else if (this.selectedLine !== null) {
+      const l = save.lines.find((q) => q.id === this.selectedLine)!;
+      const def = LINES[l.kind];
+      const a = this.piece(l.from);
+      const b = this.piece(l.to);
+      const rate = factory.flows.get(l.id)?.rate ?? 0;
+      const what = l.kind === 'belt' ? 'kelp fibre' : 'feed mash';
+      text = `<b>${def.name}</b>: ${a ? PIECES[a.kind].name.toLowerCase() : '?'} → ${b ? PIECES[b.kind].name.toLowerCase() : '?'}<span class="rate">Moving ${fmt(rate)} ${
+        l.kind === 'belt' ? 'items' : 'L'
+      }/min of ${what} · can carry ${def.rate} ${def.unit} (${Math.round((rate / def.rate) * 100)}% used)</span>`;
+    } else if (sel && !isDone(sel)) {
+      const pct = Math.floor((sel.progress ?? 0) * 100);
+      const left = Math.ceil((1 - (sel.progress ?? 0)) * PIECES[sel.kind].buildTime);
       const busy = this.deps.welding();
-      text = `<b>${PIECES[p.kind].name} frame</b>: ${PIECES[p.kind].job}<span class="${busy?.id === p.id ? 'ok' : 'why'}">${
-        busy?.id === p.id ? `Drone welding: ${pct}% · about ${left} s left` : `Waiting for the drone · ${pct}% welded`
+      text = `<b>${PIECES[sel.kind].name} frame</b>: ${PIECES[sel.kind].job}<span class="${busy?.id === sel.id ? 'ok' : 'why'}">${
+        busy?.id === sel.id ? `Drone welding: ${pct}% · about ${left} s left` : `Waiting for the drone · ${pct}% welded`
       }</span>`;
-    } else if (this.selected) {
-      const p = this.selected;
-      const on = layout.powered.has(p.id);
-      let extra = '';
-      if (p.kind === 'storage') {
-        const total = MATERIAL_ORDER.reduce((a, k) => a + save.stored[k], 0);
-        extra = ` · base storage ${total}/${this.deps.capacity()}`;
-      }
-      text = `<b>${PIECES[p.kind].name}</b>: ${PIECES[p.kind].job}<span class="${on ? 'ok' : 'why'}">${
-        on ? (p.kind === 'turbine' ? 'Making power' : 'Powered') : 'No power: join it to a current turbine'
-      }${extra}</span>`;
+    } else if (sel) {
+      const on = layout.powered.has(sel.id);
+      text = `<b>${PIECES[sel.kind].name}</b>: ${PIECES[sel.kind].job}<span class="${on ? 'ok' : 'why'}">${
+        on ? (sel.kind === 'turbine' ? 'Making power' : 'Powered') : 'No power: join it to a current turbine'
+      }</span>${this.pieceDetails(sel)}`;
     } else if (!drone) {
       text = `Plan freely, but nothing can be built yet.<span class="why">${NO_DRONE}</span>`;
     } else if (!layout.pieces.length) {
@@ -545,10 +1083,20 @@ export class BuildMode {
     } else {
       const unpowered = layout.pieces.filter((p) => isDone(p) && !layout.powered.has(p.id)).length;
       const frames = layout.frames().length;
-      text = `Pick a piece to add, or tap a built piece to select it.${
-        frames ? `<span class="ok">${frames} frame${frames > 1 ? 's' : ''} waiting for the drone</span>` : ''
-      }${unpowered ? `<span class="why">${unpowered} piece${unpowered > 1 ? 's have' : ' has'} no power</span>` : ''}`;
+      text = `Pick a piece to add, or tap a piece or line to select it. ${
+        document.body.classList.contains('touch') ? 'Drag to look around, pinch to zoom.' : 'Drag or WASD to look around, wheel to zoom, F to fit.'
+      }${frames ? `<span class="ok">${frames} frame${frames > 1 ? 's' : ''} waiting for the drone</span>` : ''}${
+        unpowered ? `<span class="why">${unpowered} piece${unpowered > 1 ? 's have' : ' has'} no power</span>` : ''
+      }`;
     }
     if (this.info.innerHTML !== text) this.info.innerHTML = text;
   }
+}
+
+/** A rate for the readouts: 0.25, 1.5, 12. */
+function fmt(n: number): string {
+  if (n === 0) return '0';
+  if (n < 1) return n.toFixed(2).replace(/0$/, '');
+  if (n < 10) return n.toFixed(1).replace(/\.0$/, '');
+  return String(Math.round(n));
 }

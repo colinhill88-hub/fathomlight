@@ -1,6 +1,6 @@
 import { Geometry, Mesh, Shader, Texture } from 'pixi.js';
 import { FULLSCREEN_VERTEX, GLSL_COMMON } from '../fx/shared';
-import { WORLD_H, WORLD_W } from '../world/terrain';
+import { WORLD_H, WORLD_SPAN, WORLD_X0 } from '../world/terrain';
 
 /**
  * The open water behind everything: one rectangle covering the screen,
@@ -23,6 +23,7 @@ uniform vec2 uResolution;
 uniform vec2 uCam;
 uniform vec2 uView;
 uniform vec2 uWorld;
+uniform vec2 uOrigin;
 uniform sampler2D uMask;
 
 ${GLSL_COMMON}
@@ -33,7 +34,7 @@ void main() {
   vec3 col = waterColor(d);
 
   // Daylight reaching this spot (rock above casts a soft shadow).
-  float vis = texture(uMask, clamp(wp / uWorld, 0.0, 1.0)).r;
+  float vis = texture(uMask, clamp((wp - uOrigin) / uWorld, 0.0, 1.0)).r;
   col *= mix(0.45, 1.0, vis);
 
   // Light shafts: slanted bands that sway slowly and fade with depth.
@@ -84,6 +85,7 @@ export class Water {
     uCam: Float32Array;
     uView: Float32Array;
     uWorld: Float32Array;
+    uOrigin: Float32Array;
   };
 
   constructor(mask: Texture) {
@@ -99,7 +101,8 @@ export class Water {
           uResolution: { value: new Float32Array([1, 1]), type: 'vec2<f32>' },
           uCam: { value: new Float32Array([0, 0]), type: 'vec2<f32>' },
           uView: { value: new Float32Array([1, 1]), type: 'vec2<f32>' },
-          uWorld: { value: new Float32Array([WORLD_W, WORLD_H]), type: 'vec2<f32>' },
+          uWorld: { value: new Float32Array([WORLD_SPAN, WORLD_H]), type: 'vec2<f32>' },
+          uOrigin: { value: new Float32Array([WORLD_X0, 0]), type: 'vec2<f32>' },
         },
         uMask: mask.source,
       },
