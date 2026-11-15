@@ -195,12 +195,33 @@ function buildTorso(): Container {
   const c = new Container();
   const g = new Graphics();
 
+  // Raised chrome cowl: the back unit's metal rises up behind the helmet
+  // and curves forward over it, protecting the hose connection.
+  g.moveTo(-10, -28)
+    .bezierCurveTo(4, -38, 18, -51, 34, -51)
+    .bezierCurveTo(44, -52, 50, -47, 50, -42)
+    .quadraticCurveTo(44, -40, 42, -34)
+    .lineTo(40, -24)
+    .lineTo(-10, -24)
+    .closePath()
+    .fill({ color: C.chrome })
+    .stroke({ color: C.chromeDark, width: 1.2 });
+  g.moveTo(0, -33).bezierCurveTo(12, -42, 24, -48, 38, -48.5).stroke({ color: C.chromeHi, width: 2.6, alpha: 0.75, cap: 'round' });
+  g.moveTo(41, -33).quadraticCurveTo(44, -42, 49, -44).stroke({ color: C.chromeMid, width: 2.2, alpha: 0.9, cap: 'round' });
+  // A round port through the cowl, ribs, and the hose coupling at the top.
+  g.circle(12, -31.5, 3.6).fill({ color: C.chromeMid }).stroke({ color: C.chromeDark, width: 1 });
+  g.circle(12, -31.5, 1.7).fill({ color: 0x0f1418 });
+  for (let k = 0; k < 3; k++) g.moveTo(31 + k * 3.2, -44).lineTo(31 + k * 3.2, -31).stroke({ color: C.chromeDark, width: 1.2, alpha: 0.7 });
+  g.roundRect(41, -45, 9, 7, 2).fill({ color: C.chromeMid }).stroke({ color: C.chromeDark, width: 1 });
+  rivets(g, [[37, -28], [22, -42], [26, -30]], 0.9);
+  scratches(g, 0, -48, 44, 18, 6, 0.3);
+  rustStreaks(g, 14, -33, 22, 2, 5);
+
   // Back unit: a compact chrome rebreather with two round ports.
   chromeBands(g, -28, -32, 62, 19, 9.5);
-  // A bolted round port at the rear and a vent grille towards the front.
-  g.circle(-16, -22.5, 5.5).fill({ color: C.chromeMid }).stroke({ color: C.chromeDark, width: 1 });
-  g.circle(-16, -22.5, 2.4).fill({ color: 0x0f1418 });
-  g.circle(-17.8, -24.6, 1.2).fill({ color: C.chromeHi, alpha: 0.8 });
+  // A bolted access hatch at the rear and a vent grille towards the front.
+  g.roundRect(-23, -27, 14, 9, 2).fill({ color: C.chromeMid }).stroke({ color: C.chromeDark, width: 1 });
+  rivets(g, [[-21, -25], [-11, -25], [-21, -20], [-11, -20]], 0.75);
   for (let i = 0; i < 5; i++) g.roundRect(8 + i * 4, -28, 2, 10, 1).fill({ color: C.chromeDark, alpha: 0.85 });
   rivets(g, [[-24, -18], [-1, -27], [26, -18]], 0.9);
   scratches(g, -24, -29, 54, 14, 8, 0.3);
@@ -316,49 +337,62 @@ function buildHelmet(): Container {
   // Inside of the helmet: in shadow, so the glass reads as deep and tinted.
   shell().fill({ color: 0x0e1a17, alpha: 0.55 });
   // The head in side profile, filling most of the helmet: skull, brow,
-  // nose, lips and chin, with an ear, a cap of hair and the neck below.
+  // nose, lips, chin and a jaw line that rises back towards the ear. Below
+  // it a slim neck in shadow disappears into the suit's dark neck seal.
+  // Neck first, so the jaw overlaps it.
+  g.moveTo(61, 6).lineTo(71, 6).lineTo(70.5, 16).lineTo(60.5, 16).closePath().fill({ color: 0x6e4c3b });
+  g.moveTo(61, 6).lineTo(71, 6).lineTo(70.5, 10).quadraticCurveTo(66, 8, 61, 9).closePath().fill({ color: 0x2c1e17, alpha: 0.45 });
   const head = () =>
     g
-      .moveTo(60, 19)
-      .bezierCurveTo(56, 12, 50, 4, 51, -6)
+      .moveTo(60, 9)
+      .bezierCurveTo(54, 5, 50, -2, 51, -8)
       .bezierCurveTo(52, -17, 62, -23, 71, -22)
       .bezierCurveTo(78, -21, 82, -16, 82.5, -10)
       .quadraticCurveTo(83, -7, 82.2, -5)
       .lineTo(85, 0) // nose
       .quadraticCurveTo(85.2, 1.6, 82.6, 2)
       .quadraticCurveTo(83.6, 3.6, 82.4, 5) // lips
-      .quadraticCurveTo(83.2, 7.5, 81.5, 10) // chin
-      .quadraticCurveTo(77, 13, 71, 12.5) // jaw
-      .lineTo(70, 19)
+      .quadraticCurveTo(83.2, 7.5, 81, 9.3) // chin
+      .quadraticCurveTo(76, 10.2, 70.5, 7.5) // jaw line, rising to the ear
+      .quadraticCurveTo(66, 6, 60, 9)
       .closePath();
   head().fill({ color: C.skin });
-  // Shading: the back of the head and the jaw fall into shadow.
-  g.moveTo(60, 19)
-    .bezierCurveTo(56, 12, 50, 4, 51, -6)
+  // Shading: the back of the head is turned away from the light.
+  g.moveTo(60, 9)
+    .bezierCurveTo(54, 5, 50, -2, 51, -8)
     .bezierCurveTo(52, -14, 58, -19, 64, -21)
-    .quadraticCurveTo(60, -4, 70, 12.5)
-    .lineTo(70, 19)
+    .quadraticCurveTo(60, -6, 66, 6.5)
+    .quadraticCurveTo(63, 7, 60, 9)
     .closePath()
     .fill({ color: 0x3a2a22, alpha: 0.4 });
-  g.moveTo(81.5, 10).quadraticCurveTo(77, 13, 71, 12.5).lineTo(72, 9).quadraticCurveTo(77, 10, 81, 8).closePath().fill({ color: 0x3a2a22, alpha: 0.35 });
-  // Cap of hair over the crown and back of the head.
-  g.moveTo(51.5, -2)
+  // Soft shadow under the jaw and a cheekbone highlight.
+  g.moveTo(81, 9.3).quadraticCurveTo(76, 10.2, 70.5, 7.5).quadraticCurveTo(76, 7.6, 80.4, 7.6).closePath().fill({ color: 0x2c1e17, alpha: 0.35 });
+  g.ellipse(77.5, -1.2, 3.4, 2).fill({ color: 0xc69274, alpha: 0.35 });
+  // Cap of hair over the crown and back of the head, with a few strands.
+  g.moveTo(51.5, -3)
     .bezierCurveTo(50, -14, 60, -23, 71, -22)
     .bezierCurveTo(77, -21.5, 80.5, -18, 81.5, -14)
     .quadraticCurveTo(72, -17, 64, -12)
-    .quadraticCurveTo(58, -8, 57, 0)
+    .quadraticCurveTo(58, -8, 57, 1)
     .closePath()
     .fill({ color: 0x3b261c });
+  for (const [x0, y0, x1, y1] of [[56, -14, 66, -19], [60, -10, 72, -17], [54, -6, 60, -15]])
+    g.moveTo(x0, y0).lineTo(x1, y1).stroke({ color: 0x5a3c2c, width: 0.7, alpha: 0.7 });
   // Ear.
-  g.ellipse(64, -2, 3, 4.2).fill({ color: 0x8a5f49 });
-  g.ellipse(64.5, -2, 1.4, 2.4).fill({ color: 0x5e3f30, alpha: 0.8 });
-  // Brow and eye.
-  g.moveTo(76, -9.5).quadraticCurveTo(79, -10.8, 81.5, -9.5).stroke({ color: 0x2a1a14, width: 1.3, alpha: 0.9 });
-  g.moveTo(77.4, -6.4).quadraticCurveTo(79.2, -7.6, 80.8, -6.2).quadraticCurveTo(79.2, -5.4, 77.4, -6.4).fill({ color: 0xf2ebe2 });
-  g.circle(79.9, -6.4, 0.9).fill({ color: 0x1a120e });
-  // Lips and a lit cheek.
+  g.moveTo(63, -4.5).quadraticCurveTo(67.5, -5, 67, 0).quadraticCurveTo(66.5, 3.5, 63.5, 3).quadraticCurveTo(62, -1, 63, -4.5).fill({ color: 0x8a5f49 });
+  g.moveTo(64.2, -2.5).quadraticCurveTo(66, -2.6, 65.6, 0.4).stroke({ color: 0x5e3f30, width: 0.8, alpha: 0.85 });
+  // Brow, eye with an upper lid, nostril, the line from nose to mouth, lips.
+  g.moveTo(75.5, -9.6).quadraticCurveTo(78.8, -11, 81.6, -9.6).stroke({ color: 0x2a1a14, width: 1.4, alpha: 0.9 });
+  g.moveTo(77.4, -6.4).quadraticCurveTo(79.2, -7.6, 80.8, -6.2).quadraticCurveTo(79.2, -5.4, 77.4, -6.4).fill({ color: 0xe8e0d6 });
+  g.circle(79.8, -6.4, 0.85).fill({ color: 0x1a120e });
+  g.moveTo(77.2, -6.6).quadraticCurveTo(79.2, -8.1, 81, -6.5).stroke({ color: 0x2a1a14, width: 0.7, alpha: 0.85 });
+  g.circle(83.2, 0.8, 0.55).fill({ color: 0x3a241b, alpha: 0.85 });
+  g.moveTo(81.4, 1.2).quadraticCurveTo(80, 3.4, 80.8, 5.4).stroke({ color: 0x5e3a2c, width: 0.6, alpha: 0.5 });
   g.moveTo(82.2, 3).lineTo(83.3, 3.3).stroke({ color: 0x6a3a2c, width: 0.9 });
-  g.ellipse(77.5, 0, 3.2, 2.4).fill({ color: 0xc08a6c, alpha: 0.35 });
+  // The suit's neck seal: a dark rubber collar with a metal ring, sitting in
+  // the bottom of the helmet.
+  g.moveTo(52, 13).quadraticCurveTo(64, 10.5, 77, 12.5).lineTo(79, 20).quadraticCurveTo(64, 22, 50, 19).closePath().fill({ color: C.suit });
+  g.moveTo(52, 13).quadraticCurveTo(64, 10.5, 77, 12.5).stroke({ color: C.chrome, width: 1.6 });
   // Tinted glass shell.
   shell().fill({ color: C.visor, alpha: 0.3 });
   shell().stroke({ color: C.visorEdge, width: 2, alpha: 0.95 });
@@ -389,7 +423,7 @@ function buildHelmet(): Container {
 
   // Coiled breathing hose from the back unit, over the side of the helmet,
   // down to the regulator port on the chest.
-  coiledHose(g, [[34, -27], [52, -38], [58, -8], [51, 3]], 4.2);
+  coiledHose(g, [[44, -42], [60, -46], [59, -8], [51, 3]], 4.2);
   c.addChild(g);
   return c;
 }

@@ -108,6 +108,8 @@ Cut from High so far: the phone renders at 2× instead of its native 3×. Colin 
   - The helmet stays full size, so it reads a little larger relative to the body.
   - Diver scale went from 0.82 to 0.86.
 - **Lamp moved off the head:** at Colin's request, the dive lamp is now a chrome canister strapped to the harness on the near shoulder, under the helmet (`buildShoulderLamp` in `src/actors/diver.ts`). The beam starts there and aims slightly down.
+- **Face and neck (follow-up 3):** Colin said the area under the jaw looked like a neck brace or double chin. It was a wide block of skin running from the jaw to the helmet bottom. Now there is a jaw line rising to the ear, a slim shaded neck, and the suit's dark rubber neck seal with a metal ring in the bottom of the helmet. Extra realism: an eyelid, a nostril, the line from nose to mouth, a cheekbone highlight, a shaped ear and hair strands.
+- **Raised back cowl (follow-up 3):** like the metal rising behind the head on Colin's reference figure, the chrome back unit now sweeps up into a cowl behind the helmet. It has vent ribs, a small port, rivets and the coupling where the coiled hose comes out. The rear port on the back unit became a bolted hatch, so no round "eyes" show.
 - **Camera zoomed out:** the view now shows 640 world units of height instead of 560 (`VIEW_H` in `src/main.ts`), which leaves room for base pieces later. Change that one number to zoom in or out.
 
 ## Next
