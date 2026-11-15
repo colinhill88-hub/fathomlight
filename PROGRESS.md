@@ -1,6 +1,6 @@
 # Fathomlight progress
 
-Last updated: 2026-11-14, after milestone 1 (Water and diver). **Waiting for Colin to approve the look before milestone 2.**
+Last updated: 2026-11-15, milestone 1 follow-up (new explorer suit). **Colin approved the water, effects, controls and scenery; the redesigned diver is waiting for his OK before milestone 2.**
 
 Play link: https://colinhill88-hub.github.io/fathomlight/ (live; first successful deploy 2026-11-14)
 
@@ -86,15 +86,29 @@ Cut from High so far: the phone renders at 2× instead of its native 3×. Colin 
   - Anything that should be lit goes into `litCam`.
   - Anything that should shine goes into `emissiveCam` (sharp) and `glowCam` (soft halo), with a matching entry in the lights list.
 
+### Milestone 1 follow-up: Colin's feedback and new explorer suit
+- **Feedback:**
+  - Controls work perfectly. Rippling, sun rays, leaning kelp, the beacon and the fish are all good.
+  - The frame rate drops to the mid 30s on High with the lamp on in the deep area. Colin is OK with that: **do not lower the graphics, but do not raise them either** (High stays at 2× for now).
+  - He wants a dive-watch-style gauge eventually; it is noted in DESIGN.md.
+  - He asked for the explorer to be redesigned with heavier inspiration from his childhood toy divers (photos shared in chat, not stored in the repo).
+- **New suit** (`src/actors/diver.ts`; DESIGN.md Art direction has the written direction):
+  - A swept tinted lime-glass helmet with a crest fin and the face visible inside.
+  - A chrome collar yoke with a coiled hose to a round chest regulator port.
+  - Grey sleeves, a charcoal suit with brass etching, and rust-red gloves, belt and straps.
+  - A chrome back unit with a bolted port and a vent grille.
+  - The headlamp is clamped under the crest. Bubbles now come from the chest regulator.
+- Tested: type check and build pass. Close-up renders of the diver idle, swimming and in the dark grotto (lamp on) show no console errors.
+
 ## Next
 
-**First, Colin approves the look of milestone 1** (DESIGN.md: do not move on until he does). If he asks for changes, make them in a milestone 1 follow-up session.
+**First, Colin approves the new explorer suit.** Everything else in milestone 1 is approved. If he asks for more suit changes, make them before starting milestone 2.
 
-**Then milestone 2: Shallows.** This is the first real zone: oxygen, scanner, collectible materials and saving.
+**Then milestone 2: Shallows.** This is the first real zone: oxygen, scanner, collectible materials and saving. The oxygen and depth readout is a good first home for the dive-watch gauge.
 
 ## Problems and open questions
 
 - ~~GitHub Pages switch~~ Done: Colin set Pages → Source to GitHub Actions, and the deploy now succeeds.
 - **Which branch deploys.** Only the repository's default branch, `claude/underwater-game-m0-0qqajg`, may deploy to Pages. A push from a session branch builds but its deploy step is refused (milestone 1 run 43655777497). The fix used in milestone 1, with Colin's OK: fast-forward the default branch to the session branch's commit (`git push origin HEAD:claude/underwater-game-m0-0qqajg`), which deployed successfully in run 43656384925. To make session branches deploy directly instead, Colin can add `claude/*` under Settings → Environments → github-pages → Deployment branches.
 - **Things to watch in Colin's review:** whether the kelp is too bright or too busy, how strong the caustics and water wobble are, and how fast the diver swims. Each is a single number in the code and easy to tune.
-- **Frame rate on the real phone.** Milestone 0: Colin measured a steady 60 fps in both presets. Milestone 1: not yet measured; the test browser here has no real GPU.
+- **Frame rate on the real phone.** Milestone 0: Colin measured a steady 60 fps in both presets. Milestone 1: mid 30s fps on High with the lamp on in the deep grotto (Colin, iPhone). He accepts this; graphics stay as they are. Ultra on the PC is not yet tested. If we tune performance later (milestone 11), the grotto with the lamp on is the scene to profile: there the lighting shader adds up the most lights and the glow layer is busiest.

@@ -3,40 +3,58 @@ import { isSolid } from '../world/terrain';
 import { mulberry32 } from '../rng';
 
 /**
- * The explorer, drawn entirely with code: an orange shallows suit, a yellow
- * air tank, steel fittings and a dome helmet with a headlamp. Joints (hips,
- * knees, ankles, shoulders, elbows) are separate pieces so the limbs can kick
- * and scull. Weathering (rivets, seams, scratches and rust) is painted on.
+ * The explorer, drawn entirely with code. The suit takes its inspiration
+ * from the toy divers Colin played with as a kid (see DESIGN.md, Art
+ * direction), reimagined as real, weathered dive gear rather than a toy:
+ *
+ *  - a swept helmet of tinted lime-green glass with a raised crest, the face
+ *    visible inside,
+ *  - a chrome-and-blue-steel collar yoke with a coiled breathing hose that
+ *    runs from the back unit over the side of the helmet to a round
+ *    regulator port on the chest,
+ *  - grey sleeves, a charcoal suit with faint brass etched panel lines,
+ *    and rust-red gloves and belt,
+ *  - a compact chrome rebreather unit on the back instead of a tank.
+ *
+ * Joints (hips, knees, ankles, shoulders, elbows) are separate pieces so the
+ * limbs can kick and scull. Weathering (rivets, scratches, rust) is painted on.
  *
  * Local drawing space: facing right, origin at the middle of the torso.
  */
 
 const C = {
-  suit: 0xb0602f,
-  suitShade: 0x7f4024,
-  suitLight: 0xc9824c,
+  suit: 0x2c302f, // charcoal
+  suitShade: 0x1a1d1d,
+  suitLight: 0x4a504d,
+  etch: 0xb39a4e, // brass etched lines
+  sleeve: 0x8b918f,
+  sleeveShade: 0x5f6563,
+  red: 0xa8402e, // rust red gloves and belt
+  redShade: 0x6e2a1f,
   rust: 0x8a3a20,
-  steel: 0x707c80,
+  chrome: 0x6d7f9a, // blue-steel chrome
+  chromeDark: 0x2c3647,
+  chromeMid: 0x4d5d77,
+  chromeHi: 0xd6e0ee,
   steelDark: 0x3b4448,
   steelLight: 0xaab4b5,
-  yellow: 0xc29b45,
-  yellowShade: 0x8c6f31,
-  rubber: 0x2c2a27,
-  rubberEdge: 0x5a3324,
-  glass: 0x163238,
-  glassHi: 0xd8ece8,
+  rubber: 0x232524,
+  rubberEdge: 0x3d4140,
+  visor: 0xb6e23a, // tinted lime glass
+  visorEdge: 0x6f8f16,
+  skin: 0x9a7058,
 };
 
 const rand = mulberry32(0xd1e5);
 
 function rivets(g: Graphics, pts: [number, number][], r = 1.1): void {
   for (const [x, y] of pts) {
-    g.circle(x, y, r).fill({ color: C.steelDark });
-    g.circle(x - 0.3, y - 0.4, r * 0.45).fill({ color: C.steelLight, alpha: 0.8 });
+    g.circle(x, y, r).fill({ color: C.chromeDark });
+    g.circle(x - 0.3, y - 0.4, r * 0.45).fill({ color: C.chromeHi, alpha: 0.85 });
   }
 }
 
-function scratches(g: Graphics, x0: number, y0: number, w: number, h: number, n: number): void {
+function scratches(g: Graphics, x0: number, y0: number, w: number, h: number, n: number, alpha = 0.22): void {
   for (let i = 0; i < n; i++) {
     const x = x0 + rand() * w;
     const y = y0 + rand() * h;
@@ -44,7 +62,7 @@ function scratches(g: Graphics, x0: number, y0: number, w: number, h: number, n:
     const l = 2 + rand() * 4;
     g.moveTo(x, y)
       .lineTo(x + Math.cos(a) * l, y + Math.sin(a) * l)
-      .stroke({ color: 0xffffff, alpha: 0.18 + rand() * 0.12, width: 0.6 });
+      .stroke({ color: 0xffffff, alpha: alpha * (0.7 + rand() * 0.6), width: 0.6 });
   }
 }
 
@@ -54,8 +72,32 @@ function rustStreaks(g: Graphics, x0: number, y0: number, w: number, n: number, 
     const l = len * (0.5 + rand());
     g.moveTo(x, y0)
       .quadraticCurveTo(x + (rand() - 0.5) * 2, y0 + l * 0.5, x + (rand() - 0.5) * 3, y0 + l)
-      .stroke({ color: C.rust, alpha: 0.35 + rand() * 0.25, width: 0.8 + rand() * 0.9 });
+      .stroke({ color: C.rust, alpha: 0.3 + rand() * 0.25, width: 0.7 + rand() * 0.8 });
   }
+}
+
+/** Faint engraved "circuit" panel lines, like etched brass trim on the suit. */
+function etching(g: Graphics, x0: number, y0: number, w: number, h: number, n: number): void {
+  for (let i = 0; i < n; i++) {
+    let x = x0 + rand() * w;
+    let y = y0 + rand() * h;
+    g.moveTo(x, y);
+    for (let k = 0; k < 3; k++) {
+      if (rand() < 0.5) x = Math.min(x0 + w, Math.max(x0, x + (rand() - 0.5) * 14));
+      else y = Math.min(y0 + h, Math.max(y0, y + (rand() - 0.5) * 8));
+      g.lineTo(x, y);
+    }
+    g.stroke({ color: C.etch, alpha: 0.5, width: 0.7 });
+    g.circle(x, y, 0.9).fill({ color: C.etch, alpha: 0.7 });
+  }
+}
+
+/** Polished metal: base colour with bright and dark reflection bands. */
+function chromeBands(g: Graphics, x: number, y: number, w: number, h: number, r: number): void {
+  g.roundRect(x, y, w, h, r).fill({ color: C.chrome });
+  g.roundRect(x + 1, y + h * 0.55, w - 2, h * 0.4, r * 0.6).fill({ color: C.chromeMid, alpha: 0.85 });
+  g.roundRect(x + 2, y + h * 0.12, w - 4, h * 0.16, h * 0.08).fill({ color: C.chromeHi, alpha: 0.75 });
+  g.roundRect(x, y, w, h, r).stroke({ color: C.chromeDark, width: 1 });
 }
 
 /** A limb segment drawn along +x from its joint. */
@@ -83,12 +125,12 @@ interface Arm {
 }
 
 function buildLeg(far: boolean): Leg {
-  const k = far ? 0.72 : 1;
   const tint = far ? 0x9a9a9a : 0xffffff;
   const thigh = new Container();
   const tg = segment(30, 13, C.suit, C.suitShade);
-  // Steel knee pad.
-  tg.roundRect(25, -6.5, 9, 13, 3).fill({ color: C.steel });
+  etching(tg, 2, -5, 22, 10, 3);
+  // Chrome knee guard.
+  chromeBands(tg, 25, -6.5, 9, 13, 3);
   rivets(tg, [[29.5, -3.5], [29.5, 3.5]], 0.9);
   tg.tint = tint;
   thigh.addChild(tg);
@@ -96,7 +138,8 @@ function buildLeg(far: boolean): Leg {
   const shin = new Container();
   shin.x = 30;
   const sg = segment(26, 11, C.suit, C.suitShade);
-  sg.rect(18, -5.5, 5, 11).fill({ color: C.steelDark, alpha: 0.7 }); // strap
+  etching(sg, 2, -4, 16, 8, 2);
+  sg.rect(18, -5.5, 5, 11).fill({ color: C.red, alpha: 0.9 }); // ankle strap
   scratches(sg, 2, -4, 18, 6, 3);
   sg.tint = tint;
   shin.addChild(sg);
@@ -105,9 +148,7 @@ function buildLeg(far: boolean): Leg {
   const fin = new Container();
   fin.x = 28;
   const fg = new Graphics();
-  // Boot.
   fg.roundRect(-5, -6, 12, 12, 4).fill({ color: C.rubber });
-  // Blade: long, tapered and slightly ribbed.
   fg.moveTo(2, -6)
     .lineTo(44, -9)
     .quadraticCurveTo(50, -1, 46, 6)
@@ -118,30 +159,31 @@ function buildLeg(far: boolean): Leg {
   for (const y of [-4, 0, 3.5])
     fg.moveTo(8, y * 0.7)
       .lineTo(42, y * 1.25)
-      .stroke({ color: 0x4a4540, width: 1, alpha: 0.7 });
+      .stroke({ color: 0x3e4140, width: 1, alpha: 0.7 });
   fg.tint = tint;
   fin.addChild(fg);
   shin.addChild(fin);
-
-  thigh.scale.set(1, k > 0.9 ? 1 : 0.96);
   return { thigh, shin, fin };
 }
 
 function buildArm(far: boolean): Arm {
   const tint = far ? 0x9a9a9a : 0xffffff;
   const upper = new Container();
-  const ug = segment(20, 10, C.suit, C.suitShade);
-  ug.circle(0, 0, 6).fill({ color: C.steel }); // shoulder joint ring
-  ug.circle(0, 0, 3).fill({ color: C.steelDark });
+  const ug = segment(20, 10, C.sleeve, C.sleeveShade);
+  ug.circle(0, 0, 6).fill({ color: C.chrome }); // shoulder joint ring
+  ug.circle(-1, -1.5, 2.5).fill({ color: C.chromeHi, alpha: 0.6 });
+  ug.circle(0, 0, 6).stroke({ color: C.chromeDark, width: 1 });
+  scratches(ug, 4, -4, 14, 8, 2);
   ug.tint = tint;
   upper.addChild(ug);
 
   const fore = new Container();
   fore.x = 20;
-  const fg = segment(17, 9, C.suit, C.suitShade);
-  // Glove.
-  fg.roundRect(15, -5, 10, 10, 4).fill({ color: C.rubber });
-  fg.rect(14, -5, 3, 10).fill({ color: C.steel });
+  const fg = segment(17, 9, C.sleeve, C.sleeveShade);
+  // Rust-red glove with a chrome cuff ring.
+  fg.roundRect(14, -5.2, 11, 10.4, 4.5).fill({ color: C.red });
+  fg.roundRect(16, 1, 8, 3.5, 1.5).fill({ color: C.redShade, alpha: 0.7 });
+  fg.rect(13, -5, 3, 10).fill({ color: C.chrome });
   fg.tint = tint;
   fore.addChild(fg);
   upper.addChild(fore);
@@ -152,85 +194,150 @@ function buildTorso(): Container {
   const c = new Container();
   const g = new Graphics();
 
-  // Air tank on the back.
-  g.roundRect(-30, -31, 58, 18, 9).fill({ color: C.yellow });
-  g.roundRect(-28, -22, 54, 8, 4).fill({ color: C.yellowShade, alpha: 0.7 });
-  g.roundRect(-26, -29, 50, 4, 2).fill({ color: 0xffffff, alpha: 0.13 });
-  for (const x of [-16, 12]) {
-    g.rect(x, -32, 4, 20).fill({ color: C.steel });
-    rivets(g, [[x + 2, -28], [x + 2, -16]], 0.9);
-  }
-  rustStreaks(g, -26, -20, 48, 6, 7);
-  // Valve and hose to the helmet.
-  g.roundRect(26, -28, 9, 10, 2).fill({ color: C.steel });
-  g.circle(30.5, -30, 3).fill({ color: C.steelDark });
-  g.moveTo(34, -22)
-    .bezierCurveTo(44, -24, 42, -10, 48, -8)
-    .stroke({ color: C.rubber, width: 4, cap: 'round' });
+  // Back unit: a compact chrome rebreather with two round ports.
+  chromeBands(g, -28, -32, 62, 19, 9.5);
+  // A bolted round port at the rear and a vent grille towards the front.
+  g.circle(-16, -22.5, 5.5).fill({ color: C.chromeMid }).stroke({ color: C.chromeDark, width: 1 });
+  g.circle(-16, -22.5, 2.4).fill({ color: 0x0f1418 });
+  g.circle(-17.8, -24.6, 1.2).fill({ color: C.chromeHi, alpha: 0.8 });
+  for (let i = 0; i < 5; i++) g.roundRect(8 + i * 4, -28, 2, 10, 1).fill({ color: C.chromeDark, alpha: 0.85 });
+  rivets(g, [[-24, -18], [-1, -27], [26, -18]], 0.9);
+  scratches(g, -24, -29, 54, 14, 8, 0.3);
+  rustStreaks(g, -20, -16, 44, 3, 5);
 
-  // Suit body.
+  // Suit body: charcoal with brass etching.
   g.roundRect(-34, -15, 74, 30, 13).fill({ color: C.suit });
   g.roundRect(-32, 3, 70, 11, 6).fill({ color: C.suitShade, alpha: 0.75 });
-  g.roundRect(-30, -13, 66, 5, 3).fill({ color: C.suitLight, alpha: 0.45 });
-  // Panel seams.
-  for (const x of [-12, 8]) g.moveTo(x, -14).lineTo(x + 1, 14).stroke({ color: C.suitShade, width: 1.1 });
-  // Harness straps.
-  g.rect(18, -15, 5, 30).fill({ color: C.steelDark, alpha: 0.85 });
-  g.rect(-22, -15, 5, 30).fill({ color: C.steelDark, alpha: 0.85 });
-  g.roundRect(-36, -5, 9, 12, 3).fill({ color: C.steel }); // belt buckle
-  rivets(g, [[-31.5, -1], [-31.5, 3.5]], 0.9);
-  // Chest plate with rivets and a stencilled number.
-  g.roundRect(24, -12, 17, 22, 5).fill({ color: C.steel });
-  g.roundRect(25, 2, 15, 7, 3).fill({ color: C.steelDark, alpha: 0.45 });
-  rivets(g, [[27, -9], [38, -9], [27, 7], [38, 7]]);
-  scratches(g, -30, -12, 70, 24, 10);
-  rustStreaks(g, 24, -2, 16, 3, 9);
-  // Algae speckles near the bottom of the suit.
-  for (let i = 0; i < 10; i++)
-    g.circle(-30 + rand() * 60, 9 + rand() * 4, 0.8 + rand() * 1.2).fill({ color: 0x5f7a3a, alpha: 0.5 });
+  g.roundRect(-30, -13, 66, 5, 3).fill({ color: C.suitLight, alpha: 0.5 });
+  etching(g, -26, -11, 44, 20, 9);
+  // Rust-red belt with a chrome buckle.
+  g.rect(-28, -15, 7, 30).fill({ color: C.red });
+  g.rect(-28, 4, 7, 11).fill({ color: C.redShade, alpha: 0.6 });
+  chromeBands(g, -36, -5, 9, 12, 3);
+  // Harness strap from the back unit.
+  g.rect(14, -15, 5, 30).fill({ color: C.chromeDark, alpha: 0.85 });
+  scratches(g, -30, -12, 70, 24, 6);
+  for (let i = 0; i < 8; i++)
+    g.circle(-30 + rand() * 60, 10 + rand() * 4, 0.8 + rand() * 1.1).fill({ color: 0x5f7a3a, alpha: 0.45 });
+
+  // Collar yoke: the chrome ring that wraps the shoulders and seats the helmet.
+  g.moveTo(30, -26)
+    .lineTo(44, -24)
+    .quadraticCurveTo(52, -10, 52, 6)
+    .quadraticCurveTo(52, 18, 42, 19)
+    .lineTo(30, 16)
+    .quadraticCurveTo(34, -4, 30, -26)
+    .closePath()
+    .fill({ color: C.chrome })
+    .stroke({ color: C.chromeDark, width: 1.2 });
+  g.moveTo(36, -22).quadraticCurveTo(44, -8, 43, 12).stroke({ color: C.chromeHi, width: 2.2, alpha: 0.7, cap: 'round' });
+  g.moveTo(47, -12).quadraticCurveTo(50, 2, 47, 14).stroke({ color: C.chromeMid, width: 2, alpha: 0.9, cap: 'round' });
+  rivets(g, [[34, -20], [33, 12], [48, 15]], 1);
+
+  // Regulator port on the chest: a round chrome fitting with a dark mouth
+  // and grille slots below.
+  g.circle(50, 9, 7).fill({ color: C.chrome }).stroke({ color: C.chromeDark, width: 1.2 });
+  g.circle(51, 9, 3.2).fill({ color: 0x0d1114 });
+  g.circle(48, 6.5, 1.6).fill({ color: C.chromeHi, alpha: 0.8 });
+  for (let i = 0; i < 3; i++) g.rect(42 + i * 3.2, 15.5, 2, 3.2).fill({ color: C.chromeDark });
   c.addChild(g);
 
   const stencil = new Text({
     text: 'K7',
-    style: { fontFamily: 'Courier New, monospace', fontSize: 11, fontWeight: 'bold', fill: 0x2a2418 },
+    style: { fontFamily: 'Courier New, monospace', fontSize: 10, fontWeight: 'bold', fill: 0x1d2430 },
     resolution: 4,
   });
-  stencil.alpha = 0.55;
+  stencil.alpha = 0.6;
   stencil.anchor.set(0.5);
-  stencil.position.set(-2, -22.5);
+  stencil.position.set(-1, -19);
   c.addChild(stencil);
   return c;
 }
 
+/** Ribbed hose: a curve with closely spaced light and dark rings across it. */
+function coiledHose(g: Graphics, pts: [number, number][], width: number): void {
+  const [p0, p1, p2, p3] = pts;
+  const at = (t: number): [number, number] => {
+    const u = 1 - t;
+    return [
+      u * u * u * p0[0] + 3 * u * u * t * p1[0] + 3 * u * t * t * p2[0] + t * t * t * p3[0],
+      u * u * u * p0[1] + 3 * u * u * t * p1[1] + 3 * u * t * t * p2[1] + t * t * t * p3[1],
+    ];
+  };
+  g.moveTo(...p0)
+    .bezierCurveTo(p1[0], p1[1], p2[0], p2[1], p3[0], p3[1])
+    .stroke({ color: C.chromeMid, width, cap: 'round' });
+  const n = 26;
+  for (let i = 0; i <= n; i++) {
+    const t = i / n;
+    const [x, y] = at(t);
+    const [x2, y2] = at(Math.min(1, t + 0.01));
+    let dx = x2 - x;
+    let dy = y2 - y;
+    const l = Math.hypot(dx, dy) || 1;
+    dx /= l;
+    dy /= l;
+    const h = width * 0.55;
+    g.moveTo(x - dy * h, y + dx * h)
+      .lineTo(x + dy * h, y - dx * h)
+      .stroke({ color: i % 2 ? C.chromeHi : C.chromeDark, width: 1, alpha: i % 2 ? 0.8 : 0.9 });
+  }
+}
+
 function buildHelmet(): Container {
   const c = new Container();
-  c.position.set(52, -2);
   const g = new Graphics();
-  // Collar ring.
-  g.roundRect(-10, -15, 10, 30, 4).fill({ color: C.steel });
-  rivets(g, [[-5, -11], [-5, 0], [-5, 11]]);
-  // Dome.
-  g.circle(10, 0, 18).fill({ color: C.steel });
-  g.circle(10, 0, 18).stroke({ color: C.steelDark, width: 1.5 });
-  g.circle(12, 0, 14).fill({ color: C.glass });
-  // A faint face behind the glass.
-  g.ellipse(13, 2, 6.5, 8).fill({ color: 0x6d5446, alpha: 0.55 });
-  g.ellipse(15.5, 0, 1.4, 1.1).fill({ color: 0x1a1210, alpha: 0.6 });
-  // Reflections on the glass.
-  g.arc(12, 0, 11, Math.PI * 1.05, Math.PI * 1.55).stroke({ color: C.glassHi, width: 3, alpha: 0.55, cap: 'round' });
-  g.circle(19, -7, 1.8).fill({ color: 0xffffff, alpha: 0.6 });
-  // Frame rivets around the window.
-  const pts: [number, number][] = [];
-  for (let i = 0; i < 8; i++) {
-    const a = (i / 8) * Math.PI * 2;
-    pts.push([10 + Math.cos(a) * 16, Math.sin(a) * 16]);
-  }
-  rivets(g, pts, 0.9);
-  // Headlamp housing on top.
-  g.roundRect(6, -24, 18, 8, 3).fill({ color: C.steelDark });
-  g.roundRect(8, -23, 13, 3, 1.5).fill({ color: C.steel });
-  g.circle(25, -20, 3.4).fill({ color: C.steel });
-  rustStreaks(g, 0, 10, 20, 3, 6);
+  const shell = () =>
+    g
+      .moveTo(46, 15)
+      .bezierCurveTo(37, 4, 37, -18, 54, -25)
+      .bezierCurveTo(66, -30, 81, -26, 87, -14)
+      .bezierCurveTo(92, -4, 91, 8, 83, 15)
+      .quadraticCurveTo(64, 21, 46, 15)
+      .closePath();
+
+  // Inside of the helmet: in shadow, so the glass reads as deep and tinted.
+  shell().fill({ color: 0x0e1a17, alpha: 0.55 });
+  // The face, partly lit from the front.
+  g.ellipse(71, 1, 7.5, 9.5).fill({ color: C.skin });
+  g.ellipse(67.5, 2, 4.5, 8.5).fill({ color: 0x3a2a22, alpha: 0.45 });
+  g.ellipse(75, -1.5, 1.3, 1.1).fill({ color: 0x140d0b, alpha: 0.85 }); // eye
+  g.moveTo(64, -7.5).quadraticCurveTo(71, -11.5, 78, -7.5).stroke({ color: 0x4e2a1f, width: 2.2, alpha: 0.85 }); // cap band
+  g.roundRect(73, 5, 7, 4, 2).fill({ color: C.chromeDark }); // mouthpiece
+  // Tinted glass shell.
+  shell().fill({ color: C.visor, alpha: 0.3 });
+  shell().stroke({ color: C.visorEdge, width: 2, alpha: 0.95 });
+  // Thick glass catches more colour along its edges.
+  g.moveTo(47, 12).bezierCurveTo(40, 2, 40, -16, 55, -22).stroke({ color: C.visor, width: 3, alpha: 0.55, cap: 'round' });
+
+  // One smooth crest fin, sweeping back past the rear of the helmet.
+  g.moveTo(82, -22)
+    .quadraticCurveTo(79, -37, 65, -39)
+    .quadraticCurveTo(49, -40, 35, -32)
+    .quadraticCurveTo(47, -27, 56, -25.5)
+    .quadraticCurveTo(70, -27, 82, -22)
+    .closePath()
+    .fill({ color: C.visor, alpha: 0.8 })
+    .stroke({ color: C.visorEdge, width: 1.5 });
+  g.moveTo(78, -26).quadraticCurveTo(64, -32, 44, -31).stroke({ color: C.visorEdge, width: 1, alpha: 0.7 });
+  g.moveTo(76, -30).quadraticCurveTo(66, -34, 54, -34).stroke({ color: 0xf2ffd0, width: 1.4, alpha: 0.55, cap: 'round' });
+
+  // Moulded rib down the side, and the face-plate frame.
+  g.moveTo(55, -20).quadraticCurveTo(52, -4, 56, 12).stroke({ color: C.visorEdge, width: 1.4, alpha: 0.7 });
+  g.moveTo(82, -17).bezierCurveTo(87, -8, 87, 5, 81, 13).stroke({ color: C.visorEdge, width: 2, alpha: 0.9 });
+
+  // Reflections.
+  g.moveTo(60, -21).quadraticCurveTo(71, -26, 81, -18).stroke({ color: 0xf6ffe0, width: 2.4, alpha: 0.55, cap: 'round' });
+  g.circle(85, -9, 1.7).fill({ color: 0xffffff, alpha: 0.7 });
+  g.moveTo(87.5, -2).quadraticCurveTo(88, 3, 86, 8).stroke({ color: 0xffffff, width: 1.2, alpha: 0.35, cap: 'round' });
+
+  // Headlamp clamped under the front of the crest.
+  g.roundRect(78, -27, 10, 6.5, 2.5).fill({ color: C.chrome }).stroke({ color: C.chromeDark, width: 1 });
+  g.circle(89, -23.8, 2.8).fill({ color: C.chromeMid });
+
+  // Coiled breathing hose from the back unit, over the side of the helmet,
+  // down to the regulator port on the chest.
+  coiledHose(g, [[34, -27], [52, -38], [58, -8], [51, 3]], 4.2);
   c.addChild(g);
   return c;
 }
@@ -288,13 +395,13 @@ export class Diver {
     this.body.position.set(0, 0);
     this.view.addChild(this.body);
 
-    this.lens.circle(0, 0, 2.6).fill({ color: 0xfff3d0 });
+    this.lens.circle(0, 0, 2.4).fill({ color: 0xfff3d0 });
     this.lensGlow.circle(0, 0, 14).fill({ color: 0xffe9b0, alpha: 0.9 });
   }
 
   /** Where the headlamp lens sits, in local drawing space. */
-  private static readonly LAMP = { x: 78, y: -22 };
-  private static readonly BUBBLE = { x: 60, y: -20 };
+  private static readonly LAMP = { x: 91, y: -23.8 };
+  private static readonly BUBBLE = { x: 54, y: 9 };
 
   private toWorld(lx: number, ly: number): [number, number] {
     const S = Diver.SCALE;

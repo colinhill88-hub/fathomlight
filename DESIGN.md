@@ -35,6 +35,8 @@ The look is weathered, realistic hardware set in painterly water. The screenshot
 - **Creatures:** naturalistic proportions with small eyes, patterned skin and bioluminescence. Nothing cartoonish.
 - **The alien presence:** luminous, non-humanoid ring-and-ribbon forms in cyan, violet and magenta. It is the only source of those colours in the game.
 - **Interface:** clean and minimal so it does not compete with the scene. Touch targets at least 44 px.
+- **Dive watch:** oxygen, depth and dive time are eventually shown on a gauge styled like a dive watch (Colin's request after milestone 1).
+- **Explorer suit (Colin's direction after milestone 1):** inspired by the toy divers he played with as a kid, reimagined as real gear. It has a swept helmet of tinted lime-green glass with one smooth crest fin and the face visible inside. A blue-steel chrome collar yoke carries a coiled breathing hose from the back unit over the side of the helmet to a round regulator port on the chest. Sleeves are grey; the suit is charcoal with faint brass etched lines; gloves, belt and straps are rust red; a compact chrome rebreather sits on the back. Use these as inspiration only: realistic proportions and weathering, no toy shapes.
 - **All art is drawn by code.** Shapes, textures, weathering and lighting are procedural. Use no image files unless Colin supplies them.
 
 **Originality rules.** Every design must be original. Use no brick, stud or minifigure shapes and no toy-like plastic look. Use no trademarked names. Copy no creature, vehicle, building or character design from Subnautica, The Abyss or any other game or film.
