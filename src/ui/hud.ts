@@ -1,4 +1,4 @@
-import { MATERIAL_ORDER, MATERIALS, MaterialId, SaveData, TOTAL_AIR_TANKS, maxOxygen } from '../game/state';
+import { MATERIAL_ORDER, MATERIALS, MaterialId, SaveData, TOTAL_AIR_TANKS, maxOxygen, bagLimits, bagWeight } from '../game/state';
 import { SCAN_ENTRIES, entry } from '../game/scanner';
 
 /**
@@ -120,10 +120,13 @@ export class Hud {
       (id) =>
         `<li class="mat">${MATERIAL_ICONS[id]}<div><b>${MATERIALS[id].plural}: ${save.bag[id]} carried${
           save.stored[id] ? `, ${save.stored[id]} stored` : ''
-        }</b><p>${MATERIALS[id].blurb}</p></div></li>`,
+        }</b><p>${MATERIALS[id].blurb} ${MATERIALS[id].kg} kg each.</p></div></li>`,
     ).join('');
+    const lim = bagLimits(save);
+    const kg = bagWeight(save.bag);
     const counts: Record<string, number> = {};
-    for (const p of save.pieces) counts[p.kind] = (counts[p.kind] ?? 0) + 1;
+    for (const p of save.pieces) if (p.progress === undefined) counts[p.kind] = (counts[p.kind] ?? 0) + 1;
+    const frames = save.pieces.filter((p) => p.progress !== undefined).length;
     const names: [string, string][] = [
       ['dome', 'Dome habitat'],
       ['turbine', 'Current turbine'],
@@ -131,18 +134,24 @@ export class Hud {
       ['corridor', 'Corridor'],
     ];
     const base = save.pieces.length
-      ? names
-          .filter(([k]) => counts[k])
-          .map(([k, n]) => `${counts[k]} × ${n}`)
-          .join(' · ')
+      ? [
+          ...names.filter(([k]) => counts[k]).map(([k, n]) => `${counts[k]} × ${n}`),
+          ...(frames ? [`${frames} frame${frames > 1 ? 's' : ''} being welded`] : []),
+        ].join(' · ')
       : 'Nothing built yet. Swim to the Kestrel buoy and tap Build.';
     this.logPanel.innerHTML = `
       <h2>Scanner log <small>${done.size} / ${SCAN_ENTRIES.length}</small></h2>
       <ul class="log">${rows}</ul>
       <h2>Materials</h2>
+      <p class="note">Dive bag: ${kg.toFixed(1)} kg of ${lim.max} kg. Past ${lim.rated} kg you swim and climb slower, sink when still and use more air. Unload at a storage pod.</p>
       <ul class="log">${mats}</ul>
       <h2>Outpost Kestrel</h2>
       <p class="note">${base}</p>
+      <p class="note">${
+        save.drone === 'active'
+          ? 'Build drone KD-1: repaired. It welds every frame you place.'
+          : 'Build drone: missing. It was lost near the survey sled wreck in the sand channel.'
+      }</p>
       <p class="note">Air tank upgrades found: ${save.tanks.length} / ${TOTAL_AIR_TANKS} · Dive time ${maxOxygen(save)} s</p>`;
   }
 

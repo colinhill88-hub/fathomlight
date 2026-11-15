@@ -25,12 +25,28 @@ import {
   WORLD_W,
   WU_PER_METRE,
 } from './world/terrain';
-import { clearSave, loadSave, MATERIAL_ORDER as MATERIALS_LIST, MATERIALS, maxOxygen, SaveData, TANK_BONUS, writeSave } from './game/state';
+import {
+  bagHasRoom,
+  bagLimits,
+  bagLoad,
+  bagWeight,
+  clearSave,
+  DRONE_REPAIR_COST,
+  droneWeldRate,
+  loadSave,
+  MATERIAL_ORDER as MATERIALS_LIST,
+  MATERIALS,
+  maxOxygen,
+  SaveData,
+  TANK_BONUS,
+  writeSave,
+} from './game/state';
+import { Drone } from './actors/drone';
 import { Scanner } from './game/scanner';
 import { SurfaceFx } from './fx/surface';
 import { Hud } from './ui/hud';
 import { DiveWatch } from './ui/watch';
-import { BaseLayout, GRID_BASE, GRID_X0, GRID_X1, pieceRect, Placed } from './game/base';
+import { BaseLayout, GRID_BASE, GRID_X0, GRID_X1, isDone, PIECES, pieceRect, Placed } from './game/base';
 import { BaseView, BuildOverlay, storageCapacity } from './world/basegfx';
 import { BuildMode } from './ui/build';
 
@@ -119,6 +135,8 @@ async function boot(): Promise<void> {
   diver.y = save.y;
   diver.lampOn = save.lampOn;
   const bubbles = new Bubbles(renderer);
+  // The build drone: stuck in the sled wreck until repaired (milestone 3 follow-up).
+  const drone = new Drone(save.drone === 'active');
   const fish = [0, 0, 1].map((look) => new Glowfin(look, GROTTO));
   const schools = [
     new School(22, { x0: 1850, x1: 3500, y0: 200, y1: 380 }),
@@ -135,6 +153,7 @@ async function boot(): Promise<void> {
     { id: 'buoy', points: () => scenery.scanPoints.buoy },
     { id: 'anchor', points: () => scenery.scanPoints.anchor },
     { id: 'sled', points: () => scenery.scanPoints.sled },
+    { id: 'drone', points: () => [drone.scanPoint()] },
     { id: 'beacon', points: () => scenery.scanPoints.beacon },
     { id: 'cave', points: () => scenery.scanPoints.cave },
   ]);
@@ -144,6 +163,7 @@ async function boot(): Promise<void> {
   // The base at the Kestrel site.
   const layout = new BaseLayout(save.pieces);
   save.pieces = layout.pieces;
+  drone.teleport(diver.x, diver.y, layout);
   const baseView = new BaseView();
   baseView.sync(layout);
   const buildOverlay = new BuildOverlay();
@@ -172,14 +192,15 @@ async function boot(): Promise<void> {
       pickups.view,
       ...schools.map((s) => s.view),
       ...fish.map((f) => f.view),
+      drone.view,
       diver.view,
       bubbles.view,
       baseView.front,
       scenery.over,
     );
     frontCam.addChild(scenery.front);
-    emissiveCam.addChild(scenery.emissive, baseView.emissive, pickups.emissive, ...fish.map((f) => f.lure), diver.lens, surfaceFx.view);
-    glowCam.addChild(scenery.glow, baseView.glow, pickups.glow, ...fish.map((f) => f.halo), diver.lensGlow);
+    emissiveCam.addChild(scenery.emissive, baseView.emissive, pickups.emissive, drone.emissive, ...fish.map((f) => f.lure), diver.lens, surfaceFx.view);
+    glowCam.addChild(scenery.glow, baseView.glow, pickups.glow, drone.glow, ...fish.map((f) => f.halo), diver.lensGlow);
   }
   populate();
 
@@ -203,7 +224,20 @@ async function boot(): Promise<void> {
     toast: (t, k) => hud.toast(t, k),
     refreshInventory: () => hud.refreshInventory(),
     capacity: () => storageCapacity(layout),
+    droneReady: () => save.drone === 'active',
+    welding: () => drone.welding,
   });
+
+  /** Can the drone repair be paid for (carried first, then stored)? Lists what is missing. */
+  function repairMissing(): string[] {
+    return MATERIALS_LIST.filter((k) => save.bag[k] + save.stored[k] < (DRONE_REPAIR_COST[k] ?? 0)).map((k) => {
+      const n = (DRONE_REPAIR_COST[k] ?? 0) - save.bag[k] - save.stored[k];
+      return `${n} ${(n === 1 ? MATERIALS[k].name : MATERIALS[k].plural).toLowerCase()}`;
+    });
+  }
+  /** 0 light, 1 heavy (past the rated load), 2 full. For the one-off messages. */
+  let loadState = 0;
+  let fullWarnAt = -99;
 
   /** A powered dome habitat the diver is inside, or the first unpowered one. */
   function domeAround(x: number, y: number): Placed | null {
@@ -344,6 +378,9 @@ async function boot(): Promise<void> {
     input.update();
     const s = input.state;
     const inControl = blackout === 0 && !build.active;
+    // The dive bag's weight slows the diver (no sinking through a dome's floor).
+    diver.load = bagLoad(save);
+    diver.noSink = insideDome !== null;
     diver.update(dt, inControl ? s.moveX : 0, inControl ? s.moveY : 0, inControl && s.boost, inControl && s.lamp);
 
     // Breaking the surface: a splash, then breath vapour with each breath out.
@@ -361,9 +398,11 @@ async function boot(): Promise<void> {
     hud.setBanner(
       inCave
         ? 'Pitch black ahead. The shoulder lamp barely dents this darkness. A proper dive light would open the way (built later in the Workshop).'
-        : domeHere && !layout.powered.has(domeHere.id)
-          ? 'This habitat has no power. Join it to a current turbine (directly or through corridors) to get air here.'
-          : '',
+        : domeHere && !isDone(domeHere)
+          ? 'This habitat is still a frame. The build drone has to finish welding it before there is air inside.'
+          : domeHere && !layout.powered.has(domeHere.id)
+            ? 'This habitat has no power. Join it to a current turbine (directly or through corridors) to get air here.'
+            : '',
     );
 
     // ---- Oxygen ----
@@ -390,7 +429,9 @@ async function boot(): Promise<void> {
         lowWarned = false;
       } else {
         // Hard work uses air faster: boosting, and prying materials loose.
-        save.oxygen = Math.max(0, save.oxygen - dt * (diver.boosting ? 1.8 : pickups.working ? 1.3 : 1));
+        // A heavy dive bag makes the diver breathe harder too.
+        const work = diver.boosting ? 1.8 : pickups.working || drone.repairProgress > 0 ? 1.3 : 1;
+        save.oxygen = Math.max(0, save.oxygen - dt * work * (1 + 0.2 * Math.min(1.6, diver.load)));
         diveTime += dt;
       }
       const frac = save.oxygen / maxO2;
@@ -427,6 +468,7 @@ async function boot(): Promise<void> {
         const home = respawnPoint();
         diver.x = home.x;
         diver.y = home.y;
+        drone.teleport(home.x, home.y, layout);
         diver.vx = diver.vy = 0;
         diver.surfaced = false;
         camCX = diver.x;
@@ -451,7 +493,16 @@ async function boot(): Promise<void> {
 
     // ---- Pickups ----
     const speed = Math.hypot(diver.vx, diver.vy);
-    for (const ev of pickups.update(dt, time, diver.x, diver.y, save, inControl && s.collect && !diver.surfaced, speed)) {
+    const collectHeld = inControl && s.collect && !diver.surfaced;
+    // The stranded drone takes the Collect button when the diver is next to it.
+    const atDrone = drone.inReach && !diver.surfaced && blackout === 0;
+    const prevT = pickups.target;
+    const bagFull = !!prevT && !bagHasRoom(save, prevT.kind);
+    if (bagFull && collectHeld && !atDrone && time - fullWarnAt > 4) {
+      fullWarnAt = time;
+      hud.toast(`Dive bag full (${bagLimits(save).max} kg). Unload at a storage pod to carry more.`, 'warn');
+    }
+    for (const ev of pickups.update(dt, time, diver.x, diver.y, save, collectHeld && !atDrone && !bagFull, speed)) {
       if (ev.type === 'material') {
         save.bag[ev.kind]++;
         hud.refreshInventory(ev.kind);
@@ -471,24 +522,88 @@ async function boot(): Promise<void> {
       persist();
     }
     const pt = pickups.target;
-    diver.working = pickups.working && pt ? { x: pt.x, y: pt.y } : null;
-    hud.setCollect(pt && !diver.surfaced ? Pickups.actionLabel(pt.kind) : null, pickups.progress);
+    const missing = atDrone ? repairMissing() : [];
+    const repairing = atDrone && collectHeld && !missing.length && speed < 70;
+    diver.working = pickups.working && pt ? { x: pt.x, y: pt.y } : repairing ? drone.scanPoint() : null;
+    if (atDrone) {
+      hud.setCollect(missing.length ? `Repair drone: need ${missing.join(', ')}` : 'Repair build drone', drone.repairProgress);
+      if (collectHeld && missing.length && time - fullWarnAt > 4) {
+        fullWarnAt = time;
+        hud.toast(`To repair the drone you need ${missing.join(' and ')} more`, 'warn');
+      }
+    } else if (pt && !diver.surfaced) {
+      const fits = bagHasRoom(save, pt.kind);
+      hud.setCollect(fits ? Pickups.actionLabel(pt.kind) : 'Dive bag full: unload at a storage pod', pickups.progress);
+    } else hud.setCollect(null, 0);
+
+    // ---- Dive bag weight messages ----
+    const lim = bagLimits(save);
+    const kg = bagWeight(save.bag);
+    const ls = kg >= lim.max - 0.01 ? 2 : kg > lim.rated + 0.01 ? 1 : 0;
+    if (ls > loadState && blackout === 0) {
+      if (ls === 1) {
+        if (!save.tips.includes('heavy')) {
+          save.tips.push('heavy');
+          hud.toast(`Dive bag heavy (over ${lim.rated} kg): you swim slower, sink when still and use more air. The watch shows the weight.`, 'big');
+        } else hud.toast('Dive bag heavy', 'warn');
+      } else hud.toast(`Dive bag full (${lim.max} kg)`, 'warn');
+    }
+    loadState = ls;
+
+    // ---- The build drone ----
+    for (const ev of drone.update(dt, time, {
+      diverX: diver.x,
+      diverY: diver.y,
+      diverFace: diver.vx < -25 ? -1 : diver.vx > 25 ? 1 : diver.x < drone.x ? 1 : -1,
+      repairing,
+      layout,
+      rate: droneWeldRate(save),
+    })) {
+      if (ev.type === 'repaired') {
+        for (const k of MATERIALS_LIST) {
+          let need = DRONE_REPAIR_COST[k] ?? 0;
+          const fromBag = Math.min(need, save.bag[k]);
+          save.bag[k] -= fromBag;
+          need -= fromBag;
+          save.stored[k] -= need;
+        }
+        save.drone = 'active';
+        hud.refreshInventory();
+        hud.toast('Build drone KD-1 repaired! It follows you now, and welds whatever you build at the Kestrel site.', 'big');
+        persist();
+      } else if (ev.type === 'finished') {
+        layout.set(layout.pieces);
+        baseView.sync(layout);
+        const p = ev.piece;
+        const powered = layout.powered.has(p.id);
+        hud.toast(
+          `Finished: ${PIECES[p.kind].name}${p.kind !== 'turbine' && !powered ? ' (no power yet: join it to a current turbine)' : ''}`,
+          'big',
+        );
+        if (build.active) build.refresh();
+        persist();
+      }
+    }
+    if (build.active && drone.welding && Math.floor(time * 4) !== Math.floor((time - dt) * 4)) build.refresh();
 
     // ---- Storage: swim up to a powered pod to unload everything carried ----
     let byPod = false;
     let podPowered = false;
+    let podFrame = false;
     for (const p of layout.pieces) {
       if (p.kind !== 'storage') continue;
       const r = pieceRect(p);
       if (diver.x > r.x - 30 && diver.x < r.x + r.w + 30 && diver.y > r.y - 30 && diver.y < r.y + r.h + 30) {
         byPod = true;
         podPowered ||= layout.powered.has(p.id);
+        podFrame ||= !isDone(p);
       }
     }
     if (byPod && !nearStorage && blackout === 0 && !build.active) {
       const carried = MATERIALS_LIST.reduce((a, k) => a + save.bag[k], 0);
       if (!podPowered) {
-        if (carried) hud.toast('This storage pod has no power: join it to a current turbine', 'warn');
+        if (carried)
+          hud.toast(podFrame ? 'This storage pod is still a frame: the drone has to finish it first' : 'This storage pod has no power: join it to a current turbine', 'warn');
       } else if (carried) {
         let room = storageCapacity(layout) - MATERIALS_LIST.reduce((a, k) => a + save.stored[k], 0);
         let moved = 0;
@@ -563,7 +678,7 @@ async function boot(): Promise<void> {
     scenery.update(time, diver.x, diver.y, diver.vx, camX, camX + viewW);
     const storedNow = MATERIALS_LIST.reduce((a, k) => a + save.stored[k], 0);
     const cap = storageCapacity(layout);
-    baseView.update(dt, time, layout, cap ? storedNow / cap : 0, camX, camX + viewW);
+    baseView.update(dt, time, layout, cap ? storedNow / cap : 0, camX, camX + viewW, drone.welding?.id ?? null);
     buildOverlay.view.visible = build.active;
     if (build.active) {
       const gs = build.ghostState();
@@ -592,7 +707,7 @@ async function boot(): Promise<void> {
     diver.lensGlow.position.set(lp.x, lp.y);
     diver.lensGlow.alpha = diver.lamp;
 
-    const lights: Light[] = [lampLight, ...scenery.lights, ...baseView.lights, ...pickups.lights, ...fish.map((f) => f.light)];
+    const lights: Light[] = [lampLight, ...drone.lights, ...scenery.lights, ...baseView.lights, ...pickups.lights, ...fish.map((f) => f.light)];
     const floor = groundY(Math.max(0, Math.min(WORLD_W, diver.x)));
     const height = floor - diver.y;
     lighting.update({
@@ -624,7 +739,7 @@ async function boot(): Promise<void> {
 
     const depthM = Math.max(0, diver.y - SURFACE_Y + 6) / WU_PER_METRE;
     if (domeAir) diveTime = 0;
-    watch.draw(performance.now(), save.oxygen, maxO2, atSurface ? 0 : depthM, diveTime, atSurface);
+    watch.draw(performance.now(), save.oxygen, maxO2, atSurface ? 0 : depthM, diveTime, atSurface, { kg, ...lim });
     if (pickups.bagPos) {
       const p = pickups.bagPos;
       hud.setBagMarker((p.x - camX) * zoom, (p.y - camY) * zoom, Math.hypot(p.x - diver.x, p.y - diver.y) / WU_PER_METRE);
@@ -693,6 +808,7 @@ async function boot(): Promise<void> {
     pickups,
     layout,
     build,
+    drone,
     snap: () => {
       camCX = diver.x;
       camCY = diver.y;

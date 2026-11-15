@@ -8,6 +8,7 @@ import {
   GRID_COLS,
   GRID_ROWS,
   GRID_X0,
+  isDone,
   pay,
   PIECE_ORDER,
   PIECES,
@@ -58,7 +59,15 @@ export interface BuildDeps {
   refreshInventory(): void;
   /** Storage capacity of the base. */
   capacity(): number;
+  /** Is the build drone repaired? Nothing can be built without it. */
+  droneReady(): boolean;
+  /** The frame the drone is welding right now, if any. */
+  welding(): Placed | null;
 }
+
+/** Said whenever the build drone is still missing. */
+export const NO_DRONE =
+  'Needs the build drone. A Kestrel drone went missing near the survey sled wreck, in the sand channel east of the coral garden. Repair it first.';
 
 interface Ghost {
   kind: PieceKind;
@@ -239,19 +248,24 @@ export class BuildMode {
       this.deps.toast(why, 'warn');
       return;
     }
+    if (!this.deps.droneReady()) {
+      this.deps.toast(NO_DRONE, 'warn');
+      return;
+    }
     if (!canAfford(g.kind, save.bag, save.stored)) {
       this.deps.toast(`Not enough materials for a ${PIECES[g.kind].name.toLowerCase()}`, 'warn');
       return;
     }
     pay(g.kind, save.bag, save.stored);
     const id = save.nextPieceId++;
-    const placed: Placed = { id, kind: g.kind, gx: g.gx, gy: g.gy, rot: g.rot };
+    // Placed as a frame: the build drone welds it together over time.
+    const placed: Placed = { id, kind: g.kind, gx: g.gx, gy: g.gy, rot: g.rot, progress: 0 };
     layout.set([...layout.pieces, placed]);
     save.pieces = layout.pieces;
     const def = PIECES[g.kind];
-    const powered = layout.powered.has(id);
+    const queued = layout.frames().length;
     this.deps.toast(
-      `Built: ${def.name}${g.kind !== 'turbine' && !powered ? ' (no power yet: join it to a current turbine)' : ''}`,
+      `Frame placed: ${def.name.toLowerCase()}. The drone will weld it (about ${def.buildTime} s)${queued > 1 ? `, after ${queued - 1} other frame${queued > 2 ? 's' : ''}` : ''}. You can swim off meanwhile.`,
       'big',
     );
     this.deps.changed([id]);
@@ -274,10 +288,18 @@ export class BuildMode {
     const { save, layout } = this.deps;
     layout.set(layout.pieces.filter((q) => q.id !== p.id));
     save.pieces = layout.pieces;
-    // Everything comes back, carried (swim past a storage pod to put it away).
+    // Everything comes back: into storage while there is room (so the dive
+    // bag does not suddenly weigh a tonne), the rest carried.
     const cap = this.deps.capacity();
     const cost = PIECES[p.kind].cost;
-    for (const k of MATERIAL_ORDER) save.bag[k] += cost[k] ?? 0;
+    let room = cap - MATERIAL_ORDER.reduce((a, k) => a + save.stored[k], 0);
+    for (const k of MATERIAL_ORDER) {
+      const n = cost[k] ?? 0;
+      const s = Math.max(0, Math.min(room, n));
+      save.stored[k] += s;
+      save.bag[k] += n - s;
+      room -= s;
+    }
     // If a storage pod went, what no longer fits is handed back to carry.
     let over = MATERIAL_ORDER.reduce((a, k) => a + save.stored[k], 0) - cap;
     for (const k of MATERIAL_ORDER) {
@@ -287,7 +309,7 @@ export class BuildMode {
       save.bag[k] += n;
       over -= n;
     }
-    this.deps.toast(`Removed: ${PIECES[p.kind].name}. Materials returned.`);
+    this.deps.toast(`Removed: ${PIECES[p.kind].name}${isDone(p) ? '' : ' frame'}. Materials returned.`);
     this.selected = null;
     this.deps.changed([]);
     this.deps.refreshInventory();
@@ -465,12 +487,13 @@ export class BuildMode {
           return `<span class="cost ${have[k] >= need ? '' : 'short'}">${MATERIAL_ICONS[k]}${have[k]}/${need}</span>`;
         })
         .join('');
-      card.innerHTML = `${PIECE_ICONS[kind]}<div><b>${def.name}</b><div class="costs">${cost}</div></div>`;
+      card.innerHTML = `${PIECE_ICONS[kind]}<div><b>${def.name}</b><div class="costs">${cost}<span class="time">${def.buildTime} s</span></div></div>`;
       card.classList.toggle('short', !afford);
       card.setAttribute('aria-pressed', String(this.ghost?.kind === kind));
     }
     const g = this.ghost;
-    this.reason = g ? layout.check(g) : null;
+    const drone = this.deps.droneReady();
+    this.reason = g ? (drone ? layout.check(g) : 'Needs the build drone first (lost by the survey sled wreck)') : null;
     if (g && !this.reason && !canAfford(g.kind, save.bag, save.stored)) {
       const missing = MATERIAL_ORDER.filter((k) => (PIECES[g.kind].cost[k] ?? 0) > have[k]).map((k) => MATERIALS[k].plural.toLowerCase());
       this.reason = `Need more ${missing.join(' and ')}`;
@@ -486,7 +509,15 @@ export class BuildMode {
     let text = '';
     if (g) {
       text = `<b>${PIECES[g.kind].name}</b>: ${PIECES[g.kind].job}`;
-      text += this.reason ? `<span class="why">${this.reason}</span>` : '<span class="ok">Fits here: tap ✓ to build</span>';
+      text += this.reason ? `<span class="why">${this.reason}</span>` : '<span class="ok">Fits here: tap ✓ to place the frame</span>';
+    } else if (this.selected && !isDone(this.selected)) {
+      const p = this.selected;
+      const pct = Math.floor((p.progress ?? 0) * 100);
+      const left = Math.ceil((1 - (p.progress ?? 0)) * PIECES[p.kind].buildTime);
+      const busy = this.deps.welding();
+      text = `<b>${PIECES[p.kind].name} frame</b>: ${PIECES[p.kind].job}<span class="${busy?.id === p.id ? 'ok' : 'why'}">${
+        busy?.id === p.id ? `Drone welding: ${pct}% · about ${left} s left` : `Waiting for the drone · ${pct}% welded`
+      }</span>`;
     } else if (this.selected) {
       const p = this.selected;
       const on = layout.powered.has(p.id);
@@ -498,13 +529,16 @@ export class BuildMode {
       text = `<b>${PIECES[p.kind].name}</b>: ${PIECES[p.kind].job}<span class="${on ? 'ok' : 'why'}">${
         on ? (p.kind === 'turbine' ? 'Making power' : 'Powered') : 'No power: join it to a current turbine'
       }${extra}</span>`;
+    } else if (!drone) {
+      text = `Plan freely, but nothing can be built yet.<span class="why">${NO_DRONE}</span>`;
     } else if (!layout.pieces.length) {
-      text = 'Pick a piece below. Start with a <b>Dome habitat</b> and a <b>Current turbine</b> side by side; their collars join.';
+      text = 'Pick a piece below. Start with a <b>Dome habitat</b> and a <b>Current turbine</b> side by side; their collars join. The drone welds each frame.';
     } else {
-      const unpowered = layout.pieces.filter((p) => !layout.powered.has(p.id)).length;
+      const unpowered = layout.pieces.filter((p) => isDone(p) && !layout.powered.has(p.id)).length;
+      const frames = layout.frames().length;
       text = `Pick a piece to add, or tap a built piece to select it.${
-        unpowered ? `<span class="why">${unpowered} piece${unpowered > 1 ? 's have' : ' has'} no power</span>` : ''
-      }`;
+        frames ? `<span class="ok">${frames} frame${frames > 1 ? 's' : ''} waiting for the drone</span>` : ''
+      }${unpowered ? `<span class="why">${unpowered} piece${unpowered > 1 ? 's have' : ' has'} no power</span>` : ''}`;
     }
     if (this.info.innerHTML !== text) this.info.innerHTML = text;
   }

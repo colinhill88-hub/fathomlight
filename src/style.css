@@ -1002,3 +1002,10 @@ body.building #log-btn {
     font-size: 12px;
   }
 }
+
+/* ---- Milestone 3 follow-up: build drone and dive bag weight ---- */
+.piece-card .time {
+  font-size: 11px;
+  opacity: 0.6;
+  font-variant-numeric: tabular-nums;
+}

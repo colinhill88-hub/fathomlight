@@ -1,6 +1,6 @@
 # Fathomlight progress
 
-Last updated: 2026-11-15, **milestone 3 (base building) deployed**. Colin said everything in the milestone 2 follow-up looked good, so nothing needed fixing. Next is a milestone 3 follow-up (build drone and material weight), then milestone 4 (creatures).
+Last updated: 2026-11-15, **milestone 3 follow-up (build drone and dive bag weight) deployed**. Colin was happy with milestone 3 and flagged nothing to fix. Next is milestone 4 (creatures).
 
 Play link: https://colinhill88-hub.github.io/fathomlight/ (live; first successful deploy 2026-11-14)
 
@@ -253,24 +253,62 @@ Cut from High so far: the phone renders at 2× instead of its native 3×. Colin 
   - No console errors. The frame rate could not be measured, because the test browser draws in software.
 - Deployed: GitHub Actions run 43717650882 built and deployed to Pages successfully from `claude/next-milestone-build-deploy-zelm64`. This branch still needs merging into the default branch `claude/underwater-game-m0-0qqajg`.
 
+### Milestone 3 follow-up: build drone and dive bag weight
+- **Feedback on the last build:** "I'm happy with the progress so far. Let's keep going." Nothing was flagged. This session built the follow-up Colin scheduled after milestone 3 (DESIGN.md, The base).
+- **The build drone** (`src/actors/drone.ts`):
+  - **The look:** a small Kestrel construction robot, all drawn by code. It has a weathered yellow hull with a steel belly, a ducted lift fan on top, a rear thruster, an amber sensor eye, a red antenna lamp, the stencil `KD-1`, hazard stripes, rust and algae. A folding arm under the belly holds a welding torch.
+  - **Finding it:** it is stuck in the survey sled wreck in the sand channel, tangled in old cable, battery flat. Its eye flickers faintly every few seconds so it can be spotted. It is also a new scanner log entry (13 entries now).
+  - **Repairing it:** stop next to it and the Collect button reads **Repair build drone**. Hold it for 4 s. It costs **2 scrap, 1 copper, 1 kelp fibre** (carried first, then stored). Without them, the label says exactly what is missing. All of these lie within a short swim of the sled. When it is fixed, the drone shakes off the cable, its eye flickers on and it lifts off.
+  - **Following:** it trails the diver from about half a second behind, a little above and behind, so it stays in open water. After a blackout it comes back with the diver.
+  - **Building needs the drone.** Build mode still opens so you can plan, but ✓ is disabled until the drone is repaired, and the info line says where it is.
+  - **Frames:** ✓ now places a **frame**. Materials are paid straight away. The drone flies over and welds it from the bottom up: a steel scaffold stands around the piece, the finished hull appears as the weld line rises, and there is a hot seam line, a flickering torch light and sparks. Build times (`buildTime` in `PIECES`, `src/game/base.ts`): **corridor 10 s, storage pod 18 s, turbine 28 s, dome 40 s**.
+  - **Swim off meanwhile.** Several frames can be placed; the drone works through them oldest first. A frame does nothing until it is finished: no power, no air, no storage, and it does not pass power on. Its status lamp pulses amber. A toast says when each piece is finished.
+  - If the diver is far away when it finishes, the drone hovers over the base and rejoins the diver when they come back.
+  - Build mode: the piece cards show the build time. Tapping a frame shows "Drone welding: 63% · about 15 s left" or "Waiting for the drone". Removing a frame returns all its materials.
+  - **Removing a piece** now puts its materials back into storage first (while there is room), so the dive bag doesn't suddenly become very heavy.
+  - Old saves keep everything already built. Their drone still has to be found and repaired before anything new can be built.
+- **Dive bag weight** (`src/game/state.ts`, `src/actors/diver.ts`):
+  - Each material weighs something: **copper 3 kg, scrap 2.5 kg, quartz 1.5 kg, kelp fibre 0.5 kg.**
+  - Up to **15 kg** (the rated load) the effects are mild. They grow smoothly with weight:
+    - slower swimming (−22% at 15 kg, up to −35% when full);
+    - an extra slowdown going up;
+    - a weaker boost;
+    - a slow sink when not swimming (about 0.4 m/s at 15 kg);
+    - faster air use (+20% at 15 kg, +32% when full).
+  - There is no sinking while treading water at the surface, while collecting or inside a dome. Nothing about it can suddenly drown you.
+  - At **24 kg** the bag is full. The Collect button says "Dive bag full: unload at a storage pod", and holding it does nothing.
+  - A starter base weighs about 48 kg in materials, so it takes two or three trips. Each single piece fits in one load.
+  - **On the dive watch:** a short arc along the bottom of the dial fills with the weight. It has a tick at 15 kg and turns amber past it, red when full. The kg readout replaces the word KESTREL while anything is carried.
+  - **On the diver:** a mesh bag clipped to the belt swells as it fills, and the diver kicks harder when heavy.
+  - One-time messages explain it the first time the bag gets heavy, then a short "Dive bag heavy" or "Dive bag full".
+  - The scanner log shows the bag weight and each material's weight.
+- **Hooks for later upgrades:**
+  - `bagLimits()` in `src/game/state.ts` returns the rated and full load. A lift bag, buoyancy vest, the drone carrying loads or the sub's cargo bay just raise these.
+  - `droneWeldRate()` sets the welding speed (a faster torch). A second drone would be a second `Drone` taking the next frame from `layout.frames()`.
+- Tested:
+  - Type check and production build pass.
+  - Emulated iPhone 15 Pro (landscape), scripted:
+    - Next to the stranded drone with no materials, the Collect label lists what is missing and holding it gives a warning.
+    - With the parts, holding Collect repaired it, took 2 scrap, 1 copper and 1 fibre, and the drone woke up and followed the diver.
+    - With a 21 kg bag the diver sank slowly when idle and the watch showed the weight.
+    - In build mode, ✓ placed a dome and a turbine as frames (materials paid). The drone flew to the dome and welded it, then the turbine. Once both were finished, both had power.
+    - After a reload, the repaired drone, finished pieces and a half-welded corridor frame were all restored, and the drone went back to the frame.
+  - The test browser draws in software and runs the game at about one sixth speed, so the real welding times and the frame rate have to be checked on the phone. No console errors.
+- Deployed: see the end of this section.
+
 ## Next
 
-**First: milestone 3 follow-up (Colin's decision, 2026-11-15): the build drone and material weight.** Do this before milestone 4. The full write-up is in DESIGN.md under The base ("Proposed by Colin after milestone 3"). In short:
-- **Build drone:**
-  - A small robot helper is found early in the shallows; the survey sled wreck is the suggested spot. Repair it with a few materials.
-  - Building needs the drone. Build places a frame, and the drone flies over and welds it over time (about 10 s for a corridor up to about 40 s for a dome) while the player keeps swimming.
-  - Existing saves that already have pieces should keep them.
-- **Material weight:**
-  - Each material has a weight in the dive bag (copper and scrap heavy, kelp fibre light).
-  - A heavier bag means slower swimming, sinking when idle, a slower climb and faster air use. Show a weight gauge on the dive watch.
-  - Keep it gentle in the shallows, and never make it a sudden drowning.
-- **Hooks for later upgrades:** drone speed or a second drone; lift bag, buoyancy vest and the sub cargo bay for carrying more.
-
-**Then: milestone 4: Creatures.** Collecting creatures, the creature tank, feeding, the filter pump and the three needs (hunger, comfort, water quality). Tanks and filter pumps will be new base pieces using the same collar and power rules (`src/game/base.ts`: add to `PIECES`, then draw them in `src/world/basegfx.ts`).
+**Milestone 4: Creatures.** Collecting creatures, the creature tank, feeding, the filter pump and the three needs (hunger, comfort, water quality). Tanks and filter pumps will be new base pieces using the same collar and power rules (`src/game/base.ts`: add to `PIECES`, then draw them in `src/world/basegfx.ts`).
 
 ## Problems and open questions
 
-- **Build drone and material weight (Colin's ideas after milestone 3).** Both are written up in DESIGN.md under The base, marked as proposed. Colin decided: build them as a milestone 3 follow-up next session, before milestone 4.
+- **Build drone and dive bag numbers to tune after Colin plays:**
+  - drone repair cost (`DRONE_REPAIR_COST`) and repair time (`REPAIR_SECONDS`);
+  - build times (`buildTime` in `PIECES`);
+  - material weights (`kg` in `MATERIALS`) and the 15 kg / 24 kg limits (`BAG_RATED_KG`, `BAG_MAX_KG`);
+  - the penalty sizes in `Diver.update` (swim −22% per rated load, sink 30 units/s per rated load) and the air use in `src/main.ts` (+20% per rated load).
+- **Drone upgrade path:** not built yet, by design. The hooks are in place (see the milestone 3 follow-up notes). When do upgrades arrive: with the Workshop in milestone 6, or earlier? Ask Colin.
+- **The drone doesn't avoid rock on long flights.** It follows the diver's own path, and when idle it parks above the base, so in practice it stays in open water. If it is ever seen clipping through rock, that is the place to look.
 - **Base growth across biomes (Colin, after milestone 3).** Colin wants to expand the base with each new biome, with bigger, more complex and more rewarding pieces. This is recorded in DESIGN.md under The base. When planning milestones 6, 7, 9 and 10, include new base pieces made from that zone's materials. Open questions for Colin:
   - Should new biomes grow the one base at the Kestrel site (a larger grid and upgraded piece tiers), or allow small outposts in each zone?
   - Which kind of reward matters most to him: new abilities, faster crafting, comfort and looks, or stronger creature care?

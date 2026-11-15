@@ -11,6 +11,7 @@ import {
   GRID_COLS,
   GRID_ROWS,
   GRID_X0,
+  isDone,
   PieceKind,
   pieceRect,
   Placed,
@@ -540,6 +541,27 @@ interface Live {
   phase: number;
   powered: boolean;
   fill: number;
+  /** While the piece is still a frame being welded by the drone. */
+  frame: { mask: Graphics; scaffold: Graphics; seam: Graphics; seamGlow: Graphics; shown: number } | null;
+}
+
+/** A steel scaffold drawn over a frame until the drone finishes welding it. */
+function drawScaffold(w: number, h: number): Graphics {
+  const g = new Graphics();
+  const col = 0x9aa3a5;
+  const posts: number[] = [];
+  for (let x = 6; x <= w - 6; x += CELL / 2) posts.push(x);
+  if (posts[posts.length - 1] < w - 12) posts.push(w - 6);
+  for (const x of posts) g.rect(x - 2, 0, 4, h).fill({ color: col, alpha: 0.8 });
+  for (let y = 4; y <= h; y += CELL / 2) g.rect(0, Math.min(h - 4, y) - 1.5, w, 3).fill({ color: col, alpha: 0.8 });
+  for (let i = 0; i < posts.length - 1; i++)
+    for (let y = 4; y < h - 8; y += CELL / 2) {
+      const y1 = Math.min(h - 4, y + CELL / 2);
+      g.moveTo(posts[i], y).lineTo(posts[i + 1], y1);
+    }
+  g.stroke({ color: col, width: 1.6, alpha: 0.6 });
+  for (const x of posts) for (let y = 4; y <= h; y += CELL / 2) g.circle(x, Math.min(h - 4, y), 2.2).fill({ color: 0x3b4448 });
+  return g;
 }
 
 interface Spark {
@@ -580,6 +602,8 @@ export class BaseView {
       l.art.sheen?.destroy();
       l.lampG.destroy();
       l.lampHalo.destroy();
+      l.frame?.seam.destroy();
+      l.frame?.seamGlow.destroy();
       this.live.delete(id);
     }
     const counts: Record<PieceKind, number> = { dome: 0, corridor: 0, turbine: 0, storage: 0 };
@@ -610,7 +634,22 @@ export class BaseView {
       const light: PointLight | null =
         p.kind === 'dome' ? { x: r.x + r.w / 2, y: r.y + r.h - 130, radius: 330, intensity: 0, color: [1, 0.86, 0.66] } : null;
       const isFresh = fresh.includes(p.id);
-      this.live.set(p.id, { placed: p, art, root, lampG, lampHalo, light, build: isFresh ? 0 : 1, phase: rand() * 10, powered: false, fill: -1 });
+      let frame: Live['frame'] = null;
+      if (!isDone(p)) {
+        // A frame: the finished hull shows from the bottom up as the drone welds it.
+        const mask = new Graphics();
+        const scaffold = drawScaffold(r.w, r.h);
+        root.addChild(mask, scaffold);
+        art.body.mask = mask;
+        if (art.gauge) art.gauge.visible = false;
+        if (art.sheen) art.sheen.visible = false;
+        const seam = new Graphics();
+        const seamGlow = new Graphics();
+        this.emissive.addChild(seam);
+        this.glow.addChild(seamGlow);
+        frame = { mask, scaffold, seam, seamGlow, shown: -1 };
+      }
+      this.live.set(p.id, { placed: p, art, root, lampG, lampHalo, light, build: isFresh ? 0 : 1, phase: rand() * 10, powered: false, fill: -1, frame });
       if (isFresh) this.burst(r.x + r.w / 2, r.y + r.h / 2, r.w, r.h);
     }
     this.lights.length = 0;
@@ -679,7 +718,25 @@ export class BaseView {
     }
   }
 
-  update(dt: number, time: number, layout: BaseLayout, storedFrac: number, viewX0: number, viewX1: number): void {
+  /** Finish a frame: drop the scaffold and show the whole piece. */
+  private finishFrame(l: Live): void {
+    const f = l.frame;
+    if (!f) return;
+    l.art.body.mask = null;
+    f.mask.destroy();
+    f.scaffold.destroy();
+    f.seam.destroy();
+    f.seamGlow.destroy();
+    if (l.art.gauge) l.art.gauge.visible = true;
+    if (l.art.sheen) l.art.sheen.visible = true;
+    l.frame = null;
+    l.fill = -1;
+    const r = pieceRect(l.placed);
+    this.burst(r.x + r.w / 2, r.y + r.h / 2, r.w, r.h, 60);
+  }
+
+  /** weldId: the frame the drone is welding right now (its seam glows). */
+  update(dt: number, time: number, layout: BaseLayout, storedFrac: number, viewX0: number, viewX1: number, weldId: number | null = null): void {
     const visible = viewX1 > GRID_X0 - 300 && viewX0 < GRID_X0 + GRID_COLS * CELL + 300;
     this.view.visible = this.front.visible = visible;
     for (const l of this.live.values()) {
@@ -696,14 +753,36 @@ export class BaseView {
         l.root.alpha = 1;
         l.root.y = r.y;
       }
+      if (l.frame) {
+        if (isDone(l.placed)) this.finishFrame(l);
+        else {
+          const f = l.frame;
+          const prog = l.placed.progress ?? 0;
+          if (Math.abs(prog - f.shown) > 0.002) {
+            f.shown = prog;
+            f.mask.clear().rect(-20, r.h * (1 - prog), r.w + 40, r.h * prog + 60).fill({ color: 0xffffff });
+          }
+          // A hot seam line along the top of the welded part while the drone works on it.
+          const hot = weldId === l.placed.id;
+          f.seam.clear();
+          f.seamGlow.clear();
+          if (hot && prog > 0.003) {
+            const y = r.y + r.h * (1 - prog);
+            const flick = 0.7 + 0.3 * Math.sin(time * 37 + l.phase);
+            f.seam.rect(r.x + 4, y - 1, r.w - 8, 2).fill({ color: 0xffd090, alpha: 0.9 * flick });
+            f.seamGlow.rect(r.x, y - 4, r.w, 8).fill({ color: 0xffb060, alpha: 0.5 * flick });
+          }
+        }
+      }
       const on = powered && l.build >= 1 ? 1 : 0;
       const flick = on ? 0.9 + 0.1 * Math.sin(time * 7 + l.phase) * Math.sin(time * 3.1 + l.phase) : 0;
       l.art.windows.alpha = flick * l.root.alpha;
       l.art.windowGlow.alpha = flick * l.root.alpha;
       if (l.light) l.light.intensity = 0.95 * flick;
-      // Status lamp: steady pale green with power, a slow red blink without.
-      const blink = powered ? 1 : (time + l.phase) % 1.6 < 0.25 ? 1 : 0.12;
-      l.lampG.tint = powered ? PAL.lampOn : PAL.lampOff;
+      // Status lamp: steady pale green with power, a slow red blink without,
+      // and a slow amber pulse while it is still a frame.
+      const blink = l.frame ? 0.35 + 0.35 * Math.sin(time * 2 + l.phase) : powered ? 1 : (time + l.phase) % 1.6 < 0.25 ? 1 : 0.12;
+      l.lampG.tint = l.frame ? 0xffb040 : powered ? PAL.lampOn : PAL.lampOff;
       l.lampHalo.tint = l.lampG.tint;
       l.lampG.alpha = blink * l.root.alpha;
       l.lampHalo.alpha = blink * 0.7 * l.root.alpha;
@@ -736,7 +815,7 @@ export class BaseView {
 
 /** Storage capacity of the whole base. */
 export function storageCapacity(layout: BaseLayout): number {
-  return layout.count('storage') * STORAGE_PER_POD;
+  return layout.countDone('storage') * STORAGE_PER_POD;
 }
 
 // ---------------------------------------------------------------------------

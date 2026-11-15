@@ -40,6 +40,8 @@ export interface PieceDef {
   /** What the piece does, in one line. */
   job: string;
   cost: Partial<Record<MaterialId, number>>;
+  /** Seconds of welding by the build drone. */
+  buildTime: number;
   /** Footprint in cells, for each rotation the piece has. */
   shapes: { w: number; h: number; collars: { cx: number; cy: number; dir: Dir }[] }[];
 }
@@ -50,6 +52,7 @@ export const PIECES: Record<PieceKind, PieceDef> = {
     name: 'Dome habitat',
     job: 'Swim inside to breathe, refill oxygen and save. You wake up here after a blackout.',
     cost: { scrap: 3, quartz: 4, fibre: 2 },
+    buildTime: 40,
     shapes: [{ w: 2, h: 2, collars: [{ cx: 0, cy: 0, dir: 'L' }, { cx: 1, cy: 0, dir: 'R' }] }],
   },
   corridor: {
@@ -57,6 +60,7 @@ export const PIECES: Record<PieceKind, PieceDef> = {
     name: 'Corridor',
     job: 'Joins pieces and extends the base. Rotate it to run up or down.',
     cost: { scrap: 2, fibre: 1 },
+    buildTime: 10,
     shapes: [
       { w: 1, h: 1, collars: [{ cx: 0, cy: 0, dir: 'L' }, { cx: 0, cy: 0, dir: 'R' }] },
       { w: 1, h: 1, collars: [{ cx: 0, cy: 0, dir: 'U' }, { cx: 0, cy: 0, dir: 'D' }] },
@@ -67,6 +71,7 @@ export const PIECES: Record<PieceKind, PieceDef> = {
     name: 'Current turbine',
     job: 'Turns the reef current into power for every piece joined to it.',
     cost: { scrap: 2, copper: 4, fibre: 1 },
+    buildTime: 28,
     shapes: [{ w: 1, h: 2, collars: [{ cx: 0, cy: 0, dir: 'L' }, { cx: 0, cy: 0, dir: 'R' }] }],
   },
   storage: {
@@ -74,6 +79,7 @@ export const PIECES: Record<PieceKind, PieceDef> = {
     name: 'Storage pod',
     job: 'Swim up to it to unload what you carry. Stored materials are safe from blackouts.',
     cost: { scrap: 3, copper: 1, fibre: 1 },
+    buildTime: 18,
     shapes: [
       {
         w: 1,
@@ -100,6 +106,13 @@ export interface Placed {
   gx: number;
   gy: number;
   rot: number;
+  /** 0..1 while the build drone is welding it (a frame). Missing means finished. */
+  progress?: number;
+}
+
+/** Is the piece finished (not a frame still being welded)? */
+export function isDone(p: { progress?: number }): boolean {
+  return p.progress === undefined || p.progress >= 1;
 }
 
 export function shapeOf(p: { kind: PieceKind; rot: number }) {
@@ -178,14 +191,16 @@ export class BaseLayout {
       }
       this.links.set(p.id, list);
     }
-    // Power flows from every turbine through joined collars.
+    // Power flows from every finished turbine through joined collars.
+    // Frames still being welded neither work nor pass power on.
     this.powered.clear();
-    const queue = pieces.filter((p) => p.kind === 'turbine').map((p) => p.id);
+    const done = new Set(pieces.filter(isDone).map((p) => p.id));
+    const queue = pieces.filter((p) => p.kind === 'turbine' && done.has(p.id)).map((p) => p.id);
     for (const id of queue) this.powered.add(id);
     while (queue.length) {
       const id = queue.shift()!;
       for (const n of this.links.get(id) ?? []) {
-        if (!this.powered.has(n)) {
+        if (!this.powered.has(n) && done.has(n)) {
           this.powered.add(n);
           queue.push(n);
         }
@@ -250,6 +265,16 @@ export class BaseLayout {
 
   count(kind: PieceKind): number {
     return this.pieces.filter((p) => p.kind === kind).length;
+  }
+
+  /** Finished pieces of a kind (frames still being welded do not count). */
+  countDone(kind: PieceKind): number {
+    return this.pieces.filter((p) => p.kind === kind && isDone(p)).length;
+  }
+
+  /** Frames waiting for the build drone, oldest first. */
+  frames(): Placed[] {
+    return this.pieces.filter((p) => !isDone(p)).sort((a, b) => a.id - b.id);
   }
 }
 

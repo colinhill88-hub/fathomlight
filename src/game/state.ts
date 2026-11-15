@@ -10,11 +10,12 @@
 
 export type MaterialId = 'scrap' | 'copper' | 'quartz' | 'fibre';
 
-export const MATERIALS: Record<MaterialId, { name: string; plural: string; blurb: string }> = {
-  scrap: { name: 'Scrap metal', plural: 'Scrap metal', blurb: 'Rusted plate and fittings from old wreckage. Base frames and hulls.' },
-  copper: { name: 'Copper nodule', plural: 'Copper nodules', blurb: 'Green-crusted lumps half buried in sand. Wiring and turbines.' },
-  quartz: { name: 'Quartz', plural: 'Quartz', blurb: 'Clear crystal that grows on reef rock. Dome glass.' },
-  fibre: { name: 'Kelp fibre', plural: 'Kelp fibre', blurb: 'Tough golden strands from kelp holdfasts. Seals and filters.' },
+/** kg: how heavy one piece is in the dive bag (milestone 3 follow-up, Colin's idea). */
+export const MATERIALS: Record<MaterialId, { name: string; plural: string; blurb: string; kg: number }> = {
+  scrap: { name: 'Scrap metal', plural: 'Scrap metal', blurb: 'Rusted plate and fittings from old wreckage. Base frames and hulls.', kg: 2.5 },
+  copper: { name: 'Copper nodule', plural: 'Copper nodules', blurb: 'Green-crusted lumps half buried in sand. Wiring and turbines.', kg: 3 },
+  quartz: { name: 'Quartz', plural: 'Quartz', blurb: 'Clear crystal that grows on reef rock. Dome glass.', kg: 1.5 },
+  fibre: { name: 'Kelp fibre', plural: 'Kelp fibre', blurb: 'Tough golden strands from kelp holdfasts. Seals and filters.', kg: 0.5 },
 };
 export const MATERIAL_ORDER: MaterialId[] = ['scrap', 'copper', 'quartz', 'fibre'];
 
@@ -29,6 +30,48 @@ export const TOTAL_AIR_TANKS = 2;
  */
 export const REGROW_SECONDS = 6 * 60;
 
+/**
+ * The dive bag (milestone 3 follow-up). Every material has a weight. Up to
+ * the rated load the bag is comfortable; past it the diver is clearly slowed.
+ * At the full load nothing more fits until something is unloaded at a
+ * storage pod. The penalty grows smoothly and never drowns anyone: in the
+ * shallows it only makes a trip slower and thirstier.
+ *
+ * Later gear raises these limits: a lift bag, a buoyancy vest, the drone
+ * carrying loads and the sub's cargo bay (milestone 5). They all plug in
+ * through bagLimits().
+ */
+export const BAG_RATED_KG = 15;
+export const BAG_MAX_KG = 24;
+
+export function bagWeight(bag: Record<MaterialId, number>): number {
+  return MATERIAL_ORDER.reduce((a, k) => a + bag[k] * MATERIALS[k].kg, 0);
+}
+
+export function bagLimits(_d: SaveData): { rated: number; max: number } {
+  return { rated: BAG_RATED_KG, max: BAG_MAX_KG };
+}
+
+/** 0 = empty, 1 = at the rated load, up to max/rated when full. */
+export function bagLoad(d: SaveData): number {
+  return bagWeight(d.bag) / bagLimits(d).rated;
+}
+
+/** Could one more of this material go in the bag? */
+export function bagHasRoom(d: SaveData, kind: MaterialId): boolean {
+  return bagWeight(d.bag) + MATERIALS[kind].kg <= bagLimits(d).max + 1e-6;
+}
+
+/**
+ * The build drone (milestone 3 follow-up). It starts stranded in the survey
+ * sled wreck and must be repaired before anything can be built.
+ */
+export const DRONE_REPAIR_COST: Partial<Record<MaterialId, number>> = { scrap: 2, copper: 1, fibre: 1 };
+/** How fast the drone welds (1 = normal). Upgrades later: a faster torch, or a second drone. */
+export function droneWeldRate(_d: SaveData): number {
+  return 1;
+}
+
 export interface DroppedBag {
   x: number;
   y: number;
@@ -42,6 +85,8 @@ export interface SavedPiece {
   gx: number;
   gy: number;
   rot: number;
+  /** 0..1 while the build drone is still welding it. Missing means finished. */
+  progress?: number;
 }
 
 export interface SaveData {
@@ -64,6 +109,8 @@ export interface SaveData {
   nextPieceId: number;
   /** Materials in the base's storage pods. Safe from blackouts. */
   stored: Record<MaterialId, number>;
+  /** The build drone: still stuck in the sled wreck, or repaired and working. */
+  drone: 'stranded' | 'active';
   /** One-time tips already shown. */
   tips: string[];
   playSeconds: number;
@@ -87,6 +134,7 @@ export function freshSave(spawnX: number, spawnY: number): SaveData {
     pieces: [],
     nextPieceId: 1,
     stored: { scrap: 0, copper: 0, quartz: 0, fibre: 0 },
+    drone: 'stranded',
     tips: [],
     playSeconds: 0,
     savedAt: 0,
@@ -111,6 +159,7 @@ export function loadSave(spawnX: number, spawnY: number): { data: SaveData; load
       scans: Array.isArray(d.scans) ? d.scans : [],
       tanks: Array.isArray(d.tanks) ? d.tanks : [],
       taken: d.taken && typeof d.taken === 'object' ? d.taken : {},
+      drone: d.drone === 'active' ? 'active' : 'stranded',
     } as SaveData;
     // Older saves stored real clock times (milliseconds). Restart those timers from now.
     for (const k of Object.keys(data.taken)) if (data.taken[k] > 1e9) data.taken[k] = data.playSeconds;
