@@ -10,7 +10,8 @@ import { SCAN_ENTRIES, entry } from '../game/scanner';
  */
 
 /** Small icons for each material, drawn as SVG. */
-const ICONS: Record<MaterialId, string> = {
+export const MATERIAL_ICONS: Record<MaterialId, string> = {
+
   scrap:
     '<svg viewBox="0 0 24 24"><path d="M3 10l6-4 11 2 2 6-7 5-11-3z" fill="#7a685a"/><path d="M3 10l6-4 11 2-1 2-10-2-5 3z" fill="#b0a8a0" opacity=".5"/><circle cx="8" cy="12" r="1.4" fill="#8a3a20"/><circle cx="15" cy="13" r="2" fill="#8a3a20" opacity=".8"/></svg>',
   copper:
@@ -38,7 +39,7 @@ export class Hud {
   private collectLabel = document.getElementById('collect-label')!;
   private tagLayer = document.getElementById('tags')!;
   private tagPool: { el: HTMLElement; name: HTMLElement; text: HTMLElement; key: string }[] = [];
-  private chipEls = new Map<MaterialId, { el: HTMLElement; count: HTMLElement }>();
+  private chipEls = new Map<MaterialId, { el: HTMLElement; count: HTMLElement; stored: HTMLElement }>();
   private bannerText = '';
 
   constructor(private readonly getSave: () => SaveData) {
@@ -46,9 +47,9 @@ export class Hud {
       const el = document.createElement('div');
       el.className = 'chip';
       el.title = MATERIALS[id].name;
-      el.innerHTML = `${ICONS[id]}<span></span>`;
+      el.innerHTML = `${MATERIAL_ICONS[id]}<span></span><small></small>`;
       this.chips.appendChild(el);
-      this.chipEls.set(id, { el, count: el.querySelector('span')! });
+      this.chipEls.set(id, { el, count: el.querySelector('span')!, stored: el.querySelector('small')! });
     }
     this.logBtn.addEventListener('click', () => {
       const open = this.logPanel.hidden;
@@ -71,11 +72,13 @@ export class Hud {
   }
 
   refreshInventory(bump?: MaterialId): void {
-    const bag = this.getSave().bag;
+    const { bag, stored } = this.getSave();
     for (const id of MATERIAL_ORDER) {
       const c = this.chipEls.get(id)!;
       c.count.textContent = String(bag[id]);
-      c.el.classList.toggle('empty', bag[id] === 0);
+      // Materials in the base's storage show as a small "+N" (safe from blackouts).
+      c.stored.textContent = stored[id] ? `+${stored[id]}` : '';
+      c.el.classList.toggle('empty', bag[id] === 0 && stored[id] === 0);
       if (bump === id) {
         c.el.classList.remove('bump');
         void c.el.offsetWidth; // restart the animation
@@ -114,13 +117,32 @@ export class Hud {
       }</li>`;
     }).join('');
     const mats = MATERIAL_ORDER.map(
-      (id) => `<li class="mat">${ICONS[id]}<div><b>${MATERIALS[id].plural}: ${save.bag[id]}</b><p>${MATERIALS[id].blurb}</p></div></li>`,
+      (id) =>
+        `<li class="mat">${MATERIAL_ICONS[id]}<div><b>${MATERIALS[id].plural}: ${save.bag[id]} carried${
+          save.stored[id] ? `, ${save.stored[id]} stored` : ''
+        }</b><p>${MATERIALS[id].blurb}</p></div></li>`,
     ).join('');
+    const counts: Record<string, number> = {};
+    for (const p of save.pieces) counts[p.kind] = (counts[p.kind] ?? 0) + 1;
+    const names: [string, string][] = [
+      ['dome', 'Dome habitat'],
+      ['turbine', 'Current turbine'],
+      ['storage', 'Storage pod'],
+      ['corridor', 'Corridor'],
+    ];
+    const base = save.pieces.length
+      ? names
+          .filter(([k]) => counts[k])
+          .map(([k, n]) => `${counts[k]} × ${n}`)
+          .join(' · ')
+      : 'Nothing built yet. Swim to the Kestrel buoy and tap Build.';
     this.logPanel.innerHTML = `
       <h2>Scanner log <small>${done.size} / ${SCAN_ENTRIES.length}</small></h2>
       <ul class="log">${rows}</ul>
-      <h2>Carried materials</h2>
+      <h2>Materials</h2>
       <ul class="log">${mats}</ul>
+      <h2>Outpost Kestrel</h2>
+      <p class="note">${base}</p>
       <p class="note">Air tank upgrades found: ${save.tanks.length} / ${TOTAL_AIR_TANKS} · Dive time ${maxOxygen(save)} s</p>`;
   }
 

@@ -65,11 +65,17 @@
 
     <div id="hint">
       <span class="touch-only">Drag on the left to swim · hold Scan near new things, tap it to name known ones · stop by materials and hold Collect</span>
-      <span class="desk-only">WASD or arrows to swim · Shift boost · L lamp · E scan (hold for new, tap to name known) · hold C to collect</span>
+      <span class="desk-only">WASD or arrows to swim · Shift boost · L lamp · E scan (hold for new, tap to name known) · hold C to collect · B build at the Kestrel buoy</span>
     </div>
 
     <div id="hud">
       <div class="hud-buttons">
+      <button id="build-btn" type="button" aria-label="Build the base" aria-pressed="false">
+        <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+          <path fill="currentColor" d="M13.8 3.2l3.4 3.4-1.6 1.6 1.2 1.2 1.6-1.6 2.4 2.4-4.2 4.2-2.4-2.4 1.1-1.1-1.2-1.2-8.5 8.5a1.6 1.6 0 0 1-2.3-2.3l8.5-8.5-1.2-1.2-1.1 1.1-2.1-2.1z" />
+        </svg>
+        <span class="lbl">Build</span>
+      </button>
       <button id="log-btn" type="button" aria-label="Scanner log" aria-expanded="false">
         <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
           <path fill="currentColor" d="M5 3h11a3 3 0 0 1 3 3v15H7a2 2 0 0 1-2-2zm2 14v2h10v-2zm2-11v2h7V6zm0 4v2h5v-2z" />
@@ -107,6 +113,24 @@
         </dl>
         <button id="reset-btn" type="button">Start over</button>
       </div>
+    </div>
+
+    <div id="build-ui">
+      <div id="build-title">Building · Kestrel site</div>
+      <div id="build-info"></div>
+      <div id="build-actions">
+        <button id="build-remove" type="button" hidden>Remove</button>
+        <button id="build-rotate" type="button" aria-label="Rotate" hidden>
+          <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" d="M19 12a7 7 0 1 1-2.1-5M19 4v4h-4" /></svg>
+        </button>
+        <button id="build-cancel" type="button" aria-label="Close build mode">
+          <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path stroke="currentColor" stroke-width="2.4" stroke-linecap="round" d="M6 6l12 12M18 6L6 18" /></svg>
+        </button>
+        <button id="build-place" type="button" aria-label="Build here" hidden>
+          <svg viewBox="0 0 24 24" width="30" height="30" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" d="M5 12.5l4.5 4.5L19 7.5" /></svg>
+        </button>
+      </div>
+      <div id="build-bar" role="toolbar" aria-label="Base pieces"></div>
     </div>
 
     <div id="rotate-hint">

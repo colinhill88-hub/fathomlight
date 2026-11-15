@@ -35,13 +35,22 @@ export interface DroppedBag {
   items: Partial<Record<MaterialId, number>>;
 }
 
+/** A base piece as saved (see src/game/base.ts). */
+export interface SavedPiece {
+  id: number;
+  kind: 'dome' | 'corridor' | 'turbine' | 'storage';
+  gx: number;
+  gy: number;
+  rot: number;
+}
+
 export interface SaveData {
   v: 1;
   x: number;
   y: number;
   oxygen: number;
   lampOn: boolean;
-  /** Carried materials. There is no storage until the base exists (milestone 3). */
+  /** Carried materials. A blackout drops these; stored ones are safe. */
   bag: Record<MaterialId, number>;
   /** Ids of scanner log entries that are complete. */
   scans: string[];
@@ -50,6 +59,13 @@ export interface SaveData {
   /** Pickup id -> play time (seconds) when it was collected, so it can grow back. */
   taken: Record<string, number>;
   dropped: DroppedBag | null;
+  /** The base at the Kestrel site (milestone 3). */
+  pieces: SavedPiece[];
+  nextPieceId: number;
+  /** Materials in the base's storage pods. Safe from blackouts. */
+  stored: Record<MaterialId, number>;
+  /** One-time tips already shown. */
+  tips: string[];
   playSeconds: number;
   savedAt: number;
 }
@@ -68,6 +84,10 @@ export function freshSave(spawnX: number, spawnY: number): SaveData {
     tanks: [],
     taken: {},
     dropped: null,
+    pieces: [],
+    nextPieceId: 1,
+    stored: { scrap: 0, copper: 0, quartz: 0, fibre: 0 },
+    tips: [],
     playSeconds: 0,
     savedAt: 0,
   };
@@ -85,6 +105,9 @@ export function loadSave(spawnX: number, spawnY: number): { data: SaveData; load
       ...fresh,
       ...d,
       bag: { ...fresh.bag, ...(d.bag ?? {}) },
+      stored: { ...fresh.stored, ...(d.stored ?? {}) },
+      pieces: Array.isArray(d.pieces) ? d.pieces : [],
+      tips: Array.isArray(d.tips) ? d.tips : [],
       scans: Array.isArray(d.scans) ? d.scans : [],
       tanks: Array.isArray(d.tanks) ? d.tanks : [],
       taken: d.taken && typeof d.taken === 'object' ? d.taken : {},
