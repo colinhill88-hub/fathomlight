@@ -325,6 +325,8 @@ export interface SaveData {
   suit: number;
   /** Milestone 8: sealed wreck hatches cut open with the cutter torch. */
   hatches: string[];
+  /** Milestone 8: the flow vane past the race is raised (the sub can cross over the top). */
+  vane: boolean;
   /** Scrap still owed from the test gift after milestone 6 (removed in milestone 7: kept only so old saves load). */
   gift?: number;
   /** One-time tips already shown. */
@@ -377,6 +379,7 @@ export function freshSave(spawnX: number, spawnY: number): SaveData {
     relays: [],
     suit: 1,
     hatches: [],
+    vane: false,
     tips: [],
     playSeconds: 0,
     savedAt: 0,
@@ -423,6 +426,7 @@ export function loadSave(spawnX: number, spawnY: number): { data: SaveData; load
       relayKits: typeof d.relayKits === 'number' ? d.relayKits : 0,
       suit: typeof d.suit === 'number' ? Math.max(0.05, Math.min(1, d.suit)) : 1,
       hatches: Array.isArray(d.hatches) ? d.hatches : [],
+      vane: d.vane === true,
       relays: Array.isArray(d.relays) ? d.relays.filter((r: { x?: unknown; y?: unknown }) => typeof r?.x === 'number' && typeof r?.y === 'number') : [],
     } as SaveData;
     // Milestone 7: the scavenger crab makes scrap now, so the test gift ends.

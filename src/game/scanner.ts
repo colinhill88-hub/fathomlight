@@ -206,13 +206,19 @@ export const SCAN_ENTRIES: ScanEntry[] = [
     id: 'race',
     name: 'The race',
     category: 'Place',
-    text: 'Deep water pours over the shelf edge here in a steady, powerful current, far too strong to swim against. Old anchor rings cross it: clip a tow line on and haul yourself from ring to ring.',
+    text: 'Deep water pours over the shelf edge here in a steady, powerful current, far too strong to swim against, all the way up to the surface. Old anchor rings cross it: a grapple line could pull you from ring to ring.',
   },
   {
     id: 'ring',
     name: 'Anchor ring',
     category: 'Wreckage',
-    text: 'A steel stake driven deep into the seabed with a heavy ring on top, left by a salvage crew long ago. Holding on to one keeps you out of the worst of the current.',
+    text: 'A steel stake driven deep into the seabed with a heavy ring on top, left by a salvage crew long ago. Holding on to one keeps you out of the worst of the current, and a grapple line can hook it.',
+  },
+  {
+    id: 'vane',
+    name: 'Flow vane',
+    category: 'Wreckage',
+    text: 'A huge hinged steel plate on a pivot in the seabed, with a winch beside it: the salvage crew\'s way of turning the race down along the shelf, so the water at the top goes calm. Raised, a sub can cross the shelf edge over the top.',
   },
   {
     id: 'wreck',

@@ -880,6 +880,23 @@ Cut from High so far: the phone renders at 2× instead of its native 3×. Colin 
 - **A suit bar under the dive watch** (`#suit-bar`, `Hud.setSuit` / `suitHit`): a helmet icon, a thick bar and a percentage. It is lume green above 70%, amber above 35%, and red with a pulsing border below that, and the whole chip flashes red when the diver is bitten. It shows once the wreck shelf has been reached, or whenever the suit is damaged, and hides aboard the sub (the sub's chip uses that spot) and in panels. The arc on the dial stays as a secondary hint.
 - Checked on an emulated iPhone in landscape: amber at 56% and red at 26%, clearly readable under the watch.
 
+### After milestone 8 part 1: the grapple line and the flow vane
+- **Colin:** didn't love clipping on and hauling ring to ring, and chose a **grapple line** instead. He also wanted the sub blocked the first time, so it can't skip the grapple: "something that stops the water flow at the top so the sub can go over it like it does now".
+- **The grapple line GL-1** replaces the tow line. It uses the same blueprint and Workshop item (`tow` in the save), so saves carry over.
+  - With it, the best anchor ring within 460 units with a clear line (rings ahead of the diver first) gets an amber **target marker**, and Collect reads "Fire the grapple".
+  - A tap shoots the hook out (0.18 s), then the line **reels the diver in at 580 units/s**, faster than the race, ending holding the ring (where the current is cut to a tenth). Fire again for the next ring.
+  - It fires even while the race is sweeping you away.
+- **The race now reaches the surface** (it used to stop just under it, so a diver could slip past along the top).
+- **The flow vane** (`VANE`, `race.vane` in `src/world/terrain.ts`): a huge hinged steel plate lying on the seabed just past the race (x 22020), with its winch on the far side (22200). Only a diver who has grappled across can reach the winch. Hold Collect, "Wind the flow vane winch" (3 s), and it swings up off the seabed to about 60°. It turns the race down along the shelf, so **the water above 5 m goes calm** and the sub can cross over the top. The deep race still works on the diver, and slows the sub to half.
+  - **Before the vane is raised,** the race pushes the sub at 1.4× its strength, more than its thrusters. A banner says the salvage crew must have had a way to calm it, on the far side, on foot.
+- New scanner entry: Flow vane. The ring, race, gear and blueprint texts now describe the grapple.
+- **Tested** (scripted, game seconds):
+  - **Surface:** a diver at the surface in the race was swept from 20700 to 19996 in 2 s.
+  - **Grapple:** from the first ring on the shelf floor, seven grapple shots carried the diver ring by ring to 21970 (rings at 20200 … 21860).
+  - **Vane:** winding the winch raised it.
+  - **Sub:** on full thrusters before the vane, it was pushed from 20600 back to 19541 in 4 s; after the vane, it crossed from 20600 to 21712 near the top.
+  - No console errors.
+
 ## Next
 
 **Next session: milestone 8 part 2, the Corvina** (prompt in `docs/prompts/milestone-8-part-2.md`). Ask Colin before building:
@@ -898,7 +915,7 @@ Where things are (milestone 8 part 1): the shelf's shape, `RACE`, `RINGS`, `WREC
   - the lurker's reach (250), detect range (200 lit / 125 dark), warn 0.75 s, rest 3.4 s, and the bite (30%);
   - suit self-seal (1.2%/s after 8 s) and repair (25%/s);
   - brass weight (3 kg) and unbolt time (2.6 s).
-- **The lurkers ignore the sub,** and the sub can cross the race. That keeps the sub a safe way to explore, but the race only gates the diver.
+- **The lurkers ignore the sub.** The sub can't cross the race until a diver raises the flow vane (after milestone 8 part 1). Grapple numbers to tune: range 460, reel 580 units/s, sub push 1.4× before the vane.
 
 - **Milestone 7 part 2 numbers to tune after Colin plays:** the surge (`SURGE_CYCLE` 7.5 s, strength 560 in `src/main.ts`), air pocket sizes (`AIR_POCKETS` water lines), how far you can go past the last lit bracket (330) and how much the black water shrinks the light (0.32); research and build times and costs (`src/game/gear.ts`, `PIECES`); the Sorting pod bay (12 of each); relay spacing (600) and breathing radius (140); the grabber's reach (`GRAB_REACH` 150) and how fast it hovers into line (160 units/s); boarding (0.6 s swim + 0.45 s in).
 - **Cave frame rate on the phone:** in the cloud test browser (software graphics, no GPU) the caves ran at about half the frame rate of the shallows, mostly from their many lights (moss, brackets, finds). Check the caves on the iPhone. If they stutter, the first things to cut are the moss lights along the route (in `buildKelpCaves`) and the darkness strips' resolution.

@@ -219,7 +219,7 @@ export class Hud {
     const finds: [string, string, string, string][] = [
       ['relaylog', 'relay', 'KS RELAY 2 log (in the caves\' first hall)', 'Air relay AR-1'],
       ['weldchip', 'welder', 'KD WELD chip (past the cold surge)', 'DR-2 welder'],
-      ['towcoil', 'tow', 'rope store notes (up from the junction)', 'Tow line'],
+      ['towcoil', 'tow', 'rope store notes (up from the junction)', 'Grapple line'],
       ['cache', 'cutter', 'survey cache (beyond the black water)', 'Cutter torch'],
     ];
     const rows = finds
@@ -243,7 +243,7 @@ export class Hud {
       .join('');
     const lit = save.brackets.filter(Boolean).length;
     const shelf = save.scans.includes('wshelf')
-      ? `<p class="note">The wreck shelf: suit integrity ${Math.round(save.suit * 100)}% · sealed hatches opened ${save.hatches.length} / 2${save.gear.includes('tow') ? '' : ' · the race needs a tow line'}</p>`
+      ? `<p class="note">The wreck shelf: suit integrity ${Math.round(save.suit * 100)}% · sealed hatches opened ${save.hatches.length} / 2${save.gear.includes('tow') ? '' : ' · the race needs a grapple line'}${save.vane ? ' · flow vane raised' : ''}</p>`
       : '';
     return `${shelf}<p class="note">The kelp caves:</p><ul class="note">${rows}${pieces}<li>Black water brackets lit: ${lit} / 4</li><li>Kelp wall: ${save.kelpCut ? 'cut open' : 'uncut (needs the cutter torch)'}</li>${
       save.relays.length || save.relayKits ? `<li>Air relays planted: ${save.relays.length}${save.relayKits ? `, ${save.relayKits} kit${save.relayKits > 1 ? 's' : ''} to plant` : ''}</li>` : ''

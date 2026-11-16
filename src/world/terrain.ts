@@ -232,10 +232,19 @@ function shelfFloor(x: number): number {
   y -= bump(x, 20600, 240, 70) + bump(x, 23650, 300, 60) + bump(x, 24950, 200, 45);
   return y;
 }
-/** How strong the race current is at a point (0..1). */
+/**
+ * The old salvage crew's flow vane: a huge hinged steel plate on the seabed just
+ * past the race. Raised (from its winch on the far side), it turns the current
+ * down along the shelf, so the upper water at the edge goes calm and the sub can
+ * cross over the top. Set from the save (src/main.ts).
+ */
+export const VANE = { x: 22020, winchX: 22200, calmY: 520 };
+export const race = { vane: false };
+/** How strong the race current is at a point (0..1). Before the vane is raised it reaches the surface. */
 export function raceAt(x: number, y: number): number {
-  if (x < RACE.x0 - 40 || x > RACE.x1 + 200 || y < 60) return 0;
-  return smooth((x - RACE.x0) / 160) * (1 - smooth((x - RACE.x1) / 200));
+  if (x < RACE.x0 - 40 || x > RACE.x1 + 200) return 0;
+  const k = smooth((x - RACE.x0) / 160) * (1 - smooth((x - RACE.x1) / 200));
+  return race.vane ? k * smooth((y - (VANE.calmY - 80)) / 160) : k;
 }
 /** Old anchor rings across the race: stakes driven into the seabed with a ring on top. */
 export const RINGS = [19560, 19880, 20200, 20530, 20860, 21190, 21520, 21860].map((x) => ({ x, y: 0 }));

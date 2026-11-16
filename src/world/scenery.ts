@@ -37,6 +37,7 @@ import {
   LURKER_DENS,
   RACE,
   RINGS,
+  VANE,
   WRECKS,
 } from './terrain';
 
@@ -555,7 +556,8 @@ export type ScanKind =
   | 'race'
   | 'ring'
   | 'wreck'
-  | 'corvina';
+  | 'corvina'
+  | 'vane';
 
 interface Slice {
   obj: Container;
@@ -580,7 +582,7 @@ export class Scenery {
     kelp: [], coral: [], fan: [], grass: [], anemone: [], beacon: [], sled: [], anchor: [], buoy: [], cave: [],
     boom: [], forest: [], gkelp: [], bladder: [], lumen: [], kcaves: [],
     airpocket: [], surge: [], blackwater: [], kwall: [],
-    wshelf: [], race: [], ring: [], wreck: [], corvina: [],
+    wshelf: [], race: [], ring: [], wreck: [], corvina: [], vane: [],
   };
   /** The cave's black throat (milestone 7: the dive light thins it). */
   caveDark!: Graphics;
@@ -1347,6 +1349,12 @@ export class Scenery {
   private raceG = new Graphics();
   private towG = new Graphics();
   private hatchG = new Map<string, { closed: Graphics; open: Graphics }>();
+  /** The flow vane (a hinged plate on a seabed pivot) and its winch. */
+  private vane = new Container();
+  private vaneWinch = new Graphics();
+  private vaneShown = -1;
+  /** The grapple's target marker, drawn unlit so it shows in the dark. */
+  private markG = new Graphics();
 
   private buildShelf(detail: number, rock: (x0: number, x1: number, build: (g: Graphics) => void) => void, decorLayer: Container): void {
     // The shelf edge: rock from the plateau down to the shelf floor.
@@ -1459,6 +1467,71 @@ export class Scenery {
     decorLayer.addChild(this.raceG);
     this.slices.push({ obj: this.raceG, x0: RACE.x0 - 200, x1: RACE.x1 + 200 });
     this.view.addChild(this.towG);
+    this.emissive.addChild(this.markG);
+
+    // The flow vane: a long riveted plate on a pivot, lying flat until its winch raises it.
+    {
+      const p = new Graphics();
+      const L = 420;
+      p.roundRect(-L, -10, L, 20, 6).fill({ color: 0x5a524c });
+      p.rect(-L, -10, L, 4).fill({ color: 0xffffff, alpha: 0.08 });
+      for (let x = -L + 30; x < -10; x += 60) p.rect(x, -10, 4, 20).fill({ color: 0x3a3430 });
+      for (let x = -L + 12; x < -6; x += 20) p.circle(x, 0, 1.6).fill({ color: 0x2a2622 });
+      for (let x = -L + 40; x < -40; x += 90) p.rect(x, -10, 26, 3).fill({ color: 0xa8402e, alpha: 0.8 });
+      rustStreaks(p, -L + 10, -20, -2, 14, 10);
+      this.vane.addChild(p);
+      this.vane.position.set(VANE.x, gy(VANE.x) - 8);
+      const pivot = new Graphics();
+      pivot.roundRect(VANE.x - 30, gy(VANE.x) - 26, 60, 30, 6).fill({ color: 0x4a4440 });
+      pivot.circle(VANE.x, gy(VANE.x) - 8, 12).fill({ color: 0x6a625c });
+      pivot.circle(VANE.x, gy(VANE.x) - 8, 4).fill({ color: 0x2a2622 });
+      decorLayer.addChild(this.vane, pivot, this.vaneWinch);
+      this.scanPoints.vane.push({ x: VANE.x - 120, y: gy(VANE.x) - 60 });
+      this.setVane(0);
+    }
+  }
+
+  /** 0 = the vane lies flat on the seabed, 1 = raised (the top of the race goes calm). */
+  setVane(t: number): void {
+    if (Math.abs(t - this.vaneShown) < 0.002) return;
+    this.vaneShown = t;
+    this.vane.rotation = smooth(t) * 1.05;
+    const w = this.vaneWinch.clear();
+    const x = VANE.winchX;
+    const y = gy(x) + 4;
+    w.roundRect(x - 26, y - 12, 52, 12, 3).fill({ color: 0x4a4038 });
+    w.rect(x - 22, y - 40, 6, 30).fill({ color: 0x5a4a3e });
+    w.rect(x + 16, y - 40, 6, 30).fill({ color: 0x5a4a3e });
+    w.roundRect(x - 18, y - 36, 36, 20, 6).fill({ color: 0xa88a40 });
+    const a = t * 14;
+    w.circle(x + 30, y - 26, 10).stroke({ color: 0xa8402e, width: 3 });
+    w.moveTo(x + 30 + Math.cos(a) * 10, y - 26 + Math.sin(a) * 10).lineTo(x + 30 - Math.cos(a) * 10, y - 26 - Math.sin(a) * 10).stroke({ color: 0xa8402e, width: 2 });
+    rustStreaks(w, x - 16, x + 16, y - 30, 5, 12);
+    // The cable from the drum to the vane's tip.
+    const L = 420;
+    const ang = this.vane.rotation;
+    const tx = VANE.x - Math.cos(ang) * L;
+    const ty = gy(VANE.x) - 8 - Math.sin(ang) * L;
+    w.moveTo(x - 2, y - 30).quadraticCurveTo((x + tx) / 2, Math.min(y, ty) - 30 * (1 - t), tx, ty).stroke({ color: 0x2a2622, width: 1.6, alpha: 0.9 });
+  }
+
+  /** Where the vane's winch is, for the Collect button. */
+  static vaneWinchPoint(): { x: number; y: number } {
+    return { x: VANE.winchX, y: groundY(VANE.winchX) - 26 };
+  }
+
+  /** The grapple's target: an amber ring and crosshair round the anchor, or none. */
+  setGrappleMark(p: { x: number; y: number } | null, time: number): void {
+    const g = this.markG.clear();
+    if (!p) return;
+    const r = 26 + Math.sin(time * 6) * 3;
+    g.circle(p.x, p.y, r).stroke({ color: 0xffc860, width: 2, alpha: 0.85 });
+    for (let k = 0; k < 4; k++) {
+      const a = (k * Math.PI) / 2 + time * 0.8;
+      g.moveTo(p.x + Math.cos(a) * (r + 4), p.y + Math.sin(a) * (r + 4))
+        .lineTo(p.x + Math.cos(a) * (r + 12), p.y + Math.sin(a) * (r + 12))
+        .stroke({ color: 0xffc860, width: 2, alpha: 0.85 });
+    }
   }
 
   private hull(g: Graphics, pts: number[], color: number): void {
