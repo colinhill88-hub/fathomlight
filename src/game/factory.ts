@@ -1,4 +1,4 @@
-import { BaseLayout, CELL, isDone, PieceKind, PIECES, pieceRect, Placed } from './base';
+import { BaseLayout, CELL, isDone, isStoreKind, isTankKind, PieceKind, PIECES, pieceRect, Placed } from './base';
 import { MachineData, MATERIAL_ORDER, MATERIALS, MaterialId, SaveData, TankData } from './state';
 
 /**
@@ -186,7 +186,7 @@ export function machineData(save: SaveData, id: number): MachineData {
 export function portPoint(p: Placed, kind: LineKind, dir: 'in' | 'out'): { x: number; y: number } {
   const r = pieceRect(p);
   const cx = r.x + r.w / 2;
-  if (p.kind === 'tank') return { x: cx + (kind === 'pipe' ? 28 : -28), y: r.y + 12 };
+  if (isTankKind(p.kind)) return { x: cx + (kind === 'pipe' ? 28 : -28), y: r.y + 12 };
   if (p.kind === 'press') return { x: cx + (dir === 'in' ? -62 : 62), y: r.y + 14 };
   return { x: cx + (kind === 'belt' ? -22 : 22), y: r.y + 10 };
 }
@@ -233,13 +233,13 @@ export function upgradeCost(kind: LineKind, cells: number, tier: number): Partia
 
 /** Solid materials a piece can send out on a conveyor (null: anything it holds). */
 function sends(kind: PieceKind): MaterialId[] | null {
-  if (kind === 'storage' || kind === 'tank') return null;
+  if (kind === 'storage' || kind === 'sorter' || kind === 'tank' || kind === 'gtank') return null;
   if (kind === 'press') return ['plate'];
   return [];
 }
 /** Solid materials a piece takes in from a conveyor (null: anything). */
 function takes(kind: PieceKind): MaterialId[] | null {
-  if (kind === 'storage') return null;
+  if (kind === 'storage' || kind === 'sorter') return null;
   if (kind === 'feeder') return ['fibre'];
   if (kind === 'press') return ['scrap', 'copper'];
   return [];
@@ -272,7 +272,7 @@ export function linkProblem(save: SaveData, layout: BaseLayout, kind: LineKind, 
   if (from.id === to.id) return 'Pick another piece';
   if (!outLimit) return `A ${nameA} has nothing to send down a ${line}`;
   if (!inLimit) return `A ${nameB} can't take a ${line} in`;
-  if (from.kind === 'storage' && to.kind === 'storage') return 'Storage pods already share everything they hold';
+  if (isStoreKind(from.kind) && isStoreKind(to.kind)) return 'Storage pods already share everything they hold';
   if (kind === 'belt') {
     const s = sends(from.kind);
     const t = takes(to.kind);
@@ -334,7 +334,7 @@ export class Factory {
    * Run the base's machines and lines forward by dt seconds of play.
    * room() says how many more items fit in the base's storage.
    */
-  tick(save: SaveData, layout: BaseLayout, dt: number, room: () => number = () => 0): void {
+  tick(save: SaveData, layout: BaseLayout, dt: number, room: (k?: MaterialId) => number = () => 0): void {
     if (dt <= 0) return;
     const byId = new Map(layout.pieces.map((p) => [p.id, p]));
     // Lines and fitted whorls whose pieces are gone go too (removing a piece
@@ -347,14 +347,14 @@ export class Factory {
 
     // ---- Conveyors: each carries what its source has and its target wants ----
     const has = (p: Placed, k: MaterialId): boolean => {
-      if (p.kind === 'storage') return save.stored[k] > 0;
-      if (p.kind === 'tank') return (save.tankData[String(p.id)]?.out?.[k] ?? 0) > 0;
+      if (isStoreKind(p.kind)) return save.stored[k] > 0;
+      if (isTankKind(p.kind)) return (save.tankData[String(p.id)]?.out?.[k] ?? 0) > 0;
       if (p.kind === 'press') return k === 'plate' && (machineData(save, p.id).plate ?? 0) > 0;
       return false;
     };
     /** How full the target is of k (0..1), or null if it has no room or no use for it. */
     const want = (p: Placed, k: MaterialId): number | null => {
-      if (p.kind === 'storage') return room() > 0 ? 0 : null;
+      if (isStoreKind(p.kind)) return room(k) > 0 ? 0 : null;
       if (p.kind === 'feeder') return k === 'fibre' && machineData(save, p.id).fibre < HOPPER_CAP ? machineData(save, p.id).fibre / HOPPER_CAP : null;
       if (p.kind === 'press') {
         const m = machineData(save, p.id);
@@ -364,15 +364,15 @@ export class Factory {
       return null;
     };
     const take = (p: Placed, k: MaterialId) => {
-      if (p.kind === 'storage') save.stored[k]--;
-      else if (p.kind === 'tank') {
+      if (isStoreKind(p.kind)) save.stored[k]--;
+      else if (isTankKind(p.kind)) {
         const o = save.tankData[String(p.id)]!.out!;
         o[k] = (o[k] ?? 0) - 1;
         if (!o[k]) delete o[k];
       } else if (p.kind === 'press') machineData(save, p.id).plate!--;
     };
     const give = (p: Placed, k: MaterialId) => {
-      if (p.kind === 'storage') save.stored[k]++;
+      if (isStoreKind(p.kind)) save.stored[k]++;
       else if (p.kind === 'feeder') machineData(save, p.id).fibre++;
       else if (p.kind === 'press') {
         const m = machineData(save, p.id);
@@ -445,7 +445,7 @@ export class Factory {
         const l = pipes[i];
         const fl = this.flow(l.id);
         const t = byId.get(l.to)!;
-        if (!on(f) || t.kind !== 'tank' || !isDone(t)) {
+        if (!on(f) || !isTankKind(t.kind) || !isDone(t)) {
           fl.busy += (0 - fl.busy) * Math.min(1, dt / 20);
           continue;
         }

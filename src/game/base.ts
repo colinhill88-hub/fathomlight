@@ -1,5 +1,5 @@
 import { groundY } from '../world/terrain';
-import { MATERIAL_ORDER, MaterialId } from './state';
+import { BlueprintId, MATERIAL_ORDER, MaterialId } from './state';
 
 /**
  * The rules of the snap-together base (milestone 3). No drawing here, just
@@ -65,7 +65,15 @@ export function onSeabed(gx: number, gy: number): boolean {
 /** How many cells of the site are open water. */
 export const OPEN_CELLS = OPEN.filter(Boolean).length;
 
-export type PieceKind = 'dome' | 'corridor' | 'turbine' | 'storage' | 'tank' | 'filter' | 'feeder' | 'press' | 'dock' | 'lab' | 'workshop';
+export type PieceKind = 'dome' | 'corridor' | 'turbine' | 'storage' | 'tank' | 'filter' | 'feeder' | 'press' | 'dock' | 'lab' | 'workshop' | 'gtank' | 'sorter';
+/** Creature tanks of either size (milestone 7 part 2 added the Grand tank). */
+export function isTankKind(k: PieceKind): boolean {
+  return k === 'tank' || k === 'gtank';
+}
+/** Pieces that store materials (storage pods and sorting pods). */
+export function isStoreKind(k: PieceKind): boolean {
+  return k === 'storage' || k === 'sorter';
+}
 export type PortKind = 'beltIn' | 'beltOut' | 'pipeIn' | 'pipeOut';
 export type Dir = 'L' | 'R' | 'U' | 'D';
 
@@ -86,6 +94,8 @@ export interface PieceDef {
   ports?: Partial<Record<PortKind, number>>;
   /** Can Echo whorls be fitted to it (milestone 5)? */
   whorls?: boolean;
+  /** Milestone 7 part 2: a blueprint the Lab must decode before the build card appears. */
+  blueprint?: BlueprintId;
 }
 
 export const PIECES: Record<PieceKind, PieceDef> = {
@@ -220,8 +230,52 @@ export const PIECES: Record<PieceKind, PieceDef> = {
     buildTime: 36,
     shapes: [{ w: 2, h: 1, collars: [{ cx: 0, cy: 0, dir: 'L' }, { cx: 1, cy: 0, dir: 'R' }] }],
   },
+  // Milestone 7 part 2: the kelp forest pieces (Colin's choices: costs as proposed).
+  gtank: {
+    kind: 'gtank',
+    name: 'Grand tank',
+    job: 'A big tank for up to eight creatures, with a planter for two kinds of plant, so two species can both have their favourite. Collect and Tend work as with a creature tank.',
+    cost: { resin: 6, plate: 4, quartz: 3, moss: 2 },
+    buildTime: 50,
+    ports: { pipeIn: 1, beltOut: 2 },
+    whorls: true,
+    blueprint: 'gtank',
+    shapes: [
+      {
+        w: 3,
+        h: 2,
+        collars: [
+          { cx: 0, cy: 0, dir: 'L' },
+          { cx: 2, cy: 0, dir: 'R' },
+        ],
+      },
+    ],
+  },
+  sorter: {
+    kind: 'sorter',
+    name: 'Sorting pod',
+    job: 'Storage with its own bay for every material (12 of each), so creature output or one big haul can never crowd out the rest. Unload and conveyors work as with a storage pod.',
+    cost: { resin: 4, scrap: 3, copper: 2 },
+    buildTime: 26,
+    ports: { beltOut: 4, beltIn: 4 },
+    blueprint: 'sorter',
+    shapes: [
+      {
+        w: 1,
+        h: 1,
+        collars: [
+          { cx: 0, cy: 0, dir: 'L' },
+          { cx: 0, cy: 0, dir: 'R' },
+          { cx: 0, cy: 0, dir: 'U' },
+          { cx: 0, cy: 0, dir: 'D' },
+        ],
+      },
+    ],
+  },
 };
-export const PIECE_ORDER: PieceKind[] = ['dome', 'corridor', 'turbine', 'storage', 'tank', 'filter', 'feeder', 'press', 'dock', 'lab', 'workshop'];
+export const PIECE_ORDER: PieceKind[] = ['dome', 'corridor', 'turbine', 'storage', 'tank', 'filter', 'feeder', 'press', 'dock', 'lab', 'workshop', 'gtank', 'sorter'];
+/** Each sorting pod's bay for every material. */
+export const SORT_BAY = 12;
 
 /** Where a docked sub sits in a Moon pool dock (milestone 6): its hull in the berth, its dome up in the pool. */
 export function berthOf(p: { kind: PieceKind; gx: number; gy: number; rot: number }): { x: number; y: number } {
@@ -451,6 +505,8 @@ const CODE_PREFIX: Record<PieceKind, string> = {
   dock: 'MP-',
   lab: 'LAB-',
   workshop: 'WS-',
+  gtank: 'GT-',
+  sorter: 'SP-',
 };
 
 /** A piece's stencil code, as painted on it: CT-1, AF-2, PP-1, TANK 3. Pieces are numbered per kind in build order. */

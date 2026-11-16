@@ -1,7 +1,7 @@
 import { audio, BusName } from './engine';
 import { Ambience, ZoneMix } from './ambience';
 import { Music, MusicZone } from './music';
-import { BASIN_EAST, CAVE, FOREST, GROTTO, inCaveTunnel, SITE_MOUTH } from '../world/terrain';
+import { BASIN_EAST, CAVE, FOREST, GROTTO, inCaveTunnel, inKelpCaves, KC, SITE_MOUTH } from '../world/terrain';
 
 /*
  * Milestone 7b: the sound director. main.ts hands it a snapshot of the game
@@ -11,7 +11,7 @@ import { BASIN_EAST, CAVE, FOREST, GROTTO, inCaveTunnel, SITE_MOUTH } from '../w
  * cues. A few cues come straight from game events (pickups, dents, toasts).
  */
 
-export type WorkKind = 'fibre' | 'scrap' | 'copper' | 'quartz' | 'resin' | 'moss' | 'creature' | 'repair' | 'winch' | 'recorder';
+export type WorkKind = 'fibre' | 'scrap' | 'copper' | 'quartz' | 'resin' | 'moss' | 'creature' | 'repair' | 'winch' | 'recorder' | 'cutter';
 
 export interface AudioFrame {
   dt: number;
@@ -44,6 +44,9 @@ export interface AudioFrame {
   splash: number;
   /** Breathing out with the head above water. */
   exhale: boolean;
+  /** Milestone 7 part 2: the cold surge in the kelp caves (0..1) and the helmet in an air pocket. */
+  surge: number;
+  inAir: boolean;
 }
 
 const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
@@ -55,7 +58,7 @@ const smooth = (v: number) => {
 /** How much of each zone a point is in. */
 export function zoneMix(x: number, y: number): ZoneMix {
   let cave = 0;
-  if (inCaveTunnel(x, y) && x > CAVE.x0 + 60 && x < CAVE.x1 - 40) cave = 1;
+  if ((inCaveTunnel(x, y) && x > CAVE.x0 + 60 && x < CAVE.x1 - 40) || inKelpCaves(x, y)) cave = 1;
   else if (x > GROTTO.x0 - 60 && x < GROTTO.x1 + 60 && y > GROTTO.y0 - 60) cave = 0.6;
   const mouth = Math.hypot((x - SITE_MOUTH.x) / (SITE_MOUTH.rx * 3), (y - SITE_MOUTH.y) / (SITE_MOUTH.ry * 3));
   cave = Math.max(cave, 0.6 * (1 - smooth(mouth)));
@@ -85,6 +88,7 @@ export class SoundDirector {
     motion: { gain: GainNode; filter: BiquadFilterNode };
     motor: { gain: GainNode; oscs: OscillatorNode[]; filter: BiquadFilterNode; wash: GainNode; washF: BiquadFilterNode; whine: GainNode; whineO: OscillatorNode };
     hum: { gain: GainNode; pan: StereoPannerNode | null };
+    rumble: GainNode;
   } | null = null;
 
   constructor() {
@@ -192,7 +196,22 @@ export class SoundDirector {
       audio.route(pan, 'sfx', 0.2);
     } else audio.route(humG, 'sfx', 0.2);
 
+    // The cold surge: a deep rushing rumble.
+    const rSrc = ctx.createBufferSource();
+    rSrc.buffer = audio.brown;
+    rSrc.loop = true;
+    const rF = ctx.createBiquadFilter();
+    rF.type = 'lowpass';
+    rF.frequency.value = 260;
+    const rumble = ctx.createGain();
+    rumble.gain.value = 0;
+    rSrc.connect(rF);
+    rF.connect(rumble);
+    audio.route(rumble, 'ambience', 0.4);
+    rSrc.start();
+
     this.loops = {
+      rumble,
       scan: { osc: scanO, gain: scanG },
       motion: { gain: mG, filter: mF },
       motor: { gain: motorG, oscs, filter: motorF, wash, washF, whine, whineO },
@@ -222,7 +241,7 @@ export class SoundDirector {
     const nearSurface = clamp01(1 - f.depthM / 6);
     const m = this.mix;
     audio.setScene({
-      muffle: f.surfaced ? 16000 : Math.max(900, 4200 - 2300 * depth - 900 * m.cave - 500 * m.forest),
+      muffle: f.surfaced || f.inAir ? 16000 : Math.max(900, 4200 - 2300 * depth - 900 * m.cave - 500 * m.forest),
       space: f.surfaced ? 0.12 : 0.28 + 0.15 * m.basin + 0.12 * m.forest + 0.8 * m.cave,
       duck: (f.panel ? 0.4 : 1) * (1 - 0.45 * f.lowAir),
       blackout: f.blackout,
@@ -254,13 +273,18 @@ export class SoundDirector {
     if (p.surfaced === true && !f.surfaced && !f.aboard && f.splash <= 0) this.splash(0.3, false);
     if (f.exhale) audio.hiss({ dur: 0.7, attack: 0.08, gain: 0.05, type: 'lowpass', freq: 1100, bus: 'sfx', send: 0.05 });
 
+    // ---- The cold surge (kelp caves) ----
+    const nearSqueeze = clamp01(1 - Math.abs(f.x - (KC.squeeze.x1 + KC.squeeze.x2) / 2) / 900) * (m.cave > 0.5 ? 1 : 0);
+    L.rumble.gain.setTargetAtTime(out ? 0 : 0.5 * f.surge * nearSqueeze, t, 0.25);
+    if (p.inAir === false && f.inAir) audio.hiss({ dur: 0.6, attack: 0.05, gain: 0.05, type: 'lowpass', freq: 1400, bus: 'ui', send: 0.3 });
+
     // ---- Swimming through water ----
     const swim = f.aboard || f.surfaced ? 0 : clamp01(f.speed / 420);
     L.motion.gain.gain.setTargetAtTime(0.12 * swim * swim, t, 0.15);
     L.motion.filter.frequency.setTargetAtTime(220 + 500 * swim, t, 0.2);
 
     // ---- Breathing (Colin: subtle, faster and louder as air runs low) ----
-    if (!f.aboard && !f.surfaced && !f.inDome && !out) {
+    if (!f.aboard && !f.surfaced && !f.inDome && !f.inAir && !out) {
       this.breathClock -= dt;
       if (this.breathClock <= 0) {
         const exertion = f.boosting || f.work ? 1 : 0;
@@ -403,6 +427,11 @@ export class SoundDirector {
         audio.metal({ freq: 820 * j(), gain: 0.03, decay: 0.12, pan });
         if (Math.random() < 0.25) audio.tone({ freq: 70, to: 62, dur: 0.6, gain: 0.04, type: 'sawtooth', lp: 400, pan });
         return 0.18;
+      case 'cutter': // The cutter torch: a roaring hiss, crackle and boiling bubbles.
+        audio.hiss({ dur: 0.24, gain: 0.07, freq: 3200, q: 0.6, pan });
+        for (let i = 0; i < 3; i++) audio.hiss({ t: t + Math.random() * 0.2, dur: 0.015, gain: 0.08, type: 'highpass', freq: 2600, pan });
+        audio.bubbles({ n: 3, spread: 0.2, gain: 0.03, low: 600, high: 1600, pan });
+        return 0.2;
       case 'recorder': // Unclipping the recorder: small latches.
         audio.tone({ freq: 1800 * j(), dur: 0.03, gain: 0.04, type: 'triangle', pan });
         return 0.4 * j();

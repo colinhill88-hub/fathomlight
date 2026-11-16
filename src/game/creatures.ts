@@ -1,4 +1,4 @@
-import { BaseLayout, isDone, Placed } from './base';
+import { BaseLayout, isDone, isTankKind, Placed } from './base';
 import { CreatureData, MaterialId, MATERIAL_ORDER, MATERIALS, PlantId, SaveData, SpeciesId, TankData } from './state';
 import { EAT_BELOW, MASH_FED, TRAY_CAP, trayCount, whorlMult } from './factory';
 
@@ -142,6 +142,11 @@ export const PLANT_ORDER: PlantId[] = ['coral', 'kelp', 'grass', 'bladder', 'lum
 
 /** Creatures per tank (eggs count too). */
 export const TANK_CAPACITY = 4;
+/** Milestone 7 part 2: the Grand tank holds eight. */
+export const GTANK_CAPACITY = 8;
+export function tankCapacity(layout: BaseLayout, id: number): number {
+  return layout.pieces.find((p) => p.id === id)?.kind === 'gtank' ? GTANK_CAPACITY : TANK_CAPACITY;
+}
 /** Tanks one filter pump can keep clean. */
 export const TANKS_PER_FILTER = 2;
 /** Kelp fibre per feed (it is ground into flakes). */
@@ -225,7 +230,7 @@ export function creaturesIn(save: SaveData, tankId: number): CreatureData[] {
 
 /** Finished creature tanks, west to east. */
 export function tanks(layout: BaseLayout): Placed[] {
-  return layout.pieces.filter((p) => p.kind === 'tank' && isDone(p)).sort((a, b) => a.gx - b.gx || a.gy - b.gy);
+  return layout.pieces.filter((p) => isTankKind(p.kind) && isDone(p)).sort((a, b) => a.gx - b.gx || a.gy - b.gy);
 }
 
 /** Tank number shown to the player (1 = the westmost). */
@@ -254,7 +259,7 @@ export function filteredTanks(layout: BaseLayout): Set<number> {
           if (seen.has(n) || !done.has(n)) continue;
           seen.add(n);
           next.push(n);
-          if (byId.get(n)?.kind === 'tank' && !out.has(n) && served < TANKS_PER_FILTER) {
+          if (isTankKind(byId.get(n)?.kind ?? 'dome') && !out.has(n) && served < TANKS_PER_FILTER) {
             out.add(n);
             served++;
           }
@@ -278,7 +283,7 @@ export function comfortTarget(save: SaveData, layout: BaseLayout, c: CreatureDat
   const all = creaturesIn(save, c.tank);
   const notes: ComfortNote[] = [];
   let t = 0.5;
-  if (td.plant === sp.plant) {
+  if (td.plant === sp.plant || td.plant2 === sp.plant) {
     t += 0.3;
     notes.push({ text: `${PLANTS[sp.plant].name} to shelter in`, good: true });
   } else notes.push({ text: `Wants ${PLANTS[sp.plant].name.toLowerCase()} in the tank`, good: false });
@@ -365,7 +370,7 @@ export function tickCare(save: SaveData, layout: BaseLayout, dt: number): CareEv
   const ev: CareEvent[] = [];
   const filtered = filteredTanks(layout);
   const thriving = thrivingTanks(save, layout);
-  const live = new Set(layout.pieces.filter((p) => p.kind === 'tank').map((p) => p.id));
+  const live = new Set(layout.pieces.filter((p) => isTankKind(p.kind)).map((p) => p.id));
   // Water.
   for (const t of tanks(layout)) {
     const td = tankDataFor(save, t.id);

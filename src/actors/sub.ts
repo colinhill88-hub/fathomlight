@@ -167,6 +167,9 @@ export class Sub {
   private seamGlow = new Graphics();
   private armAngles = { upper: 2.85, fore: -2.9 };
   private lampLight: Light = { x: 0, y: 0, radius: 520, intensity: 0, color: [1, 0.9, 0.74], coneCos: 0.88, coneSoft: 0.12, haze: 0.3 };
+  /** The pilot in the cabin, and how far in they are (0 = empty, 1 = seated). */
+  private pilot = new Graphics();
+  private pilotLevel = 0;
   private cabinLight: Light = { x: 0, y: 0, radius: 150, intensity: 0, color: [1, 0.86, 0.6] };
   private lightLevel = 0;
   private wasFrame = false;
@@ -280,7 +283,7 @@ export class Sub {
   }
 
   private drawCockpit(): void {
-    const g = new Graphics();
+    let g = new Graphics();
     const { x, y, r } = DOME;
     // Collar ring the dome sits in.
     g.roundRect(x - r - 5, y - 2, 2 * r + 10, 10, 3).fill({ color: PAL.steelDark });
@@ -291,7 +294,11 @@ export class Sub {
     // Seated low in the cabin, so the whole helmet (crest included) stays inside the glass.
     g.roundRect(x - 24, y - 28, 9, 27, 3).fill({ color: PAL.rustDark });
     g.roundRect(x - 24, y - 28, 3, 27, 1).fill({ color: 0xffffff, alpha: 0.1 });
-    // Pilot: charcoal shoulders, a grey sleeve to the controls, helmet with lime glass and a crest fin.
+    // Pilot (shown only while someone is aboard; after milestone 7b they climb in through the hatch):
+    // charcoal shoulders, a grey sleeve to the controls, helmet with lime glass and a crest fin.
+    this.body.addChild(g);
+    const gCabin = g;
+    g = this.pilot;
     g.roundRect(x - 16, y - 13, 24, 13, 6).fill({ color: PAL.charcoal });
     g.moveTo(x - 12, y - 9).lineTo(x + 5, y - 9).stroke({ color: PAL.brass, width: 0.7, alpha: 0.6 });
     g.roundRect(x - 1, y - 8, 21, 5, 2.5).fill({ color: 0x7c8487 });
@@ -312,6 +319,9 @@ export class Sub {
     g.circle(hx + 1, hy, 10.5).stroke({ color: 0x6a8a2a, width: 1.1, alpha: 0.8 });
     g.poly([hx - 7.5, hy - 7.5, hx + 3.5, hy - 11.5, hx + 8.5, hy - 9, hx - 3.5, hy - 13]).fill({ color: PAL.visor, alpha: 0.55 });
     g.circle(hx + 4.5, hy - 4, 2).fill({ color: 0xffffff, alpha: 0.35 });
+    this.body.addChild(this.pilot);
+    void gCabin;
+    g = new Graphics();
     // Console with a lit screen.
     g.roundRect(x + 18, y - 18, 16, 18, 3).fill({ color: PAL.steelDark });
     this.screen.roundRect(x + 21, y - 15, 10, 6, 1).fill({ color: 0xffd98a, alpha: 0.9 });
@@ -450,6 +460,11 @@ export class Sub {
   private hasFlood = false;
 
   /** Where the claw tip is (world), for collecting. */
+  /** The hatch on top of the dome, where the diver climbs in and out. */
+  hatchPoint(): { x: number; y: number } {
+    return { x: this.x + this.face * DOME.x, y: this.y + DOME.y - DOME.r - 26 };
+  }
+
   clawPoint(): { x: number; y: number } {
     return { x: this.x + this.face * 108, y: this.y + 62 };
   }
@@ -577,7 +592,12 @@ export class Sub {
    * hull: 0..1 for dents. lightsOn: the bow lamp or floodlights.
    * reach: a world point the grabber is working at, or null.
    */
-  draw(dt: number, o: { frame: number | null; hull: number; lightsOn: boolean; piloted: boolean; reach: { x: number; y: number } | null; welding: boolean }): void {
+  draw(dt: number, o: { frame: number | null; hull: number; lightsOn: boolean; piloted: boolean; occupied: boolean; reach: { x: number; y: number } | null; welding: boolean }): void {
+    // The pilot climbs down into the seat after boarding, and up out of it when leaving.
+    this.pilotLevel += ((o.occupied ? 1 : 0) - this.pilotLevel) * Math.min(1, dt * (o.occupied ? 4 : 7));
+    this.pilot.visible = this.pilotLevel > 0.02;
+    this.pilot.alpha = Math.min(1, this.pilotLevel * 1.4);
+    this.pilot.y = (1 - this.pilotLevel) * -26;
     for (const c of [this.body, this.eBody, this.gBody]) {
       c.scale.set(this.faceAnim, 1);
       c.rotation = this.pitch * Math.sign(this.faceAnim);

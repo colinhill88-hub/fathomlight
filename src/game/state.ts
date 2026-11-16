@@ -43,7 +43,7 @@ export const MATERIAL_ORDER: MaterialId[] = ['scrap', 'copper', 'quartz', 'fibre
 /** Oxygen, in seconds of breathing, for the starting tank and for each tank upgrade. */
 export const BASE_OXYGEN = 75;
 export const TANK_BONUS = 20;
-export const TOTAL_AIR_TANKS = 3;
+export const TOTAL_AIR_TANKS = 4;
 /**
  * Collected materials grow back after this much play time. Play time keeps
  * counting through blackouts and is saved, so neither dying nor closing the
@@ -111,7 +111,9 @@ export function bagHasRoom(d: SaveData, kind: MaterialId): boolean {
  */
 export const DRONE_REPAIR_COST: Partial<Record<MaterialId, number>> = { scrap: 2, copper: 1, fibre: 1 };
 /** How fast the drone welds (1 = normal). Upgrades later: a faster torch, or a second drone. */
-export function droneWeldRate(_d: SaveData): number {
+export function droneWeldRate(d: SaveData): number {
+  // Milestone 7 part 2: the DR-2 welder upgrade welds twice as fast.
+  if (d.gear.includes('welder')) return 2;
   return 1;
 }
 
@@ -154,6 +156,8 @@ export interface JarData {
 export interface TankData {
   water: number;
   plant: PlantId | null;
+  /** Milestone 7 part 2: a Grand tank's second planter. */
+  plant2?: PlantId | null;
   /** Litres of feed mash waiting in the tank's feed trough (milestone 5). */
   mash?: number;
   /**
@@ -219,11 +223,11 @@ export interface SubData {
 }
 
 /** Milestone 7: gear built in the Workshop (rules in src/game/gear.ts). */
-export type GearId = 'light';
-/** Blueprints the Lab decodes. Each one lets the Workshop build something. */
-export type BlueprintId = 'light';
+export type GearId = 'light' | 'cutter' | 'tow' | 'welder' | 'relay';
+/** Blueprints the Lab decodes. Each one lets the Workshop build something, or unlocks a base piece. */
+export type BlueprintId = 'light' | 'cutter' | 'tow' | 'welder' | 'relay' | 'gtank' | 'sorter';
 /** Data finds the diver brings back to the Lab (they weigh nothing). */
-export type FindId = 'recorder';
+export type FindId = 'recorder' | 'relaylog' | 'weldchip' | 'towcoil' | 'cache';
 /** What a Lab or Workshop is busy with. */
 export interface StationJob {
   /** 'research:light' or 'build:light'. */
@@ -235,7 +239,7 @@ export interface StationJob {
 /** A base piece as saved (see src/game/base.ts). */
 export interface SavedPiece {
   id: number;
-  kind: 'dome' | 'corridor' | 'turbine' | 'storage' | 'tank' | 'filter' | 'feeder' | 'press' | 'dock' | 'lab' | 'workshop';
+  kind: 'dome' | 'corridor' | 'turbine' | 'storage' | 'tank' | 'filter' | 'feeder' | 'press' | 'dock' | 'lab' | 'workshop' | 'gtank' | 'sorter';
   gx: number;
   gy: number;
   rot: number;
@@ -303,6 +307,13 @@ export interface SaveData {
   jobs: Record<string, StationJob>;
   /** The old survey boom gate in the notch of the east cliff, opened from the kelp forest side. */
   boomOpen: boolean;
+  /** Milestone 7 part 2: lumen moss set on the black chamber's brackets, the kelp wall cut, and air relays. */
+  brackets: boolean[];
+  kelpCut: boolean;
+  /** Air relay AR-1 kits built and not yet planted. */
+  relayKits: number;
+  /** Planted air relays: where each one's anchor sits on the seabed. */
+  relays: { x: number; y: number }[];
   /** Scrap still owed from the test gift after milestone 6 (removed in milestone 7: kept only so old saves load). */
   gift?: number;
   /** One-time tips already shown. */
@@ -349,6 +360,10 @@ export function freshSave(spawnX: number, spawnY: number): SaveData {
     finds: [],
     jobs: {},
     boomOpen: false,
+    brackets: [false, false, false, false],
+    kelpCut: false,
+    relayKits: 0,
+    relays: [],
     tips: [],
     playSeconds: 0,
     savedAt: 0,
@@ -390,6 +405,10 @@ export function loadSave(spawnX: number, spawnY: number): { data: SaveData; load
       finds: Array.isArray(d.finds) ? d.finds : [],
       jobs: d.jobs && typeof d.jobs === 'object' ? d.jobs : {},
       boomOpen: d.boomOpen === true,
+      brackets: [0, 1, 2, 3].map((i) => Array.isArray(d.brackets) && d.brackets[i] === true),
+      kelpCut: d.kelpCut === true,
+      relayKits: typeof d.relayKits === 'number' ? d.relayKits : 0,
+      relays: Array.isArray(d.relays) ? d.relays.filter((r: { x?: unknown; y?: unknown }) => typeof r?.x === 'number' && typeof r?.y === 'number') : [],
     } as SaveData;
     // Milestone 7: the scavenger crab makes scrap now, so the test gift ends.
     delete data.gift;

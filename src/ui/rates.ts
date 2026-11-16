@@ -1,4 +1,4 @@
-import { BaseLayout, isDone, pieceCode, PIECES, Placed } from '../game/base';
+import { BaseLayout, isDone, isTankKind, pieceCode, PIECES, Placed } from '../game/base';
 import { creaturesIn, HUNGER_RATE, isHappy, makeRate, SPECIES, thrivingTanks } from '../game/creatures';
 import {
   Factory,
@@ -79,7 +79,7 @@ export function baseRates(save: SaveData, layout: BaseLayout, factory: Factory):
   for (const p of layout.pieces) {
     if (!isDone(p)) continue;
     const mult = whorlMult(save, p.id);
-    if (p.kind === 'tank') {
+    if (isTankKind(p.kind)) {
       const piped = save.lines.some((l) => l.kind === 'pipe' && l.to === p.id);
       for (const c of creaturesIn(save, p.id)) {
         if (c.stage === 'egg') continue;
@@ -113,7 +113,7 @@ export function baseRates(save: SaveData, layout: BaseLayout, factory: Factory):
       holding.set('copper', (holding.get('copper') ?? 0) + (m.copper ?? 0));
       holding.set('plate', (holding.get('plate') ?? 0) + (m.plate ?? 0));
     }
-    if (p.kind === 'tank') {
+    if (isTankKind(p.kind)) {
       const td = save.tankData[String(p.id)];
       mash += td?.mash ?? 0;
       for (const k of MATERIAL_ORDER) if (td?.out?.[k]) holding.set(k, (holding.get(k) ?? 0) + td.out[k]!);
@@ -283,7 +283,7 @@ export class RatesPanel {
       const ok = st === 'running' || st === 'full';
       return `<li class="${ok ? 'ok' : 'bad'}"><b>${code}</b> ${PIECES[p.kind].name}<span>${pressStatus(st)}</span><small>${fmt(PRESS_RATE * mult)} plating/min max${w} · ${m.scrap}/${PRESS_SCRAP_CAP} scrap, ${m.copper}/${PRESS_COPPER_CAP} copper · rack ${m.plate}/${PRESS_PLATE_CAP}</small></li>`;
     }
-    if (p.kind === 'tank') {
+    if (isTankKind(p.kind)) {
       const cs = creaturesIn(save, p.id);
       if (!cs.length && !frame) return null;
       const td = save.tankData[String(p.id)];

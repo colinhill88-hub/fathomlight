@@ -1,6 +1,6 @@
 # Fathomlight progress
 
-Last updated: 2026-11-16, **milestone 7b deployed (audio, all made by code)**, plus more early scrap. Next is **milestone 7 part 2, the kelp caves** (see Next).
+Last updated: 2026-11-16, **milestone 7 part 2 deployed (the kelp caves, the cutter torch, Grand tank, Sorting pod, air relays, DR-2)**, plus the grabber and sub boarding fixes. Next is **milestone 8, danger** (see Next).
 
 Play link: https://colinhill88-hub.github.io/fathomlight/ (live; first successful deploy 2026-11-14)
 
@@ -752,22 +752,78 @@ Cut from High so far: the phone renders at 2× instead of its native 3×. Colin 
   - The shallows now give about 2 scrap a minute (was 0.8), so the first Lab and Workshop come roughly 2–3 regrowths sooner. The tinker crab is still the long-term source for the sub and bigger pieces.
 - **Tested:** type check and build pass. The new spots sit on the seabed (screenshots), and a taken scrap spot came back after 6.5 minutes of play time while a copper spot taken at the same moment did not. No console errors.
 
+### Milestone 7, part 2: the kelp caves, new pieces and gear
+- **Colin's choices before building:** the puzzles are a **pulsing current squeeze** and a **moss-lit black chamber**; the **tow line** is in the caves too (a side chamber), the **cutter torch** at the end; **costs and unlocks as proposed**; the cutter torch is **built and used now** (it cuts a kelp wall).
+- **The kelp caves** (`KC` and friends in `src/world/terrain.ts`, drawing `Scenery.buildKelpCaves` in `src/world/scenery.ts`, rules in `src/main.ts`, search "Milestone 7 part 2"). The world grew east again: `WORLD_W` 15600 → 19400. The caves are open shapes (tunnels and chambers) carved into the rock behind the forest's east wall, 15–25 m down. Diver-only. In order:
+  1. **The hall:** an **air pocket** in its roof (put your helmet in it to breathe), lumen moss to peel (3 new moss spots in the caves), the toppled **KS RELAY 2** buoy (its log → Air relay AR-1), and a side passage choked by a **kelp wall**.
+  2. **The squeeze:** cold water surges out every 7.5 s (about 3.5 s of surge at up to 585 units/s, stronger than a boost), then a lull. Two little **pockets in the roof** are out of the flow: hop between them in the lulls. Banners say "Cold surge!" / "A lull: swim on".
+  3. **The junction:** a second air pocket, the broken **KD WELD** crate (its chip → DR-2 welder), and a passage up to the old **rope store** (spool tag and notes → tow line).
+  4. **The black chamber:** silt so fine the dive light shrinks to a third of its reach. Four old **lamp brackets** cross it, with rock pillars between. Hold Collect at a bracket with lumen moss in your bag to set it there: its glow lights that part of the chamber. The diver won't swim more than about 4 m past the last lit bracket. With all four lit, the way is open.
+  5. **The survey cache** at the end: open it for the cutter torch cartridge.
+  - The **kelp wall:** hold Collect with the cutter torch (3 s) to cut it. Behind it is the **fourth air tank upgrade** (`TOTAL_AIR_TANKS` 4).
+  - New scanner entries: Air pocket, Cold surge, Black water, Kelp wall; the kelp caves entry was rewritten. The scanner log has a **kelp caves** checklist (finds, blueprints, brackets, the wall, relays).
+- **New blueprints** (Lab, `RESEARCH` in `src/game/gear.ts`). Finds hide in the Lab list until you carry them.
+
+| Blueprint | Comes from | Lab time | Unlocks |
+| --- | --- | --- | --- |
+| Grand tank GT-1 | scans: tinker crab, lantern shrimp, giant kelp | 90 s | build card |
+| Sorting pod SP-1 | scans: giant kelp, bladder kelp | 60 s | build card |
+| Air relay AR-1 | KS RELAY 2 log (hall) | 80 s | Workshop kit |
+| DR-2 welder | KD WELD chip (junction) | 70 s | Workshop gear |
+| Tow line | rope store notes (side chamber) | 100 s | Workshop gear |
+| Cutter torch | survey cache (end) | 120 s | Workshop gear |
+
+- **New gear** (Workshop, `GEAR`):
+
+| Gear | Code | Cost | Time | Does |
+| --- | --- | --- | --- | --- |
+| Cutter torch | TC-1 | 4 plating, 3 copper, 2 quartz, 2 resin | 60 s | cuts kelp walls; later, sealed wreck hatches |
+| Tow line | TL-1 | 3 plating, 4 kelp fibre, 2 resin | 50 s | for the wreck shelf's currents (milestone 8); no use yet |
+| DR-2 welder | DR-2 | 3 plating, 2 copper, 2 moss | 50 s | the drone welds 2× faster (`droneWeldRate`) |
+| Air relay kit | AR-1 | 3 plating, 4 resin, 3 moss, 2 copper | 45 s | build as many as you like |
+
+  - **Planting a relay:** carrying a kit, stop on open seabed (not at the base, not in the caves, at least 8 m from another relay) and hold Collect: "Plant air relay AR-1". A mooring with a regulator, a hose and an orange surface float. Swim to the mooring to breathe (like a dome), and after a blackout you wake at the nearest relay if it is closer than the dome or the sub.
+- **New base pieces** (each needs its blueprint; the build card stays hidden until then):
+
+| Piece | Size | Cost | Weld | Job |
+| --- | --- | --- | --- | --- |
+| Grand tank GT-1 | 3 × 2 | 6 resin, 4 plating, 3 quartz, 2 moss | 50 s | 8 creatures, **two planters** (Tend shows Planter 1 and Planter 2); feed pipe in, conveyors out, whorls |
+| Sorting pod SP-1 | 1 × 1 | 4 resin, 3 scrap, 2 copper | 26 s | a **bay of 12 for every material**, on top of the shared storage pods, so one kind can't crowd out the rest |
+
+  - So a crab and a shrimp in a Grand tank with bladder kelp and lumen moss both reach 100% comfort: the mixed tank is now the best tank.
+  - Storage room is now worked out per material (`storageRoom(k)` in `src/main.ts`): its sorting bays first, then the shared pods. Unloading, the sub, conveyors and refunds all use it.
+- **Fixes from Colin during this milestone:**
+  - **The sub's grabber arm was hard to line up.** It now reaches materials up to 150 units from the claw (a diver's hand: 72), and while you hold Collect with a material in range (and aren't steering), the sub's thrusters **hover it so the claw lines up** over the material and hold it still while the arm works.
+  - **The pilot showed in the sub's dome even when empty.** Now the cabin is empty unless you are aboard. **Boarding animation:** tap Board and the diver swims to the hatch on top of the dome and sinks through it (about 1 s), then the pilot slides down into the seat. Leaving: the pilot rises out through the hatch and the diver fades in above it.
+- **Sounds:** a deep rumble while the cold surge runs, the unmuffled air of an air pocket (no bubbles from the regulator there), the cutter torch's roar and crackle, moss set on brackets, and finds use the bag-recovered chime.
+- **Tested** (type check and production build pass; scripted in headless Chromium, timed by in-game seconds because the cloud browser renders at only 2–8 frames per second without a GPU):
+  - **Surge:** left alone in the squeeze, the diver was pushed back about 860 units to the hall in 8 s; in a roof pocket the diver didn't drift at all.
+  - **Air pocket:** oxygen went from 20 to the full 75 in 3 s with the helmet in the hall's pocket.
+  - **Finds:** all four (relay log, weld chip, rope store notes, survey cache) taken by holding Collect.
+  - **Black water:** with no brackets lit the diver stopped at x 17790. All four brackets were lit with 4 moss from the bag, and then the diver swam through to the cache.
+  - **Kelp wall:** it blocked the diver without the torch. With the cutter torch, holding Collect cut it; the diver swam down into the alcove and took the 4th air tank.
+  - **Air relay:** planted on the forest floor. A blackout at x 13500 woke the diver at the relay (12040). The breathing radius was then widened to 140, which the test showed was needed.
+  - **Pieces:** a turbine, Sorting pod and Grand tank joined in a row were all powered. Unloading 20 scrap at the Sorting pod stored exactly 12 (one bay) and left 8 in the bag. A grown crab and shrimp in the Grand tank with bladder kelp and lumen moss both reached 100% comfort.
+  - **Sub:** pressing V beside it ran the boarding animation and put the diver aboard. With the grabber, the sub started 118 units from a scrap spot; holding Collect hovered it into line, and the arm took the scrap.
+  - No console errors.
+
 ## Next
 
-**Next session: milestone 7 part 2**; its prompt is in `docs/prompts/milestone-7-part-2.md`. Audio (milestone 7b) is done: new sounds for part 2 (the caves puzzles, the cutter torch, the new pieces) should use the helpers in `src/audio/engine.ts` and be triggered from `src/audio/director.ts`.
+**Next session: milestone 8, danger** (DESIGN.md, Milestones): predators, currents, the wreck shelf zone, and real uses for the cutter torch (sealed wrecks) and tow line (strong currents). Health arrives with the first things that can hurt the diver. Its prompt is in `docs/prompts/milestone-8.md`. Ask Colin before building:
+- the wreck shelf's layout and its major site (a sealed wreck?), and which blueprints it holds (DESIGN.md: pressure suit and sonar pulse);
+- how health and damage work (a health bar on the dive watch? healing at the dome?), and how scary the first predators are (DESIGN.md: "unsettling", hide and lunge);
+- how currents and the tow line work (clip to anchor points and winch along?);
+- the wreck shelf's base pieces and materials (DESIGN.md, base growth across biomes), and whether the sub gets there (a way east past the caves' plateau at 15200–19400, which is open water 3.5 m deep today);
+- power as a real mechanic (Colin, milestone 7): still to be planned.
 
-**Milestone 7, part 2: the kelp caves** (Colin's decisions above):
-- **The major site**, through the mouth in the forest's east wall (`SITE_MOUTH` in `src/world/terrain.ts`; the banner in `src/main.ts` says it opens next). It is diver-only and works like a Zelda dungeon: a few navigation puzzles (ideas: currents through narrow squeezes, a flooded chamber lit only by lumen moss you carry, an old Kestrel hatch to wind open, a grown lantern shrimp or glowfin lighting a passage), and the **cutter torch blueprint** at the end (DESIGN.md gives the kelp forest both the cutter torch and the tow line; check with Colin whether the tow line comes from here too).
-- **Kelp forest base pieces**, made from holdfast resin and lumen moss, each unlocked by Lab research on kelp forest scans and samples:
-  - **Grand tank GT-1:** 3 × 2 cells, 8 creatures, a planter with two plant kinds. With it a crab and shrimp tank reaches 100% for both.
-  - **Sorting pod SP-1:** storage with per-material limits, so creature output can't fill storage.
-  - **Air relay AR-1:** a buoy planted out in the world that refills air and is a wake-up point far from home.
-- **DR-2 drone welder** (about 2× faster), built in the Workshop from a blueprint found in the caves. `droneWeldRate` in `src/game/state.ts` is the hook.
-- Ask Colin the costs and research sources for each, and the puzzle ideas.
-
-Where things are (milestone 7 part 1): gear, research and Workshop rules in `src/game/gear.ts`; the panel in `src/ui/station.ts`; recorder and winch holds, the cave and sub gates, and the dive light in `src/main.ts` (search "Milestone 7"); the forest's drawing in `Scenery.buildForest` (`src/world/scenery.ts`); the boom gate is `boom` / `SHELF` / `BOOM_X` in `src/world/terrain.ts`.
+Where things are (milestone 7 part 2): the caves' shapes and the kelp wall in `src/world/terrain.ts` (`KC`, `AIR_POCKETS`, `BRACKETS`, `KELP_WALL`, `KC_FINDS`); their drawing, brackets, darkness and relays in `src/world/scenery.ts` (`buildKelpCaves`, `setKelpCaves`, `setRelays`); the surge, black water, air pockets, finds, kelp wall, relay planting and the sub boarding animation in `src/main.ts` (search "Milestone 7 part 2" and "boarding"); research and gear in `src/game/gear.ts`; the Grand tank and Sorting pod in `src/game/base.ts` (`isTankKind`, `isStoreKind`, `SORT_BAY`) and `src/world/basegfx.ts`.
 
 ## Problems and open questions
+
+- **Milestone 7 part 2 numbers to tune after Colin plays:** the surge (`SURGE_CYCLE` 7.5 s, strength 560 in `src/main.ts`), air pocket sizes (`AIR_POCKETS` water lines), how far you can go past the last lit bracket (330) and how much the black water shrinks the light (0.32); research and build times and costs (`src/game/gear.ts`, `PIECES`); the Sorting pod bay (12 of each); relay spacing (600) and breathing radius (140); the grabber's reach (`GRAB_REACH` 150) and how fast it hovers into line (160 units/s); boarding (0.6 s swim + 0.45 s in).
+- **Cave frame rate on the phone:** in the cloud test browser (software graphics, no GPU) the caves ran at about half the frame rate of the shallows, mostly from their many lights (moss, brackets, finds). Check the caves on the iPhone. If they stutter, the first things to cut are the moss lights along the route (in `buildKelpCaves`) and the darkness strips' resolution.
+- **The tow line has no use yet.** It is for the wreck shelf's currents (milestone 8). The Workshop says so.
+- **A material in reach takes the Collect button first.** That is why the weld chip's moss spot was moved. Keep finds and material spots at least 2–3 m apart.
 
 - **Milestone 7 part 1 numbers to tune after Colin plays:** Lab and Workshop costs and weld times (`PIECES`); research 75 s and build 45 s, dive light cost and its reach and brightness (`src/game/gear.ts`); the shrimp's +25% cleaning bonus and 35% slower fouling (`CLEAN_BONUS`, `SHRIMP_CLEAN_WATER`); resin and moss weights and spot counts; how dim the forest is (the canopy factor in `bakeSkyVisibility`).
 - **The east cliff changed shape.** Its top used to be right at the surface; it is now a 2.8 m deep shelf (so the sub has a way over). The cave mouth is where it was.

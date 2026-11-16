@@ -59,11 +59,13 @@ const SPOTS: Spot[] = (() => {
   // moss on shaded rock (the outcrops and the foot of the east wall), and a
   // little wreckage the tinker crabs have been picking at.
   add('resin', [10300, 10990, 11720, 12400, 13330, 14250, 9930]);
-  add('moss', [11080, 12880, 13980, 14720, 10920]);
+  add('moss', [11080, 12880, 13980, 14720, 10920, [15720, 1100], [15880, 1100], [17270, 1320]]);
   s.push({ id: 'scrap-f0', kind: 'scrap', x: 12160, y: surfaceAt(12160) - 5 });
   s.push({ id: 'scrap-f1', kind: 'scrap', x: 13560, y: surfaceAt(13560) - 5 });
   // An air tank hidden at the mouth of the kelp caves.
   s.push({ id: 'tank-forest', kind: 'tank', x: 14860, y: surfaceAt(14860, 1100) - 12 });
+  // Milestone 7 part 2: the fourth, behind the kelp wall in the caves (the cutter torch opens it).
+  s.push({ id: 'tank-kwall', kind: 'tank', x: 15545, y: surfaceAt(15545, 1500) - 12 });
   return s;
 })();
 
@@ -289,12 +291,12 @@ export class Pickups {
    * now: play time in seconds (save.playSeconds). held: the Collect control
    * is held. speed: how fast the diver is moving.
    */
-  update(dt: number, time: number, dx: number, dy: number, save: SaveData, held: boolean, speed: number): PickupEvent[] {
+  update(dt: number, time: number, dx: number, dy: number, save: SaveData, held: boolean, speed: number, reach = REACH): PickupEvent[] {
     this.ensureFx();
     const now = save.playSeconds;
     const events: PickupEvent[] = [];
     let best: Item | null = null;
-    let bestD = REACH;
+    let bestD = reach;
     for (const it of this.items) {
       const { spot } = it;
       const isWhorl = spot.kind === 'whorl';
