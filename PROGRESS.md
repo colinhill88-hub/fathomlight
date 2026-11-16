@@ -1,6 +1,6 @@
 # Fathomlight progress
 
-Last updated: 2026-11-16, **milestone 7b deployed (audio, all made by code)**. Next is **milestone 7 part 2, the kelp caves** (see Next).
+Last updated: 2026-11-16, **milestone 7b deployed (audio, all made by code)**, plus more early scrap. Next is **milestone 7 part 2, the kelp caves** (see Next).
 
 Play link: https://colinhill88-hub.github.io/fathomlight/ (live; first successful deploy 2026-11-14)
 
@@ -742,6 +742,15 @@ Cut from High so far: the phone renders at 2× instead of its native 3×. Colin 
   - Every voice type rendered offline with no NaN or silence, and every cue in `director.ts` ran without errors.
   - No console errors. The test browser can't play sound to a speaker, so the mix itself still needs Colin's ears.
 - Deployed: GitHub Actions run 43893723178 built and deployed to Pages successfully from `claude/youthful-darwin-r5kw5d` (built on the default branch `claude/underwater-game-m0-0qqajg`, which already had PR #7 merged). Merge it into the default branch before the next session.
+
+### After milestone 7b: more scrap early on
+- **Colin:** "love the music and sounds". On a fresh save on the PC, the road to the Lab and Workshop felt slow because he was waiting for scrap to grow back.
+- **Why:** the road from a fresh save to the dive light needs about 29 scrap: drone 2, turbine 2, storage 3, plate press 4, Lab 3, Workshop 3, and 12 inside the 6 hull plates for the Workshop and the light. The shallows had 8 scrap spots that grew back every 10 minutes.
+- **Changes:**
+  - **4 more scrap spots in the shallows** (12 in all): 2050, 3620, 5600 (on the slope down into the grotto) and 6560. They are appended (`scrap-8` … `scrap-11`), so old saves keep their spots.
+  - **Scrap grows back in 6 minutes** instead of 10 (`REGROW_BY_KIND` in `src/game/state.ts`). Other materials still take 10.
+  - The shallows now give about 2 scrap a minute (was 0.8), so the first Lab and Workshop come roughly 2–3 regrowths sooner. The tinker crab is still the long-term source for the sub and bigger pieces.
+- **Tested:** type check and build pass. The new spots sit on the seabed (screenshots), and a taken scrap spot came back after 6.5 minutes of play time while a copper spot taken at the same moment did not. No console errors.
 
 ## Next
 
