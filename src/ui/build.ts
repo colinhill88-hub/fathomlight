@@ -437,6 +437,23 @@ export class BuildMode {
       this.refresh();
       return;
     }
+    const extra = this.removePiece(p);
+    this.deps.toast(`Removed: ${PIECES[p.kind].name}${isDone(p) ? '' : ' frame'}${extra ? ` (${extra})` : ''}. Materials returned.`);
+    this.selected = null;
+    this.deps.changed([]);
+    this.deps.linesChanged();
+    this.deps.refreshInventory();
+    this.refresh();
+  }
+
+  /**
+   * Take a piece away and give back everything in it: its cost, its lines,
+   * what a machine or tray holds, and fitted whorls. Returns a note for the
+   * toast ("2 lines with it"). Used by Remove, and when a piece ends up
+   * inside rock after a terrain change (the terraces, after milestone 6).
+   */
+  removePiece(p: Placed): string {
+    const { save, layout } = this.deps;
     // Its lines go too, and come back as materials.
     const lines = save.lines.filter((l) => l.from === p.id || l.to === p.id);
     for (const l of lines) this.refund(this.lineCostOf(l));
@@ -468,12 +485,7 @@ export class BuildMode {
     const extra = [lines.length ? `${lines.length} line${lines.length > 1 ? 's' : ''} with it` : '', whorls ? `${whorls} whorl${whorls > 1 ? 's' : ''} taken out` : '']
       .filter(Boolean)
       .join(', ');
-    this.deps.toast(`Removed: ${PIECES[p.kind].name}${isDone(p) ? '' : ' frame'}${extra ? ` (${extra})` : ''}. Materials returned.`);
-    this.selected = null;
-    this.deps.changed([]);
-    if (lines.length || whorls) this.deps.linesChanged();
-    this.deps.refreshInventory();
-    this.refresh();
+    return extra;
   }
 
   // ---- Conveyors and feed pipes (milestone 5) ----

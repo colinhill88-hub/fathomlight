@@ -139,7 +139,7 @@ export const PIECES: Record<PieceKind, PieceDef> = {
   tank: {
     kind: 'tank',
     name: 'Creature tank',
-    job: 'Houses up to four creatures. Swim up with a creature in your jar to put it in; tap Tend to look after them.',
+    job: 'Houses up to four creatures. Stop by it with a creature in your jar and tap Collect to put it in; tap Tend to look after them.',
     cost: { scrap: 2, quartz: 3, fibre: 1 },
     buildTime: 24,
     ports: { pipeIn: 1, beltOut: 2 },

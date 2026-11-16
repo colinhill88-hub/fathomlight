@@ -50,9 +50,9 @@ import { Scanner } from './game/scanner';
 import { SurfaceFx } from './fx/surface';
 import { Hud } from './ui/hud';
 import { DiveWatch } from './ui/watch';
-import { BaseLayout, berthOf, GRID_BASE, GRID_X0, GRID_X1, isDone, pieceCode, PIECES, pieceRect, Placed } from './game/base';
+import { BaseLayout, berthOf, cellOpen, GRID_BASE, GRID_X0, GRID_X1, isDone, pieceCode, PIECES, pieceRect, Placed, shapeOf } from './game/base';
 import { Sub } from './actors/sub';
-import { airClock, DENT_PER_SPEED, DENT_SPEED, docks, holdKg, SUB_AIR, SUB_BUILD_TIME, subDock } from './game/sub';
+import { airClock, DENT_PER_SPEED, DENT_SPEED, docks, holdKg, SUB_AIR, SUB_BUILD_TIME, SUB_COST, subDock } from './game/sub';
 import { DockMode } from './ui/dock';
 import { BaseView, BuildOverlay, storageCapacity } from './world/basegfx';
 import { BuildMode } from './ui/build';
@@ -355,6 +355,72 @@ async function boot(): Promise<void> {
       return Math.hypot(sub.x - b.x, sub.y - b.y) / WU_PER_METRE;
     },
   });
+  /*
+   * The terraces (Colin, after milestone 6): the cliff under the shelf now
+   * steps down in three rock ledges. Pieces an older save had built where the
+   * new rock is come out, with everything refunded (into storage first).
+   * Creatures in such a tank move to another tank with room, or swim home.
+   * Runs on every load, but only ever finds anything once.
+   */
+  {
+    const buried = layout.pieces.filter((p) => {
+      const sh = shapeOf(p);
+      for (let i = 0; i < sh.w; i++) for (let j = 0; j < sh.h; j++) if (!cellOpen(p.gx + i, p.gy + j)) return true;
+      return false;
+    });
+    let moved = 0;
+    let freed = 0;
+    for (const p of buried) {
+      if (p.kind === 'tank') {
+        for (const c of save.creatures.filter((q) => q.tank === p.id)) {
+          const home = layout.pieces.find(
+            (t) => t.kind === 'tank' && t.id !== p.id && !buried.includes(t) && creaturesIn(save, t.id).length < TANK_CAPACITY,
+          );
+          if (home) {
+            c.tank = home.id;
+            moved++;
+          } else {
+            save.creatures = save.creatures.filter((q) => q !== c);
+            wildlife.release(c.species, c.stage, save);
+            freed++;
+          }
+        }
+      }
+      if (p.kind === 'dock' && save.sub && save.sub.dock === p.id) {
+        if (save.sub.stage === 'frame') {
+          refund(SUB_COST);
+          save.sub = null;
+        } else save.sub.docked = false;
+      }
+      build.removePiece(p);
+    }
+    if (buried.length) {
+      baseView.sync(layout);
+      tankLife.sync(save, layout);
+      linesView.sync(save, layout);
+      const names = buried.map((p) => PIECES[p.kind].name.toLowerCase());
+      setTimeout(
+        () =>
+          hud.toast(
+            `The cliff under the shelf has settled into rock terraces. ${buried.length} piece${buried.length > 1 ? 's' : ''} inside the new rock came out (${names.join(', ')}), and everything in them is back in storage.${
+              moved ? ` ${moved} creature${moved > 1 ? 's' : ''} moved to another tank.` : ''
+            }${freed ? ` ${freed} creature${freed > 1 ? 's' : ''} had no tank with room and swam home.` : ''}`,
+            'big',
+          ),
+        2000,
+      );
+      hud.refreshInventory();
+    }
+    // Lift the diver and the sub out if they were saved where the rock is now.
+    for (let k = 0; k < 60 && isSolid(diver.x, diver.y); k++) diver.y -= 12;
+    for (let k = 0; k < 60 && (isSolid(sub.x, sub.y) || isSolid(sub.x, sub.y + 40)); k++) sub.y -= 12;
+    if (save.sub?.aboard) {
+      diver.x = sub.x;
+      diver.y = sub.y - 10;
+    }
+    // (Saved by the regular autosave a few seconds in: persist() isn't ready this early.)
+  }
+
   /** A finished Moon pool dock the diver (or the sub) is at. */
   function dockAround(x: number, y: number): Placed | null {
     for (const p of layout.pieces) {
@@ -381,6 +447,32 @@ async function boot(): Promise<void> {
    * moves just by swimming past. Stop by a storage pod and tap Collect to
    * unload; stop by a tank and tap it to take what waits in the output tray.
    */
+  /** Put the creature in the specimen jar into a tank (a tap of Collect at the tank). */
+  function depositJar(tankId: number): void {
+    const j = save.jar;
+    if (!j) return;
+    if (creaturesIn(save, tankId).length >= TANK_CAPACITY) {
+      hud.toast(`Tank ${tankNumber(layout, tankId)} is full (${TANK_CAPACITY} creatures). Build another creature tank.`, 'warn');
+      return;
+    }
+    if (j.keep) {
+      j.keep.tank = tankId;
+      save.creatures.push(j.keep);
+    } else newCreature(save, j.species, j.stage === 'egg' ? 'egg' : 'young', tankId);
+    save.jar = null;
+    tankLife.sync(save, layout);
+    drone.cheer();
+    const sp = SPECIES[j.species];
+    hud.toast(`${j.stage === 'egg' ? `The ${sp.eggName} is` : `The ${sp.name.toLowerCase()} is`} in tank ${tankNumber(layout, tankId)}. Tap Tend to look after it.`, 'big');
+    if (!save.tips.includes('care')) {
+      save.tips.push('care');
+      setTimeout(
+        () => hud.toast('Creatures need food (kelp flakes), comfort (the right plant and company) and clean water (a filter pump). Happy ones grow and make materials.', 'big'),
+        2500,
+      );
+    }
+    persist();
+  }
   function takeTray(tankId: number): void {
     const td = save.tankData[String(tankId)];
     if (!td?.out) return;
@@ -546,7 +638,6 @@ async function boot(): Promise<void> {
     }
     return null;
   }
-  let nearTank: number | null = null;
   let lastViewW = 1000;
   /** Text for the jar chip. */
   function jarText(): string | null {
@@ -1073,7 +1164,7 @@ async function boot(): Promise<void> {
       const hasTank = layout.pieces.some((p) => p.kind === 'tank');
       hud.toast(
         `${name.replace(/^./, (m) => m.toUpperCase())} in the specimen jar! ${
-          hasTank ? 'Swim to a creature tank at the base to put it in.' : 'Build a creature tank at the Kestrel site to keep it.'
+          hasTank ? 'Stop by a creature tank at the base and tap Collect to put it in.' : 'Build a creature tank at the Kestrel site to keep it.'
         }`,
         'big',
       );
@@ -1147,7 +1238,13 @@ async function boot(): Promise<void> {
       const trayN = tankHere ? MATERIALS_LIST.reduce((a, k) => a + (save.tankData[String(tankHere.id)]?.out?.[k] ?? 0), 0) : 0;
       const carried = MATERIALS_LIST.reduce((a, k) => a + save.bag[k], 0);
       const pod = carried ? podNear() : null;
-      if (tankHere && trayN) {
+      if (tankHere && save.jar) {
+        const id = tankHere.id;
+        const sp = SPECIES[save.jar.species];
+        const full = creaturesIn(save, id).length >= TANK_CAPACITY;
+        const what = save.jar.stage === 'egg' ? sp.eggName : save.jar.stage === 'young' ? sp.youngName : sp.name.toLowerCase();
+        baseAct = { label: full ? `Tank ${tankNumber(layout, id)} is full` : `Put ${what} in tank ${tankNumber(layout, id)}`, run: () => depositJar(id) };
+      } else if (tankHere && trayN) {
         const id = tankHere.id;
         baseAct = { label: `Take ${trayN} from tank ${tankNumber(layout, id)}'s tray`, run: () => takeTray(id) };
       } else if (pod?.by) {
@@ -1161,8 +1258,8 @@ async function boot(): Promise<void> {
       save.tips.push('baseact');
       hud.toast(
         input.state.lastDevice === 'touch'
-          ? 'Tap Collect to unload at a storage pod, or to take what waits in a tank\'s output tray. Swimming past no longer moves anything.'
-          : 'Press C (X on a gamepad) to unload at a storage pod, or to take what waits in a tank\'s output tray. Swimming past no longer moves anything.',
+          ? 'Tap Collect to unload at a storage pod, take what waits in a tank\'s output tray, or put the creature in your jar into a tank. Swimming past no longer moves anything.'
+          : 'Press C (X on a gamepad) to unload at a storage pod, take what waits in a tank\'s output tray, or put the creature in your jar into a tank. Swimming past no longer moves anything.',
         'big',
       );
     }
@@ -1271,36 +1368,6 @@ async function boot(): Promise<void> {
     }
     if (build.active && (drone.welding || build.selected || build.selectedLine !== null) && Math.floor(time * 2) !== Math.floor((time - dt) * 2)) build.refresh();
 
-    // ---- Creature tanks: swim up with a creature in the jar to put it in ----
-    const tankNow = tankHere?.id ?? null;
-    if (tankNow !== null && tankNow !== nearTank && save.jar && !aboard) {
-      const n = creaturesIn(save, tankNow).length;
-      if (n >= TANK_CAPACITY) hud.toast(`Tank ${tankNumber(layout, tankNow)} is full (${TANK_CAPACITY} creatures). Build another creature tank.`, 'warn');
-      else {
-        const j = save.jar;
-        if (j.keep) {
-          j.keep.tank = tankNow;
-          save.creatures.push(j.keep);
-        } else newCreature(save, j.species, j.stage === 'egg' ? 'egg' : 'young', tankNow);
-        save.jar = null;
-        tankLife.sync(save, layout);
-        drone.cheer();
-        const sp = SPECIES[j.species];
-        hud.toast(
-          `${j.stage === 'egg' ? `The ${sp.eggName} is` : `The ${sp.name.toLowerCase()} is`} in tank ${tankNumber(layout, tankNow)}. Tap Tend to look after it.`,
-          'big',
-        );
-        if (!save.tips.includes('care')) {
-          save.tips.push('care');
-          setTimeout(
-            () => hud.toast('Creatures need food (kelp flakes), comfort (the right plant and company) and clean water (a filter pump). Happy ones grow and make materials.', 'big'),
-            2500,
-          );
-        }
-        persist();
-      }
-    }
-    nearTank = tankNow;
     hud.setJar(jarText());
 
     deliverGift(dt);

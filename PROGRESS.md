@@ -629,6 +629,20 @@ Cut from High so far: the phone renders at 2× instead of its native 3×. Colin 
 - **Colin's storage question, answered (no change):** storage is one shared pool. Each finished pod adds 40 to the total. A conveyor from any pod sends what its far end needs: kelp fibre to a feeder; scrap and copper to a press, emptiest hopper first, so the 2:1 ratio holds. A possible later need: per-material limits or a sorter, so creature output can't fill storage and leave no room for plating.
 - Tested in the emulated iPhone: waiting by a pod and a tank moved nothing. A tap unloaded 3 scrap and took 2 copper from the tray. No console errors.
 
+### After milestone 6: terraces under the shelf, and jar deposits on the Collect button
+- **Colin's feedback:** past the shelf edge, the cliff drops about 17 m in one grid cell, so pieces built out over the basin stood on legs all the way to the floor. He chose a **short taper**, and is fine with refunds for pieces inside the new rock.
+- **The terraces** (`TERRACES` in `src/world/terrain.ts`): three rock ledges, each two grid columns wide, at 2, 5 and 8 rows up, stepping down from the shelf (row 11).
+  - Each riser sits inside its own column, so the open cells beside it stay clean. A piece built off the shelf edge now stands on legs at most 3 rows tall.
+  - The rock is painted over the ledges (the cliff rock now starts at x = −320). Plants, boulders and the anemone there follow the new ground.
+  - **Cost:** 22 cells, not the 30 estimated, because the old cliff column was already rock. The site is now **658 open cells** (was 680), still about 20 times the original shelf.
+  - **Refunds for older saves:** on load, any piece with a cell in the new rock comes out through the same code as Remove (`removePiece` in `src/ui/build.ts`), with its cost, lines, machine contents, tray and whorls refunded, into storage first.
+    - Creatures in a buried tank move to another tank with room, or swim home.
+    - A sub frame in a buried dock is refunded; a built sub there is just released.
+    - A diver or sub saved inside the new rock is lifted out.
+    - A one-time message lists what came out.
+- **Jar deposits on the Collect button:** with a creature in the jar, stop by a tank and tap Collect ("Put young puffcap in tank 1"; "Tank 1 is full" when it has 4). This comes before the tray action. Texts that said "swim up to the tank" now say "tap Collect".
+- Tested in the emulated iPhone with an old-layout save: a storage pod and a tank (holding a young ray) in the new rock came out. Storage got back exactly their cost (5 scrap, 1 copper, 3 quartz, 2 kelp fibre), and the ray moved to the other tank. A dome on the lowest ledge stayed, and a tap put the puffcap from the jar into the tank. Screenshots of the terraces in the swim and build views. No console errors.
+
 ## Next
 
 **Milestone 7: the first gear gate** (DESIGN.md): Lab, Workshop and the dive light; the kelp forest and caves zone with its major site. The auto feeder in DESIGN.md's milestone 7 line was already built in milestone 5.
@@ -698,6 +712,7 @@ Where things are (milestone 6): sub rules and costs in `src/game/sub.ts` (every 
 - ~~GitHub Pages switch~~ Done: Colin set Pages → Source to GitHub Actions, and the deploy now succeeds.
 - **Which branch deploys.** Colin added the deployment-branch rule `claude/*` (Settings → Environments → github-pages) on 2026-11-15, so every `claude/...` session branch now deploys to the play link on push. Before that, only the default branch `claude/underwater-game-m0-0qqajg` could deploy, and milestone 1 builds were copied onto it. The play link shows whichever branch pushed last, so run one session at a time. Keep merging finished work into the default branch so it stays current.
 - **Milestone 3 numbers to tune after Colin plays:** piece costs (`PIECES` in `src/game/base.ts`), storage per pod (40, `STORAGE_PER_POD`), the grid size (11 × 3 cells of 112 units) and the build-mode zoom (`VIEW_H_BUILD`).
+- **Possible later (Colin open to it):** a buildable support pylon, so foundations can go anywhere in the middle of the basin, not just on the terraces.
 - **Base pieces are not solid.** The diver swims in front of corridors, turbines and pods, and "inside" domes. This keeps movement smooth. If Colin wants to bump into the base, collisions can be added per piece.
 - **Milestone 2 numbers to tune after Colin plays:** tank size (75 s, `BASE_OXYGEN`), upgrade size (+20 s), the drain while boosting or working, the regrow time (6 min of play, `REGROW_SECONDS`), the work time per material (`EFFORT` in `src/world/pickups.ts`) and the scan time (1.4 s). All are single numbers in `src/game/state.ts`, `src/main.ts` and `src/game/scanner.ts`.
 - **Dive light vs. shoulder lamp.** The diver already has a shoulder lamp from milestone 1. DESIGN.md's "dive light" is treated as a stronger light built in milestone 6, which opens the dark cave in the east cliff. The cave message and the sled scan say so. If Colin pictures it differently, change it before milestone 6.
