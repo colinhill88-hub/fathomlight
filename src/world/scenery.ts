@@ -28,6 +28,7 @@ import {
   caveFloor,
   caveShapes,
   CaveShape,
+  capWobble,
   ellBottom,
   ellTop,
   inKelpCaves,
@@ -869,17 +870,22 @@ export class Scenery {
       pts.push([WORLD_W + 60, WORLD_H + 300], [14560, WORLD_H + 300]);
       paintRock(g, pts, (x) => (x >= 14560 && x <= WORLD_W + 60 ? gy(x) : NaN), detail * 0.7);
       // The mouth: a dark recess in the wall that grows black further in.
+      // Milestone 7 part 2: it opens into the caves now, so it is one smooth rounded
+      // opening (strips up a steep wall looked like a staircase).
       const m = SITE_MOUTH;
       const top = (x: number) => Math.max(gy(x), m.y - m.ry * Math.sqrt(Math.max(0, 1 - ((x - m.x) / m.rx) ** 2)));
       const bot = (x: number) => Math.min(m.y + m.ry * 0.7, m.y + m.ry * Math.sqrt(Math.max(0, 1 - ((x - m.x) / m.rx) ** 2)));
-      for (let x = m.x - m.rx; x < m.x + m.rx; x += 6) {
-        const t0 = top(x);
-        const b0 = bot(x);
-        if (b0 <= t0) continue;
-        const k = smooth((x - (m.x - m.rx * 0.6)) / (m.rx * 1.2));
-        g.rect(x, t0, 6.5, b0 - t0).fill({ color: 0x141c1e });
-        g.rect(x, t0, 6.5, b0 - t0).fill({ color: 0x000000, alpha: 0.2 + k * 0.3 });
-      }
+      const mouth = (shrink: number): number[] => {
+        const pts: number[] = [];
+        const x0 = m.x - m.rx + 4;
+        const x1 = m.x + m.rx;
+        for (let x = x0; x <= x1; x += 4) if (bot(x) > top(x) + 2) pts.push(x, top(x) + shrink);
+        for (let x = x1; x >= x0; x -= 4) if (bot(x) > top(x) + 2) pts.push(x, bot(x) - shrink * 0.5);
+        return pts;
+      };
+      g.poly(mouth(0)).fill({ color: 0x1c272a });
+      g.poly(mouth(10)).fill({ color: 0x151e21 });
+      g.poly(mouth(22)).fill({ color: 0x10181a, alpha: 0.8 });
       for (let x = m.x - m.rx + 10; x < m.x + m.rx * 0.6; x += R(6, 14)) {
         const b0 = bot(x);
         if (b0 > top(x)) g.circle(x, b0 + R(-2, 2), R(3, 7)).fill({ color: rand() < 0.5 ? 0x3b4a4e : 0x55605c, alpha: 0.9 });
@@ -1024,9 +1030,11 @@ export class Scenery {
         return;
       }
       const L = Math.hypot(s.x2 - s.x1, s.y2 - s.y1);
-      for (let d = 0; d <= L; d += 8) {
+      for (let d = 0; d <= L; d += 6) {
         const t = d / L;
-        g.circle(s.x1 + (s.x2 - s.x1) * t, s.y1 + (s.y2 - s.y1) * t, s.r1 + (s.r2 - s.r1) * t + pad).fill({ color, alpha });
+        const cx = s.x1 + (s.x2 - s.x1) * t;
+        const cy = s.y1 + (s.y2 - s.y1) * t;
+        g.circle(cx, cy, (s.r1 + (s.r2 - s.r1) * t) * capWobble(cx, cy) + pad).fill({ color, alpha });
       }
     };
     rock(KC_BOUNDS.x0 - 40, KC_BOUNDS.x1 + 40, (g) => {

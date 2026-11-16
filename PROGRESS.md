@@ -813,6 +813,11 @@ Cut from High so far: the phone renders at 2× instead of its native 3×. Colin 
 - Not on touch yet: two-finger pinch would fight the swim stick and the buttons. If Colin wants it on the iPhone, a zoom button or pinch on the right half of the screen are options.
 - **Tested:** the wheel zoomed out to the limit, = zoomed in to the limit, and screenshots at both look right. No console errors.
 
+### After milestone 7 part 2: smoother cave tunnels
+- **Colin** (screenshot on the PC): the tunnel looked "box-y".
+- **The cave mouth** was drawn as narrow vertical strips from the cave up to the steep wall face, which showed as a staircase and a dark wedge. It is now one smooth rounded opening, shaded darker towards the inside.
+- **Tunnels** are no longer perfect pill shapes. Their radius swells and pinches gently along their length (`capWobble` in `src/world/terrain.ts`). Drawing and collisions use the same wobble. The narrowest point is still 39 units (the diver needs 26), and a walk along the squeeze found no tight spots.
+
 ## Next
 
 **Next session: milestone 8, danger** (DESIGN.md, Milestones): predators, currents, the wreck shelf zone, and real uses for the cutter torch (sealed wrecks) and tow line (strong currents). Health arrives with the first things that can hurt the diver. Its prompt is in `docs/prompts/milestone-8.md`. Ask Colin before building:

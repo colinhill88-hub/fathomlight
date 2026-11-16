@@ -129,12 +129,20 @@ const CAVE_SHAPES: CaveShape[] = [
 ];
 export const KC_BOUNDS = { x0: 14980, x1: 19150 };
 
+/**
+ * Tunnels aren't perfect tubes (Colin, after milestone 7 part 2: "too box-y"):
+ * their radius swells and pinches gently along their length. The drawing and
+ * the collisions use the same wobble, so walls look and feel the same.
+ */
+export function capWobble(cx: number, cy: number): number {
+  return 1 + 0.13 * Math.sin(cx * 0.011 + cy * 0.007) + 0.07 * Math.sin(cx * 0.029 + 1.7) + 0.04 * Math.sin(cx * 0.061 + cy * 0.013 + 4.1);
+}
 export function inShape(s: CaveShape, x: number, y: number, pad = 0): boolean {
   if (s.kind === 'ell') return ((x - s.x) / (s.rx + pad)) ** 2 + ((y - s.y) / (s.ry + pad)) ** 2 < 1;
   const dx = s.x2 - s.x1;
   const dy = s.y2 - s.y1;
   const t = Math.max(0, Math.min(1, ((x - s.x1) * dx + (y - s.y1) * dy) / (dx * dx + dy * dy)));
-  const r = s.r1 + (s.r2 - s.r1) * t + pad;
+  const r = (s.r1 + (s.r2 - s.r1) * t) * capWobble(s.x1 + dx * t, s.y1 + dy * t) + pad;
   return (x - s.x1 - dx * t) ** 2 + (y - s.y1 - dy * t) ** 2 < r * r;
 }
 /** The floor of an ellipse chamber at x. */
