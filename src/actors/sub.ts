@@ -288,28 +288,30 @@ export class Sub {
     rivets(g, x - r - 1, y + 3, x + r + 1, y + 3, 12);
     // Inside: dark cabin, a seat, the pilot and the console.
     g.moveTo(x - r + 1, y - 1).arc(x, y - 1, r - 1, Math.PI, 0).closePath().fill({ color: 0x14232a, alpha: 0.85 });
-    g.roundRect(x - 26, y - 34, 10, 32, 3).fill({ color: PAL.rustDark });
-    g.roundRect(x - 26, y - 34, 3, 32, 1).fill({ color: 0xffffff, alpha: 0.1 });
+    // Seated low in the cabin, so the whole helmet (crest included) stays inside the glass.
+    g.roundRect(x - 24, y - 28, 9, 27, 3).fill({ color: PAL.rustDark });
+    g.roundRect(x - 24, y - 28, 3, 27, 1).fill({ color: 0xffffff, alpha: 0.1 });
     // Pilot: charcoal shoulders, a grey sleeve to the controls, helmet with lime glass and a crest fin.
-    g.roundRect(x - 18, y - 22, 26, 22, 7).fill({ color: PAL.charcoal });
-    g.moveTo(x - 14, y - 18).lineTo(x + 6, y - 18).stroke({ color: PAL.brass, width: 0.7, alpha: 0.6 });
-    g.roundRect(x - 2, y - 12, 22, 6, 3).fill({ color: 0x7c8487 });
-    g.circle(x + 20, y - 9, 3).fill({ color: PAL.rust });
+    g.roundRect(x - 16, y - 13, 24, 13, 6).fill({ color: PAL.charcoal });
+    g.moveTo(x - 12, y - 9).lineTo(x + 5, y - 9).stroke({ color: PAL.brass, width: 0.7, alpha: 0.6 });
+    g.roundRect(x - 1, y - 8, 21, 5, 2.5).fill({ color: 0x7c8487 });
+    g.circle(x + 20, y - 5.5, 2.6).fill({ color: PAL.rust });
     // Chrome collar yoke.
-    g.roundRect(x - 13, y - 25, 20, 6, 3).fill({ color: 0x9fb2c0 });
+    g.roundRect(x - 12, y - 15, 18, 5, 2.5).fill({ color: 0x9fb2c0 });
     // Head inside the helmet: hair, face in profile (looking ahead).
+    const k = 0.82;
     const hx = x - 3;
-    const hy = y - 36;
-    g.circle(hx, hy, 8).fill({ color: PAL.skin });
-    g.moveTo(hx - 8, hy - 1).arc(hx, hy, 8, Math.PI, -0.2).lineTo(hx + 2, hy - 2).closePath().fill({ color: 0x3a2a20 });
-    g.poly([hx + 7, hy - 1, hx + 10.5, hy + 2, hx + 7.5, hy + 3.5]).fill({ color: PAL.skin });
-    g.circle(hx + 4.5, hy - 1, 1).fill({ color: 0x1a1410 });
-    g.moveTo(hx + 5, hy + 5).lineTo(hx + 8, hy + 4.6).stroke({ color: 0x5a3a30, width: 0.8 });
-    // Helmet glass and crest.
-    g.circle(hx + 1, hy, 12.5).fill({ color: PAL.visor, alpha: 0.32 });
-    g.circle(hx + 1, hy, 12.5).stroke({ color: 0x6a8a2a, width: 1.2, alpha: 0.8 });
-    g.poly([hx - 9, hy - 9, hx + 4, hy - 14, hx + 10, hy - 11, hx - 4, hy - 15.5]).fill({ color: PAL.visor, alpha: 0.55 });
-    g.circle(hx + 5, hy - 5, 2.4).fill({ color: 0xffffff, alpha: 0.35 });
+    const hy = y - 23;
+    g.circle(hx, hy, 8 * k).fill({ color: PAL.skin });
+    g.moveTo(hx - 8 * k, hy - 1 * k).arc(hx, hy, 8 * k, Math.PI, -0.2).lineTo(hx + 2 * k, hy - 2 * k).closePath().fill({ color: 0x3a2a20 });
+    g.poly([hx + 7 * k, hy - 1 * k, hx + 10.5 * k, hy + 2 * k, hx + 7.5 * k, hy + 3.5 * k]).fill({ color: PAL.skin });
+    g.circle(hx + 4.5 * k, hy - 1 * k, 0.9).fill({ color: 0x1a1410 });
+    g.moveTo(hx + 5 * k, hy + 5 * k).lineTo(hx + 8 * k, hy + 4.6 * k).stroke({ color: 0x5a3a30, width: 0.7 });
+    // Helmet glass and crest (top of the crest is about 13.5 above hy: well inside the dome).
+    g.circle(hx + 1, hy, 10.5).fill({ color: PAL.visor, alpha: 0.32 });
+    g.circle(hx + 1, hy, 10.5).stroke({ color: 0x6a8a2a, width: 1.1, alpha: 0.8 });
+    g.poly([hx - 7.5, hy - 7.5, hx + 3.5, hy - 11.5, hx + 8.5, hy - 9, hx - 3.5, hy - 13]).fill({ color: PAL.visor, alpha: 0.55 });
+    g.circle(hx + 4.5, hy - 4, 2).fill({ color: 0xffffff, alpha: 0.35 });
     // Console with a lit screen.
     g.roundRect(x + 18, y - 18, 16, 18, 3).fill({ color: PAL.steelDark });
     this.screen.roundRect(x + 21, y - 15, 10, 6, 1).fill({ color: 0xffd98a, alpha: 0.9 });
