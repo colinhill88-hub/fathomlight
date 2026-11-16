@@ -155,6 +155,10 @@ export class Hud {
       ['feeder', 'Auto feeder'],
       ['press', 'Plate press'],
       ['dock', 'Moon pool dock'],
+      ['lab', 'Lab'],
+      ['workshop', 'Workshop'],
+      ['gtank', 'Grand tank'],
+      ['sorter', 'Sorting pod'],
     ];
     const base = save.pieces.length
       ? [
@@ -198,12 +202,47 @@ export class Hud {
               : 'The survey sled wreck\'s recorder holds a dive light design. Scan the sled, then unclip the recorder.'
       }</p>
       <p class="note">${save.boomOpen ? 'Survey boom gate: open. The sub can cross into the kelp forest.' : 'Survey boom gate: closed. Its winch is on the kelp forest side.'}</p>
+      ${this.cavesNotes(save)}
       <h2>Creatures</h2>
       ${this.creatureNotes(save)}
       <p class="note">Air tank upgrades found: ${save.tanks.length} / ${TOTAL_AIR_TANKS} · Dive time ${maxOxygen(save)} s</p>
       <p class="note">Echo whorls found: ${save.whorls.length}${
         save.whorls.length ? ` (${Object.values(save.fitted).reduce((a, b) => a + b, 0)} fitted)` : ''
       }. Rare; they glow in colours nothing else on the reef does.</p>`;
+  }
+
+  /** Milestone 7 part 2: what is left to find and make from the kelp caves. */
+  private cavesNotes(save: SaveData): string {
+    if (!save.gear.includes('light')) return '';
+    const finds: [string, string, string, string][] = [
+      ['relaylog', 'relay', 'KS RELAY 2 log (in the caves\' first hall)', 'Air relay AR-1'],
+      ['weldchip', 'welder', 'KD WELD chip (past the cold surge)', 'DR-2 welder'],
+      ['towcoil', 'tow', 'rope store notes (up from the junction)', 'Tow line'],
+      ['cache', 'cutter', 'survey cache (beyond the black water)', 'Cutter torch'],
+    ];
+    const rows = finds
+      .map(([f, bp, where, what]) => {
+        const g = save.gear.includes(bp as never) || (bp === 'relay' && (save.relayKits > 0 || save.relays.length > 0));
+        const state = g
+          ? 'built'
+          : save.blueprints.includes(bp as never)
+            ? 'blueprint decoded: build it in a Workshop'
+            : save.finds.includes(f as never)
+              ? 'carrying the find: decode it in a Lab'
+              : `find the ${where}`;
+        return `<li>${what}: ${state}</li>`;
+      })
+      .join('');
+    const pieces = [
+      ['gtank', 'Grand tank GT-1 (scan the tinker crab, lantern shrimp and giant kelp, then decode it in a Lab)'],
+      ['sorter', 'Sorting pod SP-1 (scan giant kelp and bladder kelp, then decode it in a Lab)'],
+    ]
+      .map(([bp, how]) => `<li>${save.blueprints.includes(bp as never) ? `${how.split(' (')[0]}: build card unlocked` : how}</li>`)
+      .join('');
+    const lit = save.brackets.filter(Boolean).length;
+    return `<p class="note">The kelp caves:</p><ul class="note">${rows}${pieces}<li>Black water brackets lit: ${lit} / 4</li><li>Kelp wall: ${save.kelpCut ? 'cut open' : 'uncut (needs the cutter torch)'}</li>${
+      save.relays.length || save.relayKits ? `<li>Air relays planted: ${save.relays.length}${save.relayKits ? `, ${save.relayKits} kit${save.relayKits > 1 ? 's' : ''} to plant` : ''}</li>` : ''
+    }</ul>`;
   }
 
   private creatureNotes(save: SaveData): string {

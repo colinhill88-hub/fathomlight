@@ -3,7 +3,7 @@ import { Critter } from '../actors/critters';
 import { BaseLayout, pieceRect } from '../game/base';
 import { creaturesIn, tankDataFor, tanks, vigour } from '../game/creatures';
 import { CreatureData, PlantId, SaveData } from '../game/state';
-import { TANK_INNER } from './basegfx';
+import { tankInner } from './basegfx';
 
 /**
  * Life inside the creature tanks (milestone 4): the creatures swimming, the
@@ -37,7 +37,7 @@ interface TankView {
   id: number;
   root: Container;
   plantG: Container;
-  plant: PlantId | null;
+  plant: string | null;
   murk: Graphics;
   glass: Graphics;
   flakesG: Graphics;
@@ -127,7 +127,8 @@ export class TankLife {
         const murk = new Graphics();
         const glass = new Graphics();
         const bubblesG = new Graphics();
-        const box = { x: r.x + TANK_INNER.x, y: r.y + TANK_INNER.y, w: TANK_INNER.w, h: TANK_INNER.h };
+        const I = tankInner(t.kind);
+        const box = { x: r.x + I.x, y: r.y + I.y, w: I.w, h: I.h };
         // Front glass: faint tint and two diagonal glints.
         glass.rect(box.x, box.y, box.w, box.h).fill({ color: 0x9ccac0, alpha: 0.08 });
         for (const gx of [0.12, 0.2, 0.66]) {
@@ -141,12 +142,20 @@ export class TankLife {
         this.views.set(t.id, v);
       }
       const td = tankDataFor(save, t.id);
-      if (td.plant !== v.plant) {
-        v.plant = td.plant;
+      const plantKey = `${td.plant ?? ''}|${td.plant2 ?? ''}`;
+      if (plantKey !== v.plant) {
+        v.plant = plantKey;
         v.plantG.removeChildren().forEach((c) => c.destroy({ children: true }));
         if (td.plant) {
           const p = drawPlant(td.plant);
           p.position.set(v.box.x + v.box.w * 0.22, v.box.y + v.box.h - 6);
+          if (t.kind === 'gtank') p.scale.set(1.5);
+          v.plantG.addChild(p);
+        }
+        if (td.plant2 && t.kind === 'gtank') {
+          const p = drawPlant(td.plant2);
+          p.position.set(v.box.x + v.box.w * 0.7, v.box.y + v.box.h - 6);
+          p.scale.set(1.5);
           v.plantG.addChild(p);
         }
       }

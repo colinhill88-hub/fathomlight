@@ -23,6 +23,20 @@ import {
   SHELF,
   SITE_MOUTH,
   WINCH_X,
+  AIR_POCKETS,
+  BRACKETS,
+  caveFloor,
+  caveShapes,
+  CaveShape,
+  capWobble,
+  ellBottom,
+  ellTop,
+  inKelpCaves,
+  KC,
+  KC_BOUNDS,
+  KC_FINDS,
+  KC_PILLARS,
+  KELP_WALL,
 } from './terrain';
 
 /**
@@ -487,7 +501,11 @@ export type ScanKind =
   | 'gkelp'
   | 'bladder'
   | 'lumen'
-  | 'kcaves';
+  | 'kcaves'
+  | 'airpocket'
+  | 'surge'
+  | 'blackwater'
+  | 'kwall';
 
 interface Slice {
   obj: Container;
@@ -511,6 +529,7 @@ export class Scenery {
   readonly scanPoints: Record<ScanKind, { x: number; y: number }[]> = {
     kelp: [], coral: [], fan: [], grass: [], anemone: [], beacon: [], sled: [], anchor: [], buoy: [], cave: [],
     boom: [], forest: [], gkelp: [], bladder: [], lumen: [], kcaves: [],
+    airpocket: [], surge: [], blackwater: [], kwall: [],
   };
   /** The cave's black throat (milestone 7: the dive light thins it). */
   caveDark!: Graphics;
@@ -520,6 +539,13 @@ export class Scenery {
   private cable = new Graphics();
   private boomShown = -1;
   private mossGlows: { core: Graphics; halo: Graphics; light: PointLight; phase: number }[] = [];
+  /** Milestone 7 part 2: the kelp caves. */
+  private kcDark = new Graphics();
+  private kcWall = new Graphics();
+  private kcWallCut = new Graphics();
+  private kcBrackets: { core: Graphics; halo: Graphics; light: PointLight; lit: boolean }[] = [];
+  private kcSurge = new Graphics();
+  private kcLitShown = '';
 
   private kelps: Kelp[] = [];
   private grass: { g: Graphics; phase: number; x: number }[] = [];
@@ -811,6 +837,7 @@ export class Scenery {
     // ---- The kelp forest (milestone 7), with its own random numbers. ----
     rand = mulberry32(WORLD_SEED ^ 0xf0e57);
     this.buildForest(renderer, detail, rock, addKelp, kelpBack, kelpFront, decorLayer);
+    this.buildKelpCaves(detail, rock, decorLayer);
     rand = keep;
   }
 
@@ -843,17 +870,22 @@ export class Scenery {
       pts.push([WORLD_W + 60, WORLD_H + 300], [14560, WORLD_H + 300]);
       paintRock(g, pts, (x) => (x >= 14560 && x <= WORLD_W + 60 ? gy(x) : NaN), detail * 0.7);
       // The mouth: a dark recess in the wall that grows black further in.
+      // Milestone 7 part 2: it opens into the caves now, so it is one smooth rounded
+      // opening (strips up a steep wall looked like a staircase).
       const m = SITE_MOUTH;
       const top = (x: number) => Math.max(gy(x), m.y - m.ry * Math.sqrt(Math.max(0, 1 - ((x - m.x) / m.rx) ** 2)));
       const bot = (x: number) => Math.min(m.y + m.ry * 0.7, m.y + m.ry * Math.sqrt(Math.max(0, 1 - ((x - m.x) / m.rx) ** 2)));
-      for (let x = m.x - m.rx; x < m.x + m.rx; x += 6) {
-        const t0 = top(x);
-        const b0 = bot(x);
-        if (b0 <= t0) continue;
-        const k = smooth((x - (m.x - m.rx * 0.6)) / (m.rx * 1.2));
-        g.rect(x, t0, 6.5, b0 - t0).fill({ color: 0x141c1e });
-        g.rect(x, t0, 6.5, b0 - t0).fill({ color: 0x000000, alpha: 0.25 + k * 0.7 });
-      }
+      const mouth = (shrink: number): number[] => {
+        const pts: number[] = [];
+        const x0 = m.x - m.rx + 4;
+        const x1 = m.x + m.rx;
+        for (let x = x0; x <= x1; x += 4) if (bot(x) > top(x) + 2) pts.push(x, top(x) + shrink);
+        for (let x = x1; x >= x0; x -= 4) if (bot(x) > top(x) + 2) pts.push(x, bot(x) - shrink * 0.5);
+        return pts;
+      };
+      g.poly(mouth(0)).fill({ color: 0x1c272a });
+      g.poly(mouth(10)).fill({ color: 0x151e21 });
+      g.poly(mouth(22)).fill({ color: 0x10181a, alpha: 0.8 });
       for (let x = m.x - m.rx + 10; x < m.x + m.rx * 0.6; x += R(6, 14)) {
         const b0 = bot(x);
         if (b0 > top(x)) g.circle(x, b0 + R(-2, 2), R(3, 7)).fill({ color: rand() < 0.5 ? 0x3b4a4e : 0x55605c, alpha: 0.9 });
@@ -984,6 +1016,309 @@ export class Scenery {
     this.scanPoints.boom.push({ x: BOOM_X - 40, y: 120 });
     this.slices.push({ obj: post, x0: BOOM_X - 300, x1: WINCH_X + 300 });
     this.setBoom(0);
+  }
+
+  /**
+   * Milestone 7 part 2: the kelp caves behind the forest's east wall. The open
+   * water is painted over the wall's rock as a dark cave interior; the black
+   * chamber gets a darkness layer that lit brackets push back.
+   */
+  private buildKelpCaves(detail: number, rock: (x0: number, x1: number, build: (g: Graphics) => void) => void, decorLayer: Container): void {
+    const fill = (g: Graphics, s: CaveShape, color: number, alpha = 1, pad = 0) => {
+      if (s.kind === 'ell') {
+        g.ellipse(s.x, s.y, s.rx + pad, s.ry + pad).fill({ color, alpha });
+        return;
+      }
+      const L = Math.hypot(s.x2 - s.x1, s.y2 - s.y1);
+      for (let d = 0; d <= L; d += 6) {
+        const t = d / L;
+        const cx = s.x1 + (s.x2 - s.x1) * t;
+        const cy = s.y1 + (s.y2 - s.y1) * t;
+        g.circle(cx, cy, (s.r1 + (s.r2 - s.r1) * t) * capWobble(cx, cy) + pad).fill({ color, alpha });
+      }
+    };
+    rock(KC_BOUNDS.x0 - 40, KC_BOUNDS.x1 + 40, (g) => {
+      // A soft dark rim, then the cave's back wall.
+      for (const s of caveShapes()) fill(g, s, 0x2c3a3f, 0.6, 10);
+      for (const s of caveShapes()) fill(g, s, 0x151e21);
+      // Brushed texture on the back wall.
+      for (let i = 0; i < Math.round(900 * detail); i++) {
+        const x = R(KC_BOUNDS.x0, KC_BOUNDS.x1);
+        const y = R(760, 1940);
+        if (!inKelpCaves(x, y)) continue;
+        dab(g, x, y, R(8, 24), R(5, 13), rand() < 0.5 ? 0x26343a : 0x121a1c, R(0.3, 0.5));
+      }
+      // Floors (silt and pebbles) and ceilings (little hanging drips of rock).
+      for (let x = KC_BOUNDS.x0; x < KC_BOUNDS.x1; x += 7) {
+        let was = false;
+        for (let y = 760; y < 1960; y += 3) {
+          const open = inKelpCaves(x, y);
+          if (open && !was && rand() < 0.35) {
+            const l = R(4, 14);
+            g.poly([x - 3, y - 1, x + 3, y - 1, x + R(-1, 1), y + l]).fill({ color: 0x3a4a4e, alpha: 0.9 });
+          }
+          if (!open && was) {
+            g.circle(x + R(-2, 2), y + R(-4, 0), R(2.5, 6)).fill({ color: rand() < 0.5 ? 0x3b4a4e : 0x55605c, alpha: 0.9 });
+            if (rand() < 0.3) g.circle(x, y - R(2, 5), R(1.5, 3)).fill({ color: PAL.algae, alpha: 0.6 });
+          }
+          was = open;
+        }
+      }
+      // Pillars of rock in the black chamber.
+      for (const p of KC_PILLARS) {
+        const pts: [number, number][] = [];
+        for (let k = 0; k < 28; k++) {
+          const a = (k / 28) * Math.PI * 2;
+          pts.push([p.x + Math.cos(a) * p.rx * R(0.92, 1.06), p.y + Math.sin(a) * p.ry * R(0.95, 1.04)]);
+        }
+        paintRock(g, pts, (x) => (Math.abs(x - p.x) < p.rx ? ellTop(p, x) : NaN), 0.6);
+      }
+      // Air pockets: trapped air in the roof, with a bright water line.
+      for (const ap of AIR_POCKETS) {
+        const e = ap.shape as { x: number; y: number; rx: number; ry: number };
+        const half = e.rx * Math.sqrt(Math.max(0, 1 - ((ap.waterY - e.y) / e.ry) ** 2));
+        const pts: number[] = [];
+        for (let x = e.x - half; x <= e.x + half; x += 6) pts.push(x, ellTop(e, x) + 1);
+        pts.push(e.x + half, ap.waterY, e.x - half, ap.waterY);
+        g.poly(pts).fill({ color: 0x3e5a5e, alpha: 0.85 });
+        for (let x = e.x - half + 6; x < e.x + half - 6; x += 10) g.moveTo(x, ap.waterY + Math.sin(x * 0.3) * 1.2).lineTo(x + 7, ap.waterY + Math.sin(x * 0.3 + 2) * 1.2);
+        g.stroke({ color: 0xc8e0d8, width: 2, alpha: 0.7 });
+        // Droplets on the roof.
+        for (let k = 0; k < 14; k++) {
+          const x = R(e.x - half * 0.9, e.x + half * 0.9);
+          g.circle(x, ellTop(e, x) + R(3, 8), R(1, 2)).fill({ color: 0xd8f0e8, alpha: 0.5 });
+        }
+        this.scanPoints.airpocket.push({ x: e.x, y: ap.waterY - 8 });
+      }
+      // The finds: a toppled relay buoy, a broken welder crate, a rope reel, and the cache.
+      const floor = (k: keyof typeof KC_FINDS) => caveFloor(KC_FINDS[k].x, KC_FINDS[k].from);
+      {
+        const x = KC_FINDS.relaylog.x;
+        const y = floor('relaylog');
+        g.circle(x, y - 14, 18).fill({ color: 0xa8402e });
+        g.circle(x - 5, y - 20, 6).fill({ color: 0xd07050, alpha: 0.5 });
+        g.rect(x - 18, y - 16, 36, 4).fill({ color: 0xc9a24a });
+        g.moveTo(x + 10, y - 28).lineTo(x + 30, y - 52).stroke({ color: 0x8a9496, width: 2 });
+        g.roundRect(x - 34, y - 8, 18, 8, 2).fill({ color: 0x3b4448 });
+        rustStreaks(g, x - 14, x + 14, y - 20, 4, 10);
+      }
+      {
+        const x = KC_FINDS.weldchip.x;
+        const y = floor('weldchip');
+        g.roundRect(x - 26, y - 22, 52, 22, 3).fill({ color: 0x5a6466 });
+        g.rect(x - 26, y - 22, 52, 5).fill({ color: 0xc9a24a });
+        g.poly([x + 8, y - 22, x + 26, y - 22, x + 30, y - 36, x + 12, y - 32]).fill({ color: 0x4a5456 });
+        g.circle(x - 12, y - 10, 4).fill({ color: 0x2a3234 });
+        rustStreaks(g, x - 22, x + 22, y - 16, 5, 9);
+      }
+      {
+        const x = KC_FINDS.towcoil.x;
+        const y = floor('towcoil');
+        g.rect(x - 30, y - 6, 60, 6).fill({ color: 0x4a4038 });
+        g.rect(x - 26, y - 40, 5, 36).fill({ color: 0x5a4a3e });
+        g.rect(x + 21, y - 40, 5, 36).fill({ color: 0x5a4a3e });
+        g.ellipse(x, y - 24, 22, 15).fill({ color: 0xb89a5a });
+        for (let k = 0; k < 7; k++) g.ellipse(x, y - 24, 22 - k * 2.4, 15 - k * 1.7).stroke({ color: 0x7a6436, width: 1, alpha: 0.7 });
+        g.moveTo(x + 18, y - 14).quadraticCurveTo(x + 40, y, x + 62, y - 2).stroke({ color: 0xb89a5a, width: 2.5 });
+      }
+      {
+        const x = KC_FINDS.cache.x;
+        const y = floor('cache');
+        g.roundRect(x - 40, y - 34, 80, 34, 4).fill({ color: 0x6a5a4c });
+        g.rect(x - 40, y - 34, 80, 7).fill({ color: 0x8a7a62 });
+        g.rect(x - 4, y - 30, 8, 12).fill({ color: 0x2a2622 });
+        for (const bx of [-30, 30]) g.circle(x + bx, y - 16, 2.5).fill({ color: 0x3b3a36 });
+        g.rect(x - 40, y - 20, 80, 3).fill({ color: 0xa8402e, alpha: 0.8 });
+        rustStreaks(g, x - 34, x + 34, y - 28, 8, 14);
+      }
+    });
+    const stencil = (text: string, x: number, y: number) => {
+      const t = new Text({ text, style: { fontFamily: 'monospace', fontSize: 9, fill: 0xd8d0b8, fontWeight: 'bold' } });
+      t.alpha = 0.75;
+      t.anchor.set(0.5);
+      t.position.set(x, y);
+      decorLayer.addChild(t);
+      this.slices.push({ obj: t, x0: x - 300, x1: x + 300 });
+    };
+    stencil('KS RELAY 2', KC_FINDS.relaylog.x, caveFloor(KC_FINDS.relaylog.x, KC_FINDS.relaylog.from) - 14);
+    stencil('KD WELD', KC_FINDS.weldchip.x - 4, caveFloor(KC_FINDS.weldchip.x, KC_FINDS.weldchip.from) - 11);
+    stencil('SURVEY CACHE 3', KC_FINDS.cache.x, caveFloor(KC_FINDS.cache.x, KC_FINDS.cache.from) - 9);
+    // A small amber status lamp on each find, so they can be found in the dark.
+    for (const k of Object.keys(KC_FINDS) as (keyof typeof KC_FINDS)[]) {
+      const x = KC_FINDS[k].x;
+      const y = caveFloor(x, KC_FINDS[k].from) - (k === 'cache' ? 38 : k === 'towcoil' ? 44 : 30);
+      const core = new Graphics().circle(0, 0, 2.5).fill({ color: 0xffc860 });
+      core.position.set(x + (k === 'relaylog' ? 30 : 0), k === 'relaylog' ? y - 22 : y);
+      const halo = new Graphics().circle(0, 0, 12).fill({ color: 0xffa040 });
+      halo.position.copyFrom(core.position);
+      this.emissive.addChild(core);
+      this.glow.addChild(halo);
+      const light: PointLight = { x: core.x, y: core.y, radius: 120, intensity: 0.45, color: [1, 0.75, 0.4] };
+      this.lights.push(light);
+      this.mossGlows.push({ core, halo, light, phase: rand() * 6 });
+    }
+
+    // Lumen moss along the way: dim warm-green lights, so the caves are dark, not black.
+    for (const [x, from] of [
+      [15560, 1100],
+      [15960, 1100],
+      [16130, 1180],
+      [16420, 1210],
+      [16760, 1240],
+      [16980, 1320],
+      [17290, 1320],
+      [17200, 860],
+      [17470, 1520],
+      [18880, 1650],
+      [19080, 1650],
+    ] as [number, number][]) {
+      const y = caveFloor(x, from) + 3;
+      const core = new Graphics();
+      for (let k = 0; k < 8; k++) core.circle(R(-12, 12), R(-4, 2), R(1, 2)).fill({ color: 0xe8f6a0 });
+      core.position.set(x, y);
+      const halo = new Graphics().ellipse(0, -2, 26, 12).fill({ color: 0xc8e070 });
+      halo.position.set(x, y);
+      this.emissive.addChild(core);
+      this.glow.addChild(halo);
+      const light: PointLight = { x, y: y - 14, radius: 170, intensity: 0.5, color: [0.8, 0.95, 0.45] };
+      this.lights.push(light);
+      this.mossGlows.push({ core, halo, light, phase: rand() * 6 });
+    }
+
+    // The kelp wall: old holdfasts and stalks grown into a solid tangle across the side passage.
+    {
+      const w = this.kcWall;
+      const W = KELP_WALL;
+      for (let i = 0; i < 70; i++) {
+        const x = R(W.x0 + 10, W.x1 - 10);
+        const y0 = R(W.y0 - 30, W.y0 + 10);
+        w.moveTo(x, y0)
+          .quadraticCurveTo(x + R(-30, 30), (W.y0 + W.y1) / 2, x + R(-20, 20), R(W.y1 - 10, W.y1 + 30))
+          .stroke({ color: rand() < 0.5 ? 0x5a5e34 : 0x6a6a3a, width: R(4, 9), alpha: 0.95, cap: 'round' });
+      }
+      for (let i = 0; i < 30; i++) w.circle(R(W.x0 + 10, W.x1 - 10), R(W.y0, W.y1), R(4, 9)).fill({ color: 0x4f5530, alpha: 0.9 });
+      const c = this.kcWallCut;
+      for (let i = 0; i < 14; i++) {
+        const x = R(W.x0 + 10, W.x1 - 10);
+        c.moveTo(x, W.y0 - 20).lineTo(x + R(-4, 4), W.y0 + R(-6, 4)).stroke({ color: 0x4f5530, width: R(3, 6), cap: 'round' });
+        c.moveTo(x, W.y1 + 24).lineTo(x + R(-4, 4), W.y1 + R(-2, 8)).stroke({ color: 0x4f5530, width: R(3, 6), cap: 'round' });
+      }
+      c.visible = false;
+      decorLayer.addChild(this.kcWall, this.kcWallCut);
+      this.slices.push({ obj: this.kcWall, x0: W.x0 - 300, x1: W.x1 + 300 }, { obj: this.kcWallCut, x0: W.x0 - 300, x1: W.x1 + 300 });
+      this.scanPoints.kwall.push({ x: (W.x0 + W.x1) / 2, y: W.y0 - 10 });
+    }
+
+    // Brackets across the black chamber, and the glow of moss set on them.
+    for (const b of BRACKETS) {
+      const g = new Graphics();
+      g.rect(b.x - 2, b.y - 4, 4, 26).fill({ color: 0x5a6466 });
+      g.roundRect(b.x - 12, b.y - 10, 24, 7, 2).fill({ color: 0x6a7476 });
+      g.moveTo(b.x - 12, b.y - 10).lineTo(b.x - 16, b.y - 18).moveTo(b.x + 12, b.y - 10).lineTo(b.x + 16, b.y - 18).stroke({ color: 0x6a7476, width: 2 });
+      rustStreaks(g, b.x - 10, b.x + 10, b.y - 6, 3, 8);
+      decorLayer.addChild(g);
+      this.slices.push({ obj: g, x0: b.x - 400, x1: b.x + 400 });
+      const core = new Graphics();
+      for (let k = 0; k < 10; k++) core.circle(R(-10, 10), R(-16, -10), R(1.2, 2.4)).fill({ color: 0xeaf8a8 });
+      core.position.set(b.x, b.y);
+      const halo = new Graphics().ellipse(0, -14, 40, 22).fill({ color: 0xc8e070 });
+      halo.position.set(b.x, b.y);
+      core.visible = halo.visible = false;
+      this.emissive.addChild(core);
+      this.glow.addChild(halo);
+      const light: PointLight = { x: b.x, y: b.y - 30, radius: 340, intensity: 0, color: [0.82, 0.95, 0.5] };
+      this.lights.push(light);
+      this.kcBrackets.push({ core, halo, light, lit: false });
+    }
+    this.scanPoints.blackwater.push({ x: KC.dark.x - KC.dark.rx + 90, y: KC.dark.y });
+    this.scanPoints.surge.push({ x: 16150, y: 1190 });
+    // Streaks of cold water through the squeeze (they brighten while it surges).
+    decorLayer.addChild(this.kcSurge);
+    this.slices.push({ obj: this.kcSurge, x0: KC.squeeze.x1 - 300, x1: KC.squeeze.x2 + 300 });
+    decorLayer.addChild(this.kcDark);
+    this.slices.push({ obj: this.kcDark, x0: 17300, x1: 18900 });
+    this.setKelpCaves([false, false, false, false], false);
+  }
+
+  /** Brackets lit (moss set on them) and whether the kelp wall is cut. Redraws the black chamber's darkness. */
+  setKelpCaves(lit: boolean[], wallCut: boolean): void {
+    const key = lit.map((l) => (l ? 1 : 0)).join('') + (wallCut ? 'c' : '');
+    if (key === this.kcLitShown) return;
+    this.kcLitShown = key;
+    this.kcWall.visible = !wallCut;
+    this.kcWallCut.visible = wallCut;
+    this.kcBrackets.forEach((b, i) => {
+      b.lit = !!lit[i];
+      b.core.visible = b.halo.visible = b.lit;
+      b.light.intensity = b.lit ? 1.1 : 0;
+    });
+    // Black water: darkness strips over the chamber, thinned around lit brackets.
+    const d = this.kcDark.clear();
+    const e = KC.dark;
+    const litX = BRACKETS.filter((_, i) => lit[i]).map((b) => b.x);
+    for (let x = 17330; x < 18860; x += 6) {
+      let top: number;
+      let bot: number;
+      if (x < e.x - e.rx + 30) {
+        top = 1360;
+        bot = 1700;
+      } else if (x > e.x + e.rx - 60) {
+        top = 1560;
+        bot = 1790;
+      } else {
+        top = ellTop(e, x) - 30;
+        bot = ellBottom(e, x) + 30;
+      }
+      const edge = smooth((x - 17380) / 200) * (1 - smooth((x - 18620) / 220));
+      let light = 0;
+      for (const lx of litX) light = Math.max(light, 1 - smooth(Math.abs(x - lx) / 300));
+      const a = 0.94 * edge * (1 - 0.9 * light);
+      if (a > 0.01) {
+        d.rect(x, top + 24, 6.5, bot - top - 48).fill({ color: 0x000000, alpha: a });
+        d.rect(x, top, 6.5, 24).fill({ color: 0x000000, alpha: a * 0.5 });
+        d.rect(x, bot - 24, 6.5, 24).fill({ color: 0x000000, alpha: a * 0.5 });
+      }
+    }
+  }
+
+  private relayG = new Graphics();
+  private relayLights: PointLight[] = [];
+  /** Milestone 7 part 2: planted air relays (a mooring, a hose and a surface float). */
+  setRelays(list: { x: number; y: number }[]): void {
+    if (!this.relayG.parent) this.view.addChild(this.relayG);
+    const g = this.relayG.clear();
+    for (const l of this.relayLights) this.lights.splice(this.lights.indexOf(l), 1);
+    this.relayLights = [];
+    for (const r of list) {
+      const { x, y } = r;
+      // Mooring block and regulator head.
+      g.roundRect(x - 22, y - 16, 44, 18, 3).fill({ color: 0x5a6466 });
+      g.rect(x - 22, y - 12, 44, 3).fill({ color: 0xc9a24a });
+      g.roundRect(x - 9, y - 40, 18, 24, 4).fill({ color: 0x8a9496 });
+      g.circle(x, y - 44, 7).fill({ color: 0xa8402e });
+      rustStreaks(g, x - 18, x + 18, y - 12, 4, 8);
+      // The hose up to the float, with a little slack.
+      g.moveTo(x, y - 46).bezierCurveTo(x + 40, y * 0.66, x - 30, y * 0.33, x + 10, 6).stroke({ color: 0x2a2622, width: 2.5 });
+      g.ellipse(x + 10, 2, 22, 10).fill({ color: 0xd8742e });
+      g.rect(x - 12, 0, 44, 3).fill({ color: 0xf0e8d0, alpha: 0.8 });
+      const light: PointLight = { x, y: y - 50, radius: 200, intensity: 0.7, color: [1, 0.85, 0.55] };
+      this.lights.push(light);
+      this.relayLights.push(light);
+    }
+  }
+
+  /** Called each frame while the caves are near: the surge streaks. */
+  updateKelpCaves(time: number, surge: number): void {
+    const g = this.kcSurge.clear();
+    if (surge < 0.05) return;
+    const s = KC.squeeze;
+    for (let i = 0; i < 18; i++) {
+      const t = (i / 18 + time * 0.9 * (0.6 + (i % 3) * 0.2)) % 1;
+      const tt = 1 - t;
+      const x = s.x1 + (s.x2 - s.x1) * tt;
+      const y = s.y1 + (s.y2 - s.y1) * tt + Math.sin(i * 7.3) * 26;
+      g.moveTo(x, y).lineTo(x + 40 + (i % 4) * 10, y + 2).stroke({ color: 0xbcd8d4, width: 1.2, alpha: 0.25 * surge });
+    }
   }
 
   /** Where the winch is, for the Collect button (milestone 7). */

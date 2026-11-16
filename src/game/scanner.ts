@@ -168,7 +168,32 @@ export const SCAN_ENTRIES: ScanEntry[] = [
     id: 'kcaves',
     name: 'The kelp caves',
     category: 'Place',
-    text: 'A wide, cold-breathing mouth in the east wall of the forest. The crew think it opens into a whole cave system, maybe where the strange light signals echo. They are still surveying a safe way in.',
+    text: 'A cold-breathing mouth in the east wall of the forest, opening into a whole cave system. An earlier survey expedition worked in here: their gear is still lying where they left it. Bring the dive light and some lumen moss.',
+  },
+  // Milestone 7 part 2: the kelp caves.
+  {
+    id: 'airpocket',
+    name: 'Air pocket',
+    category: 'Place',
+    text: 'Air trapped in the roof of a chamber, breathed out by the rock over centuries. Put your helmet into it to breathe and refill your tank.',
+  },
+  {
+    id: 'surge',
+    name: 'Cold surge',
+    category: 'Place',
+    text: 'Cold water from deep in the rock surges out through this squeeze in pulses, too strong to swim against. Swim on in the lulls, and wait out each surge in the little pockets in its roof.',
+  },
+  {
+    id: 'blackwater',
+    name: 'Black water',
+    category: 'Place',
+    text: 'Silt so fine it hangs in the water like ink: even the dive light dies a few metres out. The old survey team left lamp brackets across the chamber. Set lumen moss on them and its glow lights the way.',
+  },
+  {
+    id: 'kwall',
+    name: 'Kelp wall',
+    category: 'Plant',
+    text: 'Holdfasts and old stalks grown together into a tough mat across a side passage. Too thick to push through or pull apart. A cutter torch would slice it open.',
   },
 ];
 

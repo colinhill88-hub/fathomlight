@@ -10,6 +10,8 @@ import {
   GRID_X0,
   GRID_X1,
   isDone,
+  isStoreKind,
+  isTankKind,
   pay,
   PIECE_ORDER,
   PIECES,
@@ -75,6 +77,10 @@ import { WHORL_ICON } from '../world/whorl';
 
 /** Small side-view icons for the palette, drawn as SVG. */
 const PIECE_ICONS: Record<PieceKind, string> = {
+  gtank:
+    '<svg viewBox="0 0 40 32"><rect x="2" y="3" width="36" height="26" fill="#1f4a4c"/><rect x="2" y="3" width="36" height="10" fill="#3d7470" opacity=".6"/><path d="M2 25q9-2 18 0t18 0v4H2z" fill="#b7a47a"/><path d="M8 20c3-3 7-3 9 0-2 3-6 3-9 0zm9 0l3-2v4z" fill="#d27a86"/><path d="M24 15c2-2 5-2 7 0-2 2-5 2-7 0z" fill="#c88a5a"/><rect x="19" y="3" width="2" height="24" fill="#5b6467"/><rect x="0" y="1" width="40" height="3.5" rx="1" fill="#a8402e"/><rect x="0" y="27" width="40" height="3.5" rx="1" fill="#a8402e"/><rect x="0" y="4.5" width="40" height="1.5" fill="#c88a2a"/></svg>',
+  sorter:
+    '<svg viewBox="0 0 40 32"><rect x="7" y="4" width="26" height="25" rx="4" fill="#5b6467"/><rect x="7" y="8" width="26" height="2" fill="#c88a2a"/><rect x="7" y="25" width="26" height="2" fill="#c88a2a"/><rect x="10" y="12" width="4" height="5" fill="#2c3a3f"/><rect x="15" y="12" width="4" height="5" fill="#2c3a3f"/><rect x="20" y="12" width="4" height="5" fill="#2c3a3f"/><rect x="25" y="12" width="4" height="5" fill="#2c3a3f"/><rect x="12" y="18" width="4" height="5" fill="#2c3a3f"/><rect x="17" y="18" width="4" height="5" fill="#2c3a3f"/><rect x="22" y="18" width="4" height="5" fill="#2c3a3f"/><rect x="1" y="14" width="6" height="5" fill="#5b6467"/><rect x="33" y="14" width="6" height="5" fill="#5b6467"/></svg>',
   lab: '<svg viewBox="0 0 40 32"><rect x="1" y="15" width="6" height="6" fill="#5b6467"/><rect x="33" y="15" width="6" height="6" fill="#5b6467"/><rect x="6" y="4" width="28" height="24" rx="8" fill="#5b6467"/><circle cx="20" cy="16" r="8.5" fill="#a88a4a"/><circle cx="20" cy="16" r="7" fill="#14242a"/><rect x="21" y="12" width="5" height="4" fill="#d8f0a0"/><rect x="14" y="16" width="2" height="4" fill="#9aa84a"/><rect x="17" y="16" width="2" height="4" fill="#d8a060"/><rect x="6" y="24" width="28" height="2.5" fill="#b8923f"/><rect x="27" y="0" width="1.6" height="5" fill="#3b4448"/></svg>',
   workshop: '<svg viewBox="0 0 40 32"><rect x="0" y="14" width="4" height="6" fill="#5b6467"/><rect x="36" y="14" width="4" height="6" fill="#5b6467"/><rect x="3" y="5" width="34" height="23" rx="5" fill="#5b6467"/><rect x="3" y="5" width="34" height="4" rx="2" fill="#b8923f"/><rect x="12" y="12" width="16" height="14" fill="#182226"/><rect x="12" y="11" width="16" height="2.5" fill="#3b4448"/><path d="M20 13l3 6-4 4" stroke="#8a9496" stroke-width="1.6" fill="none"/><circle cx="19" cy="23" r="1.4" fill="#fff0c0"/><rect x="5" y="12" width="5" height="1.2" fill="#3b4448"/><rect x="5" y="15" width="5" height="1.2" fill="#3b4448"/><rect x="5" y="18" width="5" height="1.2" fill="#3b4448"/></svg>',
   dome:
@@ -281,6 +287,7 @@ export class BuildMode {
 
   /** Pick a piece to place (null lets go of it). It appears at the nearest spot where it fits. */
   pick(kind: PieceKind | null): void {
+    if (kind && PIECES[kind].blueprint && !this.deps.save.blueprints.includes(PIECES[kind].blueprint!)) return;
     this.selected = null;
     this.selectedLine = null;
     this.link = null;
@@ -435,7 +442,7 @@ export class BuildMode {
       this.refresh();
       return;
     }
-    if (p.kind === 'tank' && save.creatures.some((c) => c.tank === p.id)) {
+    if (isTankKind(p.kind) && save.creatures.some((c) => c.tank === p.id)) {
       this.deps.toast('Creatures live in this tank. Move them to another tank or release them first (tap Tend at the tank).', 'warn');
       this.refresh();
       return;
@@ -692,7 +699,7 @@ export class BuildMode {
     const m = whorlMult(save, p.id);
     this.deps.toast(
       step > 0
-        ? `Echo whorl fitted: the ${PIECES[p.kind].name.toLowerCase()} works ×${m} as fast, and uses its ${p.kind === 'tank' ? 'feed (and fouls the water)' : 'kelp fibre'} ×${m} as fast too`
+        ? `Echo whorl fitted: the ${PIECES[p.kind].name.toLowerCase()} works ×${m} as fast, and uses its ${isTankKind(p.kind) ? 'feed (and fouls the water)' : 'kelp fibre'} ×${m} as fast too`
         : `Echo whorl taken out (×${m} now)`,
       'big',
     );
@@ -1125,7 +1132,7 @@ export class BuildMode {
           md.copper ?? 0
         }/${PRESS_COPPER_CAP} copper · rack ${md.plate ?? 0}/${PRESS_PLATE_CAP}${state === 'running' ? ` · next ${Math.round(md.press * 100)}%` : ''}</span>`,
       );
-    } else if (p.kind === 'tank') {
+    } else if (isTankKind(p.kind)) {
       const td = save.tankData[String(p.id)];
       const cs = creaturesIn(save, p.id).filter((c) => c.stage !== 'egg');
       const eat = cs.length * mashPerCreature(HUNGER_RATE) * m;
@@ -1156,7 +1163,7 @@ export class BuildMode {
         out.push(
           `<span class="why">No conveyor here takes its ${stuck.map((k) => MATERIALS[k].name.toLowerCase()).join(' or ')}: run another conveyor from this tank to a storage pod</span>`,
         );
-    } else if (p.kind === 'storage') {
+    } else if (isStoreKind(p.kind)) {
       const total = MATERIAL_ORDER.reduce((a, k) => a + save.stored[k], 0);
       out.push(`<span class="rate">Base storage ${total}/${this.deps.capacity()}</span>`);
     }
@@ -1173,6 +1180,8 @@ export class BuildMode {
     const have = available(save.bag, save.stored);
     for (const [kind, card] of this.cards) {
       const def = PIECES[kind];
+      // Milestone 7 part 2: pieces with a blueprint only show once the Lab has decoded it.
+      card.hidden = !!def.blueprint && !save.blueprints.includes(def.blueprint);
       const afford = canAfford(kind, save.bag, save.stored);
       const cost = MATERIAL_ORDER.filter((k) => def.cost[k])
         .map((k) => {

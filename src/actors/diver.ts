@@ -517,6 +517,8 @@ export class Diver {
   load = 0;
   /** Set while standing on a floor that holds the diver up (inside a dome): no sinking. */
   noSink = false;
+  /** Milestone 7 part 2: water flowing past (the cold surge in the kelp caves), in units per second. */
+  current = { x: 0, y: 0 };
 
   private body = new Container();
   private nearLeg = buildLeg(false);
@@ -687,8 +689,9 @@ export class Diver {
     const wantY = this.surfaced ? 0 : moveY * top * slow * climb + sink;
     const accel = Math.hypot(moveX, moveY) > 0.05 ? 3.2 : 1.4;
     const k = 1 - Math.exp(-accel * dt);
-    this.vx += (wantX - this.vx) * k;
-    this.vy += (wantY - this.vy) * k;
+    // A current carries the diver: it adds to the speed they swim at.
+    this.vx += (wantX + this.current.x - this.vx) * k;
+    this.vy += (wantY + this.current.y - this.vy) * k;
     // Gentle bob when floating still.
     this.vy += Math.sin(this.time * 1.6) * 6 * dt * (1 - Math.min(1, Math.hypot(moveX, moveY)));
 

@@ -20,12 +20,21 @@ import {
   caveTop,
   boom,
   FOREST,
-  SITE_MOUTH,
   SLED_X,
   GROTTO,
   groundY,
   inCaveTunnel,
   isSolid,
+  AIR_POCKETS,
+  BRACKETS,
+  caveFloor,
+  inShape,
+  inKelpCaves,
+  KC,
+  KC_FINDS,
+  KELP_WALL,
+  kelpWall,
+  smooth,
   SPAWN,
   WORLD_H,
   WORLD_SPAN,
@@ -55,7 +64,7 @@ import { Scanner } from './game/scanner';
 import { SurfaceFx } from './fx/surface';
 import { Hud } from './ui/hud';
 import { DiveWatch } from './ui/watch';
-import { BaseLayout, berthOf, cellOpen, GRID_BASE, GRID_X0, GRID_X1, isDone, pieceCode, PIECES, pieceRect, Placed, shapeOf } from './game/base';
+import { BaseLayout, berthOf, cellOpen, GRID_BASE, GRID_X0, GRID_X1, isDone, isStoreKind, isTankKind, pieceCode, PIECES, pieceRect, Placed, shapeOf, SORT_BAY, STORAGE_PER_POD } from './game/base';
 import { Sub } from './actors/sub';
 import { airClock, DENT_PER_SPEED, DENT_SPEED, docks, holdKg, SUB_AIR, SUB_BUILD_TIME, SUB_COST, subDock } from './game/sub';
 import { DockMode } from './ui/dock';
@@ -64,12 +73,13 @@ import { BuildMode } from './ui/build';
 import { Wildlife } from './world/wildlife';
 import { TankLife } from './world/tanklife';
 import { CareMode } from './ui/care';
-import { creaturesIn, newCreature, SPECIES, tankNumber, tickCare, TANK_CAPACITY } from './game/creatures';
+import { creaturesIn, newCreature, SPECIES, tankCapacity, tankNumber, tickCare } from './game/creatures';
 import { RatesPanel } from './ui/rates';
 import { Factory, FEEDER_MASH_CAP, HOPPER_CAP, machineData, PRESS_COPPER_CAP, PRESS_PLATE_CAP, PRESS_SCRAP_CAP, whorlMult } from './game/factory';
 import { LinesView } from './world/linegfx';
 import { StationMode } from './ui/station';
-import { DIVE_LIGHT, GEAR, hasGear, jobOf, LAMP, RESEARCH, tickStations } from './game/gear';
+import { DIVE_LIGHT, GEAR, hasGear, jobOf, jobRunning, LAMP, RESEARCH, tickStations } from './game/gear';
+import type { BlueprintId } from './game/state';
 import { audio } from './audio/engine';
 import { SoundDirector, WorkKind } from './audio/director';
 import { initSoundUI } from './ui/sound';
@@ -218,6 +228,10 @@ async function boot(): Promise<void> {
     { id: 'bladder', points: () => scenery.scanPoints.bladder },
     { id: 'lumen', points: () => scenery.scanPoints.lumen },
     { id: 'kcaves', points: () => scenery.scanPoints.kcaves },
+    { id: 'airpocket', points: () => scenery.scanPoints.airpocket },
+    { id: 'surge', points: () => scenery.scanPoints.surge },
+    { id: 'blackwater', points: () => scenery.scanPoints.blackwater },
+    { id: 'kwall', points: () => (kelpWall.cut ? [] : scenery.scanPoints.kwall) },
     { id: 'crab', points: () => wildlife.scanPoints('crab') },
     { id: 'shrimp', points: () => wildlife.scanPoints('shrimp') },
   );
@@ -235,7 +249,21 @@ async function boot(): Promise<void> {
   // Milestone 5: conveyors, feed pipes and the machines they join.
   const factory = new Factory();
   /** How many more items fit in the base's storage pods. */
-  const storageRoom = () => storageCapacity(layout) - MATERIALS_LIST.reduce((a, k) => a + save.stored[k], 0);
+  /**
+   * Room left in the base's storage: for one material (its sorting-pod bay,
+   * milestone 7 part 2, plus what is left of the shared storage pods), or in all.
+   */
+  const storageRoom = (k?: keyof typeof save.stored): number => {
+    const bay = layout.countDone('sorter') * SORT_BAY;
+    const pods = layout.countDone('storage') * STORAGE_PER_POD;
+    let over = 0;
+    for (const j of MATERIALS_LIST) over += Math.max(0, save.stored[j] - bay);
+    const shared = Math.max(0, pods - over);
+    if (k) return Math.max(0, bay - save.stored[k]) + shared;
+    let free = shared;
+    for (const j of MATERIALS_LIST) free += Math.max(0, bay - save.stored[j]);
+    return free;
+  };
   const linesView = new LinesView();
   linesView.sync(save, layout);
   const readings = {
@@ -366,7 +394,7 @@ async function boot(): Promise<void> {
   function refund(cost: Partial<Record<keyof typeof save.bag, number>>): void {
     for (const k of MATERIALS_LIST) {
       const n = cost[k] ?? 0;
-      const into = Math.max(0, Math.min(n, storageRoom()));
+      const into = Math.max(0, Math.min(n, storageRoom(k)));
       save.stored[k] += into;
       save.bag[k] += n - into;
     }
@@ -421,6 +449,81 @@ async function boot(): Promise<void> {
   /** 0..1: how far the boom gate has swung up. */
   let boomT = save.boomOpen ? 1 : 0;
   let prevDiverX = diver.x;
+  // After milestone 7 part 2 (Colin): the mouse wheel (or - and = keys) zooms the swimming view
+  // in and out, like build mode. 1 = the normal view; bigger shows more. Saved on the device.
+  const SWIM_ZOOM_MIN = 0.75;
+  const SWIM_ZOOM_MAX = 2.2;
+  let swimZoom = 1;
+  try {
+    const z = Number(localStorage.getItem('fathomlight.swimZoom'));
+    if (z >= SWIM_ZOOM_MIN && z <= SWIM_ZOOM_MAX) swimZoom = z;
+  } catch {
+    /* storage blocked */
+  }
+  const setSwimZoom = (z: number) => {
+    swimZoom = Math.max(SWIM_ZOOM_MIN, Math.min(SWIM_ZOOM_MAX, z));
+    try {
+      localStorage.setItem('fathomlight.swimZoom', swimZoom.toFixed(3));
+    } catch {
+      /* storage blocked */
+    }
+  };
+  const swimViewFree = () => !build.active && !care.active && !dockUI.active && !station.active;
+  host.addEventListener(
+    'wheel',
+    (e) => {
+      if (!swimViewFree()) return;
+      e.preventDefault();
+      const d = e.deltaMode === 1 ? e.deltaY * 30 : e.deltaY;
+      setSwimZoom(swimZoom * Math.exp(Math.max(-0.4, Math.min(0.4, d * 0.0012))));
+    },
+    { passive: false },
+  );
+  window.addEventListener('keydown', (e) => {
+    if (!swimViewFree() || (e.target as HTMLElement)?.tagName === 'INPUT') return;
+    if (e.key === '-' || e.key === '_') setSwimZoom(swimZoom * 1.15);
+    else if (e.key === '=' || e.key === '+') setSwimZoom(swimZoom / 1.15);
+    else if (e.key === '0' && e.ctrlKey) setSwimZoom(1);
+  });
+  /** Climbing into the sub (after milestone 7b): seconds to swim to the hatch, then to sink through it. */
+  let boarding: { t: number; x0: number; y0: number } | null = null;
+  let boardFade = 1;
+  const BOARD_SWIM = 0.6;
+  const BOARD_IN = 0.45;
+  /** How far from the claw the sub's grabber arm can take a material (a diver's hand reaches 72). */
+  const GRAB_REACH = 150;
+  // Milestone 7 part 2: the kelp caves.
+  let kcTime = 0;
+  kelpWall.cut = save.kelpCut;
+  const SURGE_CYCLE = 7.5;
+  const FIND_INFO: Record<keyof typeof KC_FINDS, { research: BlueprintId; label: string; toast: string; y: number }> = {
+    relaylog: {
+      research: 'relay',
+      label: 'Take the KS RELAY 2 log',
+      toast: 'KS RELAY 2 log taken! A Lab can decode it into the Air relay AR-1: fresh air, planted anywhere out in the world.',
+      y: 0,
+    },
+    weldchip: {
+      research: 'welder',
+      label: 'Pull the KD WELD control chip',
+      toast: 'KD WELD control chip taken! Decode it in a Lab for the DR-2 welder: the build drone welds twice as fast.',
+      y: 0,
+    },
+    towcoil: {
+      research: 'tow',
+      label: "Take the rope store's spool tag",
+      toast: 'Rope store notes taken! A Lab can decode the tow line from them, for the strong currents of the next zone.',
+      y: 0,
+    },
+    cache: {
+      research: 'cutter',
+      label: 'Open the survey cache',
+      toast: 'The survey cache! Its cartridge holds the cutter torch design. Decode it in a Lab, then build the torch in a Workshop.',
+      y: 0,
+    },
+  };
+  for (const k of Object.keys(KC_FINDS) as (keyof typeof KC_FINDS)[]) FIND_INFO[k].y = caveFloor(KC_FINDS[k].x, KC_FINDS[k].from) - 24;
+  scenery.setRelays(save.relays);
 
   /*
    * The terraces (Colin, after milestone 6): the cliff under the shelf now
@@ -438,10 +541,10 @@ async function boot(): Promise<void> {
     let moved = 0;
     let freed = 0;
     for (const p of buried) {
-      if (p.kind === 'tank') {
+      if (isTankKind(p.kind)) {
         for (const c of save.creatures.filter((q) => q.tank === p.id)) {
           const home = layout.pieces.find(
-            (t) => t.kind === 'tank' && t.id !== p.id && !buried.includes(t) && creaturesIn(save, t.id).length < TANK_CAPACITY,
+            (t) => isTankKind(t.kind) && t.id !== p.id && !buried.includes(t) && creaturesIn(save, t.id).length < tankCapacity(layout, t.id),
           );
           if (home) {
             c.tank = home.id;
@@ -518,8 +621,8 @@ async function boot(): Promise<void> {
   function depositJar(tankId: number): void {
     const j = save.jar;
     if (!j) return;
-    if (creaturesIn(save, tankId).length >= TANK_CAPACITY) {
-      hud.toast(`Tank ${tankNumber(layout, tankId)} is full (${TANK_CAPACITY} creatures). Build another creature tank.`, 'warn');
+    if (creaturesIn(save, tankId).length >= tankCapacity(layout, tankId)) {
+      hud.toast(`Tank ${tankNumber(layout, tankId)} is full (${tankCapacity(layout, tankId)} creatures). Build another creature tank.`, 'warn');
       return;
     }
     if (j.keep) {
@@ -566,7 +669,7 @@ async function boot(): Promise<void> {
   function podNear(): { by: boolean; powered: boolean; frame: boolean } {
     const out = { by: false, powered: false, frame: false };
     for (const p of layout.pieces) {
-      if (p.kind !== 'storage') continue;
+      if (!isStoreKind(p.kind)) continue;
       const r = pieceRect(p);
       if (diver.x > r.x - 40 && diver.x < r.x + r.w + 40 && diver.y > r.y - 40 && diver.y < r.y + r.h + 40) {
         out.by = true;
@@ -581,13 +684,11 @@ async function boot(): Promise<void> {
       hud.toast(pod.frame ? 'This storage pod is still a frame: the drone has to finish it first' : 'This storage pod has no power: join it to a current turbine', 'warn');
       return;
     }
-    let room = Math.max(0, storageRoom());
     let moved = 0;
     for (const k of MATERIALS_LIST) {
-      const n = Math.min(room, save.bag[k]);
+      const n = Math.min(storageRoom(k), save.bag[k]);
       save.bag[k] -= n;
       save.stored[k] += n;
-      room -= n;
       moved += n;
     }
     if (moved) hud.toast(`Stored ${moved} item${moved === 1 ? '' : 's'} in the base${MATERIALS_LIST.some((k) => save.bag[k]) ? ' (storage is full)' : ''}`, 'big');
@@ -626,6 +727,8 @@ async function boot(): Promise<void> {
     diver.y = Math.max(30, y);
     diver.vx = sub.vx * 0.5;
     diver.vy = -30;
+    // Fade in as they climb out of the hatch (the pilot rises out of the seat in Sub.draw).
+    diver.view.alpha = 0;
     diver.surfaced = false;
     camCX = diver.x;
     hud.refreshInventory();
@@ -744,7 +847,7 @@ async function boot(): Promise<void> {
    * sub if it has air and a sound hull (milestone 6: a mobile safe point),
    * whichever is nearer; else at the buoy.
    */
-  function respawnPoint(fromX: number, fromY: number): { x: number; y: number; dome: boolean; sub: boolean } {
+  function respawnPoint(fromX: number, fromY: number): { x: number; y: number; dome: boolean; sub: boolean; relay: boolean } {
     let best: { x: number; y: number; dome: boolean; sub: boolean; d: number } | null = null;
     const domes = layout.pieces.filter((p) => p.kind === 'dome' && layout.powered.has(p.id));
     if (domes.length) {
@@ -758,7 +861,16 @@ async function boot(): Promise<void> {
       const d = Math.hypot(sub.x - fromX, sub.y - fromY);
       if (!best || d < best.d) best = { x: sub.x, y: sub.y - 10, dome: false, sub: true, d };
     }
-    return best ?? { ...SPAWN, dome: false, sub: false };
+    // Milestone 7 part 2: the nearest air relay.
+    let relay = false;
+    for (const r of save.relays) {
+      const d = Math.hypot(r.x - fromX, r.y - fromY);
+      if (!best || d < best.d) {
+        best = { x: r.x + 40, y: r.y - 60, dome: false, sub: false, d };
+        relay = true;
+      }
+    }
+    return best ? { ...best, relay } : { ...SPAWN, dome: false, sub: false, relay: false };
   }
   let insideDome: number | null = null;
   const watch = new DiveWatch(document.getElementById('watch') as HTMLCanvasElement);
@@ -918,13 +1030,19 @@ async function boot(): Promise<void> {
 
     input.update();
     const s = input.state;
-    const inControl = blackout === 0 && !build.active && !care.active && !dockUI.active && !station.active;
+    const inControl = blackout === 0 && !build.active && !care.active && !dockUI.active && !station.active && !boarding;
 
     // ---- The submersible (milestone 6) ----
     const S = save.sub;
     if (S && inControl && s.board) {
       if (S.aboard) leaveSub(false);
-      else if (nearSub) boardSub(false);
+      else if (nearSub) {
+        // After milestone 7b (Colin): the diver swims to the hatch on top of the dome and climbs in.
+        if (S.hull > 0) {
+          boarding = { t: 0, x0: diver.x, y0: diver.y };
+          diver.vx = diver.vy = 0;
+        } else boardSub(false);
+      }
     }
     const aboard = !!S && S.aboard;
     // Undock: push the stick while berthed, and the clamps let go.
@@ -1022,22 +1140,19 @@ async function boot(): Promise<void> {
       unloadClock -= dt;
       if (S.docked && layout.powered.has(S.dock) && unloadClock <= 0 && S.stage === 'built') {
         unloadClock = 0.5;
-        let room = Math.max(0, storageRoom());
         let moved = 0;
         for (const k of MATERIALS_LIST) {
-          const fromHold = Math.min(room, S.hold[k] ?? 0);
+          const fromHold = Math.min(storageRoom(k), S.hold[k] ?? 0);
           if (fromHold) {
             S.hold[k] = (S.hold[k] ?? 0) - fromHold;
             if (!S.hold[k]) delete S.hold[k];
             save.stored[k] += fromHold;
-            room -= fromHold;
             moved += fromHold;
           }
           if (S.aboard) {
-            const n = Math.min(room, save.bag[k]);
+            const n = Math.min(storageRoom(k), save.bag[k]);
             save.bag[k] -= n;
             save.stored[k] += n;
-            room -= n;
             moved += n;
           }
         }
@@ -1067,10 +1182,37 @@ async function boot(): Promise<void> {
     diver.view.visible = !aboard;
     diver.lens.visible = diver.lensGlow.visible = !aboard;
 
+    // ---- The kelp caves (milestone 7 part 2): the cold surge in the squeeze ----
+    kcTime += dt;
+    const cyc = kcTime % SURGE_CYCLE;
+    const surge = smooth(cyc / 0.7) * (1 - smooth((cyc - 3.6) / 0.7));
+    const inSqueeze = !aboard && inShape(KC.squeeze, diver.x, diver.y) && !KC.pockets.some((p) => inShape(p, diver.x, diver.y));
+    diver.current.x = inSqueeze ? -560 * surge - 25 : 0;
+    diver.current.y = 0;
+    if (diver.x > 15800 && diver.x < 17200) scenery.updateKelpCaves(time, surge);
+    scenery.setKelpCaves(save.brackets, save.kelpCut);
+    kelpWall.cut = save.kelpCut;
+
     // The dive bag's weight slows the diver (no sinking through a dome's floor).
     diver.load = bagLoad(save);
     diver.noSink = insideDome !== null;
-    if (!aboard) diver.update(dt, inControl ? s.moveX : 0, inControl ? s.moveY : 0, inControl && s.boost, inControl && s.lamp);
+    if (boarding) {
+      // Climbing into the sub: swim to the hatch, then down through it.
+      boarding.t += dt;
+      const hatch = sub.hatchPoint();
+      const a = smooth(boarding.t / BOARD_SWIM);
+      const b = smooth((boarding.t - BOARD_SWIM) / BOARD_IN);
+      diver.x = boarding.x0 + (hatch.x - boarding.x0) * a;
+      diver.y = boarding.y0 + (hatch.y - boarding.y0) * a + b * 36;
+      diver.vx = diver.vy = 0;
+      diver.surfaced = false;
+      boardFade = 1 - b;
+      if (boarding.t >= BOARD_SWIM + BOARD_IN) {
+        boarding = null;
+        boardFade = 1;
+        if (blackout === 0) boardSub(false);
+      }
+    } else if (!aboard) diver.update(dt, inControl ? s.moveX : 0, inControl ? s.moveY : 0, inControl && s.boost, inControl && s.lamp);
 
     // Breaking the surface: a splash, then breath vapour with each breath out.
     const [hx, hy] = diver.helmetPoint();
@@ -1086,6 +1228,32 @@ async function boot(): Promise<void> {
       if (diver.vx > 0) diver.vx = 0;
     }
     prevDiverX = diver.x;
+    // Black water: the diver won't swim further into the dark than the last lit bracket's glow reaches.
+    const litN = save.brackets.filter(Boolean).length;
+    let litMaxX = 17460;
+    let nearLit = Infinity;
+    BRACKETS.forEach((b, i) => {
+      if (!save.brackets[i]) return;
+      litMaxX = Math.max(litMaxX, b.x);
+      nearLit = Math.min(nearLit, Math.abs(diver.x - b.x));
+    });
+    const inBlack =
+      !aboard && (inShape(KC.dark, diver.x, diver.y) || inShape(KC.exit, diver.x, diver.y) || (diver.x > 17480 && inShape(KC.downPassage, diver.x, diver.y)));
+    const blackLimit = litN >= BRACKETS.length ? Infinity : litMaxX + 330;
+    const atBlackEdge = inBlack && diver.x > blackLimit - 50;
+    if (inBlack && diver.x > blackLimit) {
+      diver.x = blackLimit;
+      if (diver.vx > 0) diver.vx = 0;
+    }
+    const inKC = !aboard && inKelpCaves(diver.x, diver.y);
+    if (inKC && blackout === 0 && !save.tips.includes('kcaves')) {
+      save.tips.push('kcaves');
+      hud.toast('The kelp caves. Cold water breathes out of the dark, and an earlier survey team left their gear in here. Air pockets in the roofs let you breathe.', 'big');
+    }
+    if (inBlack && blackout === 0 && !save.tips.includes('blackwater')) {
+      save.tips.push('blackwater');
+      hud.toast('Black water: silt so fine your light dies in it. Old lamp brackets cross the chamber. Set lumen moss from your bag on them (hold Collect) to light the way.', 'big');
+    }
     const inCave = inCaveTunnel(diver.x, diver.y) && diver.x > CAVE.x0 + 120 && diver.x < CAVE_GATE_X + 40;
     // First time through to the kelp forest.
     if (!aboard && diver.x > FOREST.x0 - 150 && blackout === 0 && !save.tips.includes('forest')) {
@@ -1093,15 +1261,18 @@ async function boot(): Promise<void> {
       hud.toast('The kelp forest! Giant kelp from the floor to the surface, dim green light, and things watching your lamp. Scan what you find: the Lab will want it.', 'big');
       persist();
     }
-    const atMouth = Math.hypot((diver.x - SITE_MOUTH.x) / SITE_MOUTH.rx, (diver.y - SITE_MOUTH.y) / SITE_MOUTH.ry) < 1.25;
     const domeHere = blackout === 0 && !build.active && !aboard ? domeAround(diver.x, diver.y) : null;
     hud.setBanner(
       inCave && !hasLight
         ? 'Pitch black ahead. The shoulder lamp barely dents this darkness. A proper dive light would open the way: decode the sled recorder in a Lab, then build the light in a Workshop.'
         : inCave && !lit
           ? 'Too dark to go on: switch your dive light on (Lamp).'
-          : atMouth
-            ? 'The kelp caves. Cold water breathes out of the dark. The crew is still surveying a safe way in (it opens in the next update).'
+          : inSqueeze
+            ? surge > 0.4
+              ? 'Cold surge! Too strong to swim against: wait it out in a pocket in the roof.'
+              : 'A lull: swim on to the next pocket before the surge comes back.'
+            : atBlackEdge
+              ? `Black water. Your light dies in the silt a few metres out. Set lumen moss on the brackets to light a way through (${litN} of ${BRACKETS.length} lit).`
             : domeHere && !isDone(domeHere)
           ? 'This habitat is still a frame. The build drone has to finish welding it before there is air inside.'
           : domeHere && !layout.powered.has(domeHere.id)
@@ -1118,6 +1289,14 @@ async function boot(): Promise<void> {
     // Inside a dome habitat with power: station air, like breathing at the surface.
     const dome = blackout === 0 && !aboard ? domeAround(diver.x, diver.y) : null;
     const domeAir = !!dome && layout.powered.has(dome.id);
+    // Milestone 7 part 2: trapped air in the kelp caves' roofs, and planted air relays.
+    const pocketAir = blackout === 0 && !aboard && AIR_POCKETS.some((a) => inShape(a.shape, hx, hy) && hy < a.waterY);
+    const relayAir = blackout === 0 && !aboard && save.relays.some((r) => Math.hypot(diver.x - r.x, diver.y - (r.y - 50)) < 140);
+    const freshAir = pocketAir || relayAir;
+    if (pocketAir && !save.tips.includes('pocket')) {
+      save.tips.push('pocket');
+      hud.toast('Air pocket: you can breathe here. Your tank refills.', 'big');
+    }
     if ((dome?.id ?? null) !== insideDome) {
       insideDome = dome?.id ?? null;
       if (dome && domeAir) {
@@ -1128,9 +1307,9 @@ async function boot(): Promise<void> {
     if ((build.active || care.active || dockUI.active || station.active) && blackout === 0) {
       // Planning the base, or tending a tank, pauses the air clock.
     } else if (blackout === 0) {
-      if (atSurface || domeAir || subAir) {
+      if (atSurface || domeAir || subAir || freshAir) {
         // Air comes in from the first breath after breaking the surface.
-        if (domeAir || subAir || aboard || diver.surfaceTime > 0.4) save.oxygen = Math.min(maxO2, save.oxygen + (maxO2 / 3) * dt);
+        if (domeAir || subAir || freshAir || aboard || diver.surfaceTime > 0.4) save.oxygen = Math.min(maxO2, save.oxygen + (maxO2 / 3) * dt);
         diveTime = 0;
         lowWarned = false;
       } else {
@@ -1141,7 +1320,7 @@ async function boot(): Promise<void> {
         diveTime += dt;
       }
       const frac = save.oxygen / maxO2;
-      if (frac < 0.25 && !lowWarned && !atSurface && !domeAir && !subAir) {
+      if (frac < 0.25 && !lowWarned && !atSurface && !domeAir && !subAir && !freshAir) {
         lowWarned = true;
         const sAir = save.sub && save.sub.stage === 'built' && save.sub.air > 20 && save.sub.hull > 0 && !aboard;
         hud.toast(
@@ -1151,7 +1330,7 @@ async function boot(): Promise<void> {
           'warn',
         );
       }
-      hud.setLowOxygen(atSurface || domeAir || subAir ? 0 : Math.max(0, (0.25 - frac) / 0.25) * (0.75 + 0.25 * Math.sin(time * 5)));
+      hud.setLowOxygen(atSurface || domeAir || subAir || freshAir ? 0 : Math.max(0, (0.25 - frac) / 0.25) * (0.75 + 0.25 * Math.sin(time * 5)));
       if (save.oxygen <= 0) {
         // Blacking out aboard: the crew pull the diver out of the sub first.
         if (aboard) leaveSub(true);
@@ -1206,7 +1385,7 @@ async function boot(): Promise<void> {
         diveTime = 0;
         lowWarned = false;
         hud.setLowOxygen(0);
-        const where = home.sub ? 'the sub, KS-1' : home.dome ? 'the dome habitat' : 'the Kestrel buoy';
+        const where = home.sub ? 'the sub, KS-1' : home.dome ? 'the dome habitat' : home.relay ? 'the nearest air relay' : 'the Kestrel buoy';
         blackoutMsg = save.dropped
           ? `You blacked out. The crew pulled you back to ${where}. Your sample bag is on the seabed where you fell; its amber light is blinking.${jarMsg}`
           : `You blacked out. The crew pulled you back to ${where}.${jarMsg}`;
@@ -1237,7 +1416,7 @@ async function boot(): Promise<void> {
       drone.cheer();
       const sp = SPECIES[ev.species];
       const name = ev.stage === 'egg' ? sp.eggName : sp.youngName;
-      const hasTank = layout.pieces.some((p) => p.kind === 'tank');
+      const hasTank = layout.pieces.some((p) => isTankKind(p.kind));
       hud.toast(
         `${name.replace(/^./, (m) => m.toUpperCase())} in the specimen jar! ${
           hasTank ? 'Stop by a creature tank at the base and tap Collect to put it in.' : 'Build a creature tank at the Kestrel site to keep it.'
@@ -1262,7 +1441,8 @@ async function boot(): Promise<void> {
       fullWarnAt = time;
       hud.toast(`Dive bag full (${bagLimits(save).max} kg). Unload at a storage pod to carry more.`, 'warn');
     }
-    for (const ev of pickups.update(dt, time, reachPt.x, reachPt.y, save, collectHeld && !atDrone && !bagFull && !wildTarget, speed)) {
+    // The sub's grabber arm reaches further than a diver's hand (after milestone 7b: Colin found it hard to line up).
+    for (const ev of pickups.update(dt, time, reachPt.x, reachPt.y, save, collectHeld && !atDrone && !bagFull && !wildTarget, speed, grab ? GRAB_REACH : undefined)) {
       if (ev.type === 'material') {
         save.bag[ev.kind]++;
         sound.pickup(ev.kind);
@@ -1298,6 +1478,22 @@ async function boot(): Promise<void> {
       persist();
     }
     const pt = pickups.target;
+    // Grabber auto-align: holding Collect with a material in range, the sub's
+    // thrusters hover it so the claw sits right over the material.
+    if (aboard && grab && collectHeld && pt && !wildTarget && Math.hypot(s.moveX, s.moveY) < 0.3 && S && !S.docked) {
+      const claw = sub.clawPoint();
+      const ex = pt.x - claw.x;
+      const ey = pt.y - 6 - claw.y;
+      const k = Math.min(1, dt * 3.5);
+      const mx = Math.max(-160 * dt, Math.min(160 * dt, ex * k));
+      const my = Math.max(-160 * dt, Math.min(160 * dt, ey * k));
+      if (!isSolid(sub.x + mx, sub.y + my + 50)) {
+        sub.x += mx;
+        sub.y += my;
+      }
+      sub.vx *= 1 - Math.min(1, dt * 6);
+      sub.vy *= 1 - Math.min(1, dt * 6);
+    }
     const missing = atDrone ? repairMissing() : [];
     const repairing = atDrone && collectHeld && !missing.length && speed < 70;
     const workAt =
@@ -1315,6 +1511,7 @@ async function boot(): Promise<void> {
     const otherTarget = atDrone || !!wildTarget || (!!pt && (!aboard || grab));
     // Milestone 7: hold-to-do actions out in the world (the sled recorder, the boom winch).
     let holdAct: { key: string; label: string; seconds: number; done: () => void } | null = null;
+    let infoAct = '';
     if (!otherTarget && blackout === 0 && inControl && !diver.surfaced && !aboard) {
       const rx = SLED_X - 20;
       const ry = groundY(SLED_X) - 44;
@@ -1337,6 +1534,77 @@ async function boot(): Promise<void> {
             );
           },
         };
+      // Milestone 7 part 2: the finds in the kelp caves.
+      for (const k of Object.keys(KC_FINDS) as (keyof typeof KC_FINDS)[]) {
+        const f = FIND_INFO[k];
+        const got = save.finds.includes(k) || save.blueprints.includes(f.research) || jobRunning(save, `research:${f.research}`);
+        if (!got && Math.hypot(diver.x - KC_FINDS[k].x, diver.y - f.y) < 120)
+          holdAct = {
+            key: 'find-' + k,
+            label: f.label,
+            seconds: 1.8,
+            done: () => {
+              save.finds.push(k);
+              drone.cheer();
+              sound.find('bag');
+              hud.toast(f.toast, 'big');
+            },
+          };
+      }
+      // The brackets in the black chamber.
+      BRACKETS.forEach((b, i) => {
+        if (save.brackets[i] || Math.hypot(diver.x - b.x, diver.y - (b.y - 20)) > 110) return;
+        if (save.bag.moss > 0)
+          holdAct = {
+            key: 'bracket' + i,
+            label: 'Set lumen moss on the bracket',
+            seconds: 1.2,
+            done: () => {
+              save.bag.moss--;
+              save.brackets[i] = true;
+              hud.refreshInventory();
+              const n = save.brackets.filter(Boolean).length;
+              hud.toast(n >= BRACKETS.length ? 'All four brackets glow: the way through the black water is lit.' : `The moss glows on the bracket (${n} of ${BRACKETS.length} lit).`, 'big');
+            },
+          };
+        else infoAct = 'Old lamp bracket: bring lumen moss in your bag';
+      });
+      // The kelp wall across the side passage off the hall.
+      const kw = { x: (KELP_WALL.x0 + KELP_WALL.x1) / 2, y: (KELP_WALL.y0 + KELP_WALL.y1) / 2 };
+      if (!save.kelpCut && Math.hypot(diver.x - kw.x, diver.y - kw.y) < 140) {
+        if (hasGear(save, 'cutter'))
+          holdAct = {
+            key: 'kwall',
+            label: 'Cut through the kelp wall',
+            seconds: 3,
+            done: () => {
+              save.kelpCut = true;
+              kelpWall.cut = true;
+              drone.cheer();
+              hud.toast('The cutter torch burns through the kelp wall. Something glints in the little chamber beyond.', 'big');
+            },
+          };
+        else infoAct = 'Kelp wall: far too thick. A cutter torch would cut it.';
+      }
+      // Planting an air relay on open seabed, away from the base and the caves.
+      if (save.relayKits > 0) {
+        const gyHere = groundY(Math.max(WORLD_X0, Math.min(WORLD_W, diver.x)));
+        const onFloor = gyHere - diver.y < 100 && gyHere - diver.y > 0 && gyHere > 200;
+        const atBase = diver.x > GRID_X0 - 300 && diver.x < GRID_X1 + 300 && diver.y > 300;
+        const spaced = save.relays.every((r) => Math.abs(r.x - diver.x) > 600);
+        if (onFloor && !atBase && spaced && !inKelpCaves(diver.x, diver.y))
+          holdAct = {
+            key: 'relay',
+            label: `Plant air relay AR-1 (${save.relayKits} carried)`,
+            seconds: 2,
+            done: () => {
+              save.relays.push({ x: Math.round(diver.x), y: Math.round(gyHere) });
+              save.relayKits--;
+              scenery.setRelays(save.relays);
+              hud.toast('Air relay planted. Its float rises to the surface and air hisses down the hose: swim to the mooring to breathe. You wake up at the nearest relay after a blackout.', 'big');
+            },
+          };
+      }
       const wp = Scenery.winchPoint();
       if (!save.boomOpen && Math.hypot(diver.x - wp.x, diver.y - wp.y) < 110)
         holdAct = {
@@ -1373,7 +1641,7 @@ async function boot(): Promise<void> {
       if (tankHere && save.jar) {
         const id = tankHere.id;
         const sp = SPECIES[save.jar.species];
-        const full = creaturesIn(save, id).length >= TANK_CAPACITY;
+        const full = creaturesIn(save, id).length >= tankCapacity(layout, id);
         const what = save.jar.stage === 'egg' ? sp.eggName : save.jar.stage === 'young' ? sp.youngName : sp.name.toLowerCase();
         baseAct = { label: full ? `Tank ${tankNumber(layout, id)} is full` : `Put ${what} in tank ${tankNumber(layout, id)}`, run: () => depositJar(id) };
       } else if (tankHere && trayN) {
@@ -1398,6 +1666,7 @@ async function boot(): Promise<void> {
     if (baseAct && collectTap) baseAct.run();
 
     if (holdAct) hud.setCollect(holdAct.label, holdProgress);
+    else if (infoAct && !baseAct) hud.setCollect(infoAct, 0);
     else if (baseAct) hud.setCollect(baseAct.label, 0, true);
     else if (aboard && !grab) hud.setCollect(null, 0);
     else if (atDrone) {
@@ -1594,8 +1863,8 @@ async function boot(): Promise<void> {
           : station.active
             ? VIEW_H_STATION
             : aboard
-              ? VIEW_H_SUB
-              : VIEW_H;
+              ? VIEW_H_SUB * swimZoom
+              : VIEW_H * swimZoom;
     viewH += (wantH - viewH) * (1 - Math.exp(-(build.active ? 10 : 4) * dt));
     zoom = cssH / viewH;
     const viewW = cssW / zoom;
@@ -1671,7 +1940,7 @@ async function boot(): Promise<void> {
     for (const sc of schools) sc.update(dt, time, diver.x, diver.y, camX, camX + viewW);
     tankLife.update(dt, time, save, camX, camX + viewW);
     // While tending a tank, the diver and drone fade so they don't hide it.
-    const fade = care.active ? 0.12 : dockUI.active || station.active ? 0.3 : 1;
+    const fade = (care.active ? 0.12 : dockUI.active || station.active ? 0.3 : 1) * (boarding ? boardFade : 1);
     diver.view.alpha += (fade - diver.view.alpha) * Math.min(1, dt * 6);
     drone.view.alpha = drone.emissive.alpha = drone.glow.alpha = diver.view.alpha;
 
@@ -1694,6 +1963,7 @@ async function boot(): Promise<void> {
         hull: save.sub.hull,
         lightsOn: save.sub.lights,
         piloted: aboard && blackout === 0,
+        occupied: aboard,
         reach: subReach,
         welding: drone.weldingSub,
       });
@@ -1718,7 +1988,8 @@ async function boot(): Promise<void> {
     lampLight.dirY = lp.dirY;
     // Milestone 7: the dive light DL-1 replaces the shoulder lamp: further, brighter and wider.
     const lampSpec = hasGear(save, 'light') ? DIVE_LIGHT : LAMP;
-    lampLight.radius = lampSpec.radius;
+    // Black water swallows the light, except near a lit bracket.
+    lampLight.radius = lampSpec.radius * (inBlack && nearLit > 260 ? 0.32 : 1);
     lampLight.coneCos = lampSpec.coneCos;
     lampLight.intensity = aboard ? 0 : lampSpec.intensity * diver.lamp * diver.view.alpha;
     scenery.caveDark.alpha = hasGear(save, 'light') && diver.lamp > 0.5 && !aboard ? 0.15 : 1;
@@ -1768,7 +2039,8 @@ async function boot(): Promise<void> {
     // ---- Sound (milestone 7b) ----
     {
       let work: WorkKind | null = null;
-      if (holdAct && collectHeld && speed < 70) work = holdAct.key === 'winch' ? 'winch' : 'recorder';
+      if (holdAct && collectHeld && speed < 70)
+        work = holdAct.key === 'winch' || holdAct.key === 'relay' ? 'winch' : holdAct.key === 'kwall' ? 'cutter' : holdAct.key.startsWith('bracket') ? 'moss' : 'recorder';
       else if (repairing) work = 'repair';
       else if (wildlife.working && wildTarget) work = 'creature';
       else if (pickups.working && pt) work = pt.kind;
@@ -1786,7 +2058,7 @@ async function boot(): Promise<void> {
           feeders.push({ x: r.x + r.w / 2, y: r.y + r.h / 2 });
         }
       }
-      const freeAir = atSurface || domeAir || subAir;
+      const freeAir = atSurface || domeAir || subAir || freshAir;
       const frac = save.oxygen / maxO2;
       sound.update({
         dt,
@@ -1812,6 +2084,8 @@ async function boot(): Promise<void> {
         sub: S ? { x: sub.x, y: sub.y, speed: Math.hypot(sub.vx, sub.vy), thrust: sub.thrust > 0, docked: S.docked, built: S.stage === 'built' } : null,
         splash: aboard ? 0 : diver.splash,
         exhale: !aboard && diver.exhale,
+        surge,
+        inAir: pocketAir,
       });
     }
 

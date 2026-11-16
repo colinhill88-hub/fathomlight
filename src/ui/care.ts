@@ -13,7 +13,7 @@ import {
   makeRate,
   tankDataFor,
   tankNumber,
-  TANK_CAPACITY,
+  tankCapacity,
 } from '../game/creatures';
 import { CreatureData, MATERIALS, SaveData } from '../game/state';
 import { TRAY_CAP, trayCount, TROUGH_CAP, whorlMult } from '../game/factory';
@@ -95,7 +95,8 @@ export class CareMode {
       if (act === 'pick') this.select(Number(el.dataset.id));
       else if (act === 'feed') this.feed();
       else if (act === 'clean') this.clean();
-      else if (act === 'plant') this.plant(el.dataset.id as keyof typeof PLANTS);
+      else if (act === 'plant') this.plant(el.dataset.id as keyof typeof PLANTS, 1);
+      else if (act === 'plant2') this.plant(el.dataset.id as keyof typeof PLANTS, 2);
       else if (act === 'take') this.takeOut();
       else if (act === 'release') this.release();
       else if (act === 'close') this.close();
@@ -193,12 +194,12 @@ export class CareMode {
     this.render(true);
   }
 
-  private plant(id: keyof typeof PLANTS): void {
+  private plant(id: keyof typeof PLANTS, slot: 1 | 2): void {
     const { save } = this.deps;
     if (this.tankId === null) return;
     const td = tankDataFor(save, this.tankId);
     const p = PLANTS[id];
-    if (td.plant === id) return;
+    if ((slot === 1 ? td.plant : td.plant2) === id) return;
     if (!save.scans.includes(p.scan)) {
       this.deps.toast(`Scan ${p.name.toLowerCase()} on the reef first, to know how to grow it`, 'warn');
       return;
@@ -208,7 +209,8 @@ export class CareMode {
       this.deps.toast(`Planting ${p.name.toLowerCase()} needs ${n} ${MATERIALS[k].name.toLowerCase()}`, 'warn');
       return;
     }
-    td.plant = id;
+    if (slot === 1) td.plant = id;
+    else td.plant2 = id;
     this.deps.changed();
     this.deps.refreshInventory();
     this.deps.toast(`Planted ${p.name.toLowerCase()}`);
@@ -304,21 +306,26 @@ export class CareMode {
           c.stage === 'grown' ? `<p class="note">${makeLine(save, layout, c)}</p>` : ''
         }`;
     }
-    const plants = PLANT_ORDER.map((p) => {
-      const known = save.scans.includes(PLANTS[p].scan);
-      const [k, n] = Object.entries(PLANTS[p].cost)[0] as [keyof typeof MATERIALS, number];
-      return `<button type="button" data-act="plant" data-id="${p}" class="plant${td.plant === p ? ' on' : ''}${known ? '' : ' locked'}">${
-        known ? PLANTS[p].name : 'Unknown plant'
-      }<small>${td.plant === p ? 'growing' : `${n} ${MATERIALS[k].name.toLowerCase()}`}</small></button>`;
-    }).join('');
+    const planter = (slot: 1 | 2) =>
+      PLANT_ORDER.map((p) => {
+        const known = save.scans.includes(PLANTS[p].scan);
+        const [k, n] = Object.entries(PLANTS[p].cost)[0] as [keyof typeof MATERIALS, number];
+        const cur = slot === 1 ? td.plant : td.plant2;
+        return `<button type="button" data-act="${slot === 1 ? 'plant' : 'plant2'}" data-id="${p}" class="plant${cur === p ? ' on' : ''}${known ? '' : ' locked'}">${
+          known ? PLANTS[p].name : 'Unknown plant'
+        }<small>${cur === p ? 'growing' : `${n} ${MATERIALS[k].name.toLowerCase()}`}</small></button>`;
+      }).join('');
+    // Milestone 7 part 2: a Grand tank has a second planter, so two species can both have their favourite.
+    const grand = layout.pieces.find((q) => q.id === this.tankId)?.kind === 'gtank';
+    const plants = grand ? `${planter(1)}</div><div class="plants"><span>Planter 2:</span>${planter(2)}` : planter(1);
     const armed = Date.now() - this.releaseArmed < 3000;
     const html = `
-      <div class="care-head"><b>Tank ${tankNumber(layout, this.tankId)}</b><span>${list.length}/${TANK_CAPACITY} · ${powered ? 'powered' : 'no power'}</span>
+      <div class="care-head"><b>Tank ${tankNumber(layout, this.tankId)}</b><span>${list.length}/${tankCapacity(layout, this.tankId)} · ${powered ? 'powered' : 'no power'}</span>
         <button type="button" class="x" data-act="close" aria-label="Close">✕</button></div>
       ${list.length ? `<div class="tabs">${tabs}</div>` : ''}
       ${c ? `<h3>${c.stage === 'egg' ? SPECIES[c.species].eggName.replace(/^./, (m) => m.toUpperCase()) : SPECIES[c.species].name}</h3>` : ''}
       ${body}
-      <div class="plants"><span>Plant:</span>${plants}</div>
+      <div class="plants"><span>${grand ? 'Planter 1:' : 'Plant:'}</span>${plants}</div>
       <div class="acts">
         <button type="button" class="big" data-act="feed">Feed kelp flakes <small>1 fibre</small></button>
         <button type="button" data-act="clean">Clean tank</button>

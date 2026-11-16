@@ -1,4 +1,5 @@
 import { Container, Graphics, Text } from 'pixi.js';
+import { MATERIAL_ORDER } from '../game/state';
 import { mulberry32, WORLD_SEED } from '../rng';
 import { groundY, WORLD_W, WORLD_X0 } from './terrain';
 import {
@@ -19,6 +20,7 @@ import {
   Placed,
   shapeOf,
   STORAGE_PER_POD,
+  SORT_BAY,
 } from '../game/base';
 import type { PointLight } from './scenery';
 import { WhorlArt } from './whorl';
@@ -514,8 +516,50 @@ function drawStorage(n: number): PieceArt {
   return { body, windows, windowGlow, lamp: { x: c, y: 8 }, gauge, gaugeBox };
 }
 
+/**
+ * Sorting pod SP-1 (milestone 7 part 2): a squat resin-sealed cabinet with a
+ * row of small bay doors, one per material, each with its own fill light.
+ */
+function drawSorter(n: number): PieceArt {
+  const body = new Container();
+  const g = body.addChild(new Graphics());
+  const windows = new Graphics();
+  const windowGlow = new Graphics();
+  const c = CELL / 2;
+  tubeH(g, 0, 18, c, 1);
+  tubeH(g, CELL - 18, CELL, c, 1);
+  tubeV(g, 0, 14, c, 1);
+  tubeV(g, CELL - 12, CELL, c, 1);
+  g.roundRect(12, 14, CELL - 24, CELL - 26, 8).fill({ color: PAL.steel });
+  g.roundRect(16, 18, 8, CELL - 34, 4).fill({ color: 0xffffff, alpha: 0.12 });
+  g.rect(12, 26, CELL - 24, 4).fill({ color: 0xc88a2a });
+  g.rect(12, CELL - 26, CELL - 24, 4).fill({ color: 0xc88a2a });
+  // Seven bay doors in two rows.
+  for (let i = 0; i < 7; i++) {
+    const row = i < 4 ? 0 : 1;
+    const col = row ? i - 4 : i;
+    const x = 20 + col * 18 + (row ? 9 : 0);
+    const y = 36 + row * 24;
+    g.roundRect(x, y, 14, 18, 2).fill({ color: PAL.steelDark });
+    g.roundRect(x + 1.5, y + 1.5, 11, 15, 2).fill({ color: PAL.steelDeep });
+    windows.rect(x + 4, y + 13, 6, 2).fill({ color: [0xa8a199, 0xb87a4a, 0xe8f0f0, 0x9aa84a, 0x8e9a9c, 0xd89a3a, 0xc8e070][i], alpha: 0.9 });
+  }
+  windowGlow.rect(18, 46, CELL - 36, 40).fill({ color: PAL.warm, alpha: 0.12 });
+  rivets(g, 18, 22, CELL - 18, 22, 7);
+  body.addChild(stencil(`SP-${n}`, c, 20, 6));
+  streaks(g, 16, CELL - 16, 30, 8, 18);
+  scratches(g, 14, 14, CELL - 14, CELL - 14, 8);
+  algaeLine(g, 16, CELL - 16, CELL - 12, 14);
+  return { body, windows, windowGlow, lamp: { x: c, y: 10 } };
+}
+
 /** Inside of a creature tank (local): the water the creatures swim in. */
 export const TANK_INNER = { x: 16, y: 16, w: CELL * 2 - 32, h: CELL - 30 };
+/** Milestone 7 part 2: the Grand tank's water, 3 × 2 cells. */
+export const GTANK_INNER = { x: 16, y: 16, w: CELL * 3 - 32, h: CELL * 2 - 30 };
+export function tankInner(kind: PieceKind): { x: number; y: number; w: number; h: number } {
+  return kind === 'gtank' ? GTANK_INNER : TANK_INNER;
+}
 
 /**
  * Creature tank (milestone 4): a long glass aquarium in a riveted steel frame
@@ -523,14 +567,14 @@ export const TANK_INNER = { x: 16, y: 16, w: CELL * 2 - 32, h: CELL - 30 };
  * drawn here; the creatures, plant, murk and front glass are drawn by
  * TankLife (src/world/tanklife.ts) on top.
  */
-function drawTank(n: number): PieceArt {
-  const W = CELL * 2;
-  const H = CELL;
+function drawTank(n: number, grand = false): PieceArt {
+  const W = CELL * (grand ? 3 : 2);
+  const H = CELL * (grand ? 2 : 1);
   const body = new Container();
   const g = body.addChild(new Graphics());
   const windows = new Graphics();
   const windowGlow = new Graphics();
-  const I = TANK_INNER;
+  const I = grand ? GTANK_INNER : TANK_INNER;
   // Collar stubs.
   tubeH(g, 0, 18, H / 2, 1);
   tubeH(g, W - 18, W, H / 2, 1);
@@ -564,7 +608,13 @@ function drawTank(n: number): PieceArt {
   g.roundRect(W / 2 - 40, 4, 80, 8, 2).fill({ color: PAL.steelDark });
   windows.rect(W / 2 - 36, 10, 72, 3).fill({ color: 0xfff1d0, alpha: 0.9 });
   windowGlow.rect(W / 2 - 50, 8, 100, 30).fill({ color: PAL.warm, alpha: 0.25 });
-  body.addChild(stencil(`TANK ${n}`, 42, H - 9, 6));
+  if (grand) {
+    // A middle post, and resin-amber seals along the rails.
+    g.rect(W / 2 - 4, 14, 8, H - 28).fill({ color: PAL.steel, alpha: 0.85 });
+    g.rect(4, 15, W - 8, 3).fill({ color: 0xc88a2a, alpha: 0.8 });
+    g.rect(4, H - 19, W - 8, 3).fill({ color: 0xc88a2a, alpha: 0.8 });
+  }
+  body.addChild(stencil(grand ? `GT-${n}` : `TANK ${n}`, 42, H - 9, 6));
   streaks(g, 8, W - 8, 14, 16, 16);
   streaks(g, 8, W - 8, H - 4, 10, 8);
   scratches(g, 6, 2, W - 6, 14, 8);
@@ -1030,6 +1080,8 @@ export function drawPiece(kind: PieceKind, n: number, rot: number, seed: number)
   if (kind === 'corridor') return drawCorridor(n, rot);
   if (kind === 'turbine') return drawTurbine(n);
   if (kind === 'tank') return drawTank(n);
+  if (kind === 'gtank') return drawTank(n, true);
+  if (kind === 'sorter') return drawSorter(n);
   if (kind === 'filter') return drawFilter(n);
   if (kind === 'feeder') return drawFeeder(n);
   if (kind === 'press') return drawPress(n);
@@ -1158,7 +1210,7 @@ export class BaseView {
       for (const w of l.whorls) this.dropWhorl(w);
       this.live.delete(id);
     }
-    const counts: Record<PieceKind, number> = { dome: 0, corridor: 0, turbine: 0, storage: 0, tank: 0, filter: 0, feeder: 0, press: 0, dock: 0, lab: 0, workshop: 0 };
+    const counts: Record<PieceKind, number> = { dome: 0, corridor: 0, turbine: 0, storage: 0, tank: 0, filter: 0, feeder: 0, press: 0, dock: 0, lab: 0, workshop: 0, gtank: 0, sorter: 0 };
     for (const p of [...layout.pieces].sort((a, b) => a.id - b.id)) {
       counts[p.kind]++;
       if (this.live.has(p.id)) continue;
@@ -1186,8 +1238,8 @@ export class BaseView {
       const light: PointLight | null =
         p.kind === 'dome'
           ? { x: r.x + r.w / 2, y: r.y + r.h - 130, radius: 330, intensity: 0, color: [1, 0.86, 0.66] }
-          : p.kind === 'tank'
-            ? { x: r.x + r.w / 2, y: r.y + 30, radius: 170, intensity: 0, color: [1, 0.92, 0.75] }
+          : p.kind === 'tank' || p.kind === 'gtank'
+            ? { x: r.x + r.w / 2, y: r.y + 30, radius: p.kind === 'gtank' ? 260 : 170, intensity: 0, color: [1, 0.92, 0.75] }
             : p.kind === 'dock'
               ? { x: r.x + r.w / 2, y: r.y + CELL + 40, radius: 260, intensity: 0, color: [1, 0.85, 0.6] }
               : null;
@@ -1509,7 +1561,8 @@ export class BaseView {
 
 /** Storage capacity of the whole base. */
 export function storageCapacity(layout: BaseLayout): number {
-  return layout.countDone('storage') * STORAGE_PER_POD;
+  // Milestone 7 part 2: each sorting pod adds a bay of SORT_BAY for every material.
+  return layout.countDone('storage') * STORAGE_PER_POD + layout.countDone('sorter') * SORT_BAY * MATERIAL_ORDER.length;
 }
 
 // ---------------------------------------------------------------------------

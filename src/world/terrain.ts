@@ -29,11 +29,17 @@ import { mulberry32, WORLD_SEED } from '../rng';
  *               rock outcrops, holdfasts (resin) and shaded rock (lumen moss)
  * 14800 - 15600 the east wall, with the mouth of the kelp caves (the zone's
  *               major site, milestone 7 part 2)
+ *
+ * Milestone 7 part 2 carved the kelp caves into the rock behind the east wall
+ * (15000 - 19200, 10 to 25 m down): a hall with an air pocket, a squeeze with a
+ * pulsing current, a junction (air pocket, a side chamber up to an old rope
+ * store), a pitch-black chamber and the earlier expedition's cache at the end.
+ * Above them the wall's top is a flat rock plateau 3.5 m under the surface.
  */
 
 /** West edge of the world (milestone 5 added the basin west of the old wall). */
 export const WORLD_X0 = -5600;
-export const WORLD_W = 15600;
+export const WORLD_W = 19400;
 /** Width of the whole world, from WORLD_X0 to WORLD_W. */
 export const WORLD_SPAN = WORLD_W - WORLD_X0;
 export const WORLD_H = 1980;
@@ -61,6 +67,120 @@ export const WINCH_X = 9040;
 export const boom = { open: false };
 /** The mouth of the kelp caves in the east wall (the major site, part 2). */
 export const SITE_MOUTH = { x: 14975, y: 1150, rx: 170, ry: 100 };
+
+/*
+ * Milestone 7 part 2: the kelp caves. Open water inside the rock is a set of
+ * capsules (tunnels whose radius changes along them) and ellipses (chambers).
+ * Pillars are rock left standing inside the black chamber.
+ */
+export type CaveShape =
+  | { kind: 'cap'; x1: number; y1: number; r1: number; x2: number; y2: number; r2: number }
+  | { kind: 'ell'; x: number; y: number; rx: number; ry: number };
+const cap = (x1: number, y1: number, r1: number, x2: number, y2: number, r2: number): CaveShape & { kind: 'cap' } => ({ kind: 'cap', x1, y1, r1, x2, y2, r2 });
+const ell = (x: number, y: number, rx: number, ry: number): CaveShape & { kind: 'ell' } => ({ kind: 'ell', x, y, rx, ry });
+
+export const KC = {
+  /** The first chamber, with an air pocket in its roof. */
+  hall: ell(15760, 1120, 270, 175),
+  /** A side passage down from the hall, choked by a thick kelp wall (the cutter torch opens it). */
+  kelpPassage: cap(15620, 1250, 56, 15565, 1470, 52),
+  alcove: ell(15545, 1525, 95, 62),
+  /** The squeeze: a long narrow tunnel where cold water surges out in pulses. */
+  squeeze: cap(16010, 1170, 58, 16900, 1280, 46),
+  /** Two little pockets in the squeeze's roof where the surge can't reach. */
+  pockets: [ell(16300, 1128, 58, 46), ell(16600, 1162, 58, 46)],
+  junction: ell(17150, 1310, 240, 150),
+  towPassage: cap(17200, 1180, 56, 17285, 930, 56),
+  towRoom: ell(17305, 860, 165, 92),
+  downPassage: cap(17330, 1420, 66, 17560, 1600, 76),
+  /** The black chamber: silt so fine it swallows the dive light. */
+  dark: ell(18080, 1650, 560, 215),
+  exit: cap(18600, 1700, 62, 18830, 1690, 66),
+  cache: ell(18960, 1640, 175, 125),
+};
+export const KC_PILLARS = [ell(17800, 1600, 55, 120), ell(18100, 1722, 66, 108), ell(18360, 1590, 50, 125)];
+/** Where trapped air fills the roof of a chamber: the diver breathes above waterY. */
+export const AIR_POCKETS = [
+  { shape: KC.hall, waterY: 1002 },
+  { shape: KC.junction, waterY: 1202 },
+];
+/** Old Kestrel lamp brackets across the black chamber (set lumen moss on them). */
+export const BRACKETS = [17660, 17960, 18240, 18520].map((x) => ({ x, y: ellBottom(KC.dark, x) - 22 }));
+/** The kelp wall across the side passage (milestone 7 part 2: the cutter torch cuts it). */
+export const KELP_WALL = { x0: 15500, x1: 15690, y0: 1322, y1: 1372 };
+export const kelpWall = { cut: false };
+
+const CAVE_SHAPES: CaveShape[] = [
+  cap(15050, 1160, 82, 15430, 1185, 76),
+  KC.hall,
+  KC.kelpPassage,
+  KC.alcove,
+  cap(15990, 1140, 62, 16050, 1172, 58),
+  KC.squeeze,
+  ...KC.pockets,
+  cap(16880, 1282, 50, 16960, 1300, 70),
+  KC.junction,
+  KC.towPassage,
+  KC.towRoom,
+  KC.downPassage,
+  KC.dark,
+  KC.exit,
+  KC.cache,
+];
+export const KC_BOUNDS = { x0: 14980, x1: 19150 };
+
+/**
+ * Tunnels aren't perfect tubes (Colin, after milestone 7 part 2: "too box-y"):
+ * their radius swells and pinches gently along their length. The drawing and
+ * the collisions use the same wobble, so walls look and feel the same.
+ */
+export function capWobble(cx: number, cy: number): number {
+  return 1 + 0.13 * Math.sin(cx * 0.011 + cy * 0.007) + 0.07 * Math.sin(cx * 0.029 + 1.7) + 0.04 * Math.sin(cx * 0.061 + cy * 0.013 + 4.1);
+}
+export function inShape(s: CaveShape, x: number, y: number, pad = 0): boolean {
+  if (s.kind === 'ell') return ((x - s.x) / (s.rx + pad)) ** 2 + ((y - s.y) / (s.ry + pad)) ** 2 < 1;
+  const dx = s.x2 - s.x1;
+  const dy = s.y2 - s.y1;
+  const t = Math.max(0, Math.min(1, ((x - s.x1) * dx + (y - s.y1) * dy) / (dx * dx + dy * dy)));
+  const r = (s.r1 + (s.r2 - s.r1) * t) * capWobble(s.x1 + dx * t, s.y1 + dy * t) + pad;
+  return (x - s.x1 - dx * t) ** 2 + (y - s.y1 - dy * t) ** 2 < r * r;
+}
+/** The floor of an ellipse chamber at x. */
+export function ellBottom(e: { x: number; y: number; rx: number; ry: number }, x: number): number {
+  return e.y + e.ry * Math.sqrt(Math.max(0, 1 - ((x - e.x) / e.rx) ** 2));
+}
+export function ellTop(e: { x: number; y: number; rx: number; ry: number }, x: number): number {
+  return e.y - e.ry * Math.sqrt(Math.max(0, 1 - ((x - e.x) / e.rx) ** 2));
+}
+/** Is the point in the open water of the kelp caves (not rock, not a pillar)? */
+export function inKelpCaves(x: number, y: number): boolean {
+  if (x < KC_BOUNDS.x0 || x > KC_BOUNDS.x1 || y < 740) return false;
+  let open = false;
+  for (const s of CAVE_SHAPES) if (inShape(s, x, y)) {
+    open = true;
+    break;
+  }
+  if (!open) return false;
+  for (const p of KC_PILLARS) if (inShape(p, x, y)) return false;
+  return true;
+}
+/** The first rock below (x, fromY): a cave floor when fromY is inside a chamber. */
+export function caveFloor(x: number, fromY: number): number {
+  let y = fromY;
+  while (y < WORLD_H && !isSolid(x, y + 2)) y += 2;
+  return y;
+}
+/** Where the four finds lie in the caves (each read by the Lab). */
+export const KC_FINDS = {
+  relaylog: { x: 15905, from: 1150 },
+  weldchip: { x: 17060, from: 1320 },
+  towcoil: { x: 17350, from: 860 },
+  cache: { x: 19000, from: 1650 },
+} as const;
+/** Every open shape, for drawing. */
+export function caveShapes(): readonly CaveShape[] {
+  return CAVE_SHAPES;
+}
 
 function forestFloor(x: number): number {
   let y = 1290 + Math.sin(x * 0.0017) * 28 + Math.sin(x * 0.0041 + 1) * 14;
@@ -237,7 +357,8 @@ function inMouth(x: number, y: number): boolean {
 export function isSolid(x: number, y: number): boolean {
   if (x < WORLD_X0 || x > WORLD_W) return true;
   if (!boom.open && Math.abs(x - BOOM_X) < 16 && y < SHELF.floor + 8) return true;
-  if (y >= groundY(x)) return !inCave(x, y) && !(x > SITE_MOUTH.x - SITE_MOUTH.rx && inMouth(x, y));
+  if (!kelpWall.cut && x > KELP_WALL.x0 && x < KELP_WALL.x1 && y > KELP_WALL.y0 && y < KELP_WALL.y1) return true;
+  if (y >= groundY(x)) return !inCave(x, y) && !(x > SITE_MOUTH.x - SITE_MOUTH.rx && inMouth(x, y)) && !inKelpCaves(x, y);
   if (y > 540 && y < 780 && x > 5690 && x < 6880 && inPolygon(x, y, LEDGE)) return true;
   return false;
 }

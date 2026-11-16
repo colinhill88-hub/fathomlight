@@ -36,8 +36,59 @@ export const RESEARCH: Record<BlueprintId, ResearchDef> = {
     scans: ['sled'],
     seconds: 75,
   },
+  // Milestone 7 part 2 (Colin's choices: costs as proposed, research 60–120 s).
+  gtank: {
+    id: 'gtank',
+    name: 'Grand tank GT-1 blueprint',
+    text: 'From your scans of the tinker crab, the lantern shrimp and the giant kelp: a big 3 × 2 tank for eight creatures, with a planter for two kinds of plant. Unlocks a build card.',
+    finds: [],
+    scans: ['crab', 'shrimp', 'gkelp'],
+    seconds: 90,
+  },
+  sorter: {
+    id: 'sorter',
+    name: 'Sorting pod SP-1 blueprint',
+    text: 'From your scans of giant kelp (its holdfast resin) and bladder kelp: resin-sealed storage with a separate bay for every material, so one kind can never crowd out the rest. Unlocks a build card.',
+    finds: [],
+    scans: ['gkelp', 'bladder'],
+    seconds: 60,
+  },
+  relay: {
+    id: 'relay',
+    name: 'Air relay AR-1 blueprint',
+    text: 'Reads the KS RELAY 2 log from the kelp caves: a surface float that pumps fresh air down a hose to a mooring on the seabed.',
+    finds: ['relaylog'],
+    scans: [],
+    seconds: 80,
+  },
+  welder: {
+    id: 'welder',
+    name: 'DR-2 welder blueprint',
+    text: 'Reads the KD WELD control chip from the kelp caves: a hotter, steadier torch head for the build drone.',
+    finds: ['weldchip'],
+    scans: [],
+    seconds: 70,
+  },
+  tow: {
+    id: 'tow',
+    name: 'Tow line blueprint',
+    text: 'Reads the rope store\'s spool tag and notes: a clip-on tow line and winch for hauling yourself through strong currents.',
+    finds: ['towcoil'],
+    scans: [],
+    seconds: 100,
+  },
+  cutter: {
+    id: 'cutter',
+    name: 'Cutter torch blueprint',
+    text: 'Reads the survey cache\'s data cartridge: a cutting torch that burns through kelp walls and, later, sealed wreck hatches.',
+    finds: ['cache'],
+    scans: [],
+    seconds: 120,
+  },
 };
-export const RESEARCH_ORDER: BlueprintId[] = ['light'];
+export const RESEARCH_ORDER: BlueprintId[] = ['light', 'gtank', 'sorter', 'relay', 'welder', 'tow', 'cutter'];
+/** Blueprints that unlock a base piece (build card) instead of Workshop gear. */
+export const PIECE_BLUEPRINTS: Partial<Record<BlueprintId, string>> = { gtank: 'gtank', sorter: 'sorter' };
 
 export interface GearDef {
   id: GearId;
@@ -59,11 +110,53 @@ export const GEAR: Record<GearId, GearDef> = {
     cost: { plate: 2, quartz: 2, copper: 1 },
     seconds: 45,
   },
+  cutter: {
+    id: 'cutter',
+    name: 'Cutter torch',
+    code: 'TC-1',
+    job: 'Burns through thick kelp walls (hold Collect at one). Later it opens sealed wreck hatches.',
+    blueprint: 'cutter',
+    cost: { plate: 4, copper: 3, quartz: 2, resin: 2 },
+    seconds: 60,
+  },
+  tow: {
+    id: 'tow',
+    name: 'Tow line',
+    code: 'TL-1',
+    job: 'A line and hand winch for hauling through strong currents. The wreck shelf, the next zone, is full of them.',
+    blueprint: 'tow',
+    cost: { plate: 3, fibre: 4, resin: 2 },
+    seconds: 50,
+  },
+  welder: {
+    id: 'welder',
+    name: 'DR-2 welder',
+    code: 'DR-2',
+    job: 'Fitted to the build drone KD-1: it welds about twice as fast.',
+    blueprint: 'welder',
+    cost: { plate: 3, copper: 2, moss: 2 },
+    seconds: 50,
+  },
+  relay: {
+    id: 'relay',
+    name: 'Air relay kit',
+    code: 'AR-1',
+    job: 'Plant it on open seabed (hold Collect): a float pumps air down to it. Swim up to it to breathe, and you wake up at the nearest one after a blackout. Build as many as you like.',
+    blueprint: 'relay',
+    cost: { plate: 3, resin: 4, moss: 3, copper: 2 },
+    seconds: 45,
+  },
 };
-export const GEAR_ORDER: GearId[] = ['light'];
+export const GEAR_ORDER: GearId[] = ['light', 'cutter', 'tow', 'welder', 'relay'];
+/** Gear that is a kit you can build again and again (it isn't kept in save.gear). */
+export const KIT_GEAR: GearId[] = ['relay'];
 
 export const FINDS: Record<FindId, { name: string; text: string }> = {
   recorder: { name: 'SLED 2 recorder', text: 'A scuffed data cartridge from the survey sled. The Lab can read it.' },
+  relaylog: { name: 'KS RELAY 2 log', text: 'The memory card from a toppled air relay buoy in the kelp caves.' },
+  weldchip: { name: 'KD WELD control chip', text: 'A drone welder controller from a broken crate in the caves.' },
+  towcoil: { name: 'Rope store spool tag', text: 'The tag and waterproof notes from a tow line spool in the caves\' old rope store.' },
+  cache: { name: 'Survey cache cartridge', text: 'The data cartridge from the earlier expedition\'s cache, deep in the kelp caves.' },
 };
 
 /** The dive light (DL-1) against the shoulder lamp: reach, brightness and beam width. */
@@ -111,6 +204,9 @@ export function tickStations(save: SaveData, layout: BaseLayout, dt: number): St
     if (what === 'research') {
       if (!save.blueprints.includes(id as BlueprintId)) save.blueprints.push(id as BlueprintId);
       ev.push({ type: 'decoded', id: id as BlueprintId, piece: p });
+    } else if (KIT_GEAR.includes(id as GearId)) {
+      if (id === 'relay') save.relayKits++;
+      ev.push({ type: 'built', id: id as GearId, piece: p });
     } else {
       if (!save.gear.includes(id as GearId)) save.gear.push(id as GearId);
       ev.push({ type: 'built', id: id as GearId, piece: p });

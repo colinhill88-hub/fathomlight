@@ -1,6 +1,6 @@
 import { BaseLayout, isDone, pieceCode, Placed } from '../game/base';
 import { MATERIAL_ORDER, MaterialId, SaveData } from '../game/state';
-import { FINDS, GEAR, GEAR_ORDER, jobOf, jobRunning, jobSecondsLeft, RESEARCH, RESEARCH_ORDER, researchBlocker } from '../game/gear';
+import { FINDS, GEAR, GEAR_ORDER, jobOf, jobRunning, jobSecondsLeft, KIT_GEAR, PIECE_BLUEPRINTS, RESEARCH, RESEARCH_ORDER, researchBlocker } from '../game/gear';
 import { payCost } from '../game/creatures';
 import { haveFor, missingText } from '../game/sub';
 import { MATERIAL_ICONS } from './hud';
@@ -128,7 +128,7 @@ export class StationMode {
     const { save, layout } = this.deps;
     const p = this.piece();
     const g = GEAR[id as keyof typeof GEAR];
-    if (!p || !g || jobOf(save, p) || save.gear.includes(g.id)) return;
+    if (!p || !g || jobOf(save, p) || (save.gear.includes(g.id) && !KIT_GEAR.includes(g.id))) return;
     if (!layout.powered.has(p.id)) return this.deps.toast('The Workshop needs power: join it to a current turbine', 'warn');
     if (!save.blueprints.includes(g.blueprint)) return this.deps.toast('Decode its blueprint in a Lab first', 'warn');
     if (jobRunning(save, `build:${g.id}`)) return this.deps.toast('Another Workshop is already building that', 'warn');
@@ -196,7 +196,10 @@ export class StationMode {
         body += `<h3>Data finds carried</h3>${finds || '<p>None. Look for recorders, logs and samples out on the reef: the scanner log hints where.</p>'}`;
         const rows = RESEARCH_ORDER.map((id) => {
           const r = RESEARCH[id];
-          if (save.blueprints.includes(id)) return `<div class="mod"><div><b>${r.name}</b><small>Decoded. Build it in a Workshop.</small></div></div>`;
+          if (save.blueprints.includes(id))
+            return `<div class="mod"><div><b>${r.name}</b><small>${PIECE_BLUEPRINTS[id] ? 'Decoded: its build card is in build mode now.' : 'Decoded. Build it in a Workshop.'}</small></div></div>`;
+          // Blueprints whose finds are still out in the world stay hidden until you have seen what they come from.
+          if (r.finds.length && !r.finds.some((f) => save.finds.includes(f)) && id !== 'light') return '';
           if (jobRunning(save, `research:${id}`)) return `<div class="mod"><div><b>${r.name}</b><small>Decoding now.</small></div></div>`;
           const why = researchBlocker(save, r);
           const busy = !!j;
@@ -208,10 +211,12 @@ export class StationMode {
         const rows = GEAR_ORDER.map((id) => {
           const g = GEAR[id];
           if (save.gear.includes(id)) return `<div class="mod"><div><b>${g.name} ${g.code}</b><small>Built and in use. ${g.job}</small></div></div>`;
+          if (!save.blueprints.includes(g.blueprint) && id !== 'light') return '';
           const known = save.blueprints.includes(g.blueprint);
           const busy = !!j || jobRunning(save, `build:${id}`);
           const ok = known && haveFor(save, g.cost) && powered && !busy;
-          return `<div class="mod"><div><b>${known ? `${g.name} ${g.code}` : 'Unknown gear'}</b><small>${known ? g.job : 'Decode a blueprint in a Lab to build this.'}</small>${
+          const kits = KIT_GEAR.includes(id) && save.relayKits ? ` <b>${save.relayKits} carried, ready to plant.</b>` : '';
+          return `<div class="mod"><div><b>${known ? `${g.name} ${g.code}` : 'Unknown gear'}</b><small>${known ? g.job + kits : 'Decode a blueprint in a Lab to build this.'}</small>${
             known ? `<div class="costs">${costChips(save, g.cost)}<span class="cost">${g.seconds} s</span></div>` : ''
           }</div><button type="button" class="act" data-act="make" data-id="${id}" ${ok ? '' : 'disabled'}>Build</button></div>`;
         }).join('');
