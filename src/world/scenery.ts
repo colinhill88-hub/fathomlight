@@ -41,15 +41,7 @@ import {
   WRECKS,
   corvinaHull,
   corvinaHouse,
-  cvDeckY,
-  cvRoomField,
-  CV_BOLLARD,
-  CV_DOOR,
   CV_HATCH,
-  CV_HOOKS,
-  CV_LABDOOR,
-  CV_ROOMS,
-  CV_SPOTS,
   HIDDEN,
   shapesField,
   SALVAGE,
@@ -1683,17 +1675,7 @@ export class Scenery {
     rustStreaks(g, x0 + 20, x1 - 20, f(x0) - 120, 20, 50);
   }
 
-  private cvParts: {
-    hatchClosed: Graphics;
-    hatchOpen: Graphics;
-    doorClosed: Graphics;
-    doorOpen: Graphics;
-    labClosed: Graphics;
-    breakers: { up: Graphics; down: Graphics; lamp: Graphics }[];
-    lamps: { core: Graphics; halo: Graphics; light: PointLight }[];
-    screens: Graphics;
-    shown: string;
-  } | null = null;
+  private cvParts: { hatchClosed: Graphics; hatchOpen: Graphics; shown: string } | null = null;
 
   private drawCorvina(g: Graphics): void {
     const { x0, x1 } = CORVINA;
@@ -1717,147 +1699,30 @@ export class Scenery {
     this.view.addChild(t);
     this.slices.push({ obj: t, x0: x0 - 300, x1: x1 + 300 });
 
-    // Milestone 8 part 2: her insides, shown cut away.
-    const room = (x: number, y: number) => Math.max(cvRoomField(x, y), cvDeckY(x) + 2 - y);
-    traceField(g, (x, y) => room(x, y) - 10, x0 - 10, x1 + 10, 1160, 1660, 6, 0x2c2a28, 0.9);
-    traceField(g, room, x0 - 10, x1 + 10, 1160, 1660, 6, 0x171c1e, 1);
-    // Ribs, deck grating and ceiling rivets.
-    for (let x = x0; x < x1; x += 34) {
-      for (let y = 1170; y < 1650; y += 6) if (room(x, y) < -6 && room(x, y + 6) < -6) g.moveTo(x, y).lineTo(x, y + 6);
-    }
-    g.stroke({ color: 0x2a3033, width: 3, alpha: 0.8 });
-    for (let x = x0; x < x1; x += 6) {
-      let was = false;
-      for (let y = 1170; y < 1650; y += 3) {
-        const open = room(x, y) < 0;
-        if (!open && was) g.rect(x, y - 3, 6.5, 3).fill({ color: 0x3e4648 });
-        if (open && !was && (x / 6) % 4 === 0) g.circle(x, y + 3, 1.3).fill({ color: 0x4e5658 });
-        was = open;
-      }
-    }
-    // The engine: a big block in the engine room.
-    const E = CV_ROOMS.engine;
-    g.roundRect(E.x - 40, E.y + 10, 90, 54, 6).fill({ color: 0x3a3e40 });
-    for (let k = 0; k < 4; k++) g.circle(E.x - 26 + k * 22, E.y + 26, 7).fill({ color: 0x2a2e30 });
-    g.rect(E.x - 46, E.y + 4, 102, 6).fill({ color: 0x6a4a2e });
-    // Beam hooks across the hold ceiling.
-    const hk = CV_HOOKS;
-    g.moveTo(hk[0].x - 80, hk[0].y - 16).lineTo(hk[2].x + 80, hk[2].y - 16).stroke({ color: 0x4a4440, width: 8 });
-    for (const h of hk) {
-      g.moveTo(h.x, h.y - 16).lineTo(h.x, h.y).stroke({ color: 0x6a625c, width: 3 });
-      g.moveTo(h.x, h.y).arc(h.x - 6, h.y, 6, 0, Math.PI).stroke({ color: 0xa8822e, width: 3 });
-      this.scanPoints.cvhook.push({ x: h.x, y: h.y });
-    }
-    // The bollard on her stern deck.
-    const B = CV_BOLLARD;
-    g.roundRect(B.x - 10, B.y + 2, 20, 22, 4).fill({ color: 0x4a4440 });
-    g.circle(B.x, B.y, 13).stroke({ color: 0xa8822e, width: 4 });
-    g.ellipse(B.x, B.y + 24, 18, 4).fill({ color: 0x3a3430 });
-    // The lab: consoles, a chart table and a locker.
-    const L = CV_ROOMS.lab;
-    g.roundRect(L.x - 110, L.y + 16, 70, 34, 4).fill({ color: 0x3a3e40 });
-    g.roundRect(L.x + 30, L.y + 20, 90, 30, 4).fill({ color: 0x4a3e34 });
-    g.roundRect(L.x - 20, L.y + 4, 36, 46, 4).fill({ color: 0x3a3e40 });
-    const screens = new Graphics();
-    screens.roundRect(L.x - 104, L.y + 20, 24, 14, 2).fill({ color: 0xffd98a });
-    screens.roundRect(L.x - 74, L.y + 20, 24, 14, 2).fill({ color: 0xb8e07a });
-    screens.roundRect(L.x - 14, L.y + 10, 24, 16, 2).fill({ color: 0xffd98a });
-    screens.visible = false;
-    this.emissive.addChild(screens);
-
+    // Her deck hatch (her insides are a separate dry interior, entered here).
     const add = (gr: Graphics) => {
       this.view.addChild(gr);
       return gr;
     };
-    // Deck hatch.
     const hx = CV_HATCH.x;
     const hy = CV_HATCH.y;
     const hatchClosed = add(new Graphics().roundRect(hx - 36, hy - 6, 72, 12, 3).fill({ color: 0x5a5450 }));
     hatchClosed.circle(hx, hy, 7).stroke({ color: 0xa8402e, width: 2.4 });
     const hatchOpen = add(new Graphics().roundRect(hx - 36, hy - 4, 72, 8, 3).fill({ color: 0x0a0d0e }));
     hatchOpen.poly([hx + 36, hy - 4, hx + 44, hy - 40, hx + 52, hy - 38, hx + 44, hy]).fill({ color: 0x5a5450 });
-    // Stern door.
-    const D = CV_DOOR;
-    const doorClosed = add(new Graphics().roundRect(D.x0 + 4, D.y0, D.x1 - D.x0 - 8, D.y1 - D.y0, 8).fill({ color: 0x6a625c }));
-    doorClosed.roundRect(D.x0 + 4, D.y0, D.x1 - D.x0 - 8, D.y1 - D.y0, 8).stroke({ color: 0x2e2826, width: 3 });
-    doorClosed.circle((D.x0 + D.x1) / 2, (D.y0 + D.y1) / 2, 12).stroke({ color: 0xa8402e, width: 3 });
-    const doorOpen = add(new Graphics().poly([D.x0, D.y0, D.x0 - 30, D.y0 + 14, D.x0 - 30, D.y1 - 14, D.x0, D.y1]).fill({ color: 0x5a524c }));
-    // The lab's powered door.
-    const LD = CV_LABDOOR;
-    const labClosed = add(new Graphics().rect(LD.x0, LD.y0, LD.x1 - LD.x0, LD.y1 - LD.y0).fill({ color: 0x7a7068 }));
-    labClosed.rect(LD.x0, LD.y0 + (LD.y1 - LD.y0) / 2 - 2, LD.x1 - LD.x0, 4).fill({ color: 0xc9a24a });
-    // Breakers and the stern door's release lever.
-    const breakers = [CV_SPOTS.breakerEngine, CV_SPOTS.breakerHold].map((b) => {
-      g.roundRect(b.x - 16, b.y - 40, 32, 38, 3).fill({ color: 0x4a4e50 });
-      g.rect(b.x - 16, b.y - 40, 32, 5).fill({ color: 0xc9a24a });
-      const up = add(new Graphics().rect(b.x - 2, b.y - 34, 4, 14).fill({ color: 0xc8c0b0 }));
-      const down = add(new Graphics().rect(b.x - 2, b.y - 22, 4, 14).fill({ color: 0xc8c0b0 }));
-      const lamp = new Graphics().circle(b.x + 9, b.y - 30, 2.6).fill({ color: 0xffffff });
-      this.emissive.addChild(lamp);
-      return { up, down, lamp };
-    });
-    const lv = CV_SPOTS.lever;
-    g.rect(lv.x - 3, lv.y - 40, 6, 40).fill({ color: 0x4a4440 });
-    g.circle(lv.x, lv.y - 40, 9).stroke({ color: 0xa8402e, width: 3 });
-    // Ceiling lamps: dark until her power is back.
-    const lamps = [
-      [25700, 1474],
-      [25810, 1470],
-      [26010, 1382],
-      [26190, 1382],
-      [26515, 1384],
-      [25820, 1206],
-      [25990, 1206],
-    ].map(([x, y]) => {
-      g.roundRect(x - 8, y - 3, 16, 6, 2).fill({ color: 0x3a3e40 });
-      const core = new Graphics().roundRect(x - 6, y, 12, 3, 1).fill({ color: 0xfff0c8 });
-      const halo = new Graphics().ellipse(x, y + 8, 30, 14).fill({ color: 0xffd890 });
-      core.visible = halo.visible = false;
-      this.emissive.addChild(core);
-      this.glow.addChild(halo);
-      const light: PointLight = { x, y: y + 20, radius: 220, intensity: 0, color: [1, 0.9, 0.7] };
-      this.lights.push(light);
-      return { core, halo, light };
-    });
-    // Her finds glint so they can be found.
-    for (const k of ['sonardata', 'suitplans', 'corvinalog'] as const) {
-      const p = CV_SPOTS[k];
-      const core = new Graphics().circle(0, 0, 2.4).fill({ color: 0xffc860 });
-      core.position.set(p.x, p.y - 14);
-      const halo = new Graphics().circle(0, 0, 10).fill({ color: 0xffa040 });
-      halo.position.copyFrom(core.position);
-      this.emissive.addChild(core);
-      this.glow.addChild(halo);
-    }
-    this.cvParts = { hatchClosed, hatchOpen, doorClosed, doorOpen, labClosed, breakers, lamps, screens, shown: '' };
+    this.cvParts = { hatchClosed, hatchOpen, shown: '' };
     this.scanPoints.corvina.push({ x: x0 + 400, y: f(x0) - 200 });
   }
 
-  /** The Corvina's state: hatch cut, stern door released, breakers thrown (power when both). */
-  setCorvina(o: { hatch: boolean; door: boolean; breakers: boolean[] }): void {
+  /** The Corvina's deck hatch: cut open or not. */
+  setCorvina(o: { hatch: boolean }): void {
     const c = this.cvParts;
     if (!c) return;
-    const power = o.breakers.every(Boolean);
-    const key = `${o.hatch}${o.door}${o.breakers.join()}`;
+    const key = String(o.hatch);
     if (key === c.shown) return;
     c.shown = key;
     c.hatchClosed.visible = !o.hatch;
     c.hatchOpen.visible = o.hatch;
-    c.doorClosed.visible = !o.door;
-    c.doorOpen.visible = o.door;
-    c.labClosed.visible = !power;
-    c.screens.visible = power;
-    c.breakers.forEach((b, i) => {
-      b.up.visible = !!o.breakers[i];
-      b.down.visible = !o.breakers[i];
-      b.lamp.clear().circle(0, 0, 0);
-      const p = i === 0 ? CV_SPOTS.breakerEngine : CV_SPOTS.breakerHold;
-      b.lamp.circle(p.x + 9, p.y - 30, 2.6).fill({ color: o.breakers[i] ? 0x9ae070 : 0xd8492e });
-    });
-    for (const l of c.lamps) {
-      l.core.visible = l.halo.visible = power;
-      l.light.intensity = power ? 0.9 : 0;
-    }
   }
 
   /** Which sealed hatches are cut open. */

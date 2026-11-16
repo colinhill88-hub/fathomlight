@@ -67,6 +67,13 @@ The game is a 2D side-view web app, so one build runs on Colin's iPhone 16 Pro, 
 
 There is no need to support older or low-end devices. If an effect has to be cut, cut it from the phone preset before the PC one, and say so in `PROGRESS.md`.
 
+## On foot: dry interiors (Colin, after milestone 8 part 2)
+
+- **Interiors are separate dry spaces.** You enter through a hatch or airlock and the game switches to the interior (like stepping into a Zelda dungeon), so an interior can be far bigger than the hull looks from outside. Built from tile maps (`src/interior/`), so new interiors are quick to author.
+- **The explorer walks and jumps** indoors: gravity, platforms, one-way gratings, hazards. **The grapple is a hookshot** to anchor rings on higher ledges. The helmet's face plate lifts with a short animation in dry air.
+- **The Corvina** was the first (her insides as a multi-deck dungeon). Next: **the base becomes walkable** (Colin's choice: everything indoors, machines included), with larger, more detailed pieces whose layout must make sense to walk through. Save compatibility does not matter for that rework: Colin will playtest from scratch.
+- **Logs and documents** open in a reading panel that stays until closed, and stay in the scanner log.
+
 ## Game systems
 
 Five systems make up the game: diving, submersibles, the base, creature care and gear progression.

@@ -114,9 +114,53 @@ export class Hud {
     el.textContent = text;
     this.toasts.appendChild(el);
     while (this.toasts.children.length > 4) this.toasts.firstElementChild!.remove();
-    const life = kind === 'big' ? 4200 : kind === 'scan' ? 3200 : 2200;
+    // After milestone 8 part 2 (Colin: messages vanished too fast): longer messages
+    // stay longer, about a quarter of a second a word, and a tap dismisses one.
+    const words = text.split(/\s+/).length;
+    const base = kind === 'big' ? 4200 : kind === 'scan' ? 3200 : 2200;
+    const life = Math.min(14000, Math.max(base, words * (kind === 'big' || kind === 'warn' ? 280 : 200)));
     setTimeout(() => el.classList.add('fade'), life);
     setTimeout(() => el.remove(), life + 700);
+    el.addEventListener('click', () => el.remove());
+  }
+
+  private readEl: HTMLDivElement | null = null;
+  /** True while a log or document is open for reading (the game pauses the air clock). */
+  get reading(): boolean {
+    return !!this.readEl;
+  }
+  /** After milestone 8 part 2: logs and documents open in a panel that stays until closed. */
+  showReading(title: string, body: string, note = ''): void {
+    this.readEl?.remove();
+    const el = document.createElement('div');
+    el.id = 'read-panel';
+    el.setAttribute('role', 'dialog');
+    el.innerHTML = `<div class="read-card"><h2></h2><div class="read-body"></div><p class="read-note"></p><button type="button">Close</button></div>`;
+    el.querySelector('h2')!.textContent = title;
+    const bodyEl = el.querySelector('.read-body')!;
+    for (const para of body.split('\n\n')) {
+      const p = document.createElement('p');
+      p.textContent = para;
+      bodyEl.appendChild(p);
+    }
+    el.querySelector('.read-note')!.textContent = note;
+    const close = () => {
+      el.remove();
+      if (this.readEl === el) this.readEl = null;
+    };
+    el.querySelector('button')!.addEventListener('click', close);
+    el.addEventListener('pointerdown', (e) => e.stopPropagation());
+    window.addEventListener(
+      'keydown',
+      function onKey(e: KeyboardEvent) {
+        if (e.key === 'Escape' || e.key === 'Enter') {
+          close();
+          window.removeEventListener('keydown', onKey);
+        }
+      },
+    );
+    document.body.appendChild(el);
+    this.readEl = el;
   }
 
   /** A message that stays on screen while a condition holds (empty string hides it). */

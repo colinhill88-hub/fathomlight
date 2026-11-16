@@ -330,7 +330,7 @@ export interface SaveData {
   /** Milestone 8: the flow vane past the race is raised (the sub can cross over the top). */
   vane: boolean;
   /** Milestone 8 part 2: the Corvina (deck hatch cut, stern door released, breakers thrown). */
-  corvina: { hatch: boolean; door: boolean; breakers: boolean[] };
+  corvina: { hatch: boolean; door: boolean; breakers: boolean[]; taken?: string[] };
   /** The hidden passage in the shelf edge (a sonar pulse reveals it) and its locker. */
   hiddenOpen: boolean;
   hiddenLooted: boolean;
@@ -448,6 +448,7 @@ export function loadSave(spawnX: number, spawnY: number): { data: SaveData; load
         hatch: d.corvina?.hatch === true,
         door: d.corvina?.door === true,
         breakers: [0, 1].map((i) => Array.isArray(d.corvina?.breakers) && d.corvina.breakers[i] === true),
+        taken: Array.isArray(d.corvina?.taken) ? d.corvina.taken : [],
       },
       hiddenOpen: d.hiddenOpen === true,
       hiddenLooted: d.hiddenLooted === true,

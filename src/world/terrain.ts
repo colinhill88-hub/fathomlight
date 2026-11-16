@@ -352,14 +352,11 @@ export function cvRoomField(x: number, y: number): number {
 /** Is (x, y) inside the Corvina's steel (hull or superstructure), not one of her rooms? */
 export function corvinaSolid(x: number, y: number): boolean | null {
   if (x < CORVINA.x0 - 50 || x > CORVINA.x1 + 5 || y < 1150) return null;
-  if (!cv.door && x > CV_DOOR.x0 && x < CV_DOOR.x1 && y > CV_DOOR.y0 && y < CV_DOOR.y1) return true;
-  if (!cv.power && x > CV_LABDOOR.x0 && x < CV_LABDOOR.x1 && y > CV_LABDOOR.y0 && y < CV_LABDOOR.y1) return true;
-  if (!cv.hatch && y > CV_HATCH.y - 6 && y < CV_HATCH.y + 28 && Math.abs(x - CV_HATCH.x) < 42) return true;
+  // After milestone 8 part 2 (Colin): her insides are a separate dry interior
+  // (src/interior/), entered by the deck hatch. Outside she is solid steel.
   const H = corvinaHouse();
   const inHull = inPolygon(x, y, corvinaHull()) || (x > H.x && x < H.x + H.w && y > H.y && y < H.y + H.h + 4);
-  if (!inHull) return null;
-  for (const s of CV_SHAPES) if (inShape(s, x, y)) return false;
-  return true;
+  return inHull ? true : null;
 }
 /** The hidden passage in the shelf edge that a sonar pulse reveals (milestone 8 part 2). */
 export const HIDDEN = { tunnel: cap(19790, 1560, 44, 19560, 1548, 42), room: ell(19470, 1528, 92, 58), x: 19760, y: 1560 };
@@ -640,4 +637,4 @@ for (const r of RINGS) r.y = groundY(r.x) - 120;
 CV_BOLLARD.y = cvDeckY(CV_BOLLARD.x) - 22;
 CV_HATCH.y = cvDeckY(CV_HATCH.x);
 /** Every point the grapple can hook: the race's rings, the Corvina's bollard and her hold's beam hooks. */
-export const ANCHORS: { x: number; y: number }[] = [...RINGS, CV_BOLLARD, ...CV_HOOKS];
+export const ANCHORS: { x: number; y: number }[] = [...RINGS];

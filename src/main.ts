@@ -43,10 +43,7 @@ import {
   RINGS,
   ANCHORS,
   cv,
-  cvDowndraft,
-  cvUpwell,
   CV_HATCH,
-  CV_SPOTS,
   hidden,
   HIDDEN,
   SALVAGE,
@@ -101,6 +98,9 @@ import type { BlueprintId } from './game/state';
 import { audio } from './audio/engine';
 import { SoundDirector, WorkKind } from './audio/director';
 import { Lurkers } from './actors/lurker';
+import { Interior, InteriorEvent } from './interior/interior';
+import { CORVINA_MAP } from './interior/corvina';
+import { SCAN_ENTRIES } from './game/scanner';
 import { initSoundUI } from './ui/sound';
 
 declare const __BUILD_ID__: string;
@@ -363,6 +363,10 @@ async function boot(): Promise<void> {
   populate();
 
   app.stage.addChild(water.view, backdrop.view, lighting.view, emissiveCam, glowSprite, snow.view, overlayCam);
+  // After milestone 8 part 2: dry interiors on foot, drawn over the (hidden) world.
+  const interior = new Interior(renderer);
+  app.stage.addChild(interior.view);
+  const worldLayers = [water.view, backdrop.view, lighting.view, emissiveCam, glowSprite, snow.view, overlayCam];
 
   const input = new Input(host);
   const hud = new Hud(() => save);
@@ -930,8 +934,8 @@ async function boot(): Promise<void> {
   let saveTimer = 0;
   function persist(): void {
     if (blackout > 0) return; // save once the diver is back at the buoy
-    save.x = diver.x;
-    save.y = diver.y;
+    save.x = interior.active ? CV_HATCH.x : diver.x;
+    save.y = interior.active ? CV_HATCH.y - 70 : diver.y;
     save.lampOn = diver.lampOn;
     if (save.sub) {
       save.sub.x = sub.x;
@@ -972,6 +976,7 @@ async function boot(): Promise<void> {
     app.ticker.maxFPS = preset.maxFps;
     zoom = cssH / VIEW_H;
     litRT.resize(cssW, cssH, res);
+    interior.resize(cssW, cssH, res);
     glowRT.resize(cssW, cssH, res * preset.glowResolution);
     blur.quality = preset.glowQuality;
     blur.resolution = res * preset.glowResolution;
@@ -1025,6 +1030,10 @@ async function boot(): Promise<void> {
   app.ticker.add((ticker) => {
     const dt = Math.min(ticker.deltaMS / 1000, 0.05);
     time += dt;
+    if (interior.active) {
+      interiorFrame(dt, ticker.deltaMS);
+      return;
+    }
 
     // Build mode: only at the Kestrel site, and not while blacking out.
     const atSite = diver.x > GRID_X0 - 260 && diver.x < GRID_X1 + 260 && diver.y < GRID_BASE + 120;
@@ -1252,9 +1261,7 @@ async function boot(): Promise<void> {
     diver.current.x += -RACE.speed * raceHere * (atRing >= 0 ? 0.1 : 1) * (0.85 + 0.15 * Math.sin(time * 0.7));
     scenery.updateRace(time, camX, camX + lastViewW);
     diver.current.y = 0;
-    // Milestone 8 part 2: the Corvina. Water boils up over her deck, and a downdraft
-    // through her holed keel pins everything to the hold floor. Holding a grapple
-    // anchor (the bollard, the beam hooks) keeps you out of both.
+    // Milestone 8 part 2: the Corvina's state, and the hidden passage and salvage.
     cv.hatch = save.corvina.hatch;
     cv.door = save.corvina.door;
     cv.power = save.corvina.breakers.every(Boolean);
@@ -1263,9 +1270,6 @@ async function boot(): Promise<void> {
     scenery.setHidden(save.hiddenOpen);
     for (const sv of SALVAGE) if (sv.id in save.salvageTaken && save.playSeconds - save.salvageTaken[sv.id] > SALVAGE_REGROW && save.sub?.salvage !== sv.id) delete save.salvageTaken[sv.id];
     scenery.setSalvage(save.salvageTaken);
-    const upwell = aboard ? 0 : cvUpwell(diver.x, diver.y);
-    const downdraft = aboard ? 0 : cvDowndraft(diver.x, diver.y);
-    if (upwell > 0 || downdraft > 0) diver.current.y = (-520 * upwell + 460 * downdraft) * (atRing >= 0 ? 0.08 : 1);
     if (diver.x > 15800 && diver.x < 17200) scenery.updateKelpCaves(time, surge);
     scenery.setKelpCaves(save.brackets, save.kelpCut);
     kelpWall.cut = save.kelpCut;
@@ -1409,10 +1413,6 @@ async function boot(): Promise<void> {
             ? 'The race is too strong for KS-1, even on full thrusters. The old salvage crew must have had a way to calm it: look on the far side, on foot.'
           : raceHere > 0.3 && !grapple && !hasGear(save, 'tow')
             ? 'The race: a current too strong to swim against sweeps across the shelf edge, right up to the surface. Old anchor rings cross it: a grapple line could pull you from ring to ring.'
-          : upwell > 0.5 && atRing < 0 && !grapple
-            ? "Water boils up over the Corvina's deck: nothing can sink onto it. Her stern bollard would hold a grapple line."
-          : downdraft > 0.5 && atRing < 0 && !grapple
-            ? 'A downdraft through her holed keel pins you to the hold floor. Grapple the beam hooks overhead to cross.'
           : inSqueeze
             ? surge > 0.4
               ? 'Cold surge! Too strong to swim against: wait it out in a pocket in the roof.'
@@ -1745,69 +1745,16 @@ async function boot(): Promise<void> {
             done: () => {
               save.corvina.hatch = true;
               drone.cheer();
-              hud.toast("The hatch drops into the dark. A shaft leads down into the Corvina's lower deck.", 'big');
+              hud.toast("The hatch drops into the dark. A ladder leads down into the Corvina: hold Collect to climb in.", 'big');
             },
           };
         else infoAct = 'Deck hatch, welded shut: a cutter torch would open it';
-      }
-      ([CV_SPOTS.breakerEngine, CV_SPOTS.breakerHold] as const).forEach((b, i) => {
-        if (save.corvina.breakers[i] || !near({ x: b.x, y: b.y - 20 }, 90)) return;
+      } else if (save.corvina.hatch && near({ x: CV_HATCH.x, y: CV_HATCH.y - 30 }, 90))
         holdAct = {
-          key: 'breaker' + i,
-          label: 'Throw the breaker',
-          seconds: 1.5,
-          done: () => {
-            save.corvina.breakers[i] = true;
-            const on = save.corvina.breakers.every(Boolean);
-            sound.clip();
-            hud.toast(
-              on
-                ? "With a clunk and a hum the Corvina's emergency power comes back: lights along her decks, and the lab door in her superstructure slides open."
-                : 'The breaker clunks over. One more breaker to bring her emergency power back.',
-              'big',
-            );
-          },
-        };
-      });
-      if (!save.corvina.door && near(CV_SPOTS.lever, 90))
-        holdAct = {
-          key: 'cvlever',
-          label: 'Release the stern door',
-          seconds: 1.5,
-          done: () => {
-            save.corvina.door = true;
-            hud.toast("The stern door swings out onto the shelf: a quick way in and out of the Corvina's lower deck.", 'big');
-          },
-        };
-      for (const k of ['sonardata', 'suitplans'] as const) {
-        const rid = k === 'sonardata' ? 'sonar' : 'psuit';
-        if (save.finds.includes(k) || save.blueprints.includes(rid) || jobRunning(save, `research:${rid}`) || !near(CV_SPOTS[k], 90)) continue;
-        holdAct = {
-          key: 'cv-' + k,
-          label: k === 'sonardata' ? 'Take the sonar test logs' : 'Take the pressure suit drawings',
-          seconds: 1.5,
-          done: () => {
-            save.finds.push(k);
-            sound.find('bag');
-            hud.toast(
-              k === 'sonardata'
-                ? 'Sonar test logs taken! A Lab can decode them into the sonar pulse.'
-                : 'Pressure suit drawings taken! A Lab can decode them: a deep suit, for the trench.',
-              'big',
-            );
-          },
-        };
-      }
-      if (!save.scans.includes('cvlog') && near(CV_SPOTS.corvinalog, 90))
-        holdAct = {
-          key: 'cvlog',
-          label: "Read the Corvina's log",
-          seconds: 2,
-          done: () => {
-            save.scans.push('cvlog');
-            hud.scanAnnounce('cvlog');
-            hud.toast("The Corvina's log: her crew came here to follow lights rising from the deep. Cyan and violet, patterned, alive. The entries end mid-sentence.", 'big');
-          },
+          key: 'cventer',
+          label: 'Climb down into the Corvina',
+          seconds: 0.8,
+          done: () => enterCorvina(),
         };
       if (save.hiddenOpen && !save.hiddenLooted && near({ x: HIDDEN.room.x, y: HIDDEN.room.y + 20 }, 110))
         holdAct = {
@@ -2539,6 +2486,156 @@ async function boot(): Promise<void> {
     ui.tick(ticker.deltaMS);
   });
 
+  // ---- Dry interiors on foot (after milestone 8 part 2) ----
+  function enterCorvina(): void {
+    save.corvina.taken ??= [];
+    interior.enter(CORVINA_MAP, { breakers: save.corvina.breakers, taken: save.corvina.taken });
+    for (const l of worldLayers) l.visible = false;
+    build.setAvailable(false);
+    care.setAvailable(null);
+    dockUI.setAvailable(null);
+    station.setAvailable(null);
+    hud.setCollect(null, 0);
+    hud.setBanner('');
+    hud.setTags([], 0);
+    hud.setBagMarker(null, 0, 0);
+    hud.setSubMarker(null, 0, 0);
+    hud.setLowOxygen(0);
+    document.body.classList.add('on-foot');
+    sound.hatchCue(true);
+    if (!save.tips.includes('onfoot'))
+      setTimeout(() => {
+        save.tips.push('onfoot');
+        hud.toast(
+          input.state.lastDevice === 'touch'
+            ? 'Inside the Corvina: dry, and dark. The stick walks, Boost jumps (hold for higher; down + Boost drops through a grating). When a ring is marked, tap Collect to fire the grapple; jump to swing off it.'
+            : 'Inside the Corvina: dry, and dark. A/D walk, Space or Shift jumps (hold for higher; S + jump drops through a grating). When a ring is marked, tap C to fire the grapple; jump to swing off it.',
+          'big',
+        );
+      }, 900);
+    persist();
+  }
+  function exitCorvina(): void {
+    interior.leave();
+    for (const l of worldLayers) l.visible = true;
+    document.body.classList.remove('on-foot');
+    diver.x = CV_HATCH.x;
+    diver.y = CV_HATCH.y - 70;
+    diver.vx = 0;
+    diver.vy = -60;
+    diver.surfaced = false;
+    camCX = diver.x;
+    camCY = diver.y;
+    sound.hatchCue(false);
+    persist();
+  }
+  const FIND_NOTE = 'Kept in your scanner log.';
+  function interiorFrame(dt: number, deltaMS: number): void {
+    input.suspended = false;
+    input.update();
+    const s = input.state;
+    const paused = hud.reading;
+    const evs: InteriorEvent[] = interior.update(dt, { moveX: s.moveX, moveY: s.moveY, jump: s.jumpHeld, collect: s.collect, lamp: s.lamp }, paused);
+    const maxO2 = maxOxygen(save);
+    if (!paused) {
+      save.playSeconds += dt;
+      // Old, dry air in a sealed ship: breathable. The suit slowly mends between knocks.
+      save.oxygen = Math.min(maxO2, save.oxygen + (maxO2 / 3) * dt);
+      suitCalm += dt;
+      if (suitCalm > 8) save.suit = Math.min(1, save.suit + dt * 0.012);
+    }
+    for (const e of evs) {
+      if (e.type === 'exit') {
+        exitCorvina();
+        return;
+      } else if (e.type === 'breaker') {
+        sound.clip();
+        hud.toast(
+          e.power
+            ? "With a clunk and a hum the Corvina's emergency power comes back: lights along her decks, the lift, and the door to her survey lab."
+            : 'The breaker clunks over. One more somewhere aboard brings her emergency power back.',
+          'big',
+        );
+        persist();
+      } else if (e.type === 'find') {
+        sound.find('bag');
+        if (e.id === '1') {
+          if (!save.finds.includes('sonardata') && !save.blueprints.includes('sonar')) save.finds.push('sonardata');
+          hud.showReading('Sonar test logs', "Pages of pulse tests from the Corvina's lab: echoes off rock, off silt, off something large that moved between pings.\n\nA Lab can decode these into the sonar pulse: it maps hollows hidden behind silt and rock, and sends hunters back into their dens.", 'Taken: decode it in a Lab.');
+        } else if (e.id === '2') {
+          if (!save.finds.includes('suitplans') && !save.blueprints.includes('psuit')) save.finds.push('suitplans');
+          hud.showReading('Pressure suit drawings', 'A waterproof roll of drawings: a deep-water suit, brass-ringed and pressure-sealed, safe far below the Kestrel suit.\n\nA Lab can decode them. You will need it for the trench.', 'Taken: decode it in a Lab.');
+        } else if (e.id === '3') {
+          if (!save.scans.includes('cvlog')) save.scans.push('cvlog');
+          const entry = SCAN_ENTRIES.find((x) => x.id === 'cvlog')!;
+          hud.showReading("The Corvina's log", entry.text, FIND_NOTE);
+        } else {
+          save.bag.brass += 3;
+          save.bag.plate += 2;
+          hud.refreshInventory();
+          hud.toast('A salvage crate: 3 brass fittings and 2 hull plating, still dry.', 'big');
+        }
+        persist();
+      } else if (e.type === 'hurt') {
+        save.suit = Math.max(0, save.suit - e.amount);
+        suitCalm = 0;
+        hud.suitHit();
+        sound.hurt(e.why);
+        if (e.why === 'bilge' && !save.tips.includes('bilge')) {
+          save.tips.push('bilge');
+          hud.toast('The bilge is deep, cold and full of wreckage: you haul yourself back out where you last stood. Your suit takes a knock.', 'warn');
+        }
+        if (save.suit <= 0) {
+          // The suit gives way: back outside, and the usual blackout takes over.
+          exitCorvina();
+          return;
+        }
+      } else if (e.type === 'lift') sound.clamps(true);
+      else if (e.type === 'grapple') sound.clip();
+      else if (e.type === 'jump') sound.step(true);
+      else if (e.type === 'land') sound.step(false, e.hard);
+    }
+    hud.setCollect(interior.label, interior.progress);
+    hud.setBanner(interior.banner);
+    watch.draw(performance.now(), save.oxygen, maxO2, 0, 0, true, { kg: bagWeight(save.bag), ...bagLimits(save) }, save.suit);
+    hud.setSuit(save.suit, true);
+    hud.setSubChip(null);
+    hud.setBoard(null);
+    hud.setJar(jarText());
+    sound.update({
+      dt,
+      x: CV_HATCH.x,
+      y: CV_HATCH.y + 120,
+      depthM: 20,
+      surfaced: false,
+      aboard: false,
+      inDome: true,
+      blackout: 0,
+      panel: paused ? 'read' : '',
+      speed: Math.abs(interior.walker.vx),
+      boosting: false,
+      lampOn: interior.lampOn,
+      lowAir: 0,
+      freeAir: true,
+      work: interior.progress > 0 ? 'winch' : null,
+      workX: CV_HATCH.x,
+      scanning: null,
+      drone: { x: 0, y: 0, welding: false },
+      presses: [],
+      feeders: [],
+      sub: null,
+      splash: 0,
+      exhale: false,
+      surge: 0,
+      inAir: true,
+      race: 0,
+      suit: save.suit,
+    });
+    saveTimer += dt;
+    if (saveTimer > 5) persist();
+    ui.tick(deltaMS);
+  }
+
   /** Place the quick ID name tags over known things in view. */
   function updateTags(camX: number, camY: number, viewW: number): void {
     if (idTimer <= 0) {
@@ -2621,6 +2718,9 @@ async function boot(): Promise<void> {
       for (let t = 0; t < sec; t += 0.5) tickStations(save, layout, 0.5);
     },
     debug: () => ({ grapple, holdKey, holdProgress, label: document.getElementById('collect-label')?.textContent }),
+    interior,
+    enterCorvina: () => enterCorvina(),
+    hudReading: () => hud.reading,
     snap: () => {
       camCX = diver.x;
       camCY = diver.y;
