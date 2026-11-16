@@ -449,6 +449,42 @@ async function boot(): Promise<void> {
   /** 0..1: how far the boom gate has swung up. */
   let boomT = save.boomOpen ? 1 : 0;
   let prevDiverX = diver.x;
+  // After milestone 7 part 2 (Colin): the mouse wheel (or - and = keys) zooms the swimming view
+  // in and out, like build mode. 1 = the normal view; bigger shows more. Saved on the device.
+  const SWIM_ZOOM_MIN = 0.75;
+  const SWIM_ZOOM_MAX = 2.2;
+  let swimZoom = 1;
+  try {
+    const z = Number(localStorage.getItem('fathomlight.swimZoom'));
+    if (z >= SWIM_ZOOM_MIN && z <= SWIM_ZOOM_MAX) swimZoom = z;
+  } catch {
+    /* storage blocked */
+  }
+  const setSwimZoom = (z: number) => {
+    swimZoom = Math.max(SWIM_ZOOM_MIN, Math.min(SWIM_ZOOM_MAX, z));
+    try {
+      localStorage.setItem('fathomlight.swimZoom', swimZoom.toFixed(3));
+    } catch {
+      /* storage blocked */
+    }
+  };
+  const swimViewFree = () => !build.active && !care.active && !dockUI.active && !station.active;
+  host.addEventListener(
+    'wheel',
+    (e) => {
+      if (!swimViewFree()) return;
+      e.preventDefault();
+      const d = e.deltaMode === 1 ? e.deltaY * 30 : e.deltaY;
+      setSwimZoom(swimZoom * Math.exp(Math.max(-0.4, Math.min(0.4, d * 0.0012))));
+    },
+    { passive: false },
+  );
+  window.addEventListener('keydown', (e) => {
+    if (!swimViewFree() || (e.target as HTMLElement)?.tagName === 'INPUT') return;
+    if (e.key === '-' || e.key === '_') setSwimZoom(swimZoom * 1.15);
+    else if (e.key === '=' || e.key === '+') setSwimZoom(swimZoom / 1.15);
+    else if (e.key === '0' && e.ctrlKey) setSwimZoom(1);
+  });
   /** Climbing into the sub (after milestone 7b): seconds to swim to the hatch, then to sink through it. */
   let boarding: { t: number; x0: number; y0: number } | null = null;
   let boardFade = 1;
@@ -1827,8 +1863,8 @@ async function boot(): Promise<void> {
           : station.active
             ? VIEW_H_STATION
             : aboard
-              ? VIEW_H_SUB
-              : VIEW_H;
+              ? VIEW_H_SUB * swimZoom
+              : VIEW_H * swimZoom;
     viewH += (wantH - viewH) * (1 - Math.exp(-(build.active ? 10 : 4) * dt));
     zoom = cssH / viewH;
     const viewW = cssW / zoom;

@@ -807,6 +807,12 @@ Cut from High so far: the phone renders at 2× instead of its native 3×. Colin 
   - **Sub:** pressing V beside it ran the boarding animation and put the diver aboard. With the grabber, the sub started 118 units from a scrap spot; holding Collect hovered it into line, and the arm took the scrap.
   - No console errors.
 
+### After milestone 7 part 2: zoom while swimming
+- **Colin:** wanted a scroll-wheel zoom while diving, like build mode, to see more.
+- **The mouse wheel** zooms the swimming view out to 2.2× the normal view or in to 0.75×. The **- and = keys** do the same, and Ctrl+0 resets it. It works aboard the sub too (scaled from the sub's wider view). It is off while a panel is open, and it is saved on the device (`fathomlight.swimZoom`). Code: `swimZoom` in `src/main.ts`.
+- Not on touch yet: two-finger pinch would fight the swim stick and the buttons. If Colin wants it on the iPhone, a zoom button or pinch on the right half of the screen are options.
+- **Tested:** the wheel zoomed out to the limit, = zoomed in to the limit, and screenshots at both look right. No console errors.
+
 ## Next
 
 **Next session: milestone 8, danger** (DESIGN.md, Milestones): predators, currents, the wreck shelf zone, and real uses for the cutter torch (sealed wrecks) and tow line (strong currents). Health arrives with the first things that can hurt the diver. Its prompt is in `docs/prompts/milestone-8.md`. Ask Colin before building:
