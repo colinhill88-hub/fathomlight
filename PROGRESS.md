@@ -706,7 +706,14 @@ Cut from High so far: the phone renders at 2× instead of its native 3×. Colin 
 
 ## Next
 
-The prompt for the next session is in `docs/prompts/milestone-7-part-2.md`.
+**Next session: audio (milestone 7b), before part 2** (Colin, after testing part 1 on his PC). All sound made by code with the Web Audio API, no sound files. The prompt is in `docs/prompts/audio.md`. Plan:
+- One module (for example `src/audio/`) with a master, music and effects volume, saved settings, and unlocking on the first tap (iPhone needs a user gesture). It pauses when the app is hidden.
+- **Cues:** scan sweep and completion chime, the Collect work sounds per material (chip, pry, dig, cut, scrape, peel), pickups, the drone's weld crackle, the plate press stroke, feeder hum, bubbles and breathing, surface splash, sub thrusters, dents and the breach alarm, docking clamps, low-air warning, blackout, and soft UI clicks for panels and the build bar.
+- **Ambience per zone,** fading by depth and place: bright and airy in the shallows, deeper in the basin, muffled and creaking in the kelp forest, a hollow drip in the cave.
+- **A generative soundtrack:** slow, warm pads and a sparse melody per zone, which change as you move between zones and duck while panels are open. Keep it calm in the shallows and a little uneasy in the forest.
+- Ask Colin about the overall style before building (for example warm and synth-ambient versus more natural and organic).
+
+After that, **milestone 7 part 2**; its prompt is in `docs/prompts/milestone-7-part-2.md`.
 
 **Milestone 7, part 2: the kelp caves** (Colin's decisions above):
 - **The major site**, through the mouth in the forest's east wall (`SITE_MOUTH` in `src/world/terrain.ts`; the banner in `src/main.ts` says it opens next). It is diver-only and works like a Zelda dungeon: a few navigation puzzles (ideas: currents through narrow squeezes, a flooded chamber lit only by lumen moss you carry, an old Kestrel hatch to wind open, a grown lantern shrimp or glowfin lighting a passage), and the **cutter torch blueprint** at the end (DESIGN.md gives the kelp forest both the cutter torch and the tow line; check with Colin whether the tow line comes from here too).
@@ -724,6 +731,7 @@ Where things are (milestone 7 part 1): gear, research and Workshop rules in `src
 - **Milestone 7 part 1 numbers to tune after Colin plays:** Lab and Workshop costs and weld times (`PIECES`); research 75 s and build 45 s, dive light cost and its reach and brightness (`src/game/gear.ts`); the shrimp's +25% cleaning bonus and 35% slower fouling (`CLEAN_BONUS`, `SHRIMP_CLEAN_WATER`); resin and moss weights and spot counts; how dim the forest is (the canopy factor in `bakeSkyVisibility`).
 - **The east cliff changed shape.** Its top used to be right at the surface; it is now a 2.8 m deep shelf (so the sub has a way over). The cave mouth is where it was.
 - **Power as a mechanic later** (Colin): see DESIGN.md, The base. Not planned into a milestone yet.
+- **Audio moved forward** (Colin, after milestone 7 part 1): it is now milestone 7b, before part 2, and made entirely by code (DESIGN.md, Milestones).
 
 - **Milestone 6 numbers to tune after Colin plays** (`src/game/sub.ts`, `src/actors/sub.ts`):
   - sub cost (12 plating + 4 quartz, 3 copper, 2 fibre), weld 60 s, dock cost and weld time in `PIECES`;
