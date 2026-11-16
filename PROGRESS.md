@@ -741,6 +741,7 @@ Cut from High so far: the phone renders at 2× instead of its native 3×. Colin 
   - The music was playing in the forest key after the teleports.
   - Every voice type rendered offline with no NaN or silence, and every cue in `director.ts` ran without errors.
   - No console errors. The test browser can't play sound to a speaker, so the mix itself still needs Colin's ears.
+- Deployed: GitHub Actions run 43893723178 built and deployed to Pages successfully from `claude/youthful-darwin-r5kw5d` (built on the default branch `claude/underwater-game-m0-0qqajg`, which already had PR #7 merged). Merge it into the default branch before the next session.
 
 ## Next
 
