@@ -114,9 +114,53 @@ export class Hud {
     el.textContent = text;
     this.toasts.appendChild(el);
     while (this.toasts.children.length > 4) this.toasts.firstElementChild!.remove();
-    const life = kind === 'big' ? 4200 : kind === 'scan' ? 3200 : 2200;
+    // After milestone 8 part 2 (Colin: messages vanished too fast): longer messages
+    // stay longer, about a quarter of a second a word, and a tap dismisses one.
+    const words = text.split(/\s+/).length;
+    const base = kind === 'big' ? 4200 : kind === 'scan' ? 3200 : 2200;
+    const life = Math.min(14000, Math.max(base, words * (kind === 'big' || kind === 'warn' ? 280 : 200)));
     setTimeout(() => el.classList.add('fade'), life);
     setTimeout(() => el.remove(), life + 700);
+    el.addEventListener('click', () => el.remove());
+  }
+
+  private readEl: HTMLDivElement | null = null;
+  /** True while a log or document is open for reading (the game pauses the air clock). */
+  get reading(): boolean {
+    return !!this.readEl;
+  }
+  /** After milestone 8 part 2: logs and documents open in a panel that stays until closed. */
+  showReading(title: string, body: string, note = ''): void {
+    this.readEl?.remove();
+    const el = document.createElement('div');
+    el.id = 'read-panel';
+    el.setAttribute('role', 'dialog');
+    el.innerHTML = `<div class="read-card"><h2></h2><div class="read-body"></div><p class="read-note"></p><button type="button">Close</button></div>`;
+    el.querySelector('h2')!.textContent = title;
+    const bodyEl = el.querySelector('.read-body')!;
+    for (const para of body.split('\n\n')) {
+      const p = document.createElement('p');
+      p.textContent = para;
+      bodyEl.appendChild(p);
+    }
+    el.querySelector('.read-note')!.textContent = note;
+    const close = () => {
+      el.remove();
+      if (this.readEl === el) this.readEl = null;
+    };
+    el.querySelector('button')!.addEventListener('click', close);
+    el.addEventListener('pointerdown', (e) => e.stopPropagation());
+    window.addEventListener(
+      'keydown',
+      function onKey(e: KeyboardEvent) {
+        if (e.key === 'Escape' || e.key === 'Enter') {
+          close();
+          window.removeEventListener('keydown', onKey);
+        }
+      },
+    );
+    document.body.appendChild(el);
+    this.readEl = el;
   }
 
   /** A message that stays on screen while a condition holds (empty string hides it). */
@@ -161,6 +205,8 @@ export class Hud {
       ['workshop', 'Workshop'],
       ['gtank', 'Grand tank'],
       ['sorter', 'Sorting pod'],
+      ['recomp', 'Recompression room'],
+      ['crane', 'Salvage crane'],
     ];
     const base = save.pieces.length
       ? [
@@ -243,7 +289,9 @@ export class Hud {
       .join('');
     const lit = save.brackets.filter(Boolean).length;
     const shelf = save.scans.includes('wshelf')
-      ? `<p class="note">The wreck shelf: suit integrity ${Math.round(save.suit * 100)}% · sealed hatches opened ${save.hatches.length} / 2${save.gear.includes('tow') ? '' : ' · the race needs a grapple line'}${save.vane ? ' · flow vane raised' : ''}</p>`
+      ? `<p class="note">The wreck shelf: suit integrity ${Math.round(save.suit * 100)}% · sealed hatches opened ${save.hatches.length} / 2${save.gear.includes('tow') ? '' : ' · the race needs a grapple line'}${save.vane ? ' · flow vane raised' : ''}</p><p class="note">The Corvina: ${
+          !save.corvina.hatch ? 'deck hatch sealed (grapple her stern bollard, cut the hatch)' : save.corvina.breakers.every(Boolean) ? 'power restored' : `breakers thrown ${save.corvina.breakers.filter(Boolean).length} / 2`
+        }${save.scans.includes('cvlog') ? " · log read" : ''}${save.hiddenOpen ? ' · hidden passage found' : ''}</p>`
       : '';
     return `${shelf}<p class="note">The kelp caves:</p><ul class="note">${rows}${pieces}<li>Black water brackets lit: ${lit} / 4</li><li>Kelp wall: ${save.kelpCut ? 'cut open' : 'uncut (needs the cutter torch)'}</li>${
       save.relays.length || save.relayKits ? `<li>Air relays planted: ${save.relays.length}${save.relayKits ? `, ${save.relayKits} kit${save.relayKits > 1 ? 's' : ''} to plant` : ''}</li>` : ''

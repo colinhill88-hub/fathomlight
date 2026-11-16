@@ -65,7 +65,7 @@ const SPOTS: Spot[] = (() => {
   // An air tank hidden at the mouth of the kelp caves.
   s.push({ id: 'tank-forest', kind: 'tank', x: 14860, y: surfaceAt(14860, 1100) - 12 });
   // Milestone 8: brass fittings on the wreck shelf. Two lie in front of lurker dens, on purpose.
-  add('brass', [22480, 23000, 23300, 24050, 24400, 25000, 25640, 26300]);
+  add('brass', [22480, 23000, 23300, 24050, 24400, 25000, 25460, 26300]);
   // Milestone 7 part 2: the fourth, behind the kelp wall in the caves (the cutter torch opens it).
   s.push({ id: 'tank-kwall', kind: 'tank', x: 15545, y: surfaceAt(15545, 1500) - 12 });
   return s;

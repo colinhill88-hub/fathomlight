@@ -483,6 +483,15 @@ export class SoundDirector {
     audio.bell({ freq: 1320, gain: 0.04, decay: 1.4, ratio: 1, index: 0.25, send: 0.8 });
   }
 
+  /** Milestone 8 part 2: the sonar pulse: a deep, ringing ping that rolls away. */
+  sonar(): void {
+    if (!audio.running) return;
+    const t = audio.now;
+    audio.bell({ t, freq: 520, gain: 0.07, decay: 2.4, ratio: 1, index: 0.2, send: 0.9 });
+    audio.tone({ t, freq: 900, to: 260, dur: 0.5, gain: 0.05, send: 0.8 });
+    audio.bell({ t: t + 0.7, freq: 520, gain: 0.025, decay: 2, ratio: 1, index: 0.2, send: 0.9 });
+  }
+
   /** Milestone 8: a lurker warns (a dry clicking rattle from its den). */
   lurkWarn(dx: number): void {
     if (!audio.running) return;
@@ -568,7 +577,30 @@ export class SoundDirector {
     if (!boarding) audio.bubbles({ n: 10, spread: 0.6, gain: 0.03 });
   }
 
-  private clamps(docked: boolean): void {
+  /** After milestone 8 part 2: on foot. The hatch (in or out), boots on steel, steam and the bilge. */
+  hatchCue(entering: boolean): void {
+    if (!audio.running) return;
+    this.hatch(!entering);
+    audio.metal({ t: audio.now + 0.3, freq: 260, gain: 0.05, decay: 0.5, bus: 'ui' });
+  }
+  step(jump: boolean, hard = false): void {
+    if (!audio.running) return;
+    if (jump) audio.hiss({ dur: 0.08, gain: 0.03, type: 'lowpass', freq: 900, bus: 'ui' });
+    else {
+      audio.thump({ freq: hard ? 90 : 130, gain: hard ? 0.22 : 0.12, dur: 0.16, bus: 'ui', send: 0.2 });
+      audio.metal({ freq: 210, gain: hard ? 0.06 : 0.03, decay: 0.3, bus: 'ui' });
+    }
+  }
+  hurt(why: 'steam' | 'bilge'): void {
+    if (!audio.running) return;
+    if (why === 'steam') audio.hiss({ dur: 0.9, attack: 0.02, gain: 0.18, freq: 3400, to: 1600, q: 0.6, bus: 'ui', send: 0.3 });
+    else {
+      audio.hiss({ dur: 0.6, gain: 0.16, type: 'lowpass', freq: 1400, to: 300, bus: 'ui', send: 0.3 });
+      audio.bubbles({ n: 16, spread: 0.6, gain: 0.05, low: 250, high: 1000, bus: 'ui' });
+    }
+  }
+
+  clamps(docked: boolean): void {
     const t = audio.now;
     audio.thump({ t, freq: 80, gain: 0.15, dur: 0.35 });
     audio.metal({ t, freq: 150, gain: 0.08, decay: 0.8 });

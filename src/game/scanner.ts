@@ -232,6 +232,31 @@ export const SCAN_ENTRIES: ScanEntry[] = [
     category: 'Wreckage',
     text: 'A large survey ship lying on the shelf, its bow raised on a rock. Its bulkhead door is sealed from the inside. Whatever her crew were studying, they locked it away.',
   },
+  // Milestone 8 part 2: the Corvina and the shelf's salvage.
+  {
+    id: 'cvhook',
+    name: 'Beam hook',
+    category: 'Wreckage',
+    text: "A cargo hook hanging from a beam across the Corvina's hold. Hooked by a grapple line, it holds you out of the downdraft that pins everything else to the hold floor.",
+  },
+  {
+    id: 'cvlog',
+    name: "The Corvina's log",
+    category: 'Artefact',
+    text: "The survey ship Corvina came to this shelf to record lights rising from the deep water beyond it: slow, patterned flashes, cyan and violet, that no animal makes. Her crew built a sonar to map where they came from, and a deep suit to follow them down. The last entries end mid-sentence.",
+  },
+  {
+    id: 'hidden',
+    name: 'Silt slump',
+    category: 'Place',
+    text: 'A fan of fine grey silt and stones heaped against the foot of the shelf edge. Something about the way the current eddies around it suggests a hollow behind.',
+  },
+  {
+    id: 'salvage',
+    name: 'Heavy salvage',
+    category: 'Wreckage',
+    text: "Winch drums, propeller hubs and engine blocks lying in the silt, far too heavy to carry. A sub's grabber arm could lift one, and a salvage crane at the base could break it down.",
+  },
   {
     id: 'lurker',
     name: 'Wreck lurker',

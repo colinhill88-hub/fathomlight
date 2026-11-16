@@ -553,6 +553,70 @@ function drawSorter(n: number): PieceArt {
   return { body, windows, windowGlow, lamp: { x: c, y: 10 } };
 }
 
+/**
+ * Recompression room RC-1 (milestone 8 part 2): a brass-banded pressure
+ * capsule lying on its side, with a round port and a pressure gauge.
+ */
+function drawRecomp(n: number): PieceArt {
+  const W = CELL * 2;
+  const H = CELL;
+  const body = new Container();
+  const g = body.addChild(new Graphics());
+  const windows = new Graphics();
+  const windowGlow = new Graphics();
+  tubeH(g, 0, 18, H / 2, 1);
+  tubeH(g, W - 18, W, H / 2, 1);
+  g.roundRect(14, 14, W - 28, H - 24, (H - 24) / 2).fill({ color: 0x7a6a4a });
+  g.roundRect(20, 18, W - 40, 10, 5).fill({ color: 0xffffff, alpha: 0.1 });
+  for (const bx of [34, W / 2 - 4, W - 42]) g.rect(bx, 14, 8, H - 24).fill({ color: 0xa8822e });
+  g.circle(W / 2 - 40, H / 2 + 4, 20).fill({ color: PAL.steelDeep });
+  g.circle(W / 2 - 40, H / 2 + 4, 20).stroke({ color: 0xe8c870, width: 3 });
+  windows.circle(W / 2 - 40, H / 2 + 4, 15).fill({ color: 0xffe8b0, alpha: 0.5 });
+  windowGlow.circle(W / 2 - 40, H / 2 + 4, 30).fill({ color: PAL.warm, alpha: 0.3 });
+  g.circle(W / 2 + 46, H / 2 - 4, 11).fill({ color: 0xe8e0c8 });
+  g.circle(W / 2 + 46, H / 2 - 4, 11).stroke({ color: 0xa8822e, width: 2 });
+  g.moveTo(W / 2 + 46, H / 2 - 4).lineTo(W / 2 + 52, H / 2 - 10).stroke({ color: 0xa8402e, width: 1.6 });
+  rivets(g, 20, 20, W - 20, 20, 16);
+  body.addChild(stencil(`RC-${n}`, W / 2 + 46, H - 18, 6));
+  streaks(g, 16, W - 16, 22, 12, 18);
+  algaeLine(g, 14, W - 14, H - 10, 20);
+  return { body, windows, windowGlow, lamp: { x: W - 30, y: 12 } };
+}
+
+/**
+ * Salvage crane SC-1 (milestone 8 part 2): a slewing jib on a riveted base,
+ * a cable and hook, and a breaking floor where salvage is cut up.
+ */
+function drawCrane(n: number): PieceArt {
+  const W = CELL * 2;
+  const H = CELL * 2;
+  const body = new Container();
+  const g = body.addChild(new Graphics());
+  const windows = new Graphics();
+  const windowGlow = new Graphics();
+  tubeH(g, 0, 18, H - CELL / 2, 1);
+  tubeH(g, W - 18, W, H - CELL / 2, 1);
+  // Base and breaking floor.
+  g.roundRect(10, H - 60, W - 20, 52, 6).fill({ color: PAL.steel });
+  hazardBand(g, 10, H - 60, W - 20, 8);
+  g.rect(18, H - 44, W - 36, 30).fill({ color: PAL.steelDeep });
+  // Mast and jib.
+  g.rect(36, 24, 18, H - 84).fill({ color: 0xa8822e });
+  for (let y = 30; y < H - 70; y += 20) g.moveTo(36, y).lineTo(54, y + 18).stroke({ color: 0x6a5020, width: 1.6 });
+  g.poly([45, 22, W - 14, 40, W - 14, 50, 45, 36]).fill({ color: 0xa8822e });
+  g.roundRect(26, 40, 34, 26, 4).fill({ color: PAL.steelDark });
+  windows.roundRect(30, 44, 26, 10, 2).fill({ color: 0xffd98a, alpha: 0.85 });
+  windowGlow.roundRect(22, 36, 42, 30, 6).fill({ color: PAL.warm, alpha: 0.25 });
+  // Cable and hook.
+  g.moveTo(W - 24, 48).lineTo(W - 24, H - 90).stroke({ color: 0x2a2622, width: 1.6 });
+  g.moveTo(W - 24, H - 90).arc(W - 30, H - 90, 6, 0, Math.PI).stroke({ color: 0x8a9496, width: 3 });
+  rivets(g, 16, H - 54, W - 16, H - 54, 14);
+  body.addChild(stencil(`SC-${n}`, W / 2 + 20, H - 14, 6));
+  streaks(g, 14, W - 14, H - 50, 12, 20);
+  algaeLine(g, 10, W - 10, H - 8, 20);
+  return { body, windows, windowGlow, lamp: { x: 45, y: 20 } };
+}
+
 /** Inside of a creature tank (local): the water the creatures swim in. */
 export const TANK_INNER = { x: 16, y: 16, w: CELL * 2 - 32, h: CELL - 30 };
 /** Milestone 7 part 2: the Grand tank's water, 3 × 2 cells. */
@@ -1082,6 +1146,8 @@ export function drawPiece(kind: PieceKind, n: number, rot: number, seed: number)
   if (kind === 'tank') return drawTank(n);
   if (kind === 'gtank') return drawTank(n, true);
   if (kind === 'sorter') return drawSorter(n);
+  if (kind === 'recomp') return drawRecomp(n);
+  if (kind === 'crane') return drawCrane(n);
   if (kind === 'filter') return drawFilter(n);
   if (kind === 'feeder') return drawFeeder(n);
   if (kind === 'press') return drawPress(n);
@@ -1210,7 +1276,7 @@ export class BaseView {
       for (const w of l.whorls) this.dropWhorl(w);
       this.live.delete(id);
     }
-    const counts: Record<PieceKind, number> = { dome: 0, corridor: 0, turbine: 0, storage: 0, tank: 0, filter: 0, feeder: 0, press: 0, dock: 0, lab: 0, workshop: 0, gtank: 0, sorter: 0 };
+    const counts: Record<PieceKind, number> = { dome: 0, corridor: 0, turbine: 0, storage: 0, tank: 0, filter: 0, feeder: 0, press: 0, dock: 0, lab: 0, workshop: 0, gtank: 0, sorter: 0, recomp: 0, crane: 0 };
     for (const p of [...layout.pieces].sort((a, b) => a.id - b.id)) {
       counts[p.kind]++;
       if (this.live.has(p.id)) continue;

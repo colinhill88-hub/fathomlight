@@ -26,6 +26,8 @@ export interface InputState {
   moveX: number;
   moveY: number;
   boost: boolean;
+  /** After milestone 8 part 2: the boost / jump control is held down (for jumping on foot). */
+  jumpHeld: boolean;
   lamp: boolean;
   scan: boolean;
   scanTap: boolean;
@@ -40,11 +42,12 @@ const STICK_RADIUS = 56;
 const DEADZONE = 0.15;
 
 export class Input {
-  readonly state: InputState = { moveX: 0, moveY: 0, boost: false, lamp: false, scan: false, scanTap: false, collect: false, board: false, lastDevice: 'keyboard' };
+  readonly state: InputState = { moveX: 0, moveY: 0, boost: false, jumpHeld: false, lamp: false, scan: false, scanTap: false, collect: false, board: false, lastDevice: 'keyboard' };
 
   private keys = new Set<string>();
   private boostQueued = false;
   private lampQueued = false;
+  private boostButton = false;
   private scanButton = false;
   private scanTapQueued = false;
   private collectButton = false;
@@ -172,7 +175,12 @@ export class Input {
       el.addEventListener('pointercancel', up);
       el.addEventListener('pointerleave', up);
     };
-    press('btn-boost', () => (this.boostQueued = true));
+    press('btn-boost', () => {
+      this.boostQueued = true;
+      this.boostButton = true;
+    });
+    const boostEl = document.getElementById('btn-boost')!;
+    for (const ev of ['pointerup', 'pointercancel', 'pointerleave']) boostEl.addEventListener(ev, () => (this.boostButton = false));
     press('btn-lamp', () => (this.lampQueued = true));
     press('btn-sub', () => (this.boardQueued = true));
     // Scan is held, not tapped.
@@ -261,6 +269,7 @@ export class Input {
 
     let scan = this.scanButton || k.has('e') || k.has('q');
     let collect = this.collectButton || k.has('c') || k.has('r');
+    let jumpHeld = this.boostButton || k.has('shift') || k.has(' ');
 
     // Gamepad (first connected pad).
     const pads = navigator.getGamepads?.() ?? [];
@@ -283,6 +292,7 @@ export class Input {
       if (btn(1)) scan = true;
       if (pressed(1)) this.scanTapQueued = true;
       if (btn(2)) collect = true;
+      if (btn(0)) jumpHeld = true;
       if (pressed(0) || pressed(2) || pressed(3)) this.state.lastDevice = 'gamepad';
       this.padPrev = pad.buttons.map((b) => b.pressed);
       break;
@@ -296,6 +306,7 @@ export class Input {
     this.state.moveX = x;
     this.state.moveY = y;
     this.state.boost = this.boostQueued;
+    this.state.jumpHeld = jumpHeld && !this._suspended;
     this.state.lamp = this.lampQueued;
     this.state.scan = scan;
     this.state.scanTap = this.scanTapQueued;

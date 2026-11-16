@@ -227,14 +227,16 @@ export interface SubData {
   hold: Partial<Record<MaterialId, number>>;
   /** Floodlights / running lamp on. */
   lights: boolean;
+  /** Milestone 8 part 2: a piece of heavy salvage hanging from the grabber. */
+  salvage?: string | null;
 }
 
 /** Milestone 7: gear built in the Workshop (rules in src/game/gear.ts). */
-export type GearId = 'light' | 'cutter' | 'tow' | 'welder' | 'relay';
+export type GearId = 'light' | 'cutter' | 'tow' | 'welder' | 'relay' | 'sonar' | 'psuit';
 /** Blueprints the Lab decodes. Each one lets the Workshop build something, or unlocks a base piece. */
-export type BlueprintId = 'light' | 'cutter' | 'tow' | 'welder' | 'relay' | 'gtank' | 'sorter';
+export type BlueprintId = 'light' | 'cutter' | 'tow' | 'welder' | 'relay' | 'gtank' | 'sorter' | 'sonar' | 'psuit' | 'recomp' | 'crane';
 /** Data finds the diver brings back to the Lab (they weigh nothing). */
-export type FindId = 'recorder' | 'relaylog' | 'weldchip' | 'towcoil' | 'cache';
+export type FindId = 'recorder' | 'relaylog' | 'weldchip' | 'towcoil' | 'cache' | 'sonardata' | 'suitplans';
 /** What a Lab or Workshop is busy with. */
 export interface StationJob {
   /** 'research:light' or 'build:light'. */
@@ -246,7 +248,7 @@ export interface StationJob {
 /** A base piece as saved (see src/game/base.ts). */
 export interface SavedPiece {
   id: number;
-  kind: 'dome' | 'corridor' | 'turbine' | 'storage' | 'tank' | 'filter' | 'feeder' | 'press' | 'dock' | 'lab' | 'workshop' | 'gtank' | 'sorter';
+  kind: 'dome' | 'corridor' | 'turbine' | 'storage' | 'tank' | 'filter' | 'feeder' | 'press' | 'dock' | 'lab' | 'workshop' | 'gtank' | 'sorter' | 'recomp' | 'crane';
   gx: number;
   gy: number;
   rot: number;
@@ -327,6 +329,15 @@ export interface SaveData {
   hatches: string[];
   /** Milestone 8: the flow vane past the race is raised (the sub can cross over the top). */
   vane: boolean;
+  /** Milestone 8 part 2: the Corvina (deck hatch cut, stern door released, breakers thrown). */
+  corvina: { hatch: boolean; door: boolean; breakers: boolean[]; taken?: string[] };
+  /** The hidden passage in the shelf edge (a sonar pulse reveals it) and its locker. */
+  hiddenOpen: boolean;
+  hiddenLooted: boolean;
+  /** Heavy salvage lifted (play time when, so it can come back), and pieces waiting at salvage cranes. */
+  salvageTaken: Record<string, number>;
+  craneQueue: number;
+  craneProgress: number;
   /** Scrap still owed from the test gift after milestone 6 (removed in milestone 7: kept only so old saves load). */
   gift?: number;
   /** One-time tips already shown. */
@@ -380,6 +391,12 @@ export function freshSave(spawnX: number, spawnY: number): SaveData {
     suit: 1,
     hatches: [],
     vane: false,
+    corvina: { hatch: false, door: false, breakers: [false, false] },
+    hiddenOpen: false,
+    hiddenLooted: false,
+    salvageTaken: {},
+    craneQueue: 0,
+    craneProgress: 0,
     tips: [],
     playSeconds: 0,
     savedAt: 0,
@@ -427,6 +444,17 @@ export function loadSave(spawnX: number, spawnY: number): { data: SaveData; load
       suit: typeof d.suit === 'number' ? Math.max(0.05, Math.min(1, d.suit)) : 1,
       hatches: Array.isArray(d.hatches) ? d.hatches : [],
       vane: d.vane === true,
+      corvina: {
+        hatch: d.corvina?.hatch === true,
+        door: d.corvina?.door === true,
+        breakers: [0, 1].map((i) => Array.isArray(d.corvina?.breakers) && d.corvina.breakers[i] === true),
+        taken: Array.isArray(d.corvina?.taken) ? d.corvina.taken : [],
+      },
+      hiddenOpen: d.hiddenOpen === true,
+      hiddenLooted: d.hiddenLooted === true,
+      salvageTaken: d.salvageTaken && typeof d.salvageTaken === 'object' ? d.salvageTaken : {},
+      craneQueue: typeof d.craneQueue === 'number' ? d.craneQueue : 0,
+      craneProgress: typeof d.craneProgress === 'number' ? d.craneProgress : 0,
       relays: Array.isArray(d.relays) ? d.relays.filter((r: { x?: unknown; y?: unknown }) => typeof r?.x === 'number' && typeof r?.y === 'number') : [],
     } as SaveData;
     // Milestone 7: the scavenger crab makes scrap now, so the test gift ends.

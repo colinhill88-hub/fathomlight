@@ -41,6 +41,13 @@ import {
   race,
   raceAt,
   RINGS,
+  ANCHORS,
+  cv,
+  CV_HATCH,
+  hidden,
+  HIDDEN,
+  SALVAGE,
+  SALVAGE_REGROW,
   WRECK_SHELF,
   WRECKS,
   SPAWN,
@@ -91,6 +98,9 @@ import type { BlueprintId } from './game/state';
 import { audio } from './audio/engine';
 import { SoundDirector, WorkKind } from './audio/director';
 import { Lurkers } from './actors/lurker';
+import { Interior, InteriorEvent } from './interior/interior';
+import { CORVINA_MAP } from './interior/corvina';
+import { SCAN_ENTRIES } from './game/scanner';
 import { initSoundUI } from './ui/sound';
 
 declare const __BUILD_ID__: string;
@@ -250,6 +260,9 @@ async function boot(): Promise<void> {
     { id: 'wreck', points: () => scenery.scanPoints.wreck },
     { id: 'corvina', points: () => scenery.scanPoints.corvina },
     { id: 'vane', points: () => scenery.scanPoints.vane },
+    { id: 'cvhook', points: () => scenery.scanPoints.cvhook },
+    { id: 'hidden', points: () => (save.hiddenOpen ? [] : scenery.scanPoints.hidden) },
+    { id: 'salvage', points: () => scenery.scanPoints.salvage },
     { id: 'lurker', points: () => lurkers.list.map((l) => l.head()) },
     { id: 'crab', points: () => wildlife.scanPoints('crab') },
     { id: 'shrimp', points: () => wildlife.scanPoints('shrimp') },
@@ -350,6 +363,10 @@ async function boot(): Promise<void> {
   populate();
 
   app.stage.addChild(water.view, backdrop.view, lighting.view, emissiveCam, glowSprite, snow.view, overlayCam);
+  // After milestone 8 part 2: dry interiors on foot, drawn over the (hidden) world.
+  const interior = new Interior(renderer);
+  app.stage.addChild(interior.view);
+  const worldLayers = [water.view, backdrop.view, lighting.view, emissiveCam, glowSprite, snow.view, overlayCam];
 
   const input = new Input(host);
   const hud = new Hud(() => save);
@@ -476,6 +493,7 @@ async function boot(): Promise<void> {
   const GRAPPLE_FLY = 0.18;
   const GRAPPLE_REEL = 580;
   let vaneT = save.vane ? 1 : 0;
+  let sonarAt = -99;
   race.vane = save.vane;
   const lineClear = (ax: number, ay: number, bx: number, by: number) => {
     for (let k = 1; k < 12; k++) if (isSolid(ax + ((bx - ax) * k) / 12, ay + ((by - ay) * k) / 12)) return false;
@@ -916,8 +934,8 @@ async function boot(): Promise<void> {
   let saveTimer = 0;
   function persist(): void {
     if (blackout > 0) return; // save once the diver is back at the buoy
-    save.x = diver.x;
-    save.y = diver.y;
+    save.x = interior.active ? CV_HATCH.x : diver.x;
+    save.y = interior.active ? CV_HATCH.y - 70 : diver.y;
     save.lampOn = diver.lampOn;
     if (save.sub) {
       save.sub.x = sub.x;
@@ -958,6 +976,7 @@ async function boot(): Promise<void> {
     app.ticker.maxFPS = preset.maxFps;
     zoom = cssH / VIEW_H;
     litRT.resize(cssW, cssH, res);
+    interior.resize(cssW, cssH, res);
     glowRT.resize(cssW, cssH, res * preset.glowResolution);
     blur.quality = preset.glowQuality;
     blur.resolution = res * preset.glowResolution;
@@ -1011,6 +1030,10 @@ async function boot(): Promise<void> {
   app.ticker.add((ticker) => {
     const dt = Math.min(ticker.deltaMS / 1000, 0.05);
     time += dt;
+    if (interior.active) {
+      interiorFrame(dt, ticker.deltaMS);
+      return;
+    }
 
     // Build mode: only at the Kestrel site, and not while blacking out.
     const atSite = diver.x > GRID_X0 - 260 && diver.x < GRID_X1 + 260 && diver.y < GRID_BASE + 120;
@@ -1234,10 +1257,19 @@ async function boot(): Promise<void> {
     diver.current.x = inSqueeze ? -560 * surge - 25 : 0;
     // Milestone 8: the race sweeps west across the shelf edge. Holding on at an anchor ring shelters you.
     const raceHere = aboard ? 0 : raceAt(diver.x, diver.y);
-    const atRing = RINGS.findIndex((r) => Math.hypot(diver.x - r.x, diver.y - r.y) < 80);
+    const atRing = ANCHORS.findIndex((r) => Math.hypot(diver.x - r.x, diver.y - r.y) < 80);
     diver.current.x += -RACE.speed * raceHere * (atRing >= 0 ? 0.1 : 1) * (0.85 + 0.15 * Math.sin(time * 0.7));
     scenery.updateRace(time, camX, camX + lastViewW);
     diver.current.y = 0;
+    // Milestone 8 part 2: the Corvina's state, and the hidden passage and salvage.
+    cv.hatch = save.corvina.hatch;
+    cv.door = save.corvina.door;
+    cv.power = save.corvina.breakers.every(Boolean);
+    hidden.open = save.hiddenOpen;
+    scenery.setCorvina(save.corvina);
+    scenery.setHidden(save.hiddenOpen);
+    for (const sv of SALVAGE) if (sv.id in save.salvageTaken && save.playSeconds - save.salvageTaken[sv.id] > SALVAGE_REGROW && save.sub?.salvage !== sv.id) delete save.salvageTaken[sv.id];
+    scenery.setSalvage(save.salvageTaken);
     if (diver.x > 15800 && diver.x < 17200) scenery.updateKelpCaves(time, surge);
     scenery.setKelpCaves(save.brackets, save.kelpCut);
     kelpWall.cut = save.kelpCut;
@@ -1263,7 +1295,7 @@ async function boot(): Promise<void> {
       }
     } else if (grapple && !aboard) {
       // The grapple: the hook flies out to the ring, then the line reels the diver in.
-      const r = RINGS[grapple.to];
+      const r = ANCHORS[grapple.to];
       grapple.t += dt;
       if (grapple.phase === 'fly') {
         diver.update(dt, 0, 0, false, false);
@@ -1406,7 +1438,20 @@ async function boot(): Promise<void> {
     // Milestone 7 part 2: trapped air in the kelp caves' roofs, and planted air relays.
     const pocketAir = blackout === 0 && !aboard && AIR_POCKETS.some((a) => inShape(a.shape, hx, hy) && hy < a.waterY);
     const relayAir = blackout === 0 && !aboard && save.relays.some((r) => Math.hypot(diver.x - r.x, diver.y - (r.y - 50)) < 140);
-    const freshAir = pocketAir || relayAir;
+    // Milestone 8 part 2: inside a finished, powered recompression room.
+    const recompHere =
+      blackout === 0 && !aboard
+        ? layout.pieces.find((p) => {
+            if (p.kind !== 'recomp' || !isDone(p) || !layout.powered.has(p.id)) return false;
+            const r = pieceRect(p);
+            return diver.x > r.x && diver.x < r.x + r.w && diver.y > r.y && diver.y < r.y + r.h;
+          }) ?? null
+        : null;
+    if (recompHere && !save.tips.includes('recomp')) {
+      save.tips.push('recomp');
+      hud.toast('Recompression room: the pressure eases, and the chamber mends your suit and refills your air.', 'big');
+    }
+    const freshAir = pocketAir || relayAir || !!recompHere;
     if (pocketAir && !save.tips.includes('pocket')) {
       save.tips.push('pocket');
       hud.toast('Air pocket: you can breathe here. Your tank refills.', 'big');
@@ -1447,7 +1492,8 @@ async function boot(): Promise<void> {
       hud.setLowOxygen(atSurface || domeAir || subAir || freshAir ? 0 : Math.max(0, (0.25 - frac) / 0.25) * (0.75 + 0.25 * Math.sin(time * 5)));
       // ---- Suit integrity (milestone 8) ----
       suitCalm += dt;
-      if (atSurface || domeAir || subAir || relayAir) save.suit = Math.min(1, save.suit + dt * 0.25);
+      if (recompHere) save.suit = Math.min(1, save.suit + dt * 0.6);
+      else if (atSurface || domeAir || subAir || relayAir) save.suit = Math.min(1, save.suit + dt * 0.25);
       else if (suitCalm > 8) save.suit = Math.min(1, save.suit + dt * 0.012);
       if (save.oxygen <= 0 || save.suit <= 0) {
         blackoutCause = save.suit <= 0 ? 'suit' : 'air';
@@ -1641,7 +1687,7 @@ async function boot(): Promise<void> {
     if (!aboard && !grapple && blackout === 0 && inControl && hasGear(save, 'tow') && !diver.surfaced) {
       const dirX = Math.abs(s.moveX) > 0.2 ? Math.sign(s.moveX) : diver.facing;
       let best = Infinity;
-      RINGS.forEach((r, i) => {
+      ANCHORS.forEach((r, i) => {
         const d = Math.hypot(r.x - diver.x, r.y - diver.y);
         if (d < 70 || d > GRAPPLE_RANGE || !lineClear(diver.x, diver.y, r.x, r.y)) return;
         const score = d + ((r.x - diver.x) * dirX > 0 ? 0 : 500);
@@ -1651,7 +1697,7 @@ async function boot(): Promise<void> {
         }
       });
     }
-    scenery.setGrappleMark(grappleTarget >= 0 ? RINGS[grappleTarget] : null, time);
+    scenery.setGrappleMark(grappleTarget >= 0 ? ANCHORS[grappleTarget] : null, time);
     if (!otherTarget && blackout === 0 && inControl && !diver.surfaced && !aboard) {
       const rx = SLED_X - 20;
       const ry = groundY(SLED_X) - 44;
@@ -1688,6 +1734,42 @@ async function boot(): Promise<void> {
         };
       } else if (!hasGear(save, 'tow') && RINGS.some((r) => Math.hypot(diver.x - r.x, diver.y - r.y) < 110))
         infoAct = 'Anchor ring: a grapple line (Workshop) could hook it';
+      // Milestone 8 part 2: the Corvina.
+      const near = (p: { x: number; y: number }, r = 100) => Math.hypot(diver.x - p.x, diver.y - p.y) < r;
+      if (!save.corvina.hatch && near({ x: CV_HATCH.x, y: CV_HATCH.y - 30 }, 90)) {
+        if (hasGear(save, 'cutter'))
+          holdAct = {
+            key: 'cvhatch',
+            label: 'Cut the deck hatch open',
+            seconds: 3,
+            done: () => {
+              save.corvina.hatch = true;
+              drone.cheer();
+              hud.toast("The hatch drops into the dark. A ladder leads down into the Corvina: hold Collect to climb in.", 'big');
+            },
+          };
+        else infoAct = 'Deck hatch, welded shut: a cutter torch would open it';
+      } else if (save.corvina.hatch && near({ x: CV_HATCH.x, y: CV_HATCH.y - 30 }, 90))
+        holdAct = {
+          key: 'cventer',
+          label: 'Climb down into the Corvina',
+          seconds: 0.8,
+          done: () => enterCorvina(),
+        };
+      if (save.hiddenOpen && !save.hiddenLooted && near({ x: HIDDEN.room.x, y: HIDDEN.room.y + 20 }, 110))
+        holdAct = {
+          key: 'hiddenlocker',
+          label: 'Open the old salvage locker',
+          seconds: 2,
+          done: () => {
+            save.hiddenLooted = true;
+            save.whorls.push('whorl-hidden');
+            save.bag.brass += 3;
+            hud.refreshInventory();
+            sound.find('whorl');
+            hud.toast(`Inside the locker: 3 brass fittings and an Echo whorl (${save.whorls.length}), glowing in colours nothing else on the reef does.`, 'big');
+          },
+        };
       // The flow vane's winch, on the far side of the race.
       const vw = Scenery.vaneWinchPoint();
       if (!save.vane && Math.hypot(diver.x - vw.x, diver.y - vw.y) < 110)
@@ -1817,10 +1899,60 @@ async function boot(): Promise<void> {
           },
         };
     }
+    // Milestone 8 part 2: heavy salvage, lifted by the sub's grabber and lowered onto a salvage crane.
+    if (aboard && grab && S && S.stage === 'built' && blackout === 0 && inControl && !otherTarget) {
+      const claw = sub.clawPoint();
+      if (!S.salvage) {
+        for (const sv of SALVAGE) {
+          if (sv.id in save.salvageTaken || Math.hypot(claw.x - sv.x, claw.y - (groundY(sv.x) - 30)) > 170) continue;
+          holdAct = {
+            key: 'lift-' + sv.id,
+            label: 'Lift the salvage',
+            seconds: 2,
+            done: () => {
+              S.salvage = sv.id;
+              save.salvageTaken[sv.id] = save.playSeconds;
+              hud.toast(
+                layout.pieces.some((p) => p.kind === 'crane')
+                  ? 'Salvage hooked! Take it home and lower it onto the salvage crane.'
+                  : 'Salvage hooked! A salvage crane at the base (decode it in a Lab) could break it down.',
+                'big',
+              );
+            },
+          };
+        }
+      } else {
+        const crane = layout.pieces.find((p) => {
+          if (p.kind !== 'crane' || !isDone(p)) return false;
+          const r = pieceRect(p);
+          return Math.hypot(sub.x - (r.x + r.w / 2), sub.y - (r.y + r.h / 2)) < 380;
+        });
+        if (crane) {
+          if (layout.powered.has(crane.id))
+            holdAct = {
+              key: 'lower-salvage',
+              label: 'Lower the salvage onto the crane',
+              seconds: 1.5,
+              done: () => {
+                S.salvage = null;
+                save.craneQueue++;
+                hud.toast(`The crane takes the salvage (${save.craneQueue} waiting). It breaks each piece into 4 scrap, 2 brass and 1 hull plating.`, 'big');
+              },
+            };
+          else infoAct = 'The salvage crane has no power';
+        }
+      }
+    }
     if (!holdAct || holdAct.key !== holdKey) holdProgress = 0;
     holdKey = holdAct?.key ?? '';
-    // The grapple fires even while the race is sweeping you away.
-    if (holdAct && collectHeld && (speed < 70 || holdAct.key.startsWith('grapple'))) {
+    // The grapple fires on a fresh tap only (never from a Collect still held after
+    // another action), and even while the race is sweeping you away.
+    const isGrapple = !!holdAct && holdAct.key.startsWith('grapple');
+    if (isGrapple && collectTap) {
+      holdAct!.done();
+      holdAct = null;
+      holdKey = '';
+    } else if (holdAct && !isGrapple && collectHeld && speed < 70) {
       holdProgress += dt / holdAct.seconds;
       if (holdProgress >= 1) {
         holdProgress = 0;
@@ -1993,6 +2125,44 @@ async function boot(): Promise<void> {
       persist();
     }
 
+    // ---- Salvage cranes (milestone 8 part 2): one piece a minute per crane, into storage ----
+    {
+      const cranes = layout.pieces.filter((p) => p.kind === 'crane' && isDone(p) && layout.powered.has(p.id)).length;
+      if (cranes && save.craneQueue > 0) {
+        save.craneProgress = Math.min(1, save.craneProgress + (dt * cranes) / 60);
+        // It waits, holding the piece, until storage has room for everything it makes.
+        const roomFor = storageRoom('scrap') >= 4 && storageRoom('brass') >= 2 && storageRoom('plate') >= 1;
+        if (save.craneProgress >= 1 && !roomFor && !save.tips.includes('cranefull')) {
+          save.tips.push('cranefull');
+          hud.toast('The salvage crane is waiting: storage needs room for 4 scrap, 2 brass and 1 plating.', 'warn');
+        }
+        if (save.craneProgress >= 1 && roomFor) {
+          save.craneProgress = 0;
+          save.craneQueue--;
+          const out: [keyof typeof save.stored, number][] = [
+            ['scrap', 4],
+            ['brass', 2],
+            ['plate', 1],
+          ];
+          let lost = 0;
+          for (const [k, n] of out) {
+            const into = Math.min(n, storageRoom(k));
+            save.stored[k] += into;
+            lost += n - into;
+          }
+          void lost;
+          hud.toast('The salvage crane broke down a piece: +4 scrap, +2 brass, +1 hull plating', 'big');
+          hud.refreshInventory();
+          persist();
+        }
+      } else if (!save.craneQueue) save.craneProgress = 0;
+    }
+    // The salvage hanging from the sub's claw.
+    {
+      const sv = save.sub?.salvage ? SALVAGE.findIndex((x) => x.id === save.sub!.salvage) : -1;
+      scenery.setCarried(sv >= 0 && save.sub ? sub.clawPoint() : null, sv);
+    }
+
     // ---- Factory (milestone 5): conveyors, the auto feeder and feed pipes ----
     factory.tick(save, layout, dt, storageRoom);
 
@@ -2042,6 +2212,21 @@ async function boot(): Promise<void> {
       idTimer = 6;
       scanner.pulseIdentify(diver.x, diver.y);
       sound.ping();
+      // Milestone 8 part 2: the sonar pulse (every 6 s).
+      if (hasGear(save, 'sonar') && !aboard && time - sonarAt > 6) {
+        sonarAt = time;
+        sound.sonar();
+        let scared = 0;
+        for (const l of lurkers.list) if (Math.hypot(l.denX - diver.x, l.denY - diver.y) < 700 && l.scare()) scared++;
+        if (scared) hud.toast(`The sonar pulse rolls out: ${scared === 1 ? 'a lurker shrinks' : `${scared} lurkers shrink`} back into ${scared === 1 ? 'its den' : 'their dens'}.`);
+        if (!save.hiddenOpen && Math.hypot(diver.x - HIDDEN.x, diver.y - HIDDEN.y) < 700) {
+          save.hiddenOpen = true;
+          hidden.open = true;
+          drone.cheer();
+          hud.toast('The pulse comes back hollow: there is a chamber behind the silt slump at the foot of the shelf edge. The silt slides away.', 'big');
+          persist();
+        }
+      }
     }
     idTimer = Math.max(0, idTimer - dt);
 
@@ -2301,6 +2486,158 @@ async function boot(): Promise<void> {
     ui.tick(ticker.deltaMS);
   });
 
+  // ---- Dry interiors on foot (after milestone 8 part 2) ----
+  function enterCorvina(): void {
+    save.corvina.taken ??= [];
+    interior.enter(CORVINA_MAP, { breakers: save.corvina.breakers, taken: save.corvina.taken });
+    for (const l of worldLayers) l.visible = false;
+    build.setAvailable(false);
+    care.setAvailable(null);
+    dockUI.setAvailable(null);
+    station.setAvailable(null);
+    hud.setCollect(null, 0);
+    hud.setBanner('');
+    hud.setTags([], 0);
+    hud.setBagMarker(null, 0, 0);
+    hud.setSubMarker(null, 0, 0);
+    hud.setLowOxygen(0);
+    document.body.classList.add('on-foot');
+    sound.hatchCue(true);
+    if (!save.tips.includes('onfoot'))
+      setTimeout(() => {
+        save.tips.push('onfoot');
+        hud.toast(
+          input.state.lastDevice === 'touch'
+            ? 'Inside the Corvina: dry, and dark. The stick walks, Boost jumps (hold for higher; down + Boost drops through a grating). When a ring is marked, tap Collect to fire the grapple; jump to swing off it.'
+            : 'Inside the Corvina: dry, and dark. A/D walk, Space or Shift jumps (hold for higher; S + jump drops through a grating). When a ring is marked, tap C to fire the grapple; jump to swing off it.',
+          'big',
+        );
+      }, 900);
+    persist();
+  }
+  function exitCorvina(): void {
+    interior.leave();
+    for (const l of worldLayers) l.visible = true;
+    document.body.classList.remove('on-foot');
+    diver.x = CV_HATCH.x;
+    diver.y = CV_HATCH.y - 70;
+    diver.vx = 0;
+    diver.vy = -60;
+    diver.surfaced = false;
+    camCX = diver.x;
+    camCY = diver.y;
+    sound.hatchCue(false);
+    persist();
+  }
+  const FIND_NOTE = 'Kept in your scanner log.';
+  function interiorFrame(dt: number, deltaMS: number): void {
+    input.suspended = false;
+    input.update();
+    const s = input.state;
+    const paused = hud.reading;
+    // The interior reads her state straight from the save, so they never drift apart.
+    interior.syncState(save.corvina.breakers, save.corvina.taken ?? []);
+    const evs: InteriorEvent[] = interior.update(dt, { moveX: s.moveX, moveY: s.moveY, jump: s.jumpHeld, collect: s.collect, lamp: s.lamp }, paused);
+    const maxO2 = maxOxygen(save);
+    if (!paused) {
+      save.playSeconds += dt;
+      // Old, dry air in a sealed ship: breathable. The suit slowly mends between knocks.
+      save.oxygen = Math.min(maxO2, save.oxygen + (maxO2 / 3) * dt);
+      suitCalm += dt;
+      if (suitCalm > 8) save.suit = Math.min(1, save.suit + dt * 0.012);
+    }
+    for (const e of evs) {
+      if (e.type === 'exit') {
+        exitCorvina();
+        return;
+      } else if (e.type === 'breaker') {
+        sound.clip();
+        hud.toast(
+          e.power
+            ? "With a clunk and a hum the Corvina's emergency power comes back: lights along her decks, the lift, and the door to her survey lab."
+            : 'The breaker clunks over. One more somewhere aboard brings her emergency power back.',
+          'big',
+        );
+        persist();
+      } else if (e.type === 'find') {
+        sound.find('bag');
+        if (e.id === '1') {
+          if (!save.finds.includes('sonardata') && !save.blueprints.includes('sonar')) save.finds.push('sonardata');
+          hud.showReading('Sonar test logs', "Pages of pulse tests from the Corvina's lab: echoes off rock, off silt, off something large that moved between pings.\n\nA Lab can decode these into the sonar pulse: it maps hollows hidden behind silt and rock, and sends hunters back into their dens.", 'Taken: decode it in a Lab.');
+        } else if (e.id === '2') {
+          if (!save.finds.includes('suitplans') && !save.blueprints.includes('psuit')) save.finds.push('suitplans');
+          hud.showReading('Pressure suit drawings', 'A waterproof roll of drawings: a deep-water suit, brass-ringed and pressure-sealed, safe far below the Kestrel suit.\n\nA Lab can decode them. You will need it for the trench.', 'Taken: decode it in a Lab.');
+        } else if (e.id === '3') {
+          if (!save.scans.includes('cvlog')) save.scans.push('cvlog');
+          const entry = SCAN_ENTRIES.find((x) => x.id === 'cvlog')!;
+          hud.showReading("The Corvina's log", entry.text, FIND_NOTE);
+        } else {
+          save.bag.brass += 3;
+          save.bag.plate += 2;
+          hud.refreshInventory();
+          hud.toast('A salvage crate: 3 brass fittings and 2 hull plating, still dry.', 'big');
+        }
+        persist();
+      } else if (e.type === 'hurt') {
+        save.suit = Math.max(0, save.suit - e.amount);
+        suitCalm = 0;
+        hud.suitHit();
+        sound.hurt(e.why);
+        if (e.why === 'bilge' && !save.tips.includes('bilge')) {
+          save.tips.push('bilge');
+          hud.toast('The bilge is deep, cold and full of wreckage: you haul yourself back out where you last stood. Your suit takes a knock.', 'warn');
+        }
+        if (save.suit <= 0) {
+          // The suit gives way: back outside, and the usual blackout takes over.
+          exitCorvina();
+          return;
+        }
+      } else if (e.type === 'lift') sound.clamps(true);
+      else if (e.type === 'grapple') sound.clip();
+      else if (e.type === 'jump') sound.step(true);
+      else if (e.type === 'land') sound.step(false, e.hard);
+    }
+    hud.setCollect(interior.label, interior.progress);
+    hud.setBanner(interior.banner);
+    watch.draw(performance.now(), save.oxygen, maxO2, 0, 0, true, { kg: bagWeight(save.bag), ...bagLimits(save) }, save.suit);
+    hud.setSuit(save.suit, true);
+    hud.setSubChip(null);
+    hud.setBoard(null);
+    hud.setJar(jarText());
+    sound.update({
+      dt,
+      x: CV_HATCH.x,
+      y: CV_HATCH.y + 120,
+      depthM: 20,
+      surfaced: false,
+      aboard: false,
+      inDome: true,
+      blackout: 0,
+      panel: paused ? 'read' : '',
+      speed: Math.abs(interior.walker.vx),
+      boosting: false,
+      lampOn: interior.lampOn,
+      lowAir: 0,
+      freeAir: true,
+      work: interior.progress > 0 ? 'winch' : null,
+      workX: CV_HATCH.x,
+      scanning: null,
+      drone: { x: 0, y: 0, welding: false },
+      presses: [],
+      feeders: [],
+      sub: null,
+      splash: 0,
+      exhale: false,
+      surge: 0,
+      inAir: true,
+      race: 0,
+      suit: save.suit,
+    });
+    saveTimer += dt;
+    if (saveTimer > 5) persist();
+    ui.tick(deltaMS);
+  }
+
   /** Place the quick ID name tags over known things in view. */
   function updateTags(camX: number, camY: number, viewW: number): void {
     if (idTimer <= 0) {
@@ -2382,6 +2719,10 @@ async function boot(): Promise<void> {
     tickStations: (sec: number) => {
       for (let t = 0; t < sec; t += 0.5) tickStations(save, layout, 0.5);
     },
+    debug: () => ({ grapple, holdKey, holdProgress, label: document.getElementById('collect-label')?.textContent }),
+    interior,
+    enterCorvina: () => enterCorvina(),
+    hudReading: () => hud.reading,
     snap: () => {
       camCX = diver.x;
       camCY = diver.y;

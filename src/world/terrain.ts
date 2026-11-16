@@ -253,7 +253,123 @@ export const WRECKS = [
   { id: 'trawler', x0: 22650, x1: 23250, hatchX: 23040 },
   { id: 'barge', x0: 24050, x1: 24750, hatchX: 24300 },
 ] as const;
-export const CORVINA = { x0: 25550, x1: 26750, doorX: 25700 };
+export const CORVINA = { x0: 25550, x1: 26750, doorX: 25570 };
+
+/*
+ * Milestone 8 part 2: the Corvina's insides (Colin: grapple up to the deck,
+ * restore the power, grapple across the hold).
+ *  - Water boils up over her deck (the upwelling): nobody sinks onto it, but a
+ *    grapple to the bollard on her stern pulls you down and holds you there,
+ *    beside the deck hatch (the cutter torch opens it).
+ *  - The hatch drops down a shaft to the lower corridor. The stern door at its
+ *    west end is sealed until you release it from inside (a shortcut out).
+ *  - The hold: a downdraft through her holed keel pins anything to the floor,
+ *    except under the three beam hooks a grapple can reach.
+ *  - Past the hold, high up, the engine room. Two breakers (one there, one on
+ *    the hold floor) bring her emergency power back: lights, and the powered
+ *    door to the survey lab in her superstructure.
+ */
+export const cv = { hatch: false, door: false, power: false };
+const cvF = (x: number) => groundY(x) + 30;
+/** Her hull and superstructure outlines (shared with the drawing). */
+let hullCache: [number, number][] | null = null;
+export function corvinaHull(): [number, number][] {
+  const { x0, x1 } = CORVINA;
+  return (hullCache ??= [
+    [x0, cvF(x0) - 300],
+    [x1 - 160, cvF(x1 - 160) - 340],
+    [x1, cvF(x1) - 470],
+    [x1 - 60, cvF(x1 - 60)],
+    [x0 + 40, cvF(x0 + 40)],
+  ]);
+}
+export function corvinaHouse(): { x: number; y: number; w: number; h: number } {
+  return { x: CORVINA.x0 + 160, y: cvF(CORVINA.x0) - 470, w: 380, h: 172 };
+}
+export const CV_BOLLARD = { x: 25566, y: 0 };
+export const CV_HATCH = { x: 25612, y: 0 };
+export const CV_HOOKS = [
+  { x: 25935, y: 1402 },
+  { x: 26100, y: 1394 },
+  { x: 26265, y: 1402 },
+];
+export const CV_ROOMS = {
+  shaft: cap(25612, 1330, 30, 25612, 1478, 32),
+  corridor: cap(25548, 1514, 44, 25870, 1508, 44),
+  hold: ell(26100, 1490, 250, 112),
+  toEngine: cap(26318, 1418, 38, 26440, 1430, 40),
+  engine: ell(26515, 1452, 92, 74),
+  toLab: cap(25622, 1352, 28, 25745, 1286, 30),
+  lab: ell(25900, 1258, 168, 58),
+};
+/** Things you hold Collect at, inside her. */
+export const CV_SPOTS = {
+  breakerEngine: { x: 26545, y: 1500 },
+  breakerHold: { x: 26100, y: 1576 },
+  lever: { x: 25600, y: 1536 },
+  sonardata: { x: 25840, y: 1290 },
+  suitplans: { x: 25975, y: 1290 },
+  corvinalog: { x: 25775, y: 1290 },
+};
+/** Solid until opened: the stern door, and the powered door into the lab. */
+export const CV_DOOR = { x0: 25540, x1: 25600, y0: 1462, y1: 1566 };
+export const CV_LABDOOR = { x0: 25712, x1: 25728, y0: 1258, y1: 1342 };
+/** The hold's downdraft (all but near the hooks) and the upwelling over her deck. */
+export function cvDowndraft(x: number, y: number): number {
+  if (!inShape(CV_ROOMS.hold, x, y)) return 0;
+  return x < CV_ROOMS.hold.x + CV_ROOMS.hold.rx - 50 ? 1 : 0;
+}
+export function cvUpwell(x: number, y: number): number {
+  if (x < CORVINA.x0 - 30 || x > CORVINA.x1 - 30) return 0;
+  const top = cvDeckY(x);
+  if (y > top - 4) return 0;
+  return smooth((x - (CORVINA.x0 - 30)) / 60) * (1 - smooth((x - (CORVINA.x1 - 90)) / 60));
+}
+/** The top of her hull (or the superstructure) at x. */
+export function cvDeckY(x: number): number {
+  const h = corvinaHull();
+  const [ax, ay] = h[0];
+  const [bx, by] = h[1];
+  const [cx, cy] = h[2];
+  let y = x <= bx ? ay + ((by - ay) * (x - ax)) / (bx - ax) : by + ((cy - by) * (x - bx)) / (cx - bx);
+  const H = corvinaHouse();
+  if (x > H.x && x < H.x + H.w) y = Math.min(y, H.y);
+  return y;
+}
+const CV_SHAPES = Object.values(CV_ROOMS);
+/** Distance-like field of any shapes (negative inside), for drawing. */
+export function shapesField(shapes: CaveShape[], x: number, y: number): number {
+  let d = 999;
+  for (const s of shapes) d = Math.min(d, sdShape(s, x, y));
+  return d;
+}
+/** Distance-like field of her rooms (negative inside), for drawing. */
+export function cvRoomField(x: number, y: number): number {
+  let d = 999;
+  for (const s of CV_SHAPES) d = Math.min(d, sdShape(s, x, y));
+  return d;
+}
+/** Is (x, y) inside the Corvina's steel (hull or superstructure), not one of her rooms? */
+export function corvinaSolid(x: number, y: number): boolean | null {
+  if (x < CORVINA.x0 - 50 || x > CORVINA.x1 + 5 || y < 1150) return null;
+  // After milestone 8 part 2 (Colin): her insides are a separate dry interior
+  // (src/interior/), entered by the deck hatch. Outside she is solid steel.
+  const H = corvinaHouse();
+  const inHull = inPolygon(x, y, corvinaHull()) || (x > H.x && x < H.x + H.w && y > H.y && y < H.y + H.h + 4);
+  return inHull ? true : null;
+}
+/** The hidden passage in the shelf edge that a sonar pulse reveals (milestone 8 part 2). */
+export const HIDDEN = { tunnel: cap(19790, 1560, 44, 19560, 1548, 42), room: ell(19470, 1528, 92, 58), x: 19760, y: 1560 };
+export const hidden = { open: false };
+/** Heavy salvage on the shelf floor: the sub's grabber lifts it, a salvage crane breaks it down. */
+export const SALVAGE = [
+  // Kept well away from the brass spots, so the grabber's Collect isn't taken by a fitting.
+  { id: 'salv-a', x: 22720 },
+  { id: 'salv-b', x: 23660 },
+  { id: 'salv-c', x: 25300 },
+];
+/** Salvage comes back (more settles out of the wrecks) after this much play time. */
+export const SALVAGE_REGROW = 15 * 60;
 /** Wreck lurker dens: x, and which way the den opens (1 = right, -1 = left). */
 export const LURKER_DENS = [
   { x: 22320, dir: 1 },
@@ -437,6 +553,12 @@ export function isSolid(x: number, y: number): boolean {
   if (x < WORLD_X0 || x > WORLD_W) return true;
   if (!boom.open && Math.abs(x - BOOM_X) < 16 && y < SHELF.floor + 8) return true;
   if (!kelpWall.cut && x > KELP_WALL.x0 && x < KELP_WALL.x1 && y > KELP_WALL.y0 && y < KELP_WALL.y1) return true;
+  // Milestone 8 part 2: the Corvina is solid steel, with rooms inside.
+  if (x > 25400) {
+    const c = corvinaSolid(x, y);
+    if (c !== null) return c;
+  }
+  if (hidden.open && x > 19370 && x < 19840 && y > 1460 && (inShape(HIDDEN.tunnel, x, y) || inShape(HIDDEN.room, x, y))) return false;
   if (y >= groundY(x)) return !inCave(x, y) && !inKelpCaves(x, y);
   if (y > 540 && y < 780 && x > 5690 && x < 6880 && inPolygon(x, y, LEDGE)) return true;
   return false;
@@ -511,3 +633,8 @@ export function bakeSkyVisibility(cell: number, blurPasses: number): HTMLCanvasE
 
 // Milestone 8: the anchor rings stand 1.6 m above the seabed (set once every helper above exists).
 for (const r of RINGS) r.y = groundY(r.x) - 120;
+// Milestone 8 part 2: the Corvina's stern bollard and deck hatch sit on her deck.
+CV_BOLLARD.y = cvDeckY(CV_BOLLARD.x) - 22;
+CV_HATCH.y = cvDeckY(CV_HATCH.x);
+/** Every point the grapple can hook: the race's rings, the Corvina's bollard and her hold's beam hooks. */
+export const ANCHORS: { x: number; y: number }[] = [...RINGS];

@@ -39,6 +39,12 @@ import {
   RINGS,
   VANE,
   WRECKS,
+  corvinaHull,
+  corvinaHouse,
+  CV_HATCH,
+  HIDDEN,
+  shapesField,
+  SALVAGE,
 } from './terrain';
 
 /**
@@ -557,7 +563,10 @@ export type ScanKind =
   | 'ring'
   | 'wreck'
   | 'corvina'
-  | 'vane';
+  | 'vane'
+  | 'cvhook'
+  | 'hidden'
+  | 'salvage';
 
 interface Slice {
   obj: Container;
@@ -582,7 +591,7 @@ export class Scenery {
     kelp: [], coral: [], fan: [], grass: [], anemone: [], beacon: [], sled: [], anchor: [], buoy: [], cave: [],
     boom: [], forest: [], gkelp: [], bladder: [], lumen: [], kcaves: [],
     airpocket: [], surge: [], blackwater: [], kwall: [],
-    wshelf: [], race: [], ring: [], wreck: [], corvina: [], vane: [],
+    wshelf: [], race: [], ring: [], wreck: [], corvina: [], vane: [], cvhook: [], hidden: [], salvage: [],
   };
   /** The cave's black throat (milestone 7: the dive light thins it). */
   caveDark!: Graphics;
@@ -1462,7 +1471,6 @@ export class Scenery {
       this.hatchG.set(w.id, { closed, open });
       this.scanPoints.wreck.push({ x, y: y - 40 });
     }
-    this.scanPoints.corvina.push({ x: CORVINA.doorX + 120, y: gy(CORVINA.doorX) - 200 });
 
     decorLayer.addChild(this.raceG);
     this.slices.push({ obj: this.raceG, x0: RACE.x0 - 200, x1: RACE.x1 + 200 });
@@ -1489,6 +1497,90 @@ export class Scenery {
       this.scanPoints.vane.push({ x: VANE.x - 120, y: gy(VANE.x) - 60 });
       this.setVane(0);
     }
+    this.buildHidden();
+    this.setHidden(false);
+    // Heavy salvage: a rusted winch drum, a propeller hub and an engine block, lying in the silt.
+    SALVAGE.forEach((sv, i) => {
+      const g = new Graphics();
+      this.drawSalvage(g, 0, 0, i);
+      g.position.set(sv.x, gy(sv.x) + 4);
+      this.view.addChild(g);
+      this.salvageG.set(sv.id, g);
+      this.scanPoints.salvage.push({ x: sv.x, y: gy(sv.x) - 30 });
+    });
+    this.view.addChild(this.carried);
+  }
+
+  private hiddenOpen = new Graphics();
+  private hiddenShut = new Graphics();
+  /** Milestone 8 part 2: the hidden passage in the shelf edge, and the silt slump that hides it. */
+  private buildHidden(): void {
+    const o = this.hiddenOpen;
+    const fn = (x: number, y: number) => Math.max(shapesField([HIDDEN.tunnel, HIDDEN.room], x, y), gy(x) + 2 - y);
+    traceField(o, (x, y) => fn(x, y) - 8, 19340, 19860, 1440, 1640, 5, 0x2c3a3f, 0.7);
+    traceField(o, fn, 19340, 19860, 1440, 1640, 5, 0x151e21, 1);
+    // An old salvage locker in the hollow.
+    const r = HIDDEN.room;
+    o.roundRect(r.x - 30, r.y + 22, 60, 32, 4).fill({ color: 0x5a4a3e });
+    o.rect(r.x - 30, r.y + 22, 60, 6).fill({ color: 0xa8402e });
+    rustStreaks(o, r.x - 26, r.x + 26, r.y + 30, 5, 12);
+    o.visible = false;
+    // The slump: a fan of grey silt and stones over the mouth.
+    const sh = this.hiddenShut;
+    for (let i = 0; i < 40; i++) {
+      const x = R(19700, 19830);
+      const y = R(1515, 1610);
+      dab(sh, x, y, R(10, 26), R(6, 14), rand() < 0.5 ? 0x6a6658 : 0x55524a, 0.7);
+    }
+    for (let i = 0; i < 14; i++) sh.circle(R(19700, 19830), R(1560, 1605), R(3, 7)).fill({ color: 0x4a4840 });
+    this.view.addChild(o, sh);
+    this.scanPoints.hidden.push({ x: 19770, y: 1560 });
+  }
+  setHidden(open: boolean): void {
+    this.hiddenOpen.visible = open;
+    this.hiddenShut.visible = !open;
+  }
+
+  private salvageG = new Map<string, Graphics>();
+  private carried = new Graphics();
+  private carriedKind = -1;
+  private drawSalvage(g: Graphics, x: number, y: number, kind: number): void {
+    g.ellipse(x, y, 54, 9).fill({ color: 0x3a3632, alpha: 0.7 });
+    if (kind === 0) {
+      g.roundRect(x - 40, y - 46, 80, 44, 10).fill({ color: 0x5a4a3e });
+      for (let k = 0; k < 5; k++) g.rect(x - 34 + k * 16, y - 46, 4, 44).fill({ color: 0x3a3430 });
+      g.circle(x + 44, y - 24, 14).stroke({ color: 0x6a4a38, width: 5 });
+    } else if (kind === 1) {
+      g.circle(x, y - 26, 16).fill({ color: 0xa8822e });
+      for (let k = 0; k < 3; k++) {
+        const a = (k / 3) * Math.PI * 2 - 0.4;
+        g.ellipse(x + Math.cos(a) * 30, y - 26 + Math.sin(a) * 30, 24, 10).fill({ color: 0x9a7a2e });
+      }
+    } else {
+      g.roundRect(x - 46, y - 52, 92, 50, 6).fill({ color: 0x4a4e50 });
+      for (let k = 0; k < 4; k++) g.circle(x - 30 + k * 20, y - 38, 7).fill({ color: 0x2a2e30 });
+      g.rect(x - 50, y - 56, 100, 6).fill({ color: 0x6a4a2e });
+    }
+    rustStreaks(g, x - 36, x + 36, y - 40, 6, 16);
+  }
+  /** Which salvage is lying on the shelf now. */
+  setSalvage(taken: Record<string, number>): void {
+    for (const [id, g] of this.salvageG) g.visible = !(id in taken);
+  }
+  /** Salvage hanging from the sub's claw (index into SALVAGE), or none. */
+  setCarried(p: { x: number; y: number } | null, kind: number): void {
+    if (!p) {
+      this.carried.visible = false;
+      return;
+    }
+    if (kind !== this.carriedKind) {
+      this.carriedKind = kind;
+      this.carried.clear();
+      this.drawSalvage(this.carried, 0, 56, kind);
+      this.carried.moveTo(0, 0).lineTo(0, 8).stroke({ color: 0x2a2622, width: 2 });
+    }
+    this.carried.visible = true;
+    this.carried.position.set(p.x, p.y);
   }
 
   /** 0 = the vane lies flat on the seabed, 1 = raised (the top of the race goes calm). */
@@ -1583,31 +1675,54 @@ export class Scenery {
     rustStreaks(g, x0 + 20, x1 - 20, f(x0) - 120, 20, 50);
   }
 
+  private cvParts: { hatchClosed: Graphics; hatchOpen: Graphics; shown: string } | null = null;
+
   private drawCorvina(g: Graphics): void {
-    const { x0, x1, doorX } = CORVINA;
+    const { x0, x1 } = CORVINA;
     const f = (x: number) => gy(x) + 30;
-    // A big survey ship lying on the shelf: a long dark hull, its bow raised on a rock.
-    this.hull(g, [x0, f(x0) - 300, x1 - 160, f(x1) - 340, x1, f(x1) - 470, x1 - 60, f(x1), x0 + 40, f(x0)], 0x4a4240);
-    g.rect(x0, f(x0) - 302, x1 - x0 - 150, 10).fill({ color: 0x7a3a2a });
+    const hull = corvinaHull();
+    const H = corvinaHouse();
+    // A big survey ship lying on the shelf: a long dark hull, her bow raised on a rock.
+    this.hull(g, hull.flat(), 0x4a4240);
+    g.rect(x0, hull[0][1] - 2, x1 - x0 - 150, 10).fill({ color: 0x7a3a2a });
     for (let k = 0; k < 18; k++) g.circle(x0 + 160 + k * 52, f(x0) - 230, 9).fill({ color: 0x0c1012 });
     // Superstructure and two masts.
-    g.roundRect(x0 + 160, f(x0) - 470, 380, 170, 8).fill({ color: 0x5a524c });
-    for (let k = 0; k < 6; k++) g.roundRect(x0 + 180 + k * 58, f(x0) - 450, 38, 28, 4).fill({ color: 0x0c1012 });
-    g.moveTo(x0 + 620, f(x0) - 300).lineTo(x0 + 640, f(x0) - 640).stroke({ color: 0x3e3632, width: 9 });
-    g.moveTo(x0 + 860, f(x0) - 310).lineTo(x0 + 900, f(x0) - 560).stroke({ color: 0x3e3632, width: 7 });
-    // The great sealed bulkhead door.
-    const dy = f(doorX) - 120;
-    g.roundRect(doorX - 46, dy - 70, 92, 140, 14).fill({ color: 0x6a625c });
-    g.roundRect(doorX - 46, dy - 70, 92, 140, 14).stroke({ color: 0x2e2826, width: 4 });
-    g.circle(doorX, dy, 18).stroke({ color: 0xa8402e, width: 3.5 });
-    g.moveTo(doorX - 18, dy).lineTo(doorX + 18, dy).moveTo(doorX, dy - 18).lineTo(doorX, dy + 18).stroke({ color: 0xa8402e, width: 2.6 });
+    g.roundRect(H.x, H.y, H.w, H.h, 8).fill({ color: 0x5a524c });
+    for (let k = 0; k < 6; k++) g.roundRect(H.x + 20 + k * 58, H.y + 14, 38, 24, 4).fill({ color: 0x0c1012 });
+    g.moveTo(x0 + 620, hull[0][1]).lineTo(x0 + 640, f(x0) - 640).stroke({ color: 0x3e3632, width: 9 });
+    g.moveTo(x0 + 860, hull[0][1]).lineTo(x0 + 900, f(x0) - 560).stroke({ color: 0x3e3632, width: 7 });
     rustStreaks(g, x0 + 40, x1 - 80, f(x0) - 260, 40, 70);
     const t = new Text({ text: 'CORVINA', style: { fontFamily: 'monospace', fontSize: 26, fill: 0xd8d0b8, fontWeight: 'bold', letterSpacing: 6 } });
     t.alpha = 0.55;
     t.anchor.set(0.5);
-    t.position.set(x0 + 560, f(x0) - 270);
+    t.position.set(x0 + 760, f(x0) - 180);
     this.view.addChild(t);
     this.slices.push({ obj: t, x0: x0 - 300, x1: x1 + 300 });
+
+    // Her deck hatch (her insides are a separate dry interior, entered here).
+    const add = (gr: Graphics) => {
+      this.view.addChild(gr);
+      return gr;
+    };
+    const hx = CV_HATCH.x;
+    const hy = CV_HATCH.y;
+    const hatchClosed = add(new Graphics().roundRect(hx - 36, hy - 6, 72, 12, 3).fill({ color: 0x5a5450 }));
+    hatchClosed.circle(hx, hy, 7).stroke({ color: 0xa8402e, width: 2.4 });
+    const hatchOpen = add(new Graphics().roundRect(hx - 36, hy - 4, 72, 8, 3).fill({ color: 0x0a0d0e }));
+    hatchOpen.poly([hx + 36, hy - 4, hx + 44, hy - 40, hx + 52, hy - 38, hx + 44, hy]).fill({ color: 0x5a5450 });
+    this.cvParts = { hatchClosed, hatchOpen, shown: '' };
+    this.scanPoints.corvina.push({ x: x0 + 400, y: f(x0) - 200 });
+  }
+
+  /** The Corvina's deck hatch: cut open or not. */
+  setCorvina(o: { hatch: boolean }): void {
+    const c = this.cvParts;
+    if (!c) return;
+    const key = String(o.hatch);
+    if (key === c.shown) return;
+    c.shown = key;
+    c.hatchClosed.visible = !o.hatch;
+    c.hatchOpen.visible = o.hatch;
   }
 
   /** Which sealed hatches are cut open. */
