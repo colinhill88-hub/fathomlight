@@ -14,6 +14,9 @@
  *           E or Q to scan (tap or hold), hold C or R to collect.
  * Mouse: hold the left button to swim towards the pointer, right-click to boost.
  * Gamepad: left stick to swim, A to boost, Y for the lamp, B to scan, hold X to collect.
+ * The submersible (milestone 6): the Board / Exit button (touch), V on the
+ * keyboard or RB on a gamepad climbs in and out; aboard, the same controls
+ * drive it (Boost fires the thrusters, Lamp switches its lights).
  *
  * Build mode (src/ui/build.ts) has its own controls; while it is open this
  * class is `suspended` and reports no swimming input.
@@ -27,6 +30,8 @@ export interface InputState {
   scan: boolean;
   scanTap: boolean;
   collect: boolean;
+  /** True for the one frame Board / Exit was pressed (the submersible, milestone 6). */
+  board: boolean;
   /** Which kind of control was used last, so on-screen hints can match it. */
   lastDevice: 'touch' | 'keyboard' | 'mouse' | 'gamepad';
 }
@@ -35,7 +40,7 @@ const STICK_RADIUS = 56;
 const DEADZONE = 0.15;
 
 export class Input {
-  readonly state: InputState = { moveX: 0, moveY: 0, boost: false, lamp: false, scan: false, scanTap: false, collect: false, lastDevice: 'keyboard' };
+  readonly state: InputState = { moveX: 0, moveY: 0, boost: false, lamp: false, scan: false, scanTap: false, collect: false, board: false, lastDevice: 'keyboard' };
 
   private keys = new Set<string>();
   private boostQueued = false;
@@ -43,6 +48,7 @@ export class Input {
   private scanButton = false;
   private scanTapQueued = false;
   private collectButton = false;
+  private boardQueued = false;
 
   // Touch stick.
   private stickId: number | null = null;
@@ -89,6 +95,7 @@ export class Input {
       if (k === 'shift' || k === ' ') this.boostQueued = true;
       if (k === 'l' || k === 'f') this.lampQueued = true;
       if (k === 'e' || k === 'q') this.scanTapQueued = true;
+      if (k === 'v') this.boardQueued = true;
       if (k.startsWith('arrow') || k === ' ') e.preventDefault();
     });
     window.addEventListener('keyup', (e) => this.keys.delete(e.key.toLowerCase()));
@@ -167,6 +174,7 @@ export class Input {
     };
     press('btn-boost', () => (this.boostQueued = true));
     press('btn-lamp', () => (this.lampQueued = true));
+    press('btn-sub', () => (this.boardQueued = true));
     // Scan is held, not tapped.
     const scanEl = document.getElementById('btn-scan')!;
     scanEl.addEventListener('pointerdown', (e) => {
@@ -270,6 +278,7 @@ export class Input {
       const btn = (i: number) => !!pad.buttons[i]?.pressed;
       const pressed = (i: number) => btn(i) && !this.padPrev[i];
       if (pressed(0)) this.boostQueued = true;
+      if (pressed(5)) this.boardQueued = true;
       if (pressed(3)) this.lampQueued = true;
       if (btn(1)) scan = true;
       if (pressed(1)) this.scanTapQueued = true;
@@ -282,7 +291,7 @@ export class Input {
     if (this._suspended) {
       x = y = 0;
       scan = collect = false;
-      this.boostQueued = this.lampQueued = this.scanTapQueued = false;
+      this.boostQueued = this.lampQueued = this.scanTapQueued = this.boardQueued = false;
     }
     this.state.moveX = x;
     this.state.moveY = y;
@@ -291,6 +300,8 @@ export class Input {
     this.state.scan = scan;
     this.state.scanTap = this.scanTapQueued;
     this.state.collect = collect;
+    this.state.board = this.boardQueued;
+    this.boardQueued = false;
     this.scanTapQueued = false;
     this.boostQueued = false;
     this.lampQueued = false;

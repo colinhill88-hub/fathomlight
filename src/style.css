@@ -1802,3 +1802,326 @@ body.rates-open #build-info {
     grid-template-columns: 1fr;
   }
 }
+
+/* ---- Milestone 6: the submersible and the Moon pool dock ---- */
+
+#btn-sub {
+  position: absolute;
+  display: none;
+  align-items: center;
+  gap: 6px;
+  height: 50px;
+  padding: 0 16px 0 12px;
+  right: calc(var(--safe-right) + 186px);
+  bottom: calc(var(--safe-bottom) + 36px);
+  border-radius: 25px;
+  border: 1px solid rgba(255, 217, 138, 0.7);
+  background: var(--ui-bg);
+  color: #ffd98a;
+  font: 700 14px/1 inherit;
+  font-family: inherit;
+  pointer-events: auto;
+  touch-action: none;
+}
+
+#btn-sub.pressed {
+  background: #ffd98a;
+  color: #1d1a12;
+}
+
+body.touch #btn-sub.ready {
+  display: flex;
+  animation: build-in 0.3s ease-out;
+}
+
+#sub-chip {
+  position: fixed;
+  top: calc(var(--safe-top) + 124px);
+  left: calc(var(--safe-left) + 10px);
+  display: none;
+  width: 108px;
+  padding: 5px 9px;
+  border-radius: 10px;
+  background: var(--ui-bg);
+  border: 1px solid rgba(255, 217, 138, 0.55);
+  color: #ffd98a;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.4;
+  pointer-events: none;
+  z-index: 10;
+}
+
+body.building #sub-chip,
+body.caring #sub-chip,
+body.docking #sub-chip {
+  display: none !important;
+}
+
+#sub-chip.show {
+  display: block;
+}
+
+#sub-chip.warn {
+  border-color: #e05a40;
+  color: #ffb39a;
+}
+
+#sub-chip b {
+  color: var(--ui-text);
+}
+
+#sub-marker {
+  position: fixed;
+  left: 0;
+  top: 0;
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  width: 60px;
+  margin: -22px 0 0 -30px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #ffd98a;
+  text-shadow: 0 1px 3px #000;
+  pointer-events: none;
+  z-index: 8;
+}
+
+#sub-marker.show {
+  display: flex;
+}
+
+#sub-marker .arrow {
+  width: 0;
+  height: 0;
+  border-left: 9px solid transparent;
+  border-right: 9px solid transparent;
+  border-bottom: 14px solid #ffd98a;
+  transform: rotate(calc(var(--a) + 90deg));
+  margin-bottom: 2px;
+}
+
+#dock-btn {
+  display: none;
+  height: 48px;
+  padding: 0 14px 0 11px;
+  gap: 6px;
+  align-items: center;
+  border-radius: 24px;
+  border: 1px solid rgba(255, 217, 138, 0.6);
+  background: var(--ui-bg);
+  color: #ffd98a;
+  font: 600 14px/1 inherit;
+  font-family: inherit;
+  cursor: pointer;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+
+#dock-btn.show {
+  display: flex;
+  animation: build-in 0.4s ease-out;
+}
+
+#dock-btn[aria-pressed='true'] {
+  background: #ffd98a;
+  border-color: #ffd98a;
+  color: #1d1a12;
+}
+
+#dock-ui {
+  display: none;
+}
+
+body.docking #dock-ui {
+  display: block;
+}
+
+body.docking #controls,
+body.docking #hint,
+body.docking #tags,
+body.docking #bag-marker,
+body.docking #sub-marker,
+body.docking #banner,
+body.docking #log-btn,
+body.docking #build-btn,
+body.docking #tend-btn {
+  display: none !important;
+}
+
+body.building #sub-marker,
+body.caring #sub-marker,
+body.building #dock-btn,
+body.caring #dock-btn {
+  display: none !important;
+}
+
+#dock-panel {
+  position: fixed;
+  top: calc(var(--safe-top) + 70px);
+  right: calc(var(--safe-right) + 12px);
+  bottom: calc(var(--safe-bottom) + 12px);
+  width: min(380px, 46vw);
+  overflow-y: auto;
+  padding: 12px 14px 14px;
+  border-radius: 14px;
+  background: rgba(16, 38, 58, 0.92);
+  border: 1px solid var(--ui-line);
+  z-index: 10;
+  font-size: 13px;
+  line-height: 1.35;
+  -webkit-overflow-scrolling: touch;
+}
+
+#dock-panel .head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+#dock-panel .head span {
+  flex: 1;
+  opacity: 0.65;
+  font-size: 12px;
+}
+
+#dock-panel button {
+  font-family: inherit;
+  color: var(--ui-text);
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+#dock-panel .x {
+  width: 44px;
+  height: 44px;
+  margin: -8px -8px -8px 0;
+  border: none;
+  background: none;
+  font-size: 18px;
+}
+
+#dock-panel h3 {
+  margin: 12px 0 4px;
+  font-size: 14px;
+}
+
+#dock-panel p {
+  margin: 4px 0;
+  opacity: 0.85;
+}
+
+#dock-panel .why {
+  color: #f0b090;
+}
+
+#dock-panel .ok {
+  color: #c8dca0;
+}
+
+#dock-panel .need {
+  margin: 6px 0;
+}
+
+#dock-panel .need .row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  opacity: 0.85;
+}
+
+#dock-panel .track {
+  height: 7px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.1);
+  overflow: hidden;
+}
+
+#dock-panel .track i {
+  display: block;
+  height: 100%;
+  background: #c9a24a;
+}
+
+#dock-panel .track i.air {
+  background: #6a9ac0;
+}
+
+#dock-panel .track i.low {
+  background: #e05a40;
+}
+
+#dock-panel .mod {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 6px 0;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid var(--ui-line);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+#dock-panel .mod.empty {
+  opacity: 0.6;
+  border-style: dashed;
+}
+
+#dock-panel .mod div {
+  flex: 1;
+}
+
+#dock-panel .mod small {
+  display: block;
+  opacity: 0.7;
+  font-size: 11.5px;
+}
+
+#dock-panel .act {
+  min-height: 44px;
+  padding: 0 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 217, 138, 0.6);
+  background: rgba(255, 217, 138, 0.12);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+#dock-panel .act.big {
+  width: 100%;
+  margin-top: 8px;
+}
+
+#dock-panel .act:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+#dock-panel .act.armed {
+  border-color: #e05a40;
+  color: #ffb39a;
+}
+
+#dock-panel .costs {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 2px;
+}
+
+#dock-panel .cost {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 12px;
+}
+
+#dock-panel .cost svg {
+  width: 15px;
+  height: 15px;
+}
+
+#dock-panel .cost.short {
+  color: #ff9a7a;
+}

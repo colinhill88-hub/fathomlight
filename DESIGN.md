@@ -84,6 +84,7 @@ Five systems make up the game: diving, submersibles, the base, creature care and
 - A sub is a hull with a dome cockpit and module slots. Modules include lights, grabber arm, cargo bay, sonar and depth plating.
 - Subs carry oxygen, so they act as a mobile safe point.
 - Subs are built, repaired and refitted at the Moon pool dock.
+- **Built in milestone 6** (Colin's choices): the sub KS-1 costs 12 hull plating plus quartz, copper and kelp fibre, and the dock 6 plating. It drives heavy and direct (the same stick, with Boost as thrusters), carries 10 minutes of air, and hard knocks against rock dent the hull, which the dock repairs with plating. The first modules are the cargo bay (raises `bagLimits()` while aboard), floodlights and the grabber arm. Sonar and depth plating come with the deeper zones.
 
 ### The base
 
@@ -188,7 +189,7 @@ The game is built in thirteen slices, one per session, and each ends with a play
 3. **Base building.** Snap-together placement with dome habitat, corridor, current turbine and storage pod.
 4. **Creatures.** Collecting, creature tank, feeding, filter pump and the three needs.
 5. **Big base and factory groundwork** (added after milestone 4 at Colin's request). A much wider and deeper build site with a pannable, zoomable build view; materials moving between joined pieces at real rates; the first machine that combines materials into a refined one; creature tanks as resource nodes whose output scales with happy creatures. Split into two sessions: **part 1** (done) the Kestrel basin, build camera, conveyors and feed pipes, the auto feeder, scaling creature output and the Echo whorl; **part 2** (done) the plate press making hull plating, tank output on conveyors, faster CB-2 conveyors and FL-2 feed pipes, and a base-wide rates overview. Details in PROGRESS.md.
-6. **Submersible.** A drivable sub with module slots, plus the Moon pool dock.
+6. **Submersible** (done). A drivable sub with module slots, plus the Moon pool dock. Colin's decisions: medium cost (about 20 hull plating for dock and sub together), cargo bay, floodlights and grabber arm as the first modules, heavy direct handling, and hull dents repaired at the dock with a 10-minute air reserve. Details in PROGRESS.md.
 7. **First gear gate.** Lab, Workshop and dive light; kelp forest and caves zone with its major site; the auto feeder.
 8. **Danger.** Predators, currents, cutter torch and tow line; the wreck shelf zone.
 9. **Breeding.** Hatchery, kelp farm, inherited traits and creatures that act as keys.

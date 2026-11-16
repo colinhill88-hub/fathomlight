@@ -1,6 +1,6 @@
 # Fathomlight progress
 
-Last updated: 2026-11-15, **milestone 5 part 2 deployed (plate press and hull plating, tank output on conveyors, CB-2 / FL-2 line tiers, base rates overview, lines from either end)**. Next is **milestone 6, the submersible** (see Next).
+Last updated: 2026-11-16, **milestone 6 deployed (the submersible KS-1 and the Moon pool dock, with cargo bay, floodlights and grabber arm)**. Next is **milestone 7, the first gear gate** (see Next).
 
 Play link: https://colinhill88-hub.github.io/fathomlight/ (live; first successful deploy 2026-11-14)
 
@@ -528,16 +528,109 @@ Cut from High so far: the phone renders at 2× instead of its native 3×. Colin 
     - Screenshots of the press close-up, the stencilled lines, the press readout and the rates panel. No console errors.
 - Deployed: GitHub Actions run 43760293910 built and deployed to Pages successfully from `claude/milestone-5-part-2-ncs2f6`. Merge it into the default branch `claude/underwater-game-m0-0qqajg` before the next session.
 
+### Milestone 6: the submersible and the Moon pool dock
+- **Feedback on the last build:** Colin tested milestone 5 part 2 and keeps tank output as it is (the 4-item output tray, emptied by conveyors or by swimming up to the tank). Nothing to fix.
+- **Colin's decisions before building:**
+  - **Cost:** medium, about 20 hull plating for the dock and sub together.
+  - **First modules:** cargo bay, floodlights and grabber arm.
+  - **Handling:** heavy and direct.
+  - **Wear:** hull dents repaired with plating at the dock, and a 10-minute air reserve.
+- **One session, no split:** everything planned fitted.
+- **Moon pool dock** (piece 9, `MP-1`; rules in `src/game/base.ts`, drawing `drawDock` in `src/world/basegfx.ts`):
+
+| Cost | Size | Build time | Collars | Job |
+| --- | --- | --- | --- | --- |
+| 6 hull plating, 4 scrap, 3 copper, 2 quartz | 3 × 2 cells | 45 s | left and right, on the top row | Builds, berths, repairs and refits the sub |
+
+  - **The look:** the top row is a pressurised hall (a riveted drum with portholes, a hazard band, a crane rail and a hook block) with the moon pool cut in its floor. The bottom row is the open berth: heavy pillars with hazard bands, clamp arms and amber guide lamps. The berthed sub's dome rises into the pool.
+  - **Rules:** it needs power to refill air, unload or build. It can't be removed while the sub is being built in it or berthed there, and the last dock can't be removed while a sub exists.
+- **The submersible KS-1** (`src/actors/sub.ts` drawing and driving, `src/game/sub.ts` rules):
+  - **Building it:** at a finished, powered dock, tap **Dock** (top right; keyboard G) and then **Build the sub here**. It costs **12 hull plating, 4 quartz, 3 copper and 2 kelp fibre**. A frame appears in the berth, and the build drone welds it in **60 s**, from the bottom up inside a scaffold (after any base frames waiting).
+  - **The look, all drawn by code:**
+    - a stubby hull in weathered Kestrel yellow over a steel belly, with a rust-red band;
+    - rivets, panel seams, `KS-1 / KESTREL` stencils (they read correctly in both directions), hazard stripes, rust streaks, scratches and algae;
+    - two lit portholes, a dorsal fin with a blinking red tail lamp, a snorkel mast, skids and a ducted brass propeller that spins with the thrust;
+    - the glass dome cockpit, with the explorer visible inside (lime-glass helmet with its crest, face in profile, charcoal suit, chrome yoke) and a lit console.
+  - **Boarding:**
+    - Swim up to it and tap **Board** (touch button left of the lamp; keyboard **V**; gamepad **RB**). The same button reads **Exit** aboard.
+    - While aboard, the diver is in the cockpit and the camera pulls back a little (`VIEW_H_SUB` = 820).
+  - **Driving (heavy direct):** the same stick, keys, mouse or gamepad stick.
+    - It cruises at 330 units/s (the diver swims at 230). **Boost** fires the thrusters for 1.6 s at 620.
+    - It takes a moment to get going and longer to stop, and the hull tilts as it climbs and dives.
+    - **Lamp** switches its lights. The drone follows at a wider distance and keeps up.
+  - **Air (a mobile safe point):**
+    - It holds **10 minutes**. Aboard, you breathe the sub's air, so your own tank stays full and the dive clock stays at zero.
+    - The reserve refills at the surface and, faster, berthed in a powered dock. A chip under the watch shows hull, air and cargo.
+    - With a minute left you get a warning. When it runs out you breathe from your own tank.
+    - After a blackout you wake aboard the sub if it is nearer than the dome, has air and a sound hull. A blackout aboard puts you out first.
+    - Off screen, a **KS-1** arrow at the screen edge shows where you parked it.
+  - **Dents:**
+    - Hitting rock faster than 170 units/s dents the hull: about 15% for cruising into a wall and up to 40% for a thruster ram. Scraping along rock is free.
+    - Each dent gives a jolt, a puff of bubbles and a warning. Dents and rust show on the hull as it wears, and a crack appears in the dome below 35%.
+    - At 0% you bail out where you are, and the crew winches KS-1 home to its dock. A breached sub can't be taken out until it is repaired.
+  - **Docking:** drive slowly into a dock's berth and the clamps take it.
+    - Berthed in a powered dock, air refills, and everything aboard (cargo and what you carry) unloads into storage.
+    - Push the stick to release the clamps.
+- **The Dock panel** (`src/ui/dock.ts`), laid out like tank care: the camera frames the dock and a panel on the right shows:
+  - with no sub yet: its cost and **Build**;
+  - while it is a frame: weld progress;
+  - while it is out: how far away it is;
+  - while it is berthed: hull and air bars, **Repair the hull** (1 hull plating per quarter of the hull) and the **three module slots**, each with **Take off** (two taps; materials come back into storage first). Modules not yet fitted are listed with their cost and **Fit**.
+  - Keyboard: G opens, Esc closes, R repairs.
+- **The first modules:**
+
+| Module | Code | Cost | What it does | On the hull |
+| --- | --- | --- | --- | --- |
+| Cargo bay | CB-S | 3 hull plating, 2 scrap, 1 kelp fibre | Aboard, `bagLimits()` rises by 36 kg rated / 40 kg full (51 / 64 kg). Climbing out, what the diver can't carry stays in the hold; it rejoins the bag on boarding, and the dock unloads it. | A riveted belly pod with rust-red doors |
+| Floodlights | FL-S | 2 hull plating, 2 quartz, 1 copper | A wide, bright bow cone (1150 radius against 560 for the running lamp) | Twin lamp housings on the bow |
+| Grabber arm | GA-S | 3 hull plating, 2 copper, 1 scrap | Hold Collect with the claw by a material or a young creature to take it without climbing out (same work times; stay nearly still) | A folding yellow arm under the chin that reaches for the work |
+
+  - Without the grabber, a one-time tip explains that it is needed to collect from the sub.
+- **Costs in total:** dock 6 plating, sub 12, all three modules 8. That is 18 plating to get driving and 26 for the full kit, or about 36 minutes of one plate press for the sub and dock (18 with a whorl).
+- **Other:**
+  - Storage pods also unload the bag when the sub drives up to them.
+  - The scanner beam comes from the dome while aboard.
+  - Tend and the dome habitat need the diver out of the sub.
+  - The scanner log's Outpost Kestrel section has a line for the sub and counts docks.
+  - Build bar: 9 pieces (keyboard 1–9).
+  - Saves: `sub` in `src/game/state.ts`. Older saves load with no sub.
+- **Tested:**
+  - Type check and production build pass.
+  - Emulated iPhone 15 Pro in landscape, with a seeded base (storage pod, turbine, dock):
+    - The Dock button appears at the dock. Build took the cost, and the frame showed welding at 45%. The drone finished it, and the toast and panel switched to the berthed view.
+    - All three modules were fitted, costs were paid, and they showed on the hull.
+    - Board (button and V): pushing the stick released the clamps. Driving in the basin showed the floodlight cone.
+    - Ramming the basin's west wall at thruster speed dented the hull to 70%. A ram at 5% breached it: the diver bailed out, and the sub was towed back into the berth with the hull at 0. The cargo overflow went into the dock's storage.
+    - Climbing out carrying 52 kg left the heaviest items in the hold, and they rejoined the bag on boarding.
+    - Blacking out away from the sub woke the diver aboard it (no dome in that base).
+    - The grabber pried loose a scrap spot under the bow (+1 scrap).
+    - Floodlights in the dark grotto, facing left with the stencils readable. After a reload, the sub's place, hull, air, modules and aboard state were all kept.
+  - No console errors. As before, the software test browser can't show the real frame rate or speeds; those need checking on the phone.
+
 ## Next
 
-**Milestone 6: the submersible** (DESIGN.md): a drivable sub with module slots, plus the Moon pool dock. Hull plating from the plate press is ready to be its main build material.
-- Still open from milestone 5: a splitter or merger if balancing needs one. Today, storage pods act as the hub, a tank can send two conveyors, and a press can send two.
-- More Echo whorls in later biomes (two in the shallows now).
-- Ask Colin before building: what the sub and dock cost (how much hull plating), and which module slots come first.
+**Milestone 7: the first gear gate** (DESIGN.md): Lab, Workshop and the dive light; the kelp forest and caves zone with its major site. The auto feeder in DESIGN.md's milestone 7 line was already built in milestone 5.
+- Ask Colin before building:
+  - which new base pieces the kelp forest brings, and their materials (DESIGN.md, "Base growth across biomes");
+  - whether drone upgrades arrive with the Workshop;
+  - which new species (and partner pairings) the kelp forest has;
+  - whether the sub can enter the kelp forest, or the dive light gate is diver-only.
+- More sub modules come with the deeper zones: sonar (milestone 10 gear) and depth plating. The slots and `MODULES` in `src/game/sub.ts` take new ones as single entries.
+- Still open from milestone 5: a splitter or merger if balancing needs one; more Echo whorls in later biomes.
 
-Where things are: line tiers, conveyor routing, the press and tank trays are in `src/game/factory.ts`, with every rate a constant at the top. Pieces and their port counts are in `PIECES` (`src/game/base.ts`). Drawing is in `src/world/linegfx.ts` (lines) and `src/world/basegfx.ts` (`drawPress`). Build-mode linking is in `src/ui/build.ts`, and the overview in `src/ui/rates.ts`.
+Where things are (milestone 6): sub rules and costs in `src/game/sub.ts` (every number is a constant at the top); drawing and driving in `src/actors/sub.ts` (`CRUISE`, `BOOST`, `BURST`); the dock panel in `src/ui/dock.ts`; the dock piece in `PIECES` (`src/game/base.ts`) and `drawDock` (`src/world/basegfx.ts`); boarding, air, dents, docking and unloading in the frame loop in `src/main.ts` (search "The submersible").
 
 ## Problems and open questions
+
+- **Milestone 6 numbers to tune after Colin plays** (`src/game/sub.ts`, `src/actors/sub.ts`):
+  - sub cost (12 plating + 4 quartz, 3 copper, 2 fibre), weld 60 s, dock cost and weld time in `PIECES`;
+  - air 10 min; it refills in 20 s at a powered dock and 30 s at the surface;
+  - dents above 170 units/s at 1/1100 per unit; repairs cost 1 plating per quarter;
+  - cruise 330, thrusters 620 for 1.6 s, and how slowly it speeds up and stops;
+  - the cargo bay's +36 / +40 kg; module costs.
+- **The sub on the phone:** the controls are the swimming ones, so check it feels heavy but not sluggish on the touch stick. If it is too slow to stop, raise the 0.55 drag in `Sub.update`.
+- **The sub isn't solid to the base.** Like the diver, it passes in front of base pieces, so it never snags on the factory. Only rock dents it.
+- **The cave gate:** the sub is stopped at the cave mouth like the diver (too dark, too tight). Milestone 7 decides whether the sub can go into the kelp forest.
 
 - **Milestone 5 part 2 numbers to tune after Colin plays** (top of `src/game/factory.ts`): press 0.5 plating/min, recipe 2 scrap + 1 copper, hoppers 6 / 3, rack 4; tray 4 per tank; CB-1 4 and CB-2 10 items/min; FL-1 10 and FL-2 25 L/min; tier-2 plating cost (1 per 4 cells); plating weight 4 kg; the press's cost and build time in `PIECES`.
 - **Tank output no longer goes straight to storage.** Without a conveyor, creatures fill the 4-item tray and pause until the diver swims by. If that feels like a chore before conveyors are affordable, a bigger tray or a "crew empties the tray when you visit the dome" rule are easy changes.

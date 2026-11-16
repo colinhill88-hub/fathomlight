@@ -20,6 +20,7 @@ import {
   GROTTO,
   groundY,
   inCaveTunnel,
+  isSolid,
   SPAWN,
   WORLD_H,
   WORLD_SPAN,
@@ -33,6 +34,7 @@ import {
   bagLoad,
   bagWeight,
   clearSave,
+  diverLimits,
   DRONE_REPAIR_COST,
   droneWeldRate,
   loadSave,
@@ -48,7 +50,10 @@ import { Scanner } from './game/scanner';
 import { SurfaceFx } from './fx/surface';
 import { Hud } from './ui/hud';
 import { DiveWatch } from './ui/watch';
-import { BaseLayout, GRID_BASE, GRID_X0, GRID_X1, isDone, PIECES, pieceRect, Placed } from './game/base';
+import { BaseLayout, berthOf, GRID_BASE, GRID_X0, GRID_X1, isDone, pieceCode, PIECES, pieceRect, Placed } from './game/base';
+import { Sub } from './actors/sub';
+import { airClock, DENT_PER_SPEED, DENT_SPEED, docks, holdKg, SUB_AIR, SUB_BUILD_TIME, subDock } from './game/sub';
+import { DockMode } from './ui/dock';
 import { BaseView, BuildOverlay, storageCapacity } from './world/basegfx';
 import { BuildMode } from './ui/build';
 import { Wildlife } from './world/wildlife';
@@ -65,6 +70,9 @@ declare const __BUILD_ID__: string;
 const VIEW_H = 640;
 /** The camera zooms in on a creature tank while tending it. */
 const VIEW_H_CARE = 235;
+/** Milestone 6: driving the sub shows more water; the dock panel frames the dock. */
+const VIEW_H_SUB = 820;
+const VIEW_H_DOCK = 470;
 
 /*
  * How a frame is drawn (back to front):
@@ -146,6 +154,19 @@ async function boot(): Promise<void> {
   const bubbles = new Bubbles(renderer);
   // The build drone: stuck in the sled wreck until repaired (milestone 3 follow-up).
   const drone = new Drone(save.drone === 'active');
+  // The submersible KS-1 (milestone 6), once one has been started at a Moon pool dock.
+  const sub = new Sub();
+  const subBubbles = new Bubbles(renderer);
+  if (save.sub) {
+    sub.x = save.sub.x;
+    sub.y = save.sub.y;
+    sub.face = save.sub.face || 1;
+    sub.setModules(save.sub.modules);
+    if (save.sub.aboard) {
+      diver.x = sub.x;
+      diver.y = sub.y - 10;
+    }
+  }
   const fish = [0, 0, 1].map((look) => new Glowfin(look, GROTTO));
   // Milestone 4: wild creatures to collect, and life inside the creature tanks.
   const wildlife = new Wildlife();
@@ -238,6 +259,8 @@ async function boot(): Promise<void> {
       wildlife.view,
       ...schools.map((s) => s.view),
       ...fish.map((f) => f.view),
+      sub.view,
+      subBubbles.view,
       drone.view,
       diver.view,
       bubbles.view,
@@ -245,8 +268,8 @@ async function boot(): Promise<void> {
       scenery.over,
     );
     frontCam.addChild(scenery.front);
-    emissiveCam.addChild(scenery.emissive, baseView.emissive, tankLife.emissive, pickups.emissive, wildlife.emissive, drone.emissive, ...fish.map((f) => f.lure), diver.lens, surfaceFx.view);
-    glowCam.addChild(scenery.glow, baseView.glow, tankLife.glow, pickups.glow, wildlife.glow, drone.glow, ...fish.map((f) => f.halo), diver.lensGlow);
+    emissiveCam.addChild(scenery.emissive, baseView.emissive, tankLife.emissive, pickups.emissive, wildlife.emissive, sub.emissive, drone.emissive, ...fish.map((f) => f.lure), diver.lens, surfaceFx.view);
+    glowCam.addChild(scenery.glow, baseView.glow, tankLife.glow, pickups.glow, wildlife.glow, sub.glow, drone.glow, ...fish.map((f) => f.halo), diver.lensGlow);
   }
   populate();
 
@@ -297,6 +320,161 @@ async function boot(): Promise<void> {
     released: (c) => wildlife.release(c.species, c.stage, save),
     highlight: (id) => (tankLife.highlight = id),
   });
+  /** Give materials back: into storage while there is room, the rest carried. */
+  function refund(cost: Partial<Record<keyof typeof save.bag, number>>): void {
+    for (const k of MATERIALS_LIST) {
+      const n = cost[k] ?? 0;
+      const into = Math.max(0, Math.min(n, storageRoom()));
+      save.stored[k] += into;
+      save.bag[k] += n - into;
+    }
+  }
+  const dockUI = new DockMode({
+    save,
+    layout,
+    toast: (t, k) => hud.toast(t, k),
+    refreshInventory: () => hud.refreshInventory(),
+    persist: () => persist(),
+    droneReady: () => save.drone === 'active',
+    weldingSub: () => drone.weldingSub,
+    subChanged: () => {
+      if (save.sub) {
+        sub.setModules(save.sub.modules);
+        if (save.sub.stage === 'frame') {
+          sub.x = save.sub.x;
+          sub.y = save.sub.y;
+          sub.vx = sub.vy = 0;
+        }
+      }
+    },
+    refund,
+    subDistance: () => {
+      const d = dockUI.dockId !== null ? layout.pieces.find((p) => p.id === dockUI.dockId) : null;
+      if (!d) return 0;
+      const b = berthOf(d);
+      return Math.hypot(sub.x - b.x, sub.y - b.y) / WU_PER_METRE;
+    },
+  });
+  /** A finished Moon pool dock the diver (or the sub) is at. */
+  function dockAround(x: number, y: number): Placed | null {
+    for (const p of layout.pieces) {
+      if (p.kind !== 'dock' || !isDone(p)) continue;
+      const r = pieceRect(p);
+      if (x > r.x - 50 && x < r.x + r.w + 50 && y > r.y - 50 && y < r.y + r.h + 60) return p;
+    }
+    return null;
+  }
+  /** Is the diver next to the parked sub (close enough to climb in)? */
+  let nearSub = false;
+  let wasNearSub = false;
+  /** After undocking, the sub must leave the berth before it can dock again. */
+  let redockArmed = true;
+  let dentToastAt = -99;
+  let shake = 0;
+  let subAirWarn = 0;
+  let unloadClock = 0;
+  let subWashClock = 0;
+  let grabTipShown = false;
+
+  /** Climb out of the sub. What the diver cannot carry stays in the cargo bay. */
+  function leaveSub(quiet: boolean): void {
+    const S = save.sub;
+    if (!S || !S.aboard) return;
+    S.aboard = false;
+    const lim = diverLimits();
+    let moved = 0;
+    for (const k of [...MATERIALS_LIST].sort((a, b) => MATERIALS[b].kg - MATERIALS[a].kg)) {
+      while (save.bag[k] > 0 && bagWeight(save.bag) > lim.max + 1e-6) {
+        save.bag[k]--;
+        S.hold[k] = (S.hold[k] ?? 0) + 1;
+        moved++;
+      }
+    }
+    // Out through the hatch: above the hull, or below if rock is in the way.
+    const dp = sub.domePoint();
+    let x = dp.x;
+    let y = sub.y - 92;
+    if (isSolid(x, y) || y < 30) {
+      y = sub.y + 80;
+      if (isSolid(x, y)) {
+        x = sub.x - sub.face * 160;
+        y = sub.y;
+      }
+    }
+    diver.x = x;
+    diver.y = Math.max(30, y);
+    diver.vx = sub.vx * 0.5;
+    diver.vy = -30;
+    diver.surfaced = false;
+    camCX = diver.x;
+    hud.refreshInventory();
+    if (!quiet) hud.toast(`Climbed out of KS-1${moved ? ` · ${moved} item${moved > 1 ? 's' : ''} left in the cargo bay` : ''}`, moved ? 'big' : 'item');
+  }
+
+  /** Climb into the sub. The cargo bay's hold joins what the diver carries. */
+  function boardSub(quiet: boolean): void {
+    const S = save.sub;
+    if (!S || S.aboard || S.stage !== 'built') return;
+    if (S.hull <= 0) {
+      if (!quiet) hud.toast('The hull is breached. Repair it at the Moon pool dock (tap Dock) before taking it out.', 'warn');
+      return;
+    }
+    S.aboard = true;
+    for (const k of MATERIALS_LIST) {
+      save.bag[k] += S.hold[k] ?? 0;
+    }
+    S.hold = {};
+    diver.vx = diver.vy = 0;
+    diver.surfaced = false;
+    hud.refreshInventory();
+    if (quiet) return;
+    if (!save.tips.includes('sub')) {
+      save.tips.push('sub');
+      hud.toast(
+        input.state.lastDevice === 'touch'
+          ? 'Aboard KS-1: steer with the stick, Boost fires the thrusters, Lamp switches the lights. You breathe the sub\'s air. Exit climbs out. Mind the rock: hard knocks dent the hull.'
+          : 'Aboard KS-1: WASD steers, Shift fires the thrusters, L switches the lights, V climbs out. You breathe the sub\'s air. Mind the rock: hard knocks dent the hull.',
+        'big',
+      );
+    } else hud.toast(`Aboard KS-1 · hull ${Math.round(S.hull * 100)}% · air ${airClock(S.air)}`);
+    persist();
+  }
+
+  /** The hull gave out: bail out here, and the crew winches the sub home to its dock. */
+  function breach(): void {
+    const S = save.sub;
+    if (!S) return;
+    leaveSub(true);
+    S.hull = 0;
+    const home = subDock(save, layout) ?? docks(layout)[0] ?? null;
+    if (home) {
+      const b = berthOf(home);
+      sub.x = b.x;
+      sub.y = b.y;
+      sub.vx = sub.vy = 0;
+      S.docked = true;
+      S.dock = home.id;
+      redockArmed = false;
+    }
+    hud.toast(
+      home
+        ? `Hull breached! You bail out, and the crew winches KS-1 home to ${pieceCode(layout, home)}. Repair it there with hull plating.`
+        : 'Hull breached! You bail out. KS-1 sits where it is until a Moon pool dock can repair it.',
+      'warn',
+    );
+    persist();
+  }
+
+  /** Where the sub is held still: its dock's berth while a frame or berthed. */
+  function subHold(): { x: number; y: number } | null {
+    const S = save.sub;
+    if (!S || !(S.stage === 'frame' || S.docked)) return null;
+    const d = layout.pieces.find((p) => p.id === S.dock && p.kind === 'dock');
+    if (d) return berthOf(d);
+    S.docked = false;
+    return null;
+  }
+
   /** The finished creature tank the diver is next to, if any. */
   function tankAround(x: number, y: number): Placed | null {
     for (const p of layout.pieces) {
@@ -340,12 +518,26 @@ async function boot(): Promise<void> {
     }
     return null;
   }
-  /** Where to wake up after a blackout: inside a powered dome if there is one, else at the buoy. */
-  function respawnPoint(): { x: number; y: number; dome: boolean } {
+  /**
+   * Where to wake up after a blackout: inside a powered dome, or aboard the
+   * sub if it has air and a sound hull (milestone 6: a mobile safe point),
+   * whichever is nearer; else at the buoy.
+   */
+  function respawnPoint(fromX: number, fromY: number): { x: number; y: number; dome: boolean; sub: boolean } {
+    let best: { x: number; y: number; dome: boolean; sub: boolean; d: number } | null = null;
     const domes = layout.pieces.filter((p) => p.kind === 'dome' && layout.powered.has(p.id));
-    if (!domes.length) return { ...SPAWN, dome: false };
-    const r = pieceRect(domes[0]);
-    return { x: r.x + r.w / 2, y: r.y + r.h - 150, dome: true };
+    if (domes.length) {
+      const r = pieceRect(domes[0]);
+      const x = r.x + r.w / 2;
+      const y = r.y + r.h - 150;
+      best = { x, y, dome: true, sub: false, d: Math.hypot(x - fromX, y - fromY) };
+    }
+    const S = save.sub;
+    if (S && S.stage === 'built' && S.hull > 0 && S.air > 20) {
+      const d = Math.hypot(sub.x - fromX, sub.y - fromY);
+      if (!best || d < best.d) best = { x: sub.x, y: sub.y - 10, dome: false, sub: true, d };
+    }
+    return best ?? { ...SPAWN, dome: false, sub: false };
   }
   let insideDome: number | null = null;
   let nearStorage = false;
@@ -360,6 +552,11 @@ async function boot(): Promise<void> {
     save.x = diver.x;
     save.y = diver.y;
     save.lampOn = diver.lampOn;
+    if (save.sub) {
+      save.sub.x = sub.x;
+      save.sub.y = sub.y;
+      save.sub.face = sub.face;
+    }
     writeSave(save);
     saveTimer = 0;
   }
@@ -450,14 +647,31 @@ async function boot(): Promise<void> {
 
     // Build mode: only at the Kestrel site, and not while blacking out.
     const atSite = diver.x > GRID_X0 - 260 && diver.x < GRID_X1 + 260 && diver.y < GRID_BASE + 120;
-    build.setAvailable(atSite && blackout === 0 && !care.active);
+    build.setAvailable(atSite && blackout === 0 && !care.active && !dockUI.active);
+    const aboardNow = !!save.sub?.aboard;
     build.pollPad(dt);
     if (!build.active && rates.open) rates.close();
     rates.update(dt);
-    const tankHere = blackout === 0 && !build.active && !diver.surfaced ? tankAround(diver.x, diver.y) : null;
+    const tankHere = blackout === 0 && !build.active && !dockUI.active && !diver.surfaced && !aboardNow ? tankAround(diver.x, diver.y) : null;
     care.setAvailable(tankHere?.id ?? (care.active ? care.tankId : null));
     care.update(dt);
-    input.suspended = build.active || care.active;
+    // Milestone 6: the Dock button at a finished Moon pool dock (or berthed in one).
+    const dockHere =
+      blackout === 0 && !build.active && !care.active
+        ? aboardNow && save.sub?.docked
+          ? (layout.pieces.find((p) => p.id === save.sub!.dock && isDone(p)) ?? null)
+          : dockAround(diver.x, diver.y)
+        : null;
+    dockUI.setAvailable(dockHere?.id ?? (dockUI.active ? dockUI.dockId : null));
+    dockUI.update(dt);
+    if (dockHere && !save.tips.includes('dock') && blackout === 0) {
+      save.tips.push('dock');
+      hud.toast(
+        `Moon pool dock: tap Dock${input.state.lastDevice === 'touch' ? '' : ' (G)'} to build the submersible here, and later to repair and refit it`,
+        'big',
+      );
+    }
+    input.suspended = build.active || care.active || dockUI.active;
     if (atSite && !save.tips.includes('build') && blackout === 0) {
       save.tips.push('build');
       hud.toast(
@@ -470,11 +684,150 @@ async function boot(): Promise<void> {
 
     input.update();
     const s = input.state;
-    const inControl = blackout === 0 && !build.active && !care.active;
+    const inControl = blackout === 0 && !build.active && !care.active && !dockUI.active;
+
+    // ---- The submersible (milestone 6) ----
+    const S = save.sub;
+    if (S && inControl && s.board) {
+      if (S.aboard) leaveSub(false);
+      else if (nearSub) boardSub(false);
+    }
+    const aboard = !!S && S.aboard;
+    // Undock: push the stick while berthed, and the clamps let go.
+    if (S && aboard && S.docked && inControl && Math.hypot(s.moveX, s.moveY) > 0.5 && S.hull > 0) {
+      S.docked = false;
+      redockArmed = false;
+      sub.vy = 120;
+      hud.toast('Clamps released');
+    }
+    let impact = 0;
+    if (S) {
+      const piloted = aboard && inControl;
+      impact = sub.update(dt, {
+        moveX: piloted ? s.moveX : 0,
+        moveY: piloted ? s.moveY : 0,
+        boost: piloted && s.boost,
+        piloted,
+        hold: subHold(),
+      });
+      if (aboard) {
+        if (piloted && s.lamp) S.lights = !S.lights;
+        // The cave in the east cliff is too dark, and too tight for the sub.
+        if (sub.face > 0 && sub.bowX() > CAVE_GATE_X - 40 && sub.y > caveTop(CAVE_GATE_X) - 80) {
+          sub.x -= sub.bowX() - (CAVE_GATE_X - 40);
+          sub.vx = Math.min(0, sub.vx);
+        }
+        diver.x = sub.x;
+        diver.y = sub.y - 10;
+        diver.vx = sub.vx;
+        diver.vy = sub.vy;
+        diver.surfaced = false;
+        diver.splash = 0;
+        diver.exhale = false;
+      }
+      // Docking: come slowly into a powered or unpowered dock's berth and the clamps take it.
+      if (aboard && !S.docked && S.stage === 'built') {
+        let near = Infinity;
+        for (const d of docks(layout)) {
+          const b = berthOf(d);
+          const dist = Math.hypot(sub.x - b.x, sub.y - b.y);
+          near = Math.min(near, dist);
+          if (redockArmed && dist < 95 && Math.hypot(sub.vx, sub.vy) < 240) {
+            S.docked = true;
+            S.dock = d.id;
+            unloadClock = 0.3;
+            const on = layout.powered.has(d.id);
+            hud.toast(
+              on ? `Docked in ${pieceCode(layout, d)}: air refilling, cargo going to storage. Tap Dock to repair or refit.` : `Docked in ${pieceCode(layout, d)}, but the dock has no power: no air or unloading.`,
+              on ? 'big' : 'warn',
+            );
+            persist();
+          }
+        }
+        if (near > 190) redockArmed = true;
+      }
+      // Dents: hard knocks against rock.
+      if (aboard && S.stage === 'built' && !S.docked && impact > DENT_SPEED) {
+        const dmg = (impact - DENT_SPEED) * DENT_PER_SPEED;
+        S.hull = Math.max(0, S.hull - dmg);
+        shake = Math.min(1, shake + 0.2 + dmg * 4);
+        const hx = sub.x + Math.sign(sub.vx || sub.face) * 90;
+        subBubbles.puff(hx, sub.y + 10, 0, -40, 6 + Math.round(dmg * 30));
+        if (S.hull <= 0) breach();
+        else if (time - dentToastAt > 1.4) {
+          dentToastAt = time;
+          hud.toast(`Hull dented: ${Math.round(S.hull * 100)}%${S.hull < 0.35 ? '. Get it to the Moon pool dock for repairs!' : ''}`, 'warn');
+        }
+      }
+      // Air: refills berthed in a powered dock or at the surface; used while aboard underwater.
+      if (S.stage === 'built') {
+        const dockOn = S.docked && layout.powered.has(S.dock);
+        if (dockOn) S.air = Math.min(SUB_AIR, S.air + (SUB_AIR / 20) * dt);
+        else if (sub.surfaced) S.air = Math.min(SUB_AIR, S.air + (SUB_AIR / 30) * dt);
+        else if (S.aboard && inControl && blackout === 0) S.air = Math.max(0, S.air - dt * (sub.thrust > 0 ? 1.3 : 1));
+        if (S.air > 120) subAirWarn = 0;
+        if (S.aboard && S.air < 60 && subAirWarn === 0) {
+          subAirWarn = 1;
+          hud.toast("KS-1 air low: about a minute left. Surface, dock, or head for the dome.", 'warn');
+        }
+        if (S.aboard && S.air <= 0 && subAirWarn === 1) {
+          subAirWarn = 2;
+          hud.toast("KS-1's air reserve is empty: you are breathing from your own tank now.", 'warn');
+        }
+      }
+      // Berthed in a powered dock: everything aboard goes into storage.
+      unloadClock -= dt;
+      if (S.docked && layout.powered.has(S.dock) && unloadClock <= 0 && S.stage === 'built') {
+        unloadClock = 0.5;
+        let room = storageRoom();
+        let moved = 0;
+        for (const k of MATERIALS_LIST) {
+          const fromHold = Math.min(room, S.hold[k] ?? 0);
+          if (fromHold) {
+            S.hold[k] = (S.hold[k] ?? 0) - fromHold;
+            if (!S.hold[k]) delete S.hold[k];
+            save.stored[k] += fromHold;
+            room -= fromHold;
+            moved += fromHold;
+          }
+          if (S.aboard) {
+            const n = Math.min(room, save.bag[k]);
+            save.bag[k] -= n;
+            save.stored[k] += n;
+            room -= n;
+            moved += n;
+          }
+        }
+        if (moved) {
+          hud.toast(`KS-1 unloaded ${moved} item${moved > 1 ? 's' : ''} into storage`, 'big');
+          hud.refreshInventory();
+          persist();
+        }
+      }
+      // Propeller wash.
+      subWashClock -= dt;
+      const sp = Math.hypot(sub.vx, sub.vy);
+      if (S.stage === 'built' && sp > 40 && subWashClock <= 0 && sub.y > 70) {
+        subWashClock = sub.thrust > 0 ? 0.05 : 0.14;
+        const w = sub.washPoint();
+        subBubbles.puff(w.x, w.y, -sub.face * 60, 0, sub.thrust > 0 ? 2 : 1);
+      }
+    }
+    subBubbles.update(dt, sub.x, 0, 0, 0, false);
+    nearSub = !!S && S.stage === 'built' && !S.aboard && blackout === 0 && Math.hypot(diver.x - sub.x, diver.y - (sub.y - 10)) < 170;
+    hud.setBoard(inControl ? (aboard ? 'Exit' : nearSub ? (S!.hull > 0 ? 'Board' : 'Breached') : null) : null);
+    if (nearSub && !wasNearSub && input.state.lastDevice !== 'touch' && !save.tips.includes('subkey')) {
+      save.tips.push('subkey');
+      hud.toast('KS-1: press V to climb in (RB on a gamepad)', 'big');
+    }
+    wasNearSub = nearSub;
+    diver.view.visible = !aboard;
+    diver.lens.visible = diver.lensGlow.visible = !aboard;
+
     // The dive bag's weight slows the diver (no sinking through a dome's floor).
     diver.load = bagLoad(save);
     diver.noSink = insideDome !== null;
-    diver.update(dt, inControl ? s.moveX : 0, inControl ? s.moveY : 0, inControl && s.boost, inControl && s.lamp);
+    if (!aboard) diver.update(dt, inControl ? s.moveX : 0, inControl ? s.moveY : 0, inControl && s.boost, inControl && s.lamp);
 
     // Breaking the surface: a splash, then breath vapour with each breath out.
     const [hx, hy] = diver.helmetPoint();
@@ -487,7 +840,7 @@ async function boot(): Promise<void> {
       if (diver.vx > 0) diver.vx = 0;
     }
     const inCave = inCaveTunnel(diver.x, diver.y) && diver.x > CAVE.x0 + 120;
-    const domeHere = blackout === 0 && !build.active ? domeAround(diver.x, diver.y) : null;
+    const domeHere = blackout === 0 && !build.active && !aboard ? domeAround(diver.x, diver.y) : null;
     hud.setBanner(
       inCave
         ? 'Pitch black ahead. The shoulder lamp barely dents this darkness. A proper dive light would open the way (built later in the Workshop).'
@@ -499,11 +852,13 @@ async function boot(): Promise<void> {
     );
 
     // ---- Oxygen ----
-    const atSurface = diver.surfaced;
+    const atSurface = aboard ? sub.surfaced : diver.surfaced;
+    // Aboard the sub with air in its reserve: the diver breathes the sub's air.
+    const subAir = aboard && !!S && S.air > 0;
     const maxO2 = maxOxygen(save);
     save.playSeconds += dt;
     // Inside a dome habitat with power: station air, like breathing at the surface.
-    const dome = blackout === 0 ? domeAround(diver.x, diver.y) : null;
+    const dome = blackout === 0 && !aboard ? domeAround(diver.x, diver.y) : null;
     const domeAir = !!dome && layout.powered.has(dome.id);
     if ((dome?.id ?? null) !== insideDome) {
       insideDome = dome?.id ?? null;
@@ -512,12 +867,12 @@ async function boot(): Promise<void> {
         persist();
       }
     }
-    if ((build.active || care.active) && blackout === 0) {
+    if ((build.active || care.active || dockUI.active) && blackout === 0) {
       // Planning the base, or tending a tank, pauses the air clock.
     } else if (blackout === 0) {
-      if (atSurface || domeAir) {
+      if (atSurface || domeAir || subAir) {
         // Air comes in from the first breath after breaking the surface.
-        if (domeAir || diver.surfaceTime > 0.4) save.oxygen = Math.min(maxO2, save.oxygen + (maxO2 / 3) * dt);
+        if (domeAir || subAir || aboard || diver.surfaceTime > 0.4) save.oxygen = Math.min(maxO2, save.oxygen + (maxO2 / 3) * dt);
         diveTime = 0;
         lowWarned = false;
       } else {
@@ -528,12 +883,20 @@ async function boot(): Promise<void> {
         diveTime += dt;
       }
       const frac = save.oxygen / maxO2;
-      if (frac < 0.25 && !lowWarned && !atSurface && !domeAir) {
+      if (frac < 0.25 && !lowWarned && !atSurface && !domeAir && !subAir) {
         lowWarned = true;
-        hud.toast(layout.powered.size && layout.count('dome') ? 'Oxygen low: head for the surface or the dome' : 'Oxygen low: head for the surface', 'warn');
+        const sAir = save.sub && save.sub.stage === 'built' && save.sub.air > 20 && save.sub.hull > 0 && !aboard;
+        hud.toast(
+          layout.powered.size && layout.count('dome')
+            ? `Oxygen low: head for the surface${sAir ? ', the sub' : ''} or the dome`
+            : `Oxygen low: head for the surface${sAir ? ' or the sub' : ''}`,
+          'warn',
+        );
       }
-      hud.setLowOxygen(atSurface || domeAir ? 0 : Math.max(0, (0.25 - frac) / 0.25) * (0.75 + 0.25 * Math.sin(time * 5)));
+      hud.setLowOxygen(atSurface || domeAir || subAir ? 0 : Math.max(0, (0.25 - frac) / 0.25) * (0.75 + 0.25 * Math.sin(time * 5)));
       if (save.oxygen <= 0) {
+        // Blacking out aboard: the crew pull the diver out of the sub first.
+        if (aboard) leaveSub(true);
         blackout = 0.0001;
         respawned = false;
       }
@@ -572,9 +935,10 @@ async function boot(): Promise<void> {
           save.jar = null;
           tankLife.sync(save, layout);
         }
-        const home = respawnPoint();
+        const home = respawnPoint(diver.x, diver.y);
         diver.x = home.x;
         diver.y = home.y;
+        if (home.sub) boardSub(true);
         drone.teleport(home.x, home.y, layout);
         diver.vx = diver.vy = 0;
         diver.surfaced = false;
@@ -584,7 +948,7 @@ async function boot(): Promise<void> {
         diveTime = 0;
         lowWarned = false;
         hud.setLowOxygen(0);
-        const where = home.dome ? 'the dome habitat' : 'the Kestrel buoy';
+        const where = home.sub ? 'the sub, KS-1' : home.dome ? 'the dome habitat' : 'the Kestrel buoy';
         blackoutMsg = save.dropped
           ? `You blacked out. The crew pulled you back to ${where}. Your sample bag is on the seabed where you fell; its amber light is blinking.${jarMsg}`
           : `You blacked out. The crew pulled you back to ${where}.${jarMsg}`;
@@ -600,14 +964,17 @@ async function boot(): Promise<void> {
 
     // ---- Pickups ----
     const speed = Math.hypot(diver.vx, diver.vy);
-    const collectHeld = inControl && s.collect && !diver.surfaced;
+    // Aboard the sub, the grabber arm collects (if fitted) at its claw.
+    const grab = aboard && !!S && S.modules.includes('grabber');
+    const reachPt = aboard ? (grab ? sub.clawPoint() : { x: sub.x, y: sub.y }) : { x: diver.x, y: diver.y };
+    const collectHeld = inControl && s.collect && !diver.surfaced && (!aboard || grab);
     // The stranded drone takes the Collect button when the diver is next to it.
-    const atDrone = drone.inReach && !diver.surfaced && blackout === 0;
+    const atDrone = drone.inReach && !diver.surfaced && blackout === 0 && !aboard;
     // Wild creatures: the specimen jar takes the Collect button when one is in reach.
     const wt = wildlife.target;
     const wtKnown = !!wt && save.scans.includes(SPECIES[wt.species].scan);
     const wildOk = !!wt && wtKnown && !save.jar && !diver.surfaced && !atDrone;
-    for (const ev of wildlife.update(dt, time, diver.x, diver.y, Math.hypot(diver.vx, diver.vy), diver.boosting, save, collectHeld && wildOk, camX - 200, camX + lastViewW + 200)) {
+    for (const ev of wildlife.update(dt, time, reachPt.x, reachPt.y, Math.hypot(diver.vx, diver.vy), aboard ? sub.thrust > 0 : diver.boosting, save, collectHeld && wildOk, camX - 200, camX + lastViewW + 200)) {
       save.jar = { species: ev.species, stage: ev.stage };
       drone.cheer();
       const sp = SPECIES[ev.species];
@@ -637,7 +1004,7 @@ async function boot(): Promise<void> {
       fullWarnAt = time;
       hud.toast(`Dive bag full (${bagLimits(save).max} kg). Unload at a storage pod to carry more.`, 'warn');
     }
-    for (const ev of pickups.update(dt, time, diver.x, diver.y, save, collectHeld && !atDrone && !bagFull && !wildTarget, speed)) {
+    for (const ev of pickups.update(dt, time, reachPt.x, reachPt.y, save, collectHeld && !atDrone && !bagFull && !wildTarget, speed)) {
       if (ev.type === 'material') {
         save.bag[ev.kind]++;
         drone.cheer();
@@ -671,9 +1038,16 @@ async function boot(): Promise<void> {
     const pt = pickups.target;
     const missing = atDrone ? repairMissing() : [];
     const repairing = atDrone && collectHeld && !missing.length && speed < 70;
-    diver.working =
+    const workAt =
       wildlife.working && wildTarget ? { x: wildTarget.x, y: wildTarget.y } : pickups.working && pt ? { x: pt.x, y: pt.y } : repairing ? drone.scanPoint() : null;
-    if (atDrone) {
+    diver.working = aboard ? null : workAt;
+    const subReach = aboard ? workAt : null;
+    if (aboard && !grab && (pt || wildTarget) && !grabTipShown && blackout === 0) {
+      grabTipShown = true;
+      hud.toast('To collect from the sub, fit a grabber arm at the Moon pool dock. Or climb out (Exit) and swim.', 'big');
+    }
+    if (aboard && !grab) hud.setCollect(null, 0);
+    else if (atDrone) {
       hud.setCollect(missing.length ? `Repair drone: need ${missing.join(', ')}` : 'Repair build drone', drone.repairProgress);
       if (collectHeld && missing.length && time - fullWarnAt > 4) {
         fullWarnAt = time;
@@ -711,15 +1085,42 @@ async function boot(): Promise<void> {
     loadState = ls;
 
     // ---- The build drone ----
+    const subFrame = save.sub && save.sub.stage === 'frame' ? save.sub : null;
+    const subJob = subFrame
+      ? {
+          rect: { x: sub.x - 130, y: sub.y - 80, w: 260, h: 130 },
+          get progress() {
+            return subFrame.progress ?? 0;
+          },
+          set progress(v: number) {
+            subFrame.progress = v;
+          },
+          buildTime: SUB_BUILD_TIME,
+        }
+      : null;
     for (const ev of drone.update(dt, time, {
       diverX: diver.x,
       diverY: diver.y,
-      diverFace: diver.facing,
+      diverFace: aboard ? sub.face : diver.facing,
       diverSpeed: speed,
       repairing,
       layout,
       rate: droneWeldRate(save),
+      extra: subJob,
+      gap: aboard ? { x: 165, y: 86 } : undefined,
     })) {
+      if (ev.type === 'subDone' && save.sub) {
+        save.sub.stage = 'built';
+        delete save.sub.progress;
+        save.sub.docked = true;
+        drone.cheer();
+        hud.toast(
+          `Submersible KS-1 is finished! Swim up to it and tap Board${input.state.lastDevice === 'touch' ? '' : ' (V)'}. Fit modules from the Dock panel.`,
+          'big',
+        );
+        persist();
+        continue;
+      }
       if (ev.type === 'repaired') {
         for (const k of MATERIALS_LIST) {
           let need = DRONE_REPAIR_COST[k] ?? 0;
@@ -749,7 +1150,7 @@ async function boot(): Promise<void> {
 
     // ---- Creature tanks: swim up with a creature in the jar to put it in ----
     const tankNow = tankHere?.id ?? null;
-    if (tankNow !== null && tankNow !== nearTank && save.jar) {
+    if (tankNow !== null && tankNow !== nearTank && save.jar && !aboard) {
       const n = creaturesIn(save, tankNow).length;
       if (n >= TANK_CAPACITY) hud.toast(`Tank ${tankNumber(layout, tankNow)} is full (${TANK_CAPACITY} creatures). Build another creature tank.`, 'warn');
       else {
@@ -848,7 +1249,7 @@ async function boot(): Promise<void> {
         podFrame ||= !isDone(p);
       }
     }
-    if (byPod && !nearStorage && blackout === 0 && !build.active) {
+    if (byPod && !nearStorage && blackout === 0 && !build.active && !dockUI.active) {
       const carried = MATERIALS_LIST.reduce((a, k) => a + save.bag[k], 0);
       if (!podPowered) {
         if (carried)
@@ -873,7 +1274,7 @@ async function boot(): Promise<void> {
 
     // ---- Scanner ----
     const done = new Set(save.scans);
-    const lpose = diver.lampPose();
+    const lpose = aboard ? sub.domePoint() : diver.lampPose();
     const scanned = scanner.update(dt, diver.x, diver.y, inControl && s.scan, done, lpose.x, lpose.y, inControl);
     if (scanned) {
       save.scans.push(scanned);
@@ -891,7 +1292,7 @@ async function boot(): Promise<void> {
 
     for (const f of fish) f.update(dt, time, diver.x, diver.y);
     const [bx, by] = diver.bubblePoint();
-    bubbles.update(dt, bx, by, diver.vx, diver.vy, diver.boosting);
+    bubbles.update(dt, bx, aboard ? 0 : by, diver.vx, diver.vy, diver.boosting);
 
     if (Math.hypot(s.moveX, s.moveY) > 0.2 && hintTimer === 0) hintTimer = 0.001;
     if (hintTimer > 0) {
@@ -900,16 +1301,28 @@ async function boot(): Promise<void> {
     }
 
     // Zoom out while building (the build camera is steered by pan and pinch).
-    const wantH = build.active ? build.cam.h : care.active ? VIEW_H_CARE : VIEW_H;
+    const wantH = build.active ? build.cam.h : care.active ? VIEW_H_CARE : dockUI.active ? VIEW_H_DOCK : aboard ? VIEW_H_SUB : VIEW_H;
     viewH += (wantH - viewH) * (1 - Math.exp(-(build.active ? 10 : 4) * dt));
     zoom = cssH / viewH;
     const viewW = cssW / zoom;
     lastViewW = viewW;
     let lookX = diver.x + diver.vx * 0.35 + (diver.vx >= 0 ? 60 : -60);
     let lookY = diver.y + diver.vy * 0.25 + 30;
+    if (aboard) {
+      lookX = sub.x + sub.vx * 0.45 + sub.face * 130;
+      lookY = sub.y + sub.vy * 0.25 + 20;
+    }
     if (build.active) {
       lookX = build.cam.x;
       lookY = build.cam.y;
+    } else if (dockUI.active && dockUI.dockId !== null) {
+      const d = layout.pieces.find((p) => p.id === dockUI.dockId);
+      if (d) {
+        const r = pieceRect(d);
+        const panelW = Math.min(380, cssW * 0.46) + 24;
+        lookX = r.x + r.w / 2 + panelW / zoom / 2;
+        lookY = r.y + r.h / 2 + 10;
+      }
     } else if (care.active && care.tankId !== null) {
       // The tank sits in the left part of the screen, beside the care panel.
       const t = layout.pieces.find((p) => p.id === care.tankId);
@@ -930,8 +1343,12 @@ async function boot(): Promise<void> {
       camCX = viewW >= WORLD_SPAN ? WORLD_X0 + WORLD_SPAN / 2 : Math.max(WORLD_X0 + viewW / 2, Math.min(WORLD_W - viewW / 2, camCX));
       camCY = Math.max(viewH / 2 - (care.active ? 0 : 110), Math.min(WORLD_H - viewH / 2, camCY));
     }
-    camX = camCX - viewW / 2;
-    camY = camCY - viewH / 2;
+    // A jolt when the sub hits rock.
+    shake = Math.max(0, shake - dt * 2.5);
+    const jx = shake > 0 ? Math.sin(time * 61) * shake * 9 : 0;
+    const jy = shake > 0 ? Math.cos(time * 53) * shake * 7 : 0;
+    camX = camCX - viewW / 2 + jx;
+    camY = camCY - viewH / 2 + jy;
     scenery.update(time, diver.x, diver.y, diver.vx, camX, camX + viewW);
     const storedNow = MATERIALS_LIST.reduce((a, k) => a + save.stored[k], 0);
     const cap = storageCapacity(layout);
@@ -952,7 +1369,7 @@ async function boot(): Promise<void> {
     for (const sc of schools) sc.update(dt, time, diver.x, diver.y, camX, camX + viewW);
     tankLife.update(dt, time, save, camX, camX + viewW);
     // While tending a tank, the diver and drone fade so they don't hide it.
-    const fade = care.active ? 0.12 : 1;
+    const fade = care.active ? 0.12 : dockUI.active ? 0.3 : 1;
     diver.view.alpha += (fade - diver.view.alpha) * Math.min(1, dt * 6);
     drone.view.alpha = drone.emissive.alpha = drone.glow.alpha = diver.view.alpha;
 
@@ -967,19 +1384,43 @@ async function boot(): Promise<void> {
     // Far out in build mode the near kelp would fill the screen: fade it away.
     frontCam.alpha = Math.max(0, Math.min(1, (1300 - viewH) / 400));
 
+    // The sub: visible once started; its frame, dents, lights and grabber.
+    sub.view.visible = sub.emissive.visible = sub.glow.visible = !!save.sub;
+    if (save.sub) {
+      sub.draw(dt, {
+        frame: save.sub.stage === 'frame' ? (save.sub.progress ?? 0) : null,
+        hull: save.sub.hull,
+        lightsOn: save.sub.lights,
+        piloted: aboard && blackout === 0,
+        reach: subReach,
+        welding: drone.weldingSub,
+      });
+      const sb = save.sub;
+      if (aboard) {
+        const hold = sb.modules.includes('cargo') ? `<br>cargo <b>${kg.toFixed(0)}/${lim.max}</b> kg` : '';
+        hud.setSubChip(
+          `KS-1${sb.docked ? ' · berthed' : ''}<br>hull <b>${Math.round(sb.hull * 100)}%</b><br>air <b>${airClock(sb.air)}</b>${hold}`,
+          sb.hull < 0.35 || sb.air < 60,
+        );
+      } else hud.setSubChip(sb.stage === 'built' && holdKg(sb) > 0 ? `KS-1 cargo bay<br><b>${holdKg(sb).toFixed(0)} kg</b> waiting` : null);
+      const dSub = Math.hypot(sub.x - diver.x, sub.y - diver.y);
+      if (sb.stage === 'built' && !aboard && dSub > 700 && blackout === 0) hud.setSubMarker((sub.x - camX) * zoom, (sub.y - camY) * zoom, dSub / WU_PER_METRE);
+      else hud.setSubMarker(null, 0, 0);
+    } else hud.setSubChip(null);
+
     // Shoulder lamp.
     const lp = diver.lampPose();
     lampLight.x = lp.x;
     lampLight.y = lp.y;
     lampLight.dirX = lp.dirX;
     lampLight.dirY = lp.dirY;
-    lampLight.intensity = 1.5 * diver.lamp * diver.view.alpha;
+    lampLight.intensity = aboard ? 0 : 1.5 * diver.lamp * diver.view.alpha;
     diver.lens.position.set(lp.x, lp.y);
     diver.lens.alpha = (0.25 + 0.75 * diver.lamp) * diver.view.alpha;
     diver.lensGlow.position.set(lp.x, lp.y);
     diver.lensGlow.alpha = diver.lamp * diver.view.alpha;
 
-    const lights: Light[] = [lampLight, ...drone.lights, ...scenery.lights, ...baseView.lights, ...pickups.lights, ...wildlife.lights, ...fish.map((f) => f.light)];
+    const lights: Light[] = [...(save.sub ? sub.lights : []), lampLight, ...drone.lights, ...scenery.lights, ...baseView.lights, ...pickups.lights, ...wildlife.lights, ...fish.map((f) => f.light)];
     const floor = groundY(Math.max(WORLD_X0, Math.min(WORLD_W, diver.x)));
     const height = floor - diver.y;
     lighting.update({
@@ -1005,12 +1446,12 @@ async function boot(): Promise<void> {
     renderer.render({ container: litRoot, target: litRT, clear: true, clearColor: [0, 0, 0, 0] });
     renderer.render({ container: glowCam, target: glowRT, clear: true, clearColor: [0, 0, 0, 0] });
 
-    input.diverScreen = { x: (diver.x - camX) * zoom, y: (diver.y - camY) * zoom };
+    input.diverScreen = aboard ? { x: (sub.x - camX) * zoom, y: (sub.y - camY) * zoom } : { x: (diver.x - camX) * zoom, y: (diver.y - camY) * zoom };
     surfaceFx.update(dt, time, camX, camX + viewW, camY, diver.surfaced ? { x: hx } : null);
     updateTags(camX, camY, viewW);
 
     const depthM = Math.max(0, diver.y - SURFACE_Y + 6) / WU_PER_METRE;
-    if (domeAir) diveTime = 0;
+    if (domeAir || subAir) diveTime = 0;
     watch.draw(performance.now(), save.oxygen, maxO2, atSurface ? 0 : depthM, diveTime, atSurface, { kg, ...lim });
     if (pickups.bagPos) {
       const p = pickups.bagPos;
@@ -1095,6 +1536,8 @@ async function boot(): Promise<void> {
         tickCare(save, layout, 0.5);
       }
     },
+    sub,
+    dockUI,
     snap: () => {
       camCX = diver.x;
       camCY = diver.y;

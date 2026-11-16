@@ -88,6 +88,8 @@ const PIECE_ICONS: Record<PieceKind, string> = {
     '<svg viewBox="0 0 40 32"><path d="M8 1h18l-4 9h-10z" fill="#5b6467"/><path d="M12 3h10l-2 5h-6z" fill="#b8923f"/><rect x="9" y="10" width="20" height="9" rx="2" fill="#b8923f"/><circle cx="15" cy="14.5" r="3.4" fill="#8a9496"/><rect x="9" y="19" width="20" height="12" rx="2" fill="#5b6467"/><rect x="13" y="21" width="4" height="8" fill="#9aa84a"/><rect x="29" y="2" width="3" height="22" fill="#8a6a3a"/><rect x="2" y="23" width="7" height="6" fill="#5b6467"/></svg>',
   press:
     '<svg viewBox="0 0 40 32"><rect x="1" y="14" width="4" height="6" fill="#5b6467"/><rect x="35" y="14" width="4" height="6" fill="#5b6467"/><path d="M3 3h11l-2 9H5z" fill="#5b6467"/><rect x="5" y="5" width="3" height="6" fill="#7a685a"/><rect x="9" y="5" width="3" height="6" fill="#5f9a72"/><rect x="13" y="7" width="3" height="18" fill="#3b4448"/><rect x="25" y="7" width="3" height="18" fill="#3b4448"/><rect x="11" y="3" width="19" height="6" rx="1" fill="#b8923f"/><rect x="19" y="9" width="3" height="5" fill="#aab4b5"/><rect x="15" y="14" width="11" height="4" fill="#3b4448"/><rect x="16" y="20" width="9" height="2" fill="#8e9a9c"/><rect x="29" y="16" width="8" height="2" fill="#8e9a9c"/><rect x="29" y="19" width="8" height="2" fill="#8e9a9c"/><rect x="2" y="24" width="36" height="6" rx="1" fill="#3b4448"/><rect x="3" y="26" width="34" height="1.5" fill="#b8923f"/></svg>',
+  dock:
+    '<svg viewBox="0 0 40 32"><rect x="3" y="15" width="3" height="16" fill="#3b4448"/><rect x="34" y="15" width="3" height="16" fill="#3b4448"/><rect x="2" y="3" width="36" height="13" rx="5" fill="#5b6467"/><rect x="3" y="7" width="34" height="2" fill="#b8923f"/><rect x="14" y="9" width="12" height="7" fill="#0f2a33"/><circle cx="7" cy="11" r="2" fill="#ffd9a0"/><circle cx="33" cy="11" r="2" fill="#ffd9a0"/><path d="M12 22h17q3 0 3 3t-3 3H12q-3 0-3-3t3-3z" fill="#b8923f"/><path d="M15 22a5 5 0 0 1 10 0z" fill="#86b3ae"/><rect x="9" y="25" width="23" height="1.5" fill="#a8402e"/></svg>',
   filter:
     '<svg viewBox="0 0 40 32"><rect x="2" y="12" width="7" height="8" fill="#5b6467"/><rect x="31" y="12" width="7" height="8" fill="#5b6467"/><rect x="17" y="1" width="6" height="6" fill="#5b6467"/><rect x="9" y="6" width="22" height="22" rx="4" fill="#5b6467"/><rect x="9" y="8" width="22" height="2.5" fill="#b8923f"/><circle cx="18" cy="19" r="6" fill="#262d30"/><path d="M18 19l1-5 1 5zM18 19l5 2-5 0zM18 19l-4 3 3-4z" fill="#aab4b5"/><circle cx="27" cy="15" r="2" fill="#a88a4a"/></svg>',
 };
@@ -417,6 +419,16 @@ export class BuildMode {
         this.deps.linesChanged();
         this.deps.refreshInventory();
       }
+      this.refresh();
+      return;
+    }
+    if (p.kind === 'dock' && save.sub && (save.sub.dock === p.id && (save.sub.stage === 'frame' || save.sub.docked))) {
+      this.deps.toast(save.sub.stage === 'frame' ? 'The submersible is being built in this dock. It has to stay until it is finished.' : 'The submersible is berthed here. Drive it out first.', 'warn');
+      this.refresh();
+      return;
+    }
+    if (p.kind === 'dock' && save.sub && layout.pieces.filter((q) => q.kind === 'dock').length === 1) {
+      this.deps.toast('This is the only Moon pool dock: the sub needs one to come home to. Build another first.', 'warn');
       this.refresh();
       return;
     }
@@ -927,7 +939,7 @@ export class BuildMode {
       return;
     }
     if (!this.active) return;
-    const idx = ['1', '2', '3', '4', '5', '6', '7', '8'].indexOf(k);
+    const idx = ['1', '2', '3', '4', '5', '6', '7', '8', '9'].indexOf(k);
     const step = (this.cam.h * 0.12);
     if (idx >= 0) this.pick(PIECE_ORDER[idx]);
     else if (k === 'arrowleft') this.nudge(-1, 0);
