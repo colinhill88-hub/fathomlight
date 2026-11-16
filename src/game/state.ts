@@ -8,7 +8,7 @@
  * planned for milestone 11.
  */
 
-export type MaterialId = 'scrap' | 'copper' | 'quartz' | 'fibre' | 'plate';
+export type MaterialId = 'scrap' | 'copper' | 'quartz' | 'fibre' | 'plate' | 'resin' | 'moss';
 /** Materials found on the reef. Hull plating (milestone 5 part 2) is only made by the plate press. */
 export type ReefMaterial = Exclude<MaterialId, 'plate'>;
 
@@ -24,13 +24,26 @@ export const MATERIALS: Record<MaterialId, { name: string; plural: string; blurb
     blurb: 'Scrap and copper pressed into riveted plate by a plate press. For the submersible, CB-2 conveyors and FL-2 pipes.',
     kg: 4,
   },
+  // Milestone 7: the kelp forest's own materials.
+  resin: {
+    name: 'Holdfast resin',
+    plural: 'Holdfast resin',
+    blurb: 'Amber resin that oozes from the root-like holdfasts of the giant kelp. Seals and planters; kelp forest base pieces.',
+    kg: 1,
+  },
+  moss: {
+    name: 'Lumen moss',
+    plural: 'Lumen moss',
+    blurb: 'Soft moss that glows a warm yellow-green on shaded kelp forest rock. Lamps and tank plants; kelp forest base pieces.',
+    kg: 0.5,
+  },
 };
-export const MATERIAL_ORDER: MaterialId[] = ['scrap', 'copper', 'quartz', 'fibre', 'plate'];
+export const MATERIAL_ORDER: MaterialId[] = ['scrap', 'copper', 'quartz', 'fibre', 'plate', 'resin', 'moss'];
 
 /** Oxygen, in seconds of breathing, for the starting tank and for each tank upgrade. */
 export const BASE_OXYGEN = 75;
 export const TANK_BONUS = 20;
-export const TOTAL_AIR_TANKS = 2;
+export const TOTAL_AIR_TANKS = 3;
 /**
  * Collected materials grow back after this much play time. Play time keeps
  * counting through blackouts and is saved, so neither dying nor closing the
@@ -101,8 +114,8 @@ export interface DroppedBag {
 }
 
 /** Creatures you can keep (milestone 4). Rules are in src/game/creatures.ts. */
-export type SpeciesId = 'glowfin' | 'puffcap' | 'ray';
-export type PlantId = 'coral' | 'kelp' | 'grass';
+export type SpeciesId = 'glowfin' | 'puffcap' | 'ray' | 'crab' | 'shrimp';
+export type PlantId = 'coral' | 'kelp' | 'grass' | 'bladder' | 'lumen';
 
 /** One creature living in a creature tank. Every need is 0..1 (1 is best). */
 export interface CreatureData {
@@ -197,10 +210,24 @@ export interface SubData {
   lights: boolean;
 }
 
+/** Milestone 7: gear built in the Workshop (rules in src/game/gear.ts). */
+export type GearId = 'light';
+/** Blueprints the Lab decodes. Each one lets the Workshop build something. */
+export type BlueprintId = 'light';
+/** Data finds the diver brings back to the Lab (they weigh nothing). */
+export type FindId = 'recorder';
+/** What a Lab or Workshop is busy with. */
+export interface StationJob {
+  /** 'research:light' or 'build:light'. */
+  id: string;
+  /** 0..1. */
+  progress: number;
+}
+
 /** A base piece as saved (see src/game/base.ts). */
 export interface SavedPiece {
   id: number;
-  kind: 'dome' | 'corridor' | 'turbine' | 'storage' | 'tank' | 'filter' | 'feeder' | 'press' | 'dock';
+  kind: 'dome' | 'corridor' | 'turbine' | 'storage' | 'tank' | 'filter' | 'feeder' | 'press' | 'dock' | 'lab' | 'workshop';
   gx: number;
   gy: number;
   rot: number;
@@ -258,10 +285,17 @@ export interface SaveData {
   /** The submersible (milestone 6), once one is started at a Moon pool dock. */
   sub: SubData | null;
   /**
-   * Test gift (Colin, after milestone 6): scrap still owed to the base's
-   * storage. It moves in as storage has room. Remove once a scavenger
-   * creature (kelp forest, milestone 7) makes scrap.
+   * Milestone 7: gear the diver owns (built in the Workshop), blueprints the
+   * Lab has decoded, data finds carried back to the Lab (weightless), and
+   * the job each Lab or Workshop is running (piece id -> job).
    */
+  gear: GearId[];
+  blueprints: BlueprintId[];
+  finds: FindId[];
+  jobs: Record<string, StationJob>;
+  /** The old survey boom gate in the notch of the east cliff, opened from the kelp forest side. */
+  boomOpen: boolean;
+  /** Scrap still owed from the test gift after milestone 6 (removed in milestone 7: kept only so old saves load). */
   gift?: number;
   /** One-time tips already shown. */
   tips: string[];
@@ -281,14 +315,14 @@ export function freshSave(spawnX: number, spawnY: number): SaveData {
     y: spawnY,
     oxygen: BASE_OXYGEN,
     lampOn: true,
-    bag: { scrap: 0, copper: 0, quartz: 0, fibre: 0, plate: 0 },
+    bag: { scrap: 0, copper: 0, quartz: 0, fibre: 0, plate: 0, resin: 0, moss: 0 },
     scans: [],
     tanks: [],
     taken: {},
     dropped: null,
     pieces: [],
     nextPieceId: 1,
-    stored: { scrap: 0, copper: 0, quartz: 0, fibre: 0, plate: 0 },
+    stored: { scrap: 0, copper: 0, quartz: 0, fibre: 0, plate: 0, resin: 0, moss: 0 },
     drone: 'stranded',
     creatures: [],
     nextCreatureId: 1,
@@ -302,6 +336,11 @@ export function freshSave(spawnX: number, spawnY: number): SaveData {
     whorls: [],
     fitted: {},
     sub: null,
+    gear: [],
+    blueprints: [],
+    finds: [],
+    jobs: {},
+    boomOpen: false,
     tips: [],
     playSeconds: 0,
     savedAt: 0,
@@ -338,7 +377,14 @@ export function loadSave(spawnX: number, spawnY: number): { data: SaveData; load
       fitted: d.fitted && typeof d.fitted === 'object' ? d.fitted : {},
       sub: d.sub && typeof d.sub === 'object' ? { ...d.sub, modules: Array.isArray(d.sub.modules) ? d.sub.modules : [], hold: d.sub.hold ?? {} } : null,
       site: typeof d.site === 'number' ? d.site : 1,
+      gear: Array.isArray(d.gear) ? d.gear : [],
+      blueprints: Array.isArray(d.blueprints) ? d.blueprints : [],
+      finds: Array.isArray(d.finds) ? d.finds : [],
+      jobs: d.jobs && typeof d.jobs === 'object' ? d.jobs : {},
+      boomOpen: d.boomOpen === true,
     } as SaveData;
+    // Milestone 7: the scavenger crab makes scrap now, so the test gift ends.
+    delete data.gift;
     // Milestone 5: the build grid grew around the old site. Shift older bases
     // so every piece keeps its place in the world.
     if (data.site < 2) {

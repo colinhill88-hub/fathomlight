@@ -20,6 +20,7 @@ import {
   shapeOf,
 } from '../game/base';
 import { MATERIAL_ORDER, MATERIALS, MaterialId, SaveData } from '../game/state';
+import { GEAR, RESEARCH } from '../game/gear';
 import {
   Factory,
   FEEDER_MASH_CAP,
@@ -74,6 +75,8 @@ import { WHORL_ICON } from '../world/whorl';
 
 /** Small side-view icons for the palette, drawn as SVG. */
 const PIECE_ICONS: Record<PieceKind, string> = {
+  lab: '<svg viewBox="0 0 40 32"><rect x="1" y="15" width="6" height="6" fill="#5b6467"/><rect x="33" y="15" width="6" height="6" fill="#5b6467"/><rect x="6" y="4" width="28" height="24" rx="8" fill="#5b6467"/><circle cx="20" cy="16" r="8.5" fill="#a88a4a"/><circle cx="20" cy="16" r="7" fill="#14242a"/><rect x="21" y="12" width="5" height="4" fill="#d8f0a0"/><rect x="14" y="16" width="2" height="4" fill="#9aa84a"/><rect x="17" y="16" width="2" height="4" fill="#d8a060"/><rect x="6" y="24" width="28" height="2.5" fill="#b8923f"/><rect x="27" y="0" width="1.6" height="5" fill="#3b4448"/></svg>',
+  workshop: '<svg viewBox="0 0 40 32"><rect x="0" y="14" width="4" height="6" fill="#5b6467"/><rect x="36" y="14" width="4" height="6" fill="#5b6467"/><rect x="3" y="5" width="34" height="23" rx="5" fill="#5b6467"/><rect x="3" y="5" width="34" height="4" rx="2" fill="#b8923f"/><rect x="12" y="12" width="16" height="14" fill="#182226"/><rect x="12" y="11" width="16" height="2.5" fill="#3b4448"/><path d="M20 13l3 6-4 4" stroke="#8a9496" stroke-width="1.6" fill="none"/><circle cx="19" cy="23" r="1.4" fill="#fff0c0"/><rect x="5" y="12" width="5" height="1.2" fill="#3b4448"/><rect x="5" y="15" width="5" height="1.2" fill="#3b4448"/><rect x="5" y="18" width="5" height="1.2" fill="#3b4448"/></svg>',
   dome:
     '<svg viewBox="0 0 40 32"><path d="M6 20a14 15 0 0 1 28 0z" fill="#86b3ae" opacity=".55"/><path d="M6 20a14 15 0 0 1 28 0" fill="none" stroke="#3b4448" stroke-width="2"/><path d="M20 5v15M13 7c-1 4-1 9 0 13M27 7c1 4 1 9 0 13" stroke="#3b4448" stroke-width="1.3" fill="none"/><rect x="3" y="19" width="34" height="9" rx="2" fill="#5b6467"/><rect x="3" y="22" width="34" height="2.5" fill="#b8923f"/><circle cx="10" cy="26" r="1.4" fill="#ffd9a0"/><circle cx="20" cy="26" r="1.4" fill="#ffd9a0"/><circle cx="30" cy="26" r="1.4" fill="#ffd9a0"/></svg>',
   corridor:
@@ -465,6 +468,14 @@ export class BuildMode {
     const tray = save.tankData[String(p.id)]?.out;
     if (tray) this.refund(tray);
     delete save.machines[String(p.id)];
+    // Milestone 7: a Workshop's job gives its materials back; a Lab's gives back its data finds.
+    const job = save.jobs[String(p.id)];
+    if (job) {
+      const [what, id] = job.id.split(':');
+      if (what === 'build') this.refund(GEAR[id as keyof typeof GEAR].cost);
+      else for (const f of RESEARCH[id as keyof typeof RESEARCH].finds) if (!save.finds.includes(f)) save.finds.push(f);
+      delete save.jobs[String(p.id)];
+    }
     const whorls = save.fitted[String(p.id)] ?? 0;
     delete save.fitted[String(p.id)];
     layout.set(layout.pieces.filter((q) => q.id !== p.id));
@@ -951,7 +962,7 @@ export class BuildMode {
       return;
     }
     if (!this.active) return;
-    const idx = ['1', '2', '3', '4', '5', '6', '7', '8', '9'].indexOf(k);
+    const idx = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'].indexOf(k);
     const step = (this.cam.h * 0.12);
     if (idx >= 0) this.pick(PIECE_ORDER[idx]);
     else if (k === 'arrowleft') this.nudge(-1, 0);

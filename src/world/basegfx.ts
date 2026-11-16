@@ -31,6 +31,8 @@ export interface PieceReadings {
   feeder(id: number): { hopper: number; mash: number; run: boolean } | null;
   /** A plate press (milestone 5 part 2): hopper levels (0..1), plates on the rack, stroke progress, seconds since the last plate. */
   press(id: number): { scrap: number; copper: number; plates: number; progress: number; since: number; run: boolean } | null;
+  /** A Lab or Workshop (milestone 7): is it working on a job? */
+  station?(id: number): boolean;
 }
 
 /**
@@ -216,6 +218,8 @@ interface PieceArt {
     copper: { x: number; y: number; w: number; h: number };
     rack: { x: number; y: number; w: number };
   };
+  /** Lab and Workshop (milestone 7): the Lab's scan bar; the Workshop's fabrication arm and torch spark. */
+  station?: { bar?: Graphics; y0?: number; h?: number; arm?: Container; torch?: Graphics; armAt?: { x: number; y: number } };
 }
 
 function drawDome(n: number): PieceArt {
@@ -889,6 +893,136 @@ function drawDock(n: number): PieceArt {
   return { body, windows, windowGlow, lamp: { x: W / 2 + 40, y: 16 } };
 }
 
+/**
+ * Lab (milestone 7): a squat pressure capsule with one big glass port. Inside,
+ * a lit analysis bench with a sample rack and a reader for data cartridges;
+ * on the roof a short aerial mast. The reader's screen and the bench lamp
+ * light up with power, and a scan bar sweeps the screen while it decodes.
+ */
+function drawLab(n: number): PieceArt {
+  const W = CELL;
+  const H = CELL;
+  const body = new Container();
+  const g = body.addChild(new Graphics());
+  const windows = new Graphics();
+  const windowGlow = new Graphics();
+  const c = W / 2;
+  tubeH(g, 0, 18, 66, 1);
+  tubeH(g, W - 18, W, 66, 1);
+  tubeV(g, 0, 18, c, 1);
+  // Shell: a rounded drum on a skirt.
+  g.roundRect(12, 18, W - 24, H - 30, 22).fill({ color: PAL.steel });
+  g.roundRect(18, 22, 10, H - 42, 5).fill({ color: 0xffffff, alpha: 0.12 });
+  g.roundRect(W - 34, 22, 16, H - 42, 8).fill({ color: PAL.steelDeep, alpha: 0.4 });
+  g.roundRect(8, H - 18, W - 16, 10, 3).fill({ color: PAL.steelDark });
+  hazardBand(g, 12, H - 28, W - 24, 6);
+  rivets(g, 20, 26, W - 20, 26, 7);
+  // The big port: glass over a lit bench.
+  const px = c;
+  const py = 58;
+  const pr = 26;
+  g.circle(px, py, pr + 5).fill({ color: PAL.brass });
+  g.circle(px, py, pr + 5).stroke({ color: 0x5a4a2a, width: 1 });
+  g.circle(px, py, pr).fill({ color: 0x14242a });
+  // Bench, sample rack (little jars) and the cartridge reader inside.
+  g.rect(px - 20, py + 8, 40, 4).fill({ color: PAL.steelDark });
+  for (let i = 0; i < 4; i++) {
+    g.roundRect(px - 18 + i * 6, py - 2, 4, 10, 1.5).fill({ color: [0x9aa84a, 0xd8a060, 0x86b3ae, 0xc8c0a8][i], alpha: 0.85 });
+  }
+  g.roundRect(px + 4, py - 12, 15, 12, 2).fill({ color: PAL.steelDark });
+  for (let i = 0; i < 6; i++) {
+    const a = (i / 6) * Math.PI * 2;
+    g.circle(px + Math.cos(a) * (pr + 3), py + Math.sin(a) * (pr + 3), 1).fill({ color: 0x3a3020 });
+  }
+  // Screen and bench lamp (lit with power).
+  windows.rect(px + 6, py - 10, 11, 8).fill({ color: 0xd8f0a0, alpha: 0.9 });
+  windows.circle(px - 10, py - 14, 2.6).fill({ color: 0xfff1d0 });
+  windowGlow.circle(px, py, pr + 4).fill({ color: PAL.warm, alpha: 0.28 });
+  // Glass highlight over the port.
+  g.ellipse(px - 9, py - 11, 9, 5).fill({ color: 0xffffff, alpha: 0.16 });
+  // Roof mast with a little dish.
+  g.rect(W - 36, 4, 3, 16).fill({ color: PAL.steelDark });
+  g.moveTo(W - 42, 6).quadraticCurveTo(W - 34, 12, W - 26, 6).stroke({ color: PAL.steelLight, width: 2 });
+  body.addChild(stencil(`LAB-${n}`, c, 33, 6));
+  streaks(g, 16, W - 16, 30, 8, 16);
+  scratches(g, 14, 20, W - 14, H - 20, 8);
+  algaeLine(g, 14, W - 14, H - 10, 14);
+  // A scan bar that sweeps the screen while the Lab decodes (moved by BaseView).
+  const scan = new Graphics().rect(0, 0, 11, 1.6).fill({ color: 0xffffff, alpha: 0.9 });
+  scan.position.set(px + 6, py - 10);
+  windows.addChild(scan);
+  return { body, windows, windowGlow, lamp: { x: 26, y: 26 }, station: { bar: scan, y0: py - 10, h: 8 } };
+}
+
+/**
+ * Workshop (milestone 7): a low riveted shed with a roll-up door, a
+ * fabrication arm on a rail inside, a parts rack and a work lamp. The arm
+ * swings and its torch flickers while gear is being built.
+ */
+function drawWorkshop(n: number): PieceArt {
+  const W = CELL * 2;
+  const H = CELL;
+  const body = new Container();
+  const g = body.addChild(new Graphics());
+  const windows = new Graphics();
+  const windowGlow = new Graphics();
+  const cy = H / 2;
+  tubeH(g, 0, 16, cy, 1);
+  tubeH(g, W - 16, W, cy, 1);
+  // Shed shell with a gently curved roof.
+  g.roundRect(10, 12, W - 20, H - 22, 14).fill({ color: PAL.steel });
+  g.roundRect(10, 12, W - 20, 9, 6).fill({ color: PAL.yellow });
+  g.rect(10, 19, W - 20, 3).fill({ color: PAL.yellowDark, alpha: 0.7 });
+  g.rect(10, H - 22, W - 20, 12).fill({ color: PAL.steelDeep, alpha: 0.4 });
+  rivets(g, 18, 28, W - 18, 28, 14);
+  for (const sx of [64, W - 64]) {
+    g.moveTo(sx, 22).lineTo(sx, H - 12).stroke({ color: PAL.steelDeep, width: 1, alpha: 0.6 });
+  }
+  // The bay: an opening with the door rolled half up.
+  const bx = 70;
+  const bw = W - 140;
+  g.rect(bx, 34, bw, H - 48).fill({ color: 0x182226 });
+  g.rect(bx, 30, bw, 8).fill({ color: PAL.steelDark });
+  for (let k = 0; k < 3; k++) g.rect(bx, 30 + k * 3, bw, 1).fill({ color: 0x000000, alpha: 0.25 });
+  // Rail along the top of the bay; parts rack at the back.
+  g.rect(bx + 2, 40, bw - 4, 3).fill({ color: PAL.steelLight });
+  for (let i = 0; i < 3; i++) {
+    g.rect(bx + 6, 52 + i * 12, 16, 2).fill({ color: PAL.steelDark });
+    g.rect(bx + 8, 47 + i * 12, 5, 5).fill({ color: [PAL.rust, PAL.brass, PAL.steelLight][i] });
+  }
+  // A bench at the front of the bay.
+  g.rect(bx + 24, H - 30, bw - 30, 5).fill({ color: PAL.steelDark });
+  g.rect(bx + 26, H - 25, 3, 10).fill({ color: PAL.steelDark });
+  g.rect(bx + bw - 12, H - 25, 3, 10).fill({ color: PAL.steelDark });
+  // The fabrication arm (it swings while building).
+  const arm = new Container();
+  const ag = arm.addChild(new Graphics());
+  ag.roundRect(-5, -3, 10, 7, 2).fill({ color: PAL.yellow });
+  ag.moveTo(0, 2).lineTo(6, 16).lineTo(-2, 26).stroke({ color: PAL.steelLight, width: 3, cap: 'round', join: 'round' });
+  ag.circle(6, 16, 2.4).fill({ color: PAL.steelDark });
+  ag.poly([-5, 25, 1, 25, -2, 31]).fill({ color: PAL.steelDark });
+  arm.position.set(bx + bw / 2 + 6, 42);
+  body.addChild(arm);
+  // Side panels: a vent grille and a tool board.
+  for (let i = 0; i < 5; i++) g.rect(22, 38 + i * 7, 36, 3).fill({ color: PAL.steelDark });
+  g.roundRect(W - 58, 38, 38, 36, 3).fill({ color: PAL.steelDark });
+  g.circle(W - 46, 50, 4).stroke({ color: PAL.rust, width: 2 });
+  g.rect(W - 36, 44, 3, 22).fill({ color: PAL.steelLight });
+  g.rect(W - 30, 46, 6, 3).fill({ color: PAL.brass });
+  body.addChild(stencil(`WS-${n}`, W / 2, 16, 7));
+  body.addChild(stencil('WORKSHOP', 40, 80, 4.5));
+  streaks(g, 14, W - 14, 22, 12, 18);
+  scratches(g, 12, 14, W - 12, H - 14, 10);
+  algaeLine(g, 14, W - 14, H - 10, 22);
+  algaeLine(g, 14, W - 14, 13, 10);
+  // Work lamp in the bay (with power) and the torch spark (while building).
+  windows.circle(bx + 14, 38, 2.6).fill({ color: 0xfff1d0 });
+  windowGlow.circle(bx + bw / 2, 62, 46).fill({ color: PAL.warm, alpha: 0.2 });
+  const torch = new Graphics().circle(0, 0, 2.2).fill({ color: 0xfff0c0 });
+  windows.addChild(torch);
+  return { body, windows, windowGlow, lamp: { x: W - 22, y: 30 }, station: { arm, torch, armAt: { x: bx + bw / 2 + 6, y: 42 } } };
+}
+
 /** Draw a piece's art. The same drawing is used for placed pieces and the build ghost. */
 export function drawPiece(kind: PieceKind, n: number, rot: number, seed: number): PieceArt {
   rand = mulberry32(WORLD_SEED ^ (seed * 7919 + 0x1b5e));
@@ -900,6 +1034,8 @@ export function drawPiece(kind: PieceKind, n: number, rot: number, seed: number)
   if (kind === 'feeder') return drawFeeder(n);
   if (kind === 'press') return drawPress(n);
   if (kind === 'dock') return drawDock(n);
+  if (kind === 'lab') return drawLab(n);
+  if (kind === 'workshop') return drawWorkshop(n);
   return drawStorage(n);
 }
 
@@ -1022,7 +1158,7 @@ export class BaseView {
       for (const w of l.whorls) this.dropWhorl(w);
       this.live.delete(id);
     }
-    const counts: Record<PieceKind, number> = { dome: 0, corridor: 0, turbine: 0, storage: 0, tank: 0, filter: 0, feeder: 0, press: 0, dock: 0 };
+    const counts: Record<PieceKind, number> = { dome: 0, corridor: 0, turbine: 0, storage: 0, tank: 0, filter: 0, feeder: 0, press: 0, dock: 0, lab: 0, workshop: 0 };
     for (const p of [...layout.pieces].sort((a, b) => a.id - b.id)) {
       counts[p.kind]++;
       if (this.live.has(p.id)) continue;
@@ -1233,6 +1369,28 @@ export class BaseView {
             }
           }
           if (l.art.rotor) l.art.rotor.rotation += dt * (f.run && l.powered ? 2.4 : 0);
+        }
+        const st = l.art.station;
+        if (st && !l.frame) {
+          const run = !!readings.station?.(l.placed.id) && l.powered;
+          if (st.bar) {
+            st.bar.visible = run;
+            st.bar.y = (st.y0 ?? 0) + ((time * 0.9 + l.phase) % 1) * (st.h ?? 8);
+          }
+          if (st.arm && st.torch && st.armAt) {
+            const a = run ? Math.sin(time * 1.7 + l.phase) * 0.5 : 0.15;
+            st.arm.x = st.armAt.x + (run ? Math.sin(time * 0.6 + l.phase) * 30 : 0);
+            st.arm.rotation = a;
+            // The torch tip, in the piece's local space.
+            const tx = -2 * Math.cos(a) - 29 * Math.sin(a);
+            const ty = -2 * Math.sin(a) + 29 * Math.cos(a);
+            st.torch.position.set(st.arm.x + tx, st.armAt.y + ty);
+            st.torch.visible = run && Math.sin(time * 41 + l.phase) > -0.3;
+            if (run && Math.random() < dt * 6) {
+              const r = l.root;
+              this.burst(r.x + st.torch.x, r.y + st.torch.y, 6, 6, 3);
+            }
+          }
         }
         const pa = l.art.press;
         const pr = pa && !l.frame ? readings.press(l.placed.id) : null;

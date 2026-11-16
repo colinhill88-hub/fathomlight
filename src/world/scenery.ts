@@ -18,6 +18,11 @@ import {
   WORLD_X0,
   BASIN_WEST,
   WALL_NOOK,
+  BOOM_X,
+  FOREST,
+  SHELF,
+  SITE_MOUTH,
+  WINCH_X,
 } from './terrain';
 
 /**
@@ -50,6 +55,8 @@ const PAL = {
 };
 
 const gy = (x: number) => groundY(Math.max(WORLD_X0, Math.min(WORLD_W, x)));
+/** The foreground kelp layer is laid out over the shallows' old width (it moves with parallax). */
+export const FRONT_REF = 9000;
 
 export interface PointLight {
   x: number;
@@ -71,7 +78,9 @@ function siltAt(x: number): number {
     smooth((x - 5000) / 700) * (1 - smooth((x - 6600) / 400)) +
     smooth((x - 3650) / 300) * (1 - smooth((x - 4400) / 300)) * 0.35 +
     // The floor of the Kestrel basin (milestone 5): fine grey silt, patchy.
-    (1 - smooth((x - 150) / 200)) * (0.45 + 0.15 * Math.sin(x * 0.0021))
+    (1 - smooth((x - 150) / 200)) * (0.45 + 0.15 * Math.sin(x * 0.0021)) +
+    // The kelp forest floor (milestone 7): dark silt and kelp litter.
+    smooth((x - 9700) / 300) * (0.7 + 0.15 * Math.sin(x * 0.003))
   );
 }
 
@@ -226,8 +235,9 @@ function drawCave(g: Graphics, dark: Graphics): void {
     g.circle(x, caveBottom(x) + R(-3, 2), R(3, 7)).fill({ color: rand() < 0.5 ? 0x3b4a4e : 0x55605c, alpha: 0.9 });
   // The throat: strips getting blacker towards the end. Black stays black under any light.
   // Each strip follows the tunnel's own outline, so the darkness stays inside the rock.
-  for (let x = 8680; x < CAVE.x1; x += 8) {
-    const t = smooth((x - 8680) / 220);
+  for (let x = 8680; x < CAVE.x1 - 150; x += 8) {
+    // Milestone 7: the tunnel runs right through now, so it lightens again towards the far end.
+    const t = smooth((x - 8680) / 220) * (1 - smooth((x - 9480) / 300));
     const xe = Math.min(CAVE.x1, x + 8.5);
     dark
       .poly([x, top(x) - 2, xe, top(xe) - 2, xe, caveBottom(xe) + 4, x, caveBottom(x) + 4])
@@ -471,7 +481,13 @@ export type ScanKind =
   | 'sled'
   | 'anchor'
   | 'buoy'
-  | 'cave';
+  | 'cave'
+  | 'boom'
+  | 'forest'
+  | 'gkelp'
+  | 'bladder'
+  | 'lumen'
+  | 'kcaves';
 
 interface Slice {
   obj: Container;
@@ -494,7 +510,16 @@ export class Scenery {
   /** Where each kind of scannable thing is. */
   readonly scanPoints: Record<ScanKind, { x: number; y: number }[]> = {
     kelp: [], coral: [], fan: [], grass: [], anemone: [], beacon: [], sled: [], anchor: [], buoy: [], cave: [],
+    boom: [], forest: [], gkelp: [], bladder: [], lumen: [], kcaves: [],
   };
+  /** The cave's black throat (milestone 7: the dive light thins it). */
+  caveDark!: Graphics;
+  /** The survey boom gate on the cliff-top shelf and its winch (milestone 7). */
+  private boomGate = new Container();
+  private winch = new Graphics();
+  private cable = new Graphics();
+  private boomShown = -1;
+  private mossGlows: { core: Graphics; halo: Graphics; light: PointLight; phase: number }[] = [];
 
   private kelps: Kelp[] = [];
   private grass: { g: Graphics; phase: number; x: number }[] = [];
@@ -552,7 +577,7 @@ export class Scenery {
     rock(4580, 4990, (g) => rockPatch(g, 4580, 4990, 60, detail));
     rock(4950, 5810, (g) => rockPatch(g, 4950, 5810, 700, detail * 0.8));
     rock(6370, 7100, (g) => rockPatch(g, 6370, 7100, 900, detail * 0.8));
-    rock(8280, WORLD_W + 200, (g) => rockPatch(g, 8280, WORLD_W + 200, 1100, detail * 0.8));
+    rock(8280, 10400, (g) => rockPatch(g, 8280, 10400, 1300, detail * 0.8));
     rock(5690, 6880, (g) => paintRock(g, LEDGE, ledgeTop, detail));
     rock(5300, 6560, (g) => {
       for (let i = 0; i < 14; i++) {
@@ -567,7 +592,10 @@ export class Scenery {
         paintRock(g, pts, () => y - r * 0.7, 0.4);
       }
     });
-    rock(CAVE.x0 - 60, CAVE.x1, (g) => drawCave(g, (this.over.addChild(new Graphics()) as Graphics)));
+    rock(CAVE.x0 - 60, CAVE.x1, (g) => {
+      this.caveDark = this.over.addChild(new Graphics()) as Graphics;
+      drawCave(g, this.caveDark);
+    });
     this.scanPoints.cave.push({ x: CAVE.x0 + 40, y: (caveTop(CAVE.x0 + 40) + caveBottom(CAVE.x0 + 40)) / 2 });
 
     // Coral and fans: thick in the coral garden, a few elsewhere.
@@ -590,9 +618,9 @@ export class Scenery {
     // Kelp: groves in the coral garden and the meadow, clumps around the channel, tall stalks in the deep.
     const tex = kelpTexture(renderer);
     const greens = [0x5a7444, 0x4c6a3e, 0x67794a, 0x445f3a, 0x6f7f4c, 0x587048];
-    const addKelp = (x: number, height: number, layer: Container, tint: number) => {
+    const addKelp = (x: number, height: number, layer: Container, tint: number, base?: number) => {
       const n = 12;
-      const baseY = gy(x) + 6;
+      const baseY = base ?? gy(x) + 6;
       const points = Array.from({ length: n }, (_, i) => new Point(x, baseY - (height * i) / (n - 1)));
       const rope = new MeshRope({ texture: tex, points, textureScale: 0 });
       rope.tint = tint;
@@ -610,7 +638,7 @@ export class Scenery {
     // Dark foreground kelp silhouettes, like the blurred edges in the concept art.
     const nFront = Math.round(12 * detail);
     for (let i = 0; i < nFront; i++) {
-      const x = 200 + ((i + R(0.1, 0.9)) / nFront) * (WORLD_W - 400);
+      const x = 200 + ((i + R(0.1, 0.9)) / nFront) * (FRONT_REF - 400);
       addKelp(x, R(300, 560), this.front, 0x1d3530);
     }
 
@@ -779,7 +807,216 @@ export class Scenery {
       this.anemones.push({ core, halo, light, phase: rand() * 6 });
       this.scanPoints.anemone.push({ x, y: y - 14 });
     }
+
+    // ---- The kelp forest (milestone 7), with its own random numbers. ----
+    rand = mulberry32(WORLD_SEED ^ 0xf0e57);
+    this.buildForest(renderer, detail, rock, addKelp, kelpBack, kelpFront, decorLayer);
     rand = keep;
+  }
+
+  /**
+   * The kelp forest beyond the east cliff: rock outcrops and the east wall
+   * with the mouth of the kelp caves, giant kelp from floor to surface with
+   * knotted holdfasts, bushy bladder kelp, glowing lumen moss on shaded rock,
+   * and the old survey boom gate on the cliff-top shelf.
+   */
+  private buildForest(
+    _renderer: Renderer,
+    detail: number,
+    rock: (x0: number, x1: number, build: (g: Graphics) => void) => void,
+    addKelp: (x: number, height: number, layer: Container, tint: number, base?: number) => void,
+    kelpBack: Container,
+    kelpFront: Container,
+    decorLayer: Container,
+  ): void {
+    // Rock outcrops on the floor.
+    for (const [x0, x1, th] of [
+      [10850, 11450, 150],
+      [12560, 13150, 180],
+      [13600, 14100, 120],
+    ] as const)
+      rock(x0, x1, (g) => rockPatch(g, x0, x1, th, detail));
+    // The east wall, with the kelp caves' mouth.
+    rock(14560, WORLD_W + 60, (g) => {
+      const pts: [number, number][] = [];
+      for (let x = 14560; x <= WORLD_W + 60; x += 8) pts.push([x, gy(x)]);
+      pts.push([WORLD_W + 60, WORLD_H + 300], [14560, WORLD_H + 300]);
+      paintRock(g, pts, (x) => (x >= 14560 && x <= WORLD_W + 60 ? gy(x) : NaN), detail * 0.7);
+      // The mouth: a dark recess in the wall that grows black further in.
+      const m = SITE_MOUTH;
+      const top = (x: number) => Math.max(gy(x), m.y - m.ry * Math.sqrt(Math.max(0, 1 - ((x - m.x) / m.rx) ** 2)));
+      const bot = (x: number) => Math.min(m.y + m.ry * 0.7, m.y + m.ry * Math.sqrt(Math.max(0, 1 - ((x - m.x) / m.rx) ** 2)));
+      for (let x = m.x - m.rx; x < m.x + m.rx; x += 6) {
+        const t0 = top(x);
+        const b0 = bot(x);
+        if (b0 <= t0) continue;
+        const k = smooth((x - (m.x - m.rx * 0.6)) / (m.rx * 1.2));
+        g.rect(x, t0, 6.5, b0 - t0).fill({ color: 0x141c1e });
+        g.rect(x, t0, 6.5, b0 - t0).fill({ color: 0x000000, alpha: 0.25 + k * 0.7 });
+      }
+      for (let x = m.x - m.rx + 10; x < m.x + m.rx * 0.6; x += R(6, 14)) {
+        const b0 = bot(x);
+        if (b0 > top(x)) g.circle(x, b0 + R(-2, 2), R(3, 7)).fill({ color: rand() < 0.5 ? 0x3b4a4e : 0x55605c, alpha: 0.9 });
+      }
+    });
+    this.scanPoints.kcaves.push({ x: SITE_MOUTH.x - 90, y: SITE_MOUTH.y + 10 });
+    this.scanPoints.forest.push({ x: 10600, y: 700 }, { x: 12200, y: 800 }, { x: 13600, y: 700 });
+
+    const decor = new Graphics();
+    decorLayer.addChild(decor);
+    this.slices.push({ obj: decor, x0: 9400, x1: WORLD_W + 100 });
+    const decorEnd = new Graphics();
+    decorLayer.addChild(decorEnd);
+    this.slices.push({ obj: decorEnd, x0: 12000, x1: WORLD_W + 100 });
+    const dg = (x: number) => (x < 12200 ? decor : decorEnd);
+
+    // Giant kelp: from the floor all the way up to the surface, golden brown.
+    const tints = [0x6a6a3a, 0x5a5e34, 0x77703e, 0x4f5530, 0x66603a];
+    const holdfast = (g: Graphics, x: number) => {
+      const y = gy(x) + 4;
+      for (let k = 0; k < 9; k++) {
+        const a = Math.PI + (k / 8) * Math.PI;
+        const l = R(10, 24);
+        g.moveTo(x, y - 6)
+          .quadraticCurveTo(x + Math.cos(a) * l * 0.6, y - 6 + Math.sin(a) * 4, x + Math.cos(a) * l, y + R(-2, 3))
+          .stroke({ color: rand() < 0.5 ? 0x5a4a2a : 0x6e5a32, width: R(2, 3.5), cap: 'round' });
+      }
+      g.ellipse(x, y - 4, 9, 5).fill({ color: 0x4e4026 });
+      if (rand() < 0.6) g.circle(x + R(-6, 6), y - R(4, 9), R(1.5, 2.6)).fill({ color: 0xc8862e, alpha: 0.85 });
+    };
+    const n = Math.round(48 * detail);
+    for (let i = 0; i < n; i++) {
+      const x = FOREST.x0 + 60 + ((i + R(0.05, 0.95)) / n) * (FOREST.x1 - FOREST.x0 - 120);
+      const front = rand() < 0.3;
+      addKelp(x, gy(x) - R(-10, 70), front ? kelpFront : kelpBack, tints[Math.floor(rand() * tints.length)]);
+      holdfast(dg(x), x);
+      if (!front && rand() < 0.4) this.scanPoints.gkelp.push({ x, y: gy(x) - 160 });
+    }
+    // A few more along the foot of the east face and the west edge of the wall.
+    for (const x of [9880, 9960, 10010, 14520, 14610]) {
+      addKelp(x, gy(x) - R(0, 60), kelpBack, tints[Math.floor(rand() * tints.length)]);
+      holdfast(dg(x), x);
+    }
+    // Dark foreground stalks, so the forest closes in around the diver.
+    for (let i = 0; i < Math.round(9 * detail); i++) {
+      const x = FOREST.x0 + ((i + R(0.1, 0.9)) / Math.round(9 * detail)) * (FOREST.x1 - FOREST.x0);
+      // The foreground layer moves with parallax (see FRONT_REF in main.ts).
+      addKelp(x * 1.3 - FRONT_REF * 0.15, R(900, 1250), this.front, 0x1a2a20, gy(x) + 60);
+    }
+
+    // Bladder kelp: short and bushy, with round gas floats.
+    for (const x of [10180, 10460, 10760, 11620, 11980, 12340, 13310, 13480, 14280, 14460]) {
+      const g = dg(x);
+      const y = gy(x) + 4;
+      for (let k = 0; k < 6; k++) {
+        const lean = R(-14, 14);
+        const h = R(30, 58);
+        g.moveTo(x + R(-6, 6), y)
+          .quadraticCurveTo(x + lean * 0.4, y - h * 0.6, x + lean, y - h)
+          .stroke({ color: rand() < 0.5 ? 0x7a6a30 : 0x8c7a38, width: 3.2, cap: 'round' });
+        for (let b = 0; b < 3; b++) {
+          const t = R(0.35, 1);
+          g.circle(x + lean * t * t, y - h * t, R(3, 4.6)).fill({ color: 0xa8923e });
+          g.circle(x + lean * t * t - 1, y - h * t - 1.2, 1.2).fill({ color: 0xf0e0a0, alpha: 0.6 });
+        }
+      }
+      this.scanPoints.bladder.push({ x, y: y - 30 });
+    }
+
+    // Lumen moss: glowing patches on the outcrops and the east face.
+    const mossAt: [number, number][] = [];
+    for (const x of [10920, 11080, 11330, 12640, 12880, 13060, 13700, 13980]) mossAt.push([x, gy(x) + 3]);
+    for (const [x, y] of [
+      [9860, 0],
+      [14640, 0],
+      [14720, 0],
+    ])
+      mossAt.push([x, (y || gy(x)) + 3]);
+    for (const [x, y] of mossAt) {
+      const g = dg(x);
+      for (let k = 0; k < 10; k++) g.circle(x + R(-16, 16), y + R(-4, 3), R(3, 7)).fill({ color: rand() < 0.5 ? 0x4e6a30 : 0x6a8a3c, alpha: 0.9 });
+      const core = new Graphics();
+      for (let k = 0; k < 9; k++) core.circle(R(-15, 15), R(-5, 2), R(1, 2.2)).fill({ color: 0xe8f6a0 });
+      core.position.set(x, y);
+      const halo = new Graphics().ellipse(0, -2, 30, 14).fill({ color: 0xc8e070 });
+      halo.position.set(x, y);
+      this.emissive.addChild(core);
+      this.glow.addChild(halo);
+      const light: PointLight = { x, y: y - 14, radius: 190, intensity: 0.6, color: [0.8, 0.95, 0.45] };
+      this.lights.push(light);
+      this.mossGlows.push({ core, halo, light, phase: rand() * 6 });
+      this.scanPoints.lumen.push({ x, y: y - 8 });
+    }
+
+    // The survey boom gate across the shelf on the cliff top, and its winch.
+    const post = new Graphics();
+    const px = BOOM_X - 34;
+    const py = gy(px) + 4;
+    post.rect(px - 7, -70, 14, py + 70).fill({ color: 0x5a4a3e });
+    post.rect(px - 7, -70, 4, py + 70).fill({ color: 0xffffff, alpha: 0.1 });
+    for (let y = -40; y < py - 20; y += 40) post.rect(px - 9, y, 18, 5).fill({ color: 0x3b3430 });
+    post.rect(px - 7, -78, BOOM_X - px + 14, 10).fill({ color: 0x6a5546 });
+    post.circle(BOOM_X, -72, 7).fill({ color: 0x3b3430 });
+    post.circle(BOOM_X, -72, 3).fill({ color: 0x8a9496 });
+    rustStreaks(post, px - 6, px + 6, -30, 10, 60);
+    for (let i = 0; i < 14; i++) dab(post, px + R(-10, 10), py - R(0, 30), R(3, 8), R(2, 4), PAL.algae, 0.7);
+    const gate = new Graphics();
+    const H = SHELF.floor + 70;
+    gate.rect(-13, 0, 26, H).fill({ color: 0x4a4038 });
+    for (let y = 14; y < H; y += 26) gate.rect(-15, y, 30, 5).fill({ color: 0x5e4c3e });
+    for (const x of [-8, 0, 8]) gate.rect(x - 1.5, 0, 3, H).fill({ color: 0x2e2622, alpha: 0.6 });
+    gate.rect(-13, 0, 4, H).fill({ color: 0xffffff, alpha: 0.08 });
+    rustStreaks(gate, -12, 12, 8, 16, 50);
+    for (let i = 0; i < 18; i++) gate.circle(R(-12, 12), R(60, H), R(1.2, 3)).fill({ color: rand() < 0.6 ? PAL.algae : 0x7a6a30, alpha: 0.8 });
+    gate.moveTo(-10, H - 2).lineTo(-14, H + 10).moveTo(10, H - 2).lineTo(14, H + 10).stroke({ color: 0x3b3430, width: 3 });
+    const label = new Text({
+      text: 'KS BOOM 1',
+      style: { fontFamily: 'Courier New, monospace', fontSize: 6, fontWeight: 'bold', fill: 0x2a2418 },
+      resolution: 6,
+    });
+    label.anchor.set(0.5);
+    label.rotation = Math.PI / 2;
+    label.position.set(0, 110);
+    label.alpha = 0.55;
+    this.boomGate.addChild(gate, label);
+    this.boomGate.position.set(BOOM_X, -72);
+    this.view.addChild(post, this.cable, this.boomGate, this.winch);
+    this.scanPoints.boom.push({ x: BOOM_X - 40, y: 120 });
+    this.slices.push({ obj: post, x0: BOOM_X - 300, x1: WINCH_X + 300 });
+    this.setBoom(0);
+  }
+
+  /** Where the winch is, for the Collect button (milestone 7). */
+  static winchPoint(): { x: number; y: number } {
+    return { x: WINCH_X, y: groundY(WINCH_X) - 26 };
+  }
+
+  /** 0 = boom gate closed (hanging across the shelf), 1 = winched up out of the way. */
+  setBoom(t: number): void {
+    if (Math.abs(t - this.boomShown) < 0.002) return;
+    this.boomShown = t;
+    this.boomGate.rotation = -smooth(t) * 1.45;
+    // Winch: a drum on a frame, with a crank wheel that turns as it winds.
+    const w = this.winch.clear();
+    const x = WINCH_X;
+    const y = groundY(x) + 4;
+    w.roundRect(x - 26, y - 12, 52, 12, 3).fill({ color: 0x4a4038 });
+    w.rect(x - 22, y - 40, 6, 30).fill({ color: 0x5a4a3e });
+    w.rect(x + 16, y - 40, 6, 30).fill({ color: 0x5a4a3e });
+    w.roundRect(x - 18, y - 36, 36, 20, 6).fill({ color: 0xa88a40 });
+    w.rect(x - 18, y - 30, 36, 3).fill({ color: 0x3b4448, alpha: 0.6 });
+    for (let k = 0; k < 6; k++) w.moveTo(x - 16 + k * 6, y - 35).lineTo(x - 16 + k * 6, y - 17).stroke({ color: 0x6a5530, width: 1, alpha: 0.7 });
+    const a = t * 14;
+    w.circle(x + 30, y - 26, 10).stroke({ color: 0xa8402e, width: 3 });
+    w.moveTo(x + 30 + Math.cos(a) * 10, y - 26 + Math.sin(a) * 10).lineTo(x + 30 - Math.cos(a) * 10, y - 26 - Math.sin(a) * 10).stroke({ color: 0xa8402e, width: 2 });
+    w.moveTo(x + 22, y - 26).lineTo(x + 30, y - 26).stroke({ color: 0x3b4448, width: 3 });
+    rustStreaks(w, x - 16, x + 16, y - 30, 5, 12);
+    // The cable from the drum up to the gate's free end.
+    const ga = this.boomGate.rotation;
+    const L = SHELF.floor + 70;
+    const ex = BOOM_X - Math.sin(ga) * L;
+    const ey = -72 + Math.cos(ga) * L;
+    this.cable.clear().moveTo(x - 2, y - 30).quadraticCurveTo((x + ex) / 2, Math.max(y - 30, ey) + 20 * (1 - t), ex, ey).stroke({ color: 0x2a2622, width: 1.6, alpha: 0.9 });
   }
 
   /** viewX0..viewX1 is the part of the world the camera can see. */
@@ -800,6 +1037,13 @@ export class Scenery {
       a.halo.alpha = 0.55 * p;
       a.light.intensity = 0.85 * p;
       a.core.rotation = Math.sin(time * 0.7 + a.phase) * 0.06;
+    }
+
+    for (const m of this.mossGlows) {
+      const p = 0.8 + 0.2 * Math.sin(time * 0.9 + m.phase);
+      m.core.alpha = 0.6 + 0.4 * p;
+      m.halo.alpha = 0.4 * p;
+      m.light.intensity = 0.55 * p;
     }
 
     // The buoy bobs and rolls on the swell.

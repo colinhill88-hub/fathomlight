@@ -1,5 +1,5 @@
 import { BaseLayout, isDone, Placed } from './base';
-import { CreatureData, MaterialId, MATERIAL_ORDER, PlantId, SaveData, SpeciesId, TankData } from './state';
+import { CreatureData, MaterialId, MATERIAL_ORDER, MATERIALS, PlantId, SaveData, SpeciesId, TankData } from './state';
 import { EAT_BELOW, MASH_FED, TRAY_CAP, trayCount, whorlMult } from './factory';
 
 /**
@@ -33,8 +33,12 @@ export interface SpeciesDef {
   /** Where it lives in the wild. */
   home: string;
   plant: PlantId;
-  /** 'same': likes others of its kind. 'any': likes any tank-mate. 'space': prefers to be alone. */
-  company: 'same' | 'any' | 'space';
+  /**
+   * 'same': likes others of its kind. 'any': likes any tank-mate. 'space':
+   * prefers to be alone. 'clients' (milestone 7, the lantern shrimp): content
+   * when it has another species to clean.
+   */
+  company: 'same' | 'any' | 'space' | 'clients';
   dislikes: SpeciesId[];
   makes: MaterialId;
   makesText: string;
@@ -64,7 +68,7 @@ export const SPECIES: Record<SpeciesId, SpeciesDef> = {
     home: 'the open water over the drop-off',
     plant: 'kelp',
     company: 'space',
-    dislikes: [],
+    dislikes: ['crab'],
     makes: 'fibre',
     makesText: 'sheds tough threads from its frill that twist into kelp fibre',
     scan: 'puffcap',
@@ -82,15 +86,59 @@ export const SPECIES: Record<SpeciesId, SpeciesDef> = {
     makesText: 'sifts the tank sand and turns up copper grit',
     scan: 'ray',
   },
+  // Milestone 7: the kelp forest. Curious but wary (DESIGN.md, Art direction).
+  crab: {
+    id: 'crab',
+    name: 'Tinker crab',
+    youngName: 'young tinker crab',
+    eggName: 'tinker crab egg sponge',
+    home: 'the holdfasts of the kelp forest',
+    plant: 'bladder',
+    company: 'any',
+    dislikes: [],
+    makes: 'scrap',
+    makesText: 'picks rust flakes and metal grit off its shell and the tank frame, and drops them as scrap',
+    scan: 'crab',
+  },
+  shrimp: {
+    id: 'shrimp',
+    name: 'Lantern shrimp',
+    youngName: 'young lantern shrimp',
+    eggName: 'lantern shrimp eggs',
+    home: 'the shaded rock of the kelp forest',
+    plant: 'lumen',
+    company: 'clients',
+    dislikes: [],
+    makes: 'moss',
+    makesText: 'grazes the tank glass and leaves tufts of lumen moss',
+    scan: 'shrimp',
+  },
 };
-export const SPECIES_ORDER: SpeciesId[] = ['glowfin', 'puffcap', 'ray'];
+export const SPECIES_ORDER: SpeciesId[] = ['glowfin', 'puffcap', 'ray', 'crab', 'shrimp'];
+
+/**
+ * Pairings (milestone 7; DESIGN.md, mixed tanks). Clashes: puffcap threads
+ * sting glowfins, and tinker crabs snip puffcap ribbons. The lantern shrimp
+ * is a cleaner: every tank-mate of another species makes more, and its tank
+ * fouls more slowly.
+ */
+export const CLASH_TEXT: Partial<Record<SpeciesId, (other: string) => string>> = {
+  glowfin: (o) => `Stung by the ${o}'s threads`,
+  puffcap: (o) => `Ribbons snipped by the ${o}`,
+};
+/** Each cleaning lantern shrimp adds this much to a tank-mate's output (another species only)... */
+export const CLEAN_BONUS = 0.25;
+/** ...and the tank fouls this much more slowly with a shrimp in it. */
+export const SHRIMP_CLEAN_WATER = 0.35;
 
 export const PLANTS: Record<PlantId, { name: string; cost: Partial<Record<MaterialId, number>>; scan: string }> = {
   coral: { name: 'Branch coral', cost: { quartz: 1 }, scan: 'coral' },
   kelp: { name: 'Ribbon kelp', cost: { fibre: 1 }, scan: 'kelp' },
   grass: { name: 'Seagrass', cost: { fibre: 1 }, scan: 'grass' },
+  bladder: { name: 'Bladder kelp', cost: { resin: 1 }, scan: 'bladder' },
+  lumen: { name: 'Lumen moss', cost: { moss: 1 }, scan: 'lumen' },
 };
-export const PLANT_ORDER: PlantId[] = ['coral', 'kelp', 'grass'];
+export const PLANT_ORDER: PlantId[] = ['coral', 'kelp', 'grass', 'bladder', 'lumen'];
 
 /** Creatures per tank (eggs count too). */
 export const TANK_CAPACITY = 4;
@@ -153,13 +201,16 @@ export function makeRate(
   layout: BaseLayout,
   c: CreatureData,
   thriving = thrivingTanks(save, layout),
-): { perMin: number; shoal: number; reef: number; whorl: number } {
-  const mates = creaturesIn(save, c.tank).filter((m) => m.id !== c.id && isHappy(save, m)).length;
+): { perMin: number; shoal: number; reef: number; whorl: number; clean: number } {
+  const happyMates = creaturesIn(save, c.tank).filter((m) => m.id !== c.id && isHappy(save, m));
+  const mates = happyMates.length;
   const shoal = SHOAL_BONUS * mates;
+  // Milestone 7: lantern shrimp clean their tank-mates of other species.
+  const clean = c.species === 'shrimp' ? 0 : CLEAN_BONUS * happyMates.filter((m) => m.species === 'shrimp').length;
   const reef = Math.min(REEF_MAX, REEF_BONUS * (thriving.size - (thriving.has(c.tank) ? 1 : 0)));
   const whorl = whorlMult(save, c.tank);
   const base = c.stage === 'grown' && isHappy(save, c) ? 60 / MAKE_SECONDS : 0;
-  return { perMin: base * (1 + shoal) * (1 + reef) * whorl, shoal, reef, whorl };
+  return { perMin: base * (1 + shoal + clean) * (1 + reef) * whorl, shoal, reef, whorl, clean };
 }
 
 export function tankDataFor(save: SaveData, tankId: number): TankData {
@@ -238,14 +289,20 @@ export function comfortTarget(save: SaveData, layout: BaseLayout, c: CreatureDat
   } else if (sp.company === 'any') {
     if (mates.length) t += 0.2;
     notes.push({ text: mates.length ? 'Has tank-mates to follow' : 'Lonely: likes any tank-mate', good: mates.length > 0 });
+  } else if (sp.company === 'clients') {
+    const clients = mates.filter((m) => m.species !== c.species).length;
+    if (clients) t += 0.2;
+    notes.push({ text: clients ? 'Has tank-mates to clean' : 'Idle: likes another species to clean', good: clients > 0 });
   } else {
     if (mates.length <= 1) t += 0.2;
     notes.push({ text: mates.length <= 1 ? 'Room to drift' : 'Crowded: likes space to drift', good: mates.length <= 1 });
   }
+  if (c.species !== 'shrimp' && mates.some((m) => m.species === 'shrimp')) notes.push({ text: 'Kept clean by the lantern shrimp (more output)', good: true });
   const bad = mates.filter((m) => sp.dislikes.includes(m.species));
   if (bad.length) {
     t -= 0.4;
-    notes.push({ text: `Stung by the ${SPECIES[bad[0].species].name.toLowerCase()}'s threads`, good: false });
+    const other = SPECIES[bad[0].species].name.toLowerCase();
+    notes.push({ text: (CLASH_TEXT[c.species] ?? ((o: string) => `Bothered by the ${o}`))(other), good: false });
   }
   if (!layout.powered.has(c.tank)) {
     t -= 0.4;
@@ -276,13 +333,14 @@ export function statusLine(save: SaveData, c: CreatureData): string {
   if (c.stage === 'egg') return `Egg: hatching in about ${Math.max(1, Math.ceil((1 - c.growth) * HATCH_SECONDS))} s.`;
   const sp = SPECIES[c.species];
   const w = worstNeed(save, c);
-  const glowWord = c.species === 'glowfin' ? 'Lantern' : c.species === 'puffcap' ? 'Spots are' : 'Dapples are';
+  const glowWord =
+    c.species === 'glowfin' ? 'Lantern' : c.species === 'puffcap' ? 'Spots are' : c.species === 'crab' ? 'Eyes are' : c.species === 'shrimp' ? 'Lights are' : 'Dapples are';
   const what = { fed: 'Hungry', comfort: 'Unsettled', water: 'Water is dirty' }[w.which];
   if (c.sickness > 0.02) return `Sick: ${what.toLowerCase()}. ${glowWord === 'Lantern' ? 'Lantern is' : glowWord} fading. Fix it soon.`;
   if (w.value < 0.45) return `${what}. ${glowWord === 'Lantern' ? 'Lantern is' : glowWord} dimming.`;
   if (c.stage === 'young')
     return w.value >= HAPPY_AT ? `Healthy and growing: ${Math.floor(c.growth * 100)}% grown.` : `Settling in. Needs above ${Math.round(HAPPY_AT * 100)}% to grow.`;
-  return w.value >= HAPPY_AT ? `Grown and thriving. It ${sp.makesText}.` : `Grown. Happier, it would make ${sp.makes === 'fibre' ? 'kelp fibre' : sp.makes}.`;
+  return w.value >= HAPPY_AT ? `Grown and thriving. It ${sp.makesText}.` : `Grown. Happier, it would make ${MATERIALS[sp.makes].name.toLowerCase()}.`;
 }
 
 /** 0..1: how brightly it glows (and how lively it looks). */
@@ -311,9 +369,11 @@ export function tickCare(save: SaveData, layout: BaseLayout, dt: number): CareEv
   // Water.
   for (const t of tanks(layout)) {
     const td = tankDataFor(save, t.id);
-    const n = creaturesIn(save, t.id).filter((c) => c.stage !== 'egg').length;
+    const here = creaturesIn(save, t.id).filter((c) => c.stage !== 'egg');
+    const n = here.length;
+    const cleaner = here.some((c) => c.species === 'shrimp') ? 1 - SHRIMP_CLEAN_WATER : 1;
     // Echo whorls quicken the whole tank: its creatures foul the water faster too.
-    td.water -= n * DIRT_RATE * whorlMult(save, t.id) * dt;
+    td.water -= n * DIRT_RATE * cleaner * whorlMult(save, t.id) * dt;
     if (filtered.has(t.id)) td.water += FILTER_RATE * dt;
     td.water = Math.max(0, Math.min(1, td.water));
   }

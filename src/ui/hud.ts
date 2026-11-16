@@ -24,6 +24,10 @@ export const MATERIAL_ICONS: Record<MaterialId, string> = {
     '<svg viewBox="0 0 24 24"><g stroke="#c9a24a" stroke-width="1.6" fill="none" stroke-linecap="round"><path d="M12 18C10 12 6 9 4 5"/><path d="M12 18c0-6 0-10 0-14"/><path d="M12 18c2-6 6-9 8-13"/><path d="M12 18C9 14 7 13 5 11" stroke="#a4823a"/><path d="M12 18c3-4 5-5 7-7" stroke="#a4823a"/></g><ellipse cx="12" cy="19" rx="4" ry="2.4" fill="#8a6d32"/></svg>',
   plate:
     '<svg viewBox="0 0 24 24"><path d="M3 9l9-4 9 4v7l-9 4-9-4z" fill="#6b777a"/><path d="M3 9l9-4 9 4-9 4z" fill="#a9b4b6"/><path d="M12 13v7l9-4V9z" fill="#4e585b"/><path d="M5.5 9.3l6.5-2.9 6.5 2.9" fill="none" stroke="#c9a24a" stroke-width="1.1"/><circle cx="7" cy="10" r=".9" fill="#3b4448"/><circle cx="12" cy="7.6" r=".9" fill="#3b4448"/><circle cx="17" cy="10" r=".9" fill="#3b4448"/><circle cx="12" cy="12" r=".9" fill="#3b4448"/></svg>',
+  resin:
+    '<svg viewBox="0 0 24 24"><path d="M12 3c3 5 6 8 6 12a6 6 0 0 1-12 0c0-4 3-7 6-12z" fill="#b8782a"/><path d="M12 6c1.8 3.4 3.6 5.6 3.6 8.6" stroke="#f0c070" stroke-width="1.4" fill="none" opacity=".8"/><ellipse cx="10" cy="15" rx="1.8" ry="2.4" fill="#ffe0a0" opacity=".55"/></svg>',
+  moss:
+    '<svg viewBox="0 0 24 24"><ellipse cx="12" cy="17" rx="9" ry="4" fill="#4a5a34"/><circle cx="7" cy="14" r="3" fill="#8aa84a"/><circle cx="12" cy="12.5" r="3.6" fill="#a8c860"/><circle cx="17" cy="14" r="3" fill="#8aa84a"/><circle cx="9" cy="12" r="1" fill="#f0f8b0"/><circle cx="14" cy="11" r="1.1" fill="#f0f8b0"/><circle cx="17.5" cy="13" r=".8" fill="#f0f8b0"/></svg>',
 };
 
 /** The submersible line in the log (milestone 6). */
@@ -58,8 +62,8 @@ export class Hud {
   constructor(private readonly getSave: () => SaveData) {
     for (const id of MATERIAL_ORDER) {
       const el = document.createElement('div');
-      // Hull plating is only made at the base: its chip hides until there is some.
-      el.className = id === 'plate' ? 'chip optional' : 'chip';
+      // Hull plating (made at the base) and the kelp forest materials: their chips hide until there is some.
+      el.className = id === 'plate' || id === 'resin' || id === 'moss' ? 'chip optional' : 'chip';
       el.title = MATERIALS[id].name;
       el.innerHTML = `${MATERIAL_ICONS[id]}<span></span><small></small>`;
       this.chips.appendChild(el);
@@ -183,6 +187,17 @@ export class Hud {
           : 'Build drone: missing. It was lost near the survey sled wreck in the sand channel.'
       }</p>
       <p class="note">${subNote(save)}</p>
+      <h2>Gear and blueprints</h2>
+      <p class="note">${
+        save.gear.includes('light')
+          ? 'Dive light DL-1: built and in use. It opens the dark cave in the east cliff.'
+          : save.blueprints.includes('light')
+            ? 'Dive light blueprint decoded: build it in a Workshop (2 hull plating, 2 quartz, 1 copper).'
+            : save.finds.includes('recorder')
+              ? 'Carrying the SLED 2 recorder: decode it in a Lab.'
+              : 'The survey sled wreck\'s recorder holds a dive light design. Scan the sled, then unclip the recorder.'
+      }</p>
+      <p class="note">${save.boomOpen ? 'Survey boom gate: open. The sub can cross into the kelp forest.' : 'Survey boom gate: closed. Its winch is on the kelp forest side.'}</p>
       <h2>Creatures</h2>
       ${this.creatureNotes(save)}
       <p class="note">Air tank upgrades found: ${save.tanks.length} / ${TOTAL_AIR_TANKS} · Dive time ${maxOxygen(save)} s</p>
