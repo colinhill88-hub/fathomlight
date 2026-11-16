@@ -26,6 +26,8 @@ export const MATERIAL_ICONS: Record<MaterialId, string> = {
     '<svg viewBox="0 0 24 24"><path d="M3 9l9-4 9 4v7l-9 4-9-4z" fill="#6b777a"/><path d="M3 9l9-4 9 4-9 4z" fill="#a9b4b6"/><path d="M12 13v7l9-4V9z" fill="#4e585b"/><path d="M5.5 9.3l6.5-2.9 6.5 2.9" fill="none" stroke="#c9a24a" stroke-width="1.1"/><circle cx="7" cy="10" r=".9" fill="#3b4448"/><circle cx="12" cy="7.6" r=".9" fill="#3b4448"/><circle cx="17" cy="10" r=".9" fill="#3b4448"/><circle cx="12" cy="12" r=".9" fill="#3b4448"/></svg>',
   resin:
     '<svg viewBox="0 0 24 24"><path d="M12 3c3 5 6 8 6 12a6 6 0 0 1-12 0c0-4 3-7 6-12z" fill="#b8782a"/><path d="M12 6c1.8 3.4 3.6 5.6 3.6 8.6" stroke="#f0c070" stroke-width="1.4" fill="none" opacity=".8"/><ellipse cx="10" cy="15" rx="1.8" ry="2.4" fill="#ffe0a0" opacity=".55"/></svg>',
+  brass:
+    '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8" fill="#a8822e"/><circle cx="12" cy="12" r="5" fill="#2c3a3f"/><circle cx="12" cy="12" r="4" fill="#5d7f7a" opacity=".6"/><circle cx="12" cy="4.5" r="1.2" fill="#e8c870"/><circle cx="19.5" cy="12" r="1.2" fill="#e8c870"/><circle cx="12" cy="19.5" r="1.2" fill="#e8c870"/><circle cx="4.5" cy="12" r="1.2" fill="#e8c870"/><path d="M6 8a8 8 0 0 1 6-4" stroke="#7fa88a" stroke-width="1.5" fill="none"/></svg>',
   moss:
     '<svg viewBox="0 0 24 24"><ellipse cx="12" cy="17" rx="9" ry="4" fill="#4a5a34"/><circle cx="7" cy="14" r="3" fill="#8aa84a"/><circle cx="12" cy="12.5" r="3.6" fill="#a8c860"/><circle cx="17" cy="14" r="3" fill="#8aa84a"/><circle cx="9" cy="12" r="1" fill="#f0f8b0"/><circle cx="14" cy="11" r="1.1" fill="#f0f8b0"/><circle cx="17.5" cy="13" r=".8" fill="#f0f8b0"/></svg>',
 };
@@ -63,7 +65,7 @@ export class Hud {
     for (const id of MATERIAL_ORDER) {
       const el = document.createElement('div');
       // Hull plating (made at the base) and the kelp forest materials: their chips hide until there is some.
-      el.className = id === 'plate' || id === 'resin' || id === 'moss' ? 'chip optional' : 'chip';
+      el.className = id === 'plate' || id === 'resin' || id === 'moss' || id === 'brass' ? 'chip optional' : 'chip';
       el.title = MATERIALS[id].name;
       el.innerHTML = `${MATERIAL_ICONS[id]}<span></span><small></small>`;
       this.chips.appendChild(el);
@@ -240,7 +242,10 @@ export class Hud {
       .map(([bp, how]) => `<li>${save.blueprints.includes(bp as never) ? `${how.split(' (')[0]}: build card unlocked` : how}</li>`)
       .join('');
     const lit = save.brackets.filter(Boolean).length;
-    return `<p class="note">The kelp caves:</p><ul class="note">${rows}${pieces}<li>Black water brackets lit: ${lit} / 4</li><li>Kelp wall: ${save.kelpCut ? 'cut open' : 'uncut (needs the cutter torch)'}</li>${
+    const shelf = save.scans.includes('wshelf')
+      ? `<p class="note">The wreck shelf: suit integrity ${Math.round(save.suit * 100)}% · sealed hatches opened ${save.hatches.length} / 2${save.gear.includes('tow') ? '' : ' · the race needs a tow line'}</p>`
+      : '';
+    return `${shelf}<p class="note">The kelp caves:</p><ul class="note">${rows}${pieces}<li>Black water brackets lit: ${lit} / 4</li><li>Kelp wall: ${save.kelpCut ? 'cut open' : 'uncut (needs the cutter torch)'}</li>${
       save.relays.length || save.relayKits ? `<li>Air relays planted: ${save.relays.length}${save.relayKits ? `, ${save.relayKits} kit${save.relayKits > 1 ? 's' : ''} to plant` : ''}</li>` : ''
     }</ul>`;
   }

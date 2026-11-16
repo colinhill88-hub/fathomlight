@@ -1,6 +1,6 @@
 # Fathomlight progress
 
-Last updated: 2026-11-16, **milestone 7 part 2 deployed (the kelp caves, the cutter torch, Grand tank, Sorting pod, air relays, DR-2)**, plus the grabber and sub boarding fixes. Next is **milestone 8, danger** (see Next).
+Last updated: 2026-11-16, **milestone 8 part 1 deployed (the wreck shelf, the race and tow line, wreck lurkers, suit integrity)**, plus smoother kelp caves. Next is **milestone 8 part 2, the Corvina** (see Next).
 
 Play link: https://colinhill88-hub.github.io/fathomlight/ (live; first successful deploy 2026-11-14)
 
@@ -818,18 +818,76 @@ Cut from High so far: the phone renders at 2× instead of its native 3×. Colin 
 - **The cave mouth** was drawn as narrow vertical strips from the cave up to the steep wall face, which showed as a staircase and a dark wedge. It is now one smooth rounded opening, shaded darker towards the inside.
 - **Tunnels** are no longer perfect pill shapes. Their radius swells and pinches gently along their length (`capWobble` in `src/world/terrain.ts`). Drawing and collisions use the same wobble. The narrowest point is still 39 units (the diver needs 26), and a walk along the squeeze found no tight spots.
 
+### After milestone 7 part 2: the caves as one smooth shape, and the kelp wall bug
+- **Colin** (screenshot): a black C-shape at the mouth that didn't flow into the cave; a join in the hall that looked misdrawn; and after cutting the kelp wall, the green tangle was still there.
+- **The caves are now one smooth shape** (`caveField` in `src/world/terrain.ts`). Each tunnel and chamber is a distance field, blended into the others with a smooth union, so joins become rounded fillets instead of separate pills and ovals overlapping. Rock pillars are cut out of it.
+  - The entry tunnel now starts out in the forest water, and the drawing is clipped at the seabed. So the mouth opens straight out of the wall face (the old separate mouth drawing is gone).
+  - The drawing traces that field with marching squares (smooth, interpolated edges) in `Scenery.buildKelpCaves`. Collisions use the same field.
+  - Checked: the squeeze has no tight spots, both air pockets are open, all four finds sit on the floor, and the brackets stand on it.
+- **Kelp wall bug:** the scenery's culling pass sets every object in view visible each frame, which re-showed the uncut wall (and would have re-shown closed wreck hatches). Those graphics are now left out of culling. Once cut, only a few charred stubs cling to the passage sides, and the tangle is drawn only inside the passage.
+
+### Milestone 8, part 1: the wreck shelf, the race, lurkers and suit integrity
+- **Colin's choices before building:**
+  - **health** is suit integrity;
+  - **predators** are unsettling, avoidable ambush hunters;
+  - **currents** are crossed with anchor rings and the tow line's winch;
+  - the **sub** goes over the plateau.
+  - The milestone is split: part 1 is this session; part 2 is the Corvina (the major site) and the shelf's base pieces.
+- **The world grew east again** (`WORLD_W` 19400 → 27200, `src/world/terrain.ts`):
+  - **19300–19750, the shelf edge:** the plateau over the kelp caves drops 18 m to the wreck shelf.
+  - **19450–21900, the race:** a current (500 units/s, stronger than a boost) sweeps west across the edge. Its silt streaks show the flow. Eight **anchor rings** (steel stakes with a ring on top) cross it. Holding on at a ring cuts the current to a tenth.
+  - **21900–27000, the wreck shelf:** about 22 m down and twilight (the light bake dims it). Grey silt with rusted debris, sea pens, two small sealed wrecks (a **trawler** and a **barge**), five **lurker dens**, eight **brass** spots, and the great wreck of the **Corvina** (part 2).
+  - The sub can reach it over the plateau. The race pushes the sub too, at half strength: its thrusters still get it across.
+- **The tow line** (built in milestone 7 part 2) now has its job. At a ring, hold Collect: "Clip on and haul to the next ring" (0.5 s). The diver then winches along the line to the next ring (170 units/s), drawn as a line, and the current can't take them. Without the tow line, the ring says a tow line could clip on, and a banner explains the race.
+- **Suit integrity** (`save.suit`, 0–1): an arc across the top of the dive watch, mirroring the bag's arc at the bottom. Lume colour above 70%, amber above 35%, red and pulsing below.
+  - Bites crack it by 30%.
+  - It self-seals at 1.2% a second after 8 s without damage, and repairs quickly at the surface, a dome, the sub or an air relay.
+  - At 0 the diver blacks out like running out of air ("Your suit gave way"), dropping the bag; the suit is repaired on waking.
+  - Below a third, a slow two-tone alarm sounds.
+- **Wreck lurkers** (`src/actors/lurker.ts`), the first predators. A long, mottled, spined hunter with needle teeth and a warm amber lure, waiting in a den under wreckage. It never chases:
+  - it notices a diver in front of its den within 200 units (125 with the lamp off);
+  - it **warns** (the lure flares, its eyes shine, a dry clicking rattle) for 0.75 s;
+  - it **lunges** up to 250 units and **bites** if the diver is still there;
+  - then it slides back and **rests** for 3.4 s, so a careful diver can pass.
+  - It ignores the sub. Two brass spots lie in front of dens on purpose: grab them while it rests.
+- **Brass fittings**, the shelf's material: 3 kg, "Unbolt" (2.6 s). They're for the shelf's base pieces and pressure gear in part 2.
+- **Sealed hatches:** hold Collect with the cutter torch (3 s) at the trawler's and the barge's hatch.
+  - The trawler: an emergency air cylinder, the **5th air tank upgrade** (`TOTAL_AIR_TANKS` 5).
+  - The barge: a dry cargo locker with 3 hull plating and 2 brass.
+  - The Corvina's bulkhead door is sealed from inside: it opens in part 2.
+- **New scanner entries:** The wreck shelf, The race, Anchor ring, Sealed hatch, The Corvina, Wreck lurker. The log shows suit integrity and the hatches.
+- **Sounds:**
+  - the shelf's own music (C# with a flattened fifth: low, slow, uneasy) and ambience (deep hum, groaning wrecks, distant clanks);
+  - the race's rumble, the lurker's warning rattle, the bite (snap, crunch and escaping air);
+  - the tow line's clip and winch, brass being unbolted, and the suit alarm.
+- **Tested** (type check and build pass; scripted in headless Chromium, timed in game seconds):
+  - **Race:** without a tow line the diver was swept from x 20700 back to 19613 in 3 s.
+  - **Hauling:** clipped on at the 20530 ring, the diver hauled to 20837 (next ring 20860).
+  - **Lurker:** loitering in front of a den got the diver bitten: suit 1.00 → 0.70. Over 12 s away from danger it self-sealed to 0.78.
+  - **Hatch:** cutting the trawler's hatch gave the 5th air tank.
+  - **Suit failure:** with the suit at 20%, a bite blacked the diver out; they woke at the buoy with the suit repaired.
+  - **Sub:** left alone in the race, it drifted from 20600 to 19813 in 3 s.
+  - No console errors.
+
 ## Next
 
-**Next session: milestone 8, danger** (DESIGN.md, Milestones): predators, currents, the wreck shelf zone, and real uses for the cutter torch (sealed wrecks) and tow line (strong currents). Health arrives with the first things that can hurt the diver. Its prompt is in `docs/prompts/milestone-8.md`. Ask Colin before building:
-- the wreck shelf's layout and its major site (a sealed wreck?), and which blueprints it holds (DESIGN.md: pressure suit and sonar pulse);
-- how health and damage work (a health bar on the dive watch? healing at the dome?), and how scary the first predators are (DESIGN.md: "unsettling", hide and lunge);
-- how currents and the tow line work (clip to anchor points and winch along?);
-- the wreck shelf's base pieces and materials (DESIGN.md, base growth across biomes), and whether the sub gets there (a way east past the caves' plateau at 15200–19400, which is open water 3.5 m deep today);
+**Next session: milestone 8 part 2, the Corvina** (prompt in `docs/prompts/milestone-8-part-2.md`). Ask Colin before building:
+- the Corvina as a dungeon: how you get in (the bulkhead is sealed from inside: another way in through the bow on the rock, a cargo hold, a vent?), and its puzzles (flooded decks, power to restore, doors to open in order, lurkers inside?);
+- what she was studying (the story: the Choir's light signals?), and which blueprints are inside (DESIGN.md: pressure suit and sonar pulse);
+- the wreck shelf's base pieces made from brass (ideas: a pressure lock / hyperbaric room that repairs the suit, a brass condenser that makes air relays cheaper, a salvage winch);
+- whether crush depth starts here (the shelf is about 22 m; the suit's safe depth would be set by the pressure suit tiers in milestone 10);
 - power as a real mechanic (Colin, milestone 7): still to be planned.
 
-Where things are (milestone 7 part 2): the caves' shapes and the kelp wall in `src/world/terrain.ts` (`KC`, `AIR_POCKETS`, `BRACKETS`, `KELP_WALL`, `KC_FINDS`); their drawing, brackets, darkness and relays in `src/world/scenery.ts` (`buildKelpCaves`, `setKelpCaves`, `setRelays`); the surge, black water, air pockets, finds, kelp wall, relay planting and the sub boarding animation in `src/main.ts` (search "Milestone 7 part 2" and "boarding"); research and gear in `src/game/gear.ts`; the Grand tank and Sorting pod in `src/game/base.ts` (`isTankKind`, `isStoreKind`, `SORT_BAY`) and `src/world/basegfx.ts`.
+Where things are (milestone 8 part 1): the shelf's shape, `RACE`, `RINGS`, `WRECKS`, `CORVINA`, `LURKER_DENS` in `src/world/terrain.ts`; its drawing in `Scenery.buildShelf` (`src/world/scenery.ts`); the lurkers in `src/actors/lurker.ts`; the race, hauling, suit, bites and hatches in `src/main.ts` (search "Milestone 8"); the suit arc in `src/ui/watch.ts`.
 
 ## Problems and open questions
+
+- **Milestone 8 part 1 numbers to tune after Colin plays:**
+  - the race (`RACE.speed` 500, 10% at a ring), hauling speed (`HAUL_SPEED` 170), and the sub's half-strength drift;
+  - the lurker's reach (250), detect range (200 lit / 125 dark), warn 0.75 s, rest 3.4 s, and the bite (30%);
+  - suit self-seal (1.2%/s after 8 s) and repair (25%/s);
+  - brass weight (3 kg) and unbolt time (2.6 s).
+- **The lurkers ignore the sub,** and the sub can cross the race. That keeps the sub a safe way to explore, but the race only gates the diver.
 
 - **Milestone 7 part 2 numbers to tune after Colin plays:** the surge (`SURGE_CYCLE` 7.5 s, strength 560 in `src/main.ts`), air pocket sizes (`AIR_POCKETS` water lines), how far you can go past the last lit bracket (330) and how much the black water shrinks the light (0.32); research and build times and costs (`src/game/gear.ts`, `PIECES`); the Sorting pod bay (12 of each); relay spacing (600) and breathing radius (140); the grabber's reach (`GRAB_REACH` 150) and how fast it hovers into line (160 units/s); boarding (0.6 s swim + 0.45 s in).
 - **Cave frame rate on the phone:** in the cloud test browser (software graphics, no GPU) the caves ran at about half the frame rate of the shallows, mostly from their many lights (moss, brackets, finds). Check the caves on the iPhone. If they stutter, the first things to cut are the moss lights along the route (in `buildKelpCaves`) and the darkness strips' resolution.

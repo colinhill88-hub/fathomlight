@@ -8,7 +8,7 @@
  * planned for milestone 11.
  */
 
-export type MaterialId = 'scrap' | 'copper' | 'quartz' | 'fibre' | 'plate' | 'resin' | 'moss';
+export type MaterialId = 'scrap' | 'copper' | 'quartz' | 'fibre' | 'plate' | 'resin' | 'moss' | 'brass';
 /** Materials found on the reef. Hull plating (milestone 5 part 2) is only made by the plate press. */
 export type ReefMaterial = Exclude<MaterialId, 'plate'>;
 
@@ -37,13 +37,20 @@ export const MATERIALS: Record<MaterialId, { name: string; plural: string; blurb
     blurb: 'Soft moss that glows a warm yellow-green on shaded kelp forest rock. Lamps and tank plants; kelp forest base pieces.',
     kg: 0.5,
   },
+  // Milestone 8: the wreck shelf's own material.
+  brass: {
+    name: 'Brass fitting',
+    plural: 'Brass fittings',
+    blurb: 'Heavy valves, portholes and fittings unbolted from wrecks on the shelf. Green with age, bright underneath. Wreck shelf base pieces and pressure gear.',
+    kg: 3,
+  },
 };
-export const MATERIAL_ORDER: MaterialId[] = ['scrap', 'copper', 'quartz', 'fibre', 'plate', 'resin', 'moss'];
+export const MATERIAL_ORDER: MaterialId[] = ['scrap', 'copper', 'quartz', 'fibre', 'plate', 'resin', 'moss', 'brass'];
 
 /** Oxygen, in seconds of breathing, for the starting tank and for each tank upgrade. */
 export const BASE_OXYGEN = 75;
 export const TANK_BONUS = 20;
-export const TOTAL_AIR_TANKS = 4;
+export const TOTAL_AIR_TANKS = 5;
 /**
  * Collected materials grow back after this much play time. Play time keeps
  * counting through blackouts and is saved, so neither dying nor closing the
@@ -314,6 +321,10 @@ export interface SaveData {
   relayKits: number;
   /** Planted air relays: where each one's anchor sits on the seabed. */
   relays: { x: number; y: number }[];
+  /** Milestone 8: suit integrity, 0..1 (bites crack it; at 0 the diver blacks out). */
+  suit: number;
+  /** Milestone 8: sealed wreck hatches cut open with the cutter torch. */
+  hatches: string[];
   /** Scrap still owed from the test gift after milestone 6 (removed in milestone 7: kept only so old saves load). */
   gift?: number;
   /** One-time tips already shown. */
@@ -334,14 +345,14 @@ export function freshSave(spawnX: number, spawnY: number): SaveData {
     y: spawnY,
     oxygen: BASE_OXYGEN,
     lampOn: true,
-    bag: { scrap: 0, copper: 0, quartz: 0, fibre: 0, plate: 0, resin: 0, moss: 0 },
+    bag: { scrap: 0, copper: 0, quartz: 0, fibre: 0, plate: 0, resin: 0, moss: 0, brass: 0 },
     scans: [],
     tanks: [],
     taken: {},
     dropped: null,
     pieces: [],
     nextPieceId: 1,
-    stored: { scrap: 0, copper: 0, quartz: 0, fibre: 0, plate: 0, resin: 0, moss: 0 },
+    stored: { scrap: 0, copper: 0, quartz: 0, fibre: 0, plate: 0, resin: 0, moss: 0, brass: 0 },
     drone: 'stranded',
     creatures: [],
     nextCreatureId: 1,
@@ -364,6 +375,8 @@ export function freshSave(spawnX: number, spawnY: number): SaveData {
     kelpCut: false,
     relayKits: 0,
     relays: [],
+    suit: 1,
+    hatches: [],
     tips: [],
     playSeconds: 0,
     savedAt: 0,
@@ -408,6 +421,8 @@ export function loadSave(spawnX: number, spawnY: number): { data: SaveData; load
       brackets: [0, 1, 2, 3].map((i) => Array.isArray(d.brackets) && d.brackets[i] === true),
       kelpCut: d.kelpCut === true,
       relayKits: typeof d.relayKits === 'number' ? d.relayKits : 0,
+      suit: typeof d.suit === 'number' ? Math.max(0.05, Math.min(1, d.suit)) : 1,
+      hatches: Array.isArray(d.hatches) ? d.hatches : [],
       relays: Array.isArray(d.relays) ? d.relays.filter((r: { x?: unknown; y?: unknown }) => typeof r?.x === 'number' && typeof r?.y === 'number') : [],
     } as SaveData;
     // Milestone 7: the scavenger crab makes scrap now, so the test gift ends.

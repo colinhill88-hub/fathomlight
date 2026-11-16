@@ -195,6 +195,43 @@ export const SCAN_ENTRIES: ScanEntry[] = [
     category: 'Plant',
     text: 'Holdfasts and old stalks grown together into a tough mat across a side passage. Too thick to push through or pull apart. A cutter torch would slice it open.',
   },
+  // Milestone 8: the wreck shelf.
+  {
+    id: 'wshelf',
+    name: 'The wreck shelf',
+    category: 'Place',
+    text: 'A wide silty shelf about 22 m down, in permanent twilight. Ships have been lost here for a long time; their wrecks lie half sunk, and things have moved into them.',
+  },
+  {
+    id: 'race',
+    name: 'The race',
+    category: 'Place',
+    text: 'Deep water pours over the shelf edge here in a steady, powerful current, far too strong to swim against. Old anchor rings cross it: clip a tow line on and haul yourself from ring to ring.',
+  },
+  {
+    id: 'ring',
+    name: 'Anchor ring',
+    category: 'Wreckage',
+    text: 'A steel stake driven deep into the seabed with a heavy ring on top, left by a salvage crew long ago. Holding on to one keeps you out of the worst of the current.',
+  },
+  {
+    id: 'wreck',
+    name: 'Sealed hatch',
+    category: 'Wreckage',
+    text: 'A watertight hatch, rusted shut. Something dry might still be inside. A cutter torch would open it.',
+  },
+  {
+    id: 'corvina',
+    name: 'The Corvina',
+    category: 'Wreckage',
+    text: 'A large survey ship lying on the shelf, its bow raised on a rock. Its bulkhead door is sealed from the inside. Whatever her crew were studying, they locked it away.',
+  },
+  {
+    id: 'lurker',
+    name: 'Wreck lurker',
+    category: 'Creature',
+    text: 'A long, spined hunter that waits in dens under wreckage with a glowing lure over its head. It never chases: it warns (lure flaring, eyes shining), lunges, then pulls back and rests. Give its den a wide berth, or pass while it rests. It notices a lit lamp from further away.',
+  },
 ];
 
 export interface ScanCandidate {

@@ -35,11 +35,19 @@ import { mulberry32, WORLD_SEED } from '../rng';
  * pulsing current, a junction (air pocket, a side chamber up to an old rope
  * store), a pitch-black chamber and the earlier expedition's cache at the end.
  * Above them the wall's top is a flat rock plateau 3.5 m under the surface.
+ *
+ * Milestone 8 part 1 added the wreck shelf east of the plateau:
+ * 19300 - 19750 the shelf edge: the plateau drops 18 m to the shelf floor
+ * 19450 - 21900 the race: a strong current sweeps west across the edge; old
+ *               anchor rings cross it (the tow line clips on)
+ * 21900 - 27000 the wreck shelf: twilight, about 22 m down, silt and wreckage,
+ *               two small sealed wrecks, wreck lurkers in dens, brass fittings,
+ *               and the great sealed wreck of the Corvina (the major site, part 2)
  */
 
 /** West edge of the world (milestone 5 added the basin west of the old wall). */
 export const WORLD_X0 = -5600;
-export const WORLD_W = 19400;
+export const WORLD_W = 27200;
 /** Width of the whole world, from WORLD_X0 to WORLD_W. */
 export const WORLD_SPAN = WORLD_W - WORLD_X0;
 export const WORLD_H = 1980;
@@ -111,7 +119,8 @@ export const KELP_WALL = { x0: 15500, x1: 15690, y0: 1322, y1: 1372 };
 export const kelpWall = { cut: false };
 
 const CAVE_SHAPES: CaveShape[] = [
-  cap(15050, 1160, 82, 15430, 1185, 76),
+  // The way in: it starts in the open forest water, so the mouth flows straight into the tunnel.
+  cap(14840, 1185, 100, 15430, 1185, 76),
   KC.hall,
   KC.kelpPassage,
   KC.alcove,
@@ -127,7 +136,7 @@ const CAVE_SHAPES: CaveShape[] = [
   KC.exit,
   KC.cache,
 ];
-export const KC_BOUNDS = { x0: 14980, x1: 19150 };
+export const KC_BOUNDS = { x0: 14740, x1: 19150 };
 
 /**
  * Tunnels aren't perfect tubes (Colin, after milestone 7 part 2: "too box-y"):
@@ -152,17 +161,49 @@ export function ellBottom(e: { x: number; y: number; rx: number; ry: number }, x
 export function ellTop(e: { x: number; y: number; rx: number; ry: number }, x: number): number {
   return e.y - e.ry * Math.sqrt(Math.max(0, 1 - ((x - e.x) / e.rx) ** 2));
 }
+/**
+ * Signed distance (roughly, in world units) from a shape's wall: negative inside.
+ * After milestone 7 part 2 (Colin: joins looked misdrawn) the caves are one
+ * smooth shape: chambers and tunnels blend into each other with rounded
+ * fillets instead of overlapping as separate pills and ovals.
+ */
+function sdShape(s: CaveShape, x: number, y: number): number {
+  if (s.kind === 'ell') return (Math.hypot((x - s.x) / s.rx, (y - s.y) / s.ry) - 1) * Math.min(s.rx, s.ry);
+  const dx = s.x2 - s.x1;
+  const dy = s.y2 - s.y1;
+  const t = Math.max(0, Math.min(1, ((x - s.x1) * dx + (y - s.y1) * dy) / (dx * dx + dy * dy)));
+  const cx = s.x1 + dx * t;
+  const cy = s.y1 + dy * t;
+  return Math.hypot(x - cx, y - cy) - (s.r1 + (s.r2 - s.r1) * t) * capWobble(cx, cy);
+}
+function bboxOf(s: CaveShape): [number, number, number, number] {
+  if (s.kind === 'ell') return [s.x - s.rx, s.y - s.ry, s.x + s.rx, s.y + s.ry];
+  const r = Math.max(s.r1, s.r2) * 1.3;
+  return [Math.min(s.x1, s.x2) - r, Math.min(s.y1, s.y2) - r, Math.max(s.x1, s.x2) + r, Math.max(s.y1, s.y2) + r];
+}
+const BLEND = 70;
+const smin = (a: number, b: number) => {
+  const h = Math.max(BLEND - Math.abs(a - b), 0) / BLEND;
+  return Math.min(a, b) - h * h * BLEND * 0.25;
+};
+let shapeBoxes: [number, number, number, number][] | null = null;
+/** The caves' smooth field: negative in open water, positive in rock. */
+export function caveField(x: number, y: number): number {
+  if (x < KC_BOUNDS.x0 || x > KC_BOUNDS.x1 || y < 740) return 999;
+  shapeBoxes ??= CAVE_SHAPES.map(bboxOf);
+  let d = 999;
+  for (let i = 0; i < CAVE_SHAPES.length; i++) {
+    const b = shapeBoxes[i];
+    if (x < b[0] - BLEND || x > b[2] + BLEND || y < b[1] - BLEND || y > b[3] + BLEND) continue;
+    d = smin(d, sdShape(CAVE_SHAPES[i], x, y));
+  }
+  if (d > BLEND) return d;
+  for (const p of KC_PILLARS) d = Math.max(d, -sdShape(p, x, y));
+  return d;
+}
 /** Is the point in the open water of the kelp caves (not rock, not a pillar)? */
 export function inKelpCaves(x: number, y: number): boolean {
-  if (x < KC_BOUNDS.x0 || x > KC_BOUNDS.x1 || y < 740) return false;
-  let open = false;
-  for (const s of CAVE_SHAPES) if (inShape(s, x, y)) {
-    open = true;
-    break;
-  }
-  if (!open) return false;
-  for (const p of KC_PILLARS) if (inShape(p, x, y)) return false;
-  return true;
+  return caveField(x, y) < 0;
 }
 /** The first rock below (x, fromY): a cave floor when fromY is inside a chamber. */
 export function caveFloor(x: number, fromY: number): number {
@@ -182,6 +223,37 @@ export function caveShapes(): readonly CaveShape[] {
   return CAVE_SHAPES;
 }
 
+/** Milestone 8: the wreck shelf. */
+export const WRECK_SHELF = { x0: 19700, x1: 27000 };
+/** The race: a strong current across the shelf edge, pushing west. */
+export const RACE = { x0: 19450, x1: 21900, speed: 500 };
+function shelfFloor(x: number): number {
+  let y = 1630 + Math.sin(x * 0.0019) * 22 + Math.sin(x * 0.0057 + 2) * 9;
+  y -= bump(x, 20600, 240, 70) + bump(x, 23650, 300, 60) + bump(x, 24950, 200, 45);
+  return y;
+}
+/** How strong the race current is at a point (0..1). */
+export function raceAt(x: number, y: number): number {
+  if (x < RACE.x0 - 40 || x > RACE.x1 + 200 || y < 60) return 0;
+  return smooth((x - RACE.x0) / 160) * (1 - smooth((x - RACE.x1) / 200));
+}
+/** Old anchor rings across the race: stakes driven into the seabed with a ring on top. */
+export const RINGS = [19560, 19880, 20200, 20530, 20860, 21190, 21520, 21860].map((x) => ({ x, y: 0 }));
+/** The sealed wrecks: two small ones (the cutter torch opens their hatches) and the Corvina (part 2). */
+export const WRECKS = [
+  { id: 'trawler', x0: 22650, x1: 23250, hatchX: 23040 },
+  { id: 'barge', x0: 24050, x1: 24750, hatchX: 24300 },
+] as const;
+export const CORVINA = { x0: 25550, x1: 26750, doorX: 25700 };
+/** Wreck lurker dens: x, and which way the den opens (1 = right, -1 = left). */
+export const LURKER_DENS = [
+  { x: 22320, dir: 1 },
+  { x: 22790, dir: -1 },
+  { x: 23560, dir: 1 },
+  { x: 24620, dir: -1 },
+  { x: 25330, dir: 1 },
+];
+
 function forestFloor(x: number): number {
   let y = 1290 + Math.sin(x * 0.0017) * 28 + Math.sin(x * 0.0041 + 1) * 14;
   y -= bump(x, 11150, 260, 80) + bump(x, 12850, 220, 110) + bump(x, 13850, 200, 60);
@@ -193,6 +265,9 @@ function eastGround(x: number): number {
   let y = SHELF.floor + Math.sin(x * 0.011) * 5 - bump(x, 9300, 90, 22);
   y += (forestFloor(x) - y) * smooth((x - 9600) / 450);
   y += (260 - y) * smooth((x - 14800) / 420);
+  // Milestone 8: the shelf edge and the wreck shelf beyond, and the world's east wall.
+  y += (shelfFloor(x) - y) * smooth((x - 19300) / 430);
+  y += (300 - y) * smooth((x - 26880) / 260);
   return y;
 }
 
@@ -348,17 +423,12 @@ function inPolygon(x: number, y: number, poly: [number, number][]): boolean {
   return inside;
 }
 
-function inMouth(x: number, y: number): boolean {
-  const m = SITE_MOUTH;
-  return ((x - m.x) / m.rx) ** 2 + ((y - m.y) / m.ry) ** 2 < 1 && y < m.y + m.ry * 0.7;
-}
-
 /** Is this point inside rock or sand? Used for collisions. */
 export function isSolid(x: number, y: number): boolean {
   if (x < WORLD_X0 || x > WORLD_W) return true;
   if (!boom.open && Math.abs(x - BOOM_X) < 16 && y < SHELF.floor + 8) return true;
   if (!kelpWall.cut && x > KELP_WALL.x0 && x < KELP_WALL.x1 && y > KELP_WALL.y0 && y < KELP_WALL.y1) return true;
-  if (y >= groundY(x)) return !inCave(x, y) && !(x > SITE_MOUTH.x - SITE_MOUTH.rx && inMouth(x, y)) && !inKelpCaves(x, y);
+  if (y >= groundY(x)) return !inCave(x, y) && !inKelpCaves(x, y);
   if (y > 540 && y < 780 && x > 5690 && x < 6880 && inPolygon(x, y, LEDGE)) return true;
   return false;
 }
@@ -392,7 +462,9 @@ export function bakeSkyVisibility(cell: number, blurPasses: number): HTMLCanvasE
       // Deep inside the cave nothing gets through.
       else if (x > CAVE.x0 && x < CAVE.x1 - 120 && y > caveTop(x) - 10 && y < caveBottom(x) + 10) rock += cell * 0.4;
       // Milestone 7: the kelp canopy shades the forest more the deeper you go.
-      else if (x > 9650 && y > 40) rock += cell * 0.055 * smooth((x - 9650) / 450) * (1 - 0.5 * smooth((x - 14700) / 400));
+      else if (x > 9650 && y > 40) rock += cell * 0.055 * smooth((x - 9650) / 450) * (1 - 0.5 * smooth((x - 14700) / 400)) * (1 - smooth((x - 19200) / 300));
+      // Milestone 8: the wreck shelf is twilight, dimmer the deeper it gets.
+      if (x > 19200 && y > 300 && !solid) rock += cell * 0.03 * smooth((x - 19200) / 600);
     }
   }
   // Soft shadow edges: repeated small box blurs approximate a smooth blur.
@@ -427,3 +499,6 @@ export function bakeSkyVisibility(cell: number, blurPasses: number): HTMLCanvasE
   boom.open = wasOpen;
   return canvas;
 }
+
+// Milestone 8: the anchor rings stand 1.6 m above the seabed (set once every helper above exists).
+for (const r of RINGS) r.y = groundY(r.x) - 120;

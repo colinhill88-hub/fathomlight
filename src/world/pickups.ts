@@ -64,6 +64,8 @@ const SPOTS: Spot[] = (() => {
   s.push({ id: 'scrap-f1', kind: 'scrap', x: 13560, y: surfaceAt(13560) - 5 });
   // An air tank hidden at the mouth of the kelp caves.
   s.push({ id: 'tank-forest', kind: 'tank', x: 14860, y: surfaceAt(14860, 1100) - 12 });
+  // Milestone 8: brass fittings on the wreck shelf. Two lie in front of lurker dens, on purpose.
+  add('brass', [22480, 23000, 23300, 24050, 24400, 25000, 25640, 26300]);
   // Milestone 7 part 2: the fourth, behind the kelp wall in the caves (the cutter torch opens it).
   s.push({ id: 'tank-kwall', kind: 'tank', x: 15545, y: surfaceAt(15545, 1500) - 12 });
   return s;
@@ -146,6 +148,21 @@ function drawResin(g: Graphics): void {
   g.ellipse(-3, -2, 1.4, 2.4).fill({ color: 0xffe0a0, alpha: 0.6 });
 }
 
+/** Milestone 8: a green-crusted brass porthole ring and a valve wheel, half buried in silt. */
+function drawBrass(g: Graphics): void {
+  g.ellipse(0, 2, 14, 4).fill({ color: 0x4a4638, alpha: 0.8 });
+  g.circle(-3, -5, 9).fill({ color: 0x9a7a2e });
+  g.circle(-3, -5, 5.5).fill({ color: 0x223034 });
+  g.circle(-3, -5, 9).stroke({ color: 0x6f9a80, width: 1.6, alpha: 0.7 });
+  for (let k = 0; k < 6; k++) {
+    const a = (k / 6) * Math.PI * 2;
+    g.circle(-3 + Math.cos(a) * 7.3, -5 + Math.sin(a) * 7.3, 0.9).fill({ color: 0xe8c870 });
+  }
+  g.circle(8, -1, 4).stroke({ color: 0xa8822e, width: 1.8 });
+  g.moveTo(4, -1).lineTo(12, -1).moveTo(8, -5).lineTo(8, 3).stroke({ color: 0xa8822e, width: 1.2 });
+  g.circle(-6, -9, 1.5).fill({ color: 0xffe8a0, alpha: 0.6 });
+}
+
 function drawMoss(g: Graphics): void {
   g.ellipse(0, 1, 12, 4).fill({ color: 0x3e4e2a });
   for (let i = 0; i < 9; i++) g.circle(R(-10, 10), R(-5, 1), R(2.2, 4.2)).fill({ color: rand() < 0.5 ? 0x8aa84a : 0xa8c860 });
@@ -155,6 +172,7 @@ function drawMoss(g: Graphics): void {
 const DRAW: Record<Spot['kind'], (g: Graphics) => void> = {
   resin: drawResin,
   moss: drawMoss,
+  brass: drawBrass,
   scrap: drawScrap,
   copper: drawCopper,
   quartz: drawQuartz,
@@ -181,6 +199,7 @@ export const EFFORT: Record<ReefMaterial, { seconds: number; verb: string }> = {
   quartz: { seconds: 3.0, verb: 'Chip off' },
   resin: { seconds: 2.0, verb: 'Scrape off' },
   moss: { seconds: 1.4, verb: 'Peel off' },
+  brass: { seconds: 2.6, verb: 'Unbolt' },
 };
 /** How close the diver's middle must be to reach a material. */
 const REACH = 72;
@@ -435,6 +454,7 @@ export class Pickups {
       fibre: [0xc9a24a, 0x8a6d32, 0x6f8a45],
       resin: [0xc8862e, 0xffe0a0, 0x5a4a2a],
       moss: [0x8aa84a, 0xe8f6a0, 0x4e6a30],
+      brass: [0xa8822e, 0xe8c870, 0x6f9a80],
     };
     const cs = colors[kind];
     const n = kind === 'copper' ? 6 : 4;

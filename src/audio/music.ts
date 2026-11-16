@@ -19,7 +19,7 @@ import { audio } from './engine';
  * Nothing here uses cyan/violet "Choir" sounds yet: those come with the sanctum.
  */
 
-export type MusicZone = 'shallows' | 'basin' | 'forest' | 'cave';
+export type MusicZone = 'shallows' | 'basin' | 'forest' | 'cave' | 'shelf';
 
 interface Profile {
   /** MIDI note of the pad root. */
@@ -98,6 +98,25 @@ const PROFILES: Record<MusicZone, Profile> = {
     chimes: 0.3,
     padGain: 0.05,
     tension: [1, 6],
+  },
+  // Milestone 8: the wreck shelf. Twilight: low, slow, and uneasy (a flattened fifth).
+  shelf: {
+    root: 37, // C#2
+    scale: [0, 1, 3, 5, 6, 8, 10],
+    chords: [
+      [0, 7, 12, 15],
+      [1, 6, 13, 16],
+      [-2, 5, 10, 13],
+      [0, 6, 12, 15],
+    ],
+    lo: -3,
+    hi: 12,
+    bright: 600,
+    beat: 1.35,
+    density: 0.18,
+    chimes: 0.2,
+    padGain: 0.045,
+    tension: [6, 1],
   },
   cave: {
     root: 40,

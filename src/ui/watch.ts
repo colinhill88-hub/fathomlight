@@ -48,6 +48,7 @@ export class DiveWatch {
     diveTime: number,
     atSurface: boolean,
     bag: { kg: number; rated: number; max: number } = { kg: 0, rated: 1, max: 1 },
+    suit = 1,
   ): void {
     if (now - this.last < 50) return;
     this.last = now;
@@ -178,6 +179,25 @@ export class DiveWatch {
       c.arc(cx, cy, wr, a0 - wf * span, a0);
       c.stroke();
       c.globalAlpha = 1;
+    }
+    // Milestone 8: suit integrity, an arc across the top of the dial (mirroring the bag's).
+    {
+      const s0 = Math.PI * 1.2;
+      const s1 = Math.PI * 1.8;
+      c.lineWidth = 3;
+      c.strokeStyle = 'rgba(223,236,203,0.1)';
+      c.beginPath();
+      c.arc(cx, cy, wr, s0, s1);
+      c.stroke();
+      if (suit > 0.002) {
+        const scol = suit < 0.35 ? RED : suit < 0.7 ? AMBER : LUME;
+        c.strokeStyle = scol;
+        c.globalAlpha = suit < 0.35 ? 0.6 + 0.4 * Math.sin(now / 110) : 0.9;
+        c.beginPath();
+        c.arc(cx, cy, wr, s0, s0 + suit * (s1 - s0));
+        c.stroke();
+        c.globalAlpha = 1;
+      }
     }
     // Tick at the rated load.
     const ta = a0 - (bag.rated / bag.max) * span;

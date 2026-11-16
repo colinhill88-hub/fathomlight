@@ -1,7 +1,7 @@
 import { audio, BusName } from './engine';
 import { Ambience, ZoneMix } from './ambience';
 import { Music, MusicZone } from './music';
-import { BASIN_EAST, CAVE, FOREST, GROTTO, inCaveTunnel, inKelpCaves, KC, SITE_MOUTH } from '../world/terrain';
+import { BASIN_EAST, CAVE, FOREST, GROTTO, inCaveTunnel, inKelpCaves, KC, SITE_MOUTH, WRECK_SHELF } from '../world/terrain';
 
 /*
  * Milestone 7b: the sound director. main.ts hands it a snapshot of the game
@@ -11,7 +11,7 @@ import { BASIN_EAST, CAVE, FOREST, GROTTO, inCaveTunnel, inKelpCaves, KC, SITE_M
  * cues. A few cues come straight from game events (pickups, dents, toasts).
  */
 
-export type WorkKind = 'fibre' | 'scrap' | 'copper' | 'quartz' | 'resin' | 'moss' | 'creature' | 'repair' | 'winch' | 'recorder' | 'cutter';
+export type WorkKind = 'fibre' | 'scrap' | 'copper' | 'quartz' | 'resin' | 'moss' | 'brass' | 'creature' | 'repair' | 'winch' | 'recorder' | 'cutter';
 
 export interface AudioFrame {
   dt: number;
@@ -47,6 +47,9 @@ export interface AudioFrame {
   /** Milestone 7 part 2: the cold surge in the kelp caves (0..1) and the helmet in an air pocket. */
   surge: number;
   inAir: boolean;
+  /** Milestone 8: the race current here (0..1) and suit integrity (0..1). */
+  race: number;
+  suit: number;
 }
 
 const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
@@ -62,23 +65,26 @@ export function zoneMix(x: number, y: number): ZoneMix {
   else if (x > GROTTO.x0 - 60 && x < GROTTO.x1 + 60 && y > GROTTO.y0 - 60) cave = 0.6;
   const mouth = Math.hypot((x - SITE_MOUTH.x) / (SITE_MOUTH.rx * 3), (y - SITE_MOUTH.y) / (SITE_MOUTH.ry * 3));
   cave = Math.max(cave, 0.6 * (1 - smooth(mouth)));
-  const forest = smooth((x - (FOREST.x0 - 500)) / 600);
+  const shelf = smooth((x - (WRECK_SHELF.x0 - 400)) / 500);
+  const forest = smooth((x - (FOREST.x0 - 500)) / 600) * (1 - shelf);
   const basin = x < BASIN_EAST + 150 ? smooth((y - 300) / 600) * (1 - smooth((x - (BASIN_EAST - 250)) / 400)) : 0;
   const rest = 1 - cave;
   const f = forest * rest;
   const b = basin * (1 - forest) * rest;
-  return { cave, forest: f, basin: b, shallows: Math.max(0, rest - f - b) };
+  const sh = shelf * rest;
+  return { cave, forest: f, basin: b, shelf: sh, shallows: Math.max(0, rest - f - b - sh) };
 }
 
 export class SoundDirector {
   private ambience = new Ambience();
   private music = new Music();
-  private mix: ZoneMix = { shallows: 1, basin: 0, forest: 0, cave: 0 };
+  private mix: ZoneMix = { shallows: 1, basin: 0, forest: 0, cave: 0, shelf: 0 };
   private musicZone: MusicZone = 'shallows';
   private prev: Partial<AudioFrame> = {};
   private breathClock = 2;
   private breathPhase: 'in' | 'out' = 'in';
   private beepClock = 0;
+  private suitClock = 0;
   private workClock = 0;
   private weldClock = 0;
   private strokes = new Map<number, number>();
@@ -231,8 +237,8 @@ export class SoundDirector {
     // Zone mix, eased so moving between zones crossfades.
     const want = zoneMix(f.x, f.y);
     const k = 1 - Math.exp(-dt / 1.6);
-    for (const z of ['shallows', 'basin', 'forest', 'cave'] as const) this.mix[z] += (want[z] - this.mix[z]) * k;
-    const top = (['shallows', 'basin', 'forest', 'cave'] as const).reduce((a, b) => (this.mix[b] > this.mix[a] ? b : a));
+    for (const z of ['shallows', 'basin', 'forest', 'cave', 'shelf'] as const) this.mix[z] += (want[z] - this.mix[z]) * k;
+    const top = (['shallows', 'basin', 'forest', 'cave', 'shelf'] as const).reduce((a, b) => (this.mix[b] > this.mix[a] ? b : a));
     if (top !== this.musicZone && this.mix[top] > 0.6) {
       this.musicZone = top;
       this.music.setZone(top);
@@ -242,7 +248,7 @@ export class SoundDirector {
     const m = this.mix;
     audio.setScene({
       muffle: f.surfaced || f.inAir ? 16000 : Math.max(900, 4200 - 2300 * depth - 900 * m.cave - 500 * m.forest),
-      space: f.surfaced ? 0.12 : 0.28 + 0.15 * m.basin + 0.12 * m.forest + 0.8 * m.cave,
+      space: f.surfaced ? 0.12 : 0.28 + 0.15 * m.basin + 0.12 * m.forest + 0.8 * m.cave + 0.3 * m.shelf,
       duck: (f.panel ? 0.4 : 1) * (1 - 0.45 * f.lowAir),
       blackout: f.blackout,
     });
@@ -275,7 +281,16 @@ export class SoundDirector {
 
     // ---- The cold surge (kelp caves) ----
     const nearSqueeze = clamp01(1 - Math.abs(f.x - (KC.squeeze.x1 + KC.squeeze.x2) / 2) / 900) * (m.cave > 0.5 ? 1 : 0);
-    L.rumble.gain.setTargetAtTime(out ? 0 : 0.5 * f.surge * nearSqueeze, t, 0.25);
+    L.rumble.gain.setTargetAtTime(out ? 0 : 0.5 * f.surge * nearSqueeze + 0.4 * f.race, t, 0.25);
+    // A cracked suit: a slow two-tone alarm from the helmet, under a third.
+    if (f.suit < 0.34 && !out && !f.freeAir) {
+      this.suitClock -= dt;
+      if (this.suitClock <= 0) {
+        this.suitClock = 2.6;
+        audio.tone({ t, freq: 880, dur: 0.18, gain: 0.035, type: 'triangle', lp: 2400, bus: 'ui' });
+        audio.tone({ t: t + 0.22, freq: 660, dur: 0.24, gain: 0.035, type: 'triangle', lp: 2400, bus: 'ui' });
+      }
+    } else this.suitClock = 0.6;
     if (p.inAir === false && f.inAir) audio.hiss({ dur: 0.6, attack: 0.05, gain: 0.05, type: 'lowpass', freq: 1400, bus: 'ui', send: 0.3 });
 
     // ---- Swimming through water ----
@@ -427,6 +442,10 @@ export class SoundDirector {
         audio.metal({ freq: 820 * j(), gain: 0.03, decay: 0.12, pan });
         if (Math.random() < 0.25) audio.tone({ freq: 70, to: 62, dur: 0.6, gain: 0.04, type: 'sawtooth', lp: 400, pan });
         return 0.18;
+      case 'brass': // Unbolt: a wrench ratchet and a dull bell-metal clank.
+        audio.metal({ freq: 520 * j(), gain: 0.025, decay: 0.1, pan });
+        if (Math.random() < 0.4) audio.metal({ t: t + 0.15, freq: 300 * j(), gain: 0.045, decay: 0.7, pan });
+        return 0.3 * j();
       case 'cutter': // The cutter torch: a roaring hiss, crackle and boiling bubbles.
         audio.hiss({ dur: 0.24, gain: 0.07, freq: 3200, q: 0.6, pan });
         for (let i = 0; i < 3; i++) audio.hiss({ t: t + Math.random() * 0.2, dur: 0.015, gain: 0.08, type: 'highpass', freq: 2600, pan });
@@ -462,6 +481,33 @@ export class SoundDirector {
   ping(): void {
     if (!audio.running) return;
     audio.bell({ freq: 1320, gain: 0.04, decay: 1.4, ratio: 1, index: 0.25, send: 0.8 });
+  }
+
+  /** Milestone 8: a lurker warns (a dry clicking rattle from its den). */
+  lurkWarn(dx: number): void {
+    if (!audio.running) return;
+    const t = audio.now;
+    const pan = Math.max(-0.8, Math.min(0.8, dx / 500));
+    for (let i = 0; i < 7; i++) audio.hiss({ t: t + i * 0.07 + Math.random() * 0.02, dur: 0.012, gain: 0.07, freq: 1400 + Math.random() * 500, q: 6, pan, send: 0.2 });
+    audio.tone({ t, freq: 70, to: 55, dur: 0.6, gain: 0.08, type: 'sawtooth', lp: 260, pan, send: 0.3 });
+  }
+
+  /** Milestone 8: a lurker's bite: a snap, a crunch on the suit and a hiss of escaping air. */
+  bite(): void {
+    if (!audio.running) return;
+    const t = audio.now;
+    audio.thump({ t, freq: 110, gain: 0.3, dur: 0.25, bus: 'ui', send: 0.2 });
+    audio.hiss({ t, dur: 0.06, gain: 0.25, freq: 2600, q: 1.2, bus: 'ui' });
+    audio.metal({ t: t + 0.03, freq: 340, gain: 0.08, decay: 0.4, bus: 'ui' });
+    audio.hiss({ t: t + 0.1, dur: 1.2, attack: 0.02, gain: 0.08, freq: 3200, to: 1800, q: 1, bus: 'ui', send: 0.1 });
+    audio.bubbles({ t: t + 0.05, n: 20, spread: 0.9, gain: 0.05, low: 300, high: 1300, bus: 'ui' });
+  }
+
+  /** Milestone 8: clipping the tow line onto an anchor ring. */
+  clip(): void {
+    if (!audio.running) return;
+    audio.metal({ freq: 900, gain: 0.05, decay: 0.2 });
+    audio.metal({ t: audio.now + 0.09, freq: 700, gain: 0.05, decay: 0.3 });
   }
 
   /** A hard knock against rock in the sub. */
