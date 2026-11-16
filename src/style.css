@@ -2442,3 +2442,86 @@ body.docking #station-btn {
 #sound-note:empty {
   display: none;
 }
+
+/* Milestone 8: suit integrity, under the dive watch (the sub's chip takes this place while aboard). */
+#suit-bar {
+  position: fixed;
+  top: calc(var(--safe-top) + 122px);
+  left: calc(var(--safe-left) + 10px);
+  display: none;
+  align-items: center;
+  gap: 6px;
+  width: 108px;
+  padding: 5px 8px;
+  border-radius: 10px;
+  background: var(--ui-bg);
+  border: 1px solid var(--ui-line);
+  color: #dfeccb;
+  font-size: 12px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+  z-index: 10;
+  transition: border-color 0.3s, background 0.3s;
+}
+
+#suit-bar.show {
+  display: flex;
+}
+
+#suit-bar .track {
+  flex: 1;
+  height: 7px;
+  border-radius: 4px;
+  background: rgba(223, 236, 203, 0.15);
+  overflow: hidden;
+}
+
+#suit-bar .track i {
+  display: block;
+  height: 100%;
+  width: 100%;
+  border-radius: 4px;
+  background: #dfeccb;
+  transition: width 0.25s;
+}
+
+#suit-bar b {
+  min-width: 30px;
+  text-align: right;
+}
+
+#suit-bar.amber {
+  color: #e0a040;
+}
+
+#suit-bar.amber .track i {
+  background: #e0a040;
+}
+
+#suit-bar.red {
+  color: #ff8a70;
+  border-color: #d8492e;
+  animation: suit-pulse 0.9s ease-in-out infinite;
+}
+
+#suit-bar.red .track i {
+  background: #d8492e;
+}
+
+#suit-bar.hit {
+  background: rgba(216, 73, 46, 0.55);
+  border-color: #ff6a4a;
+}
+
+@keyframes suit-pulse {
+  50% {
+    border-color: rgba(216, 73, 46, 0.3);
+  }
+}
+
+body.building #suit-bar,
+body.caring #suit-bar,
+body.docking #suit-bar {
+  display: none !important;
+}

@@ -34,6 +34,7 @@ const ITEM_COLOURS: Record<MaterialId, [number, number]> = {
   plate: [0x8e9a9c, 0xdfe6e8],
   resin: [0xb8782a, 0xf0c070],
   moss: [0x7a9a40, 0xe0f0a0],
+  brass: [0xa8822e, 0xe8c870],
 };
 const PIPE = 9;
 

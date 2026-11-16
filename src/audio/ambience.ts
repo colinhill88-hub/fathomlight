@@ -19,6 +19,8 @@ export interface ZoneMix {
   basin: number;
   forest: number;
   cave: number;
+  /** Milestone 8: the wreck shelf. */
+  shelf: number;
 }
 
 interface Layer {
@@ -124,7 +126,7 @@ export class Ambience {
     const q = 1 - quiet;
     const open = mix.shallows + mix.basin;
     // Water movement: present everywhere underwater, darker as it gets deeper or enclosed.
-    const washCut = 900 - 520 * depth - 250 * mix.forest - 380 * mix.cave;
+    const washCut = 900 - 520 * depth - 250 * mix.forest - 380 * mix.cave - 200 * mix.shelf;
     this.wash.filter.frequency.setTargetAtTime(Math.max(160, washCut), t, tc);
     this.wash.gain.gain.setTargetAtTime((surfaced ? 0.08 : 0.2 + 0.1 * depth) * q, t, tc);
     this.fizz.gain.gain.setTargetAtTime((surfaced ? 0.01 : 0.035 * mix.shallows * (1 - depth) ** 2) * q, t, tc);
@@ -141,9 +143,9 @@ export class Ambience {
       g.setTargetAtTime(level * 0.35, t + 1.8, 1.4);
     }
     // The deep hum: pitch drops a little per zone.
-    const hum = Math.min(1, 0.15 + depth) * (mix.basin * 0.8 + mix.forest * 1 + mix.cave * 0.7) + 0.1 * depth * mix.shallows;
+    const hum = Math.min(1, 0.15 + depth) * (mix.basin * 0.8 + mix.forest * 1 + mix.cave * 0.7 + mix.shelf * 1.2) + 0.1 * depth * mix.shallows;
     this.drone.gain.gain.setTargetAtTime((surfaced ? 0 : 0.16 * hum) * q, t, 2);
-    const root = 55 * mix.shallows + 49 * mix.basin + 41.2 * mix.forest + 36.7 * mix.cave;
+    const root = 55 * mix.shallows + 49 * mix.basin + 41.2 * mix.forest + 36.7 * mix.cave + 34.6 * mix.shelf;
     this.drone.oscs[0].frequency.setTargetAtTime(root, t, 3);
     this.drone.oscs[1].frequency.setTargetAtTime(root, t, 3);
     this.drone.oscs[2].frequency.setTargetAtTime(root * 1.498, t, 3);
@@ -177,6 +179,13 @@ export class Ambience {
     } else if (pick(mix.forest)) {
       if (Math.random() < 0.65) this.creak(pan);
       else audio.thump({ freq: 120 + Math.random() * 60, gain: 0.04, bus: 'ambience', send: 0.4, pan });
+    } else if (pick(mix.shelf)) {
+      // Wrecks settling: long metal groans and the odd far-off clank.
+      if (Math.random() < 0.6) {
+        const f = 90 + Math.random() * 60;
+        audio.tone({ freq: f, to: f * (0.7 + Math.random() * 0.2), dur: 1.6 + Math.random() * 1.5, attack: 0.5, gain: 0.05, type: 'sawtooth', bus: 'ambience', send: 0.7, pan, lp: 500 });
+      } else audio.metal({ freq: 160 + Math.random() * 80, gain: 0.03, decay: 1.6, bus: 'ambience', send: 0.8, pan });
+      this.nextEvent = 3 + Math.random() * 5;
     } else if (pick(mix.cave)) {
       this.drip(pan);
       if (Math.random() < 0.4) this.drip(pan * 0.5, 0.25 + Math.random() * 0.4);

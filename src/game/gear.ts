@@ -71,8 +71,8 @@ export const RESEARCH: Record<BlueprintId, ResearchDef> = {
   },
   tow: {
     id: 'tow',
-    name: 'Tow line blueprint',
-    text: 'Reads the rope store\'s spool tag and notes: a clip-on tow line and winch for hauling yourself through strong currents.',
+    name: 'Grapple line blueprint',
+    text: 'Reads the rope store\'s spool tag and notes: a wrist launcher that fires a hooked line at an anchor point and reels you in, faster than any current.',
     finds: ['towcoil'],
     scans: [],
     seconds: 100,
@@ -121,9 +121,9 @@ export const GEAR: Record<GearId, GearDef> = {
   },
   tow: {
     id: 'tow',
-    name: 'Tow line',
-    code: 'TL-1',
-    job: 'A line and hand winch for hauling through strong currents. The wreck shelf, the next zone, is full of them.',
+    name: 'Grapple line',
+    code: 'GL-1',
+    job: 'Fires a hooked line at an anchor ring and reels you in, faster than any current. When a ring is marked, tap Collect to fire.',
     blueprint: 'tow',
     cost: { plate: 3, fibre: 4, resin: 2 },
     seconds: 50,
@@ -155,7 +155,7 @@ export const FINDS: Record<FindId, { name: string; text: string }> = {
   recorder: { name: 'SLED 2 recorder', text: 'A scuffed data cartridge from the survey sled. The Lab can read it.' },
   relaylog: { name: 'KS RELAY 2 log', text: 'The memory card from a toppled air relay buoy in the kelp caves.' },
   weldchip: { name: 'KD WELD control chip', text: 'A drone welder controller from a broken crate in the caves.' },
-  towcoil: { name: 'Rope store spool tag', text: 'The tag and waterproof notes from a tow line spool in the caves\' old rope store.' },
+  towcoil: { name: 'Rope store spool tag', text: 'The tag and waterproof notes from a grapple line spool in the caves\' old rope store.' },
   cache: { name: 'Survey cache cartridge', text: 'The data cartridge from the earlier expedition\'s cache, deep in the kelp caves.' },
 };
 

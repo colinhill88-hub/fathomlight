@@ -26,17 +26,19 @@ import {
   AIR_POCKETS,
   BRACKETS,
   caveFloor,
-  caveShapes,
-  CaveShape,
-  capWobble,
-  ellBottom,
+  caveField,
   ellTop,
-  inKelpCaves,
   KC,
   KC_BOUNDS,
   KC_FINDS,
   KC_PILLARS,
   KELP_WALL,
+  CORVINA,
+  LURKER_DENS,
+  RACE,
+  RINGS,
+  VANE,
+  WRECKS,
 } from './terrain';
 
 /**
@@ -94,7 +96,9 @@ function siltAt(x: number): number {
     // The floor of the Kestrel basin (milestone 5): fine grey silt, patchy.
     (1 - smooth((x - 150) / 200)) * (0.45 + 0.15 * Math.sin(x * 0.0021)) +
     // The kelp forest floor (milestone 7): dark silt and kelp litter.
-    smooth((x - 9700) / 300) * (0.7 + 0.15 * Math.sin(x * 0.003))
+    smooth((x - 9700) / 300) * (0.7 + 0.15 * Math.sin(x * 0.003)) * (1 - smooth((x - 19200) / 400)) +
+    // The wreck shelf (milestone 8): grey silt with rust stains.
+    smooth((x - 19400) / 400) * (0.8 + 0.12 * Math.sin(x * 0.0041))
   );
 }
 
@@ -204,6 +208,48 @@ function paintRock(g: Graphics, outline: [number, number][], topOf: (x: number) 
       const c = rand() < 0.5 ? PAL.algae : PAL.algaeLight;
       g.circle(x + R(-3, 3), top + R(1, 6), R(2, 4.5)).fill({ color: c, alpha: R(0.5, 0.85) });
     }
+  }
+}
+
+/**
+ * Fill the region where fn(x, y) < 0, traced with marching squares on a grid of
+ * step S (after milestone 7 part 2): smooth, interpolated edges, with whole rows
+ * of inside cells merged into single rectangles.
+ */
+function traceField(g: Graphics, fn: (x: number, y: number) => number, X0: number, X1: number, Y0: number, Y1: number, S: number, color: number, alpha: number): void {
+  const nx = Math.ceil((X1 - X0) / S) + 1;
+  const ny = Math.ceil((Y1 - Y0) / S) + 1;
+  const F = new Float32Array(nx * ny);
+  for (let j = 0; j < ny; j++) for (let i = 0; i < nx; i++) F[j * nx + i] = fn(X0 + i * S, Y0 + j * S);
+  for (let j = 0; j < ny - 1; j++) {
+    let run = -1;
+    const flush = (iEnd: number) => {
+      if (run >= 0) g.rect(X0 + run * S, Y0 + j * S, (iEnd - run) * S, S).fill({ color, alpha });
+      run = -1;
+    };
+    for (let i = 0; i < nx - 1; i++) {
+      const v = [F[j * nx + i], F[j * nx + i + 1], F[(j + 1) * nx + i + 1], F[(j + 1) * nx + i]];
+      const inside = v.map((q) => q < 0);
+      if (inside.every(Boolean)) {
+        if (run < 0) run = i;
+        continue;
+      }
+      flush(i);
+      if (!inside.some(Boolean)) continue;
+      const cx = [X0 + i * S, X0 + (i + 1) * S, X0 + (i + 1) * S, X0 + i * S];
+      const cy = [Y0 + j * S, Y0 + j * S, Y0 + (j + 1) * S, Y0 + (j + 1) * S];
+      const pts: number[] = [];
+      for (let k = 0; k < 4; k++) {
+        const k2 = (k + 1) % 4;
+        if (inside[k]) pts.push(cx[k], cy[k]);
+        if (inside[k] !== inside[k2]) {
+          const t = v[k] / (v[k] - v[k2]);
+          pts.push(cx[k] + (cx[k2] - cx[k]) * t, cy[k] + (cy[k2] - cy[k]) * t);
+        }
+      }
+      if (pts.length >= 6) g.poly(pts).fill({ color, alpha });
+    }
+    flush(nx - 1);
   }
 }
 
@@ -505,7 +551,13 @@ export type ScanKind =
   | 'airpocket'
   | 'surge'
   | 'blackwater'
-  | 'kwall';
+  | 'kwall'
+  | 'wshelf'
+  | 'race'
+  | 'ring'
+  | 'wreck'
+  | 'corvina'
+  | 'vane';
 
 interface Slice {
   obj: Container;
@@ -530,6 +582,7 @@ export class Scenery {
     kelp: [], coral: [], fan: [], grass: [], anemone: [], beacon: [], sled: [], anchor: [], buoy: [], cave: [],
     boom: [], forest: [], gkelp: [], bladder: [], lumen: [], kcaves: [],
     airpocket: [], surge: [], blackwater: [], kwall: [],
+    wshelf: [], race: [], ring: [], wreck: [], corvina: [], vane: [],
   };
   /** The cave's black throat (milestone 7: the dive light thins it). */
   caveDark!: Graphics;
@@ -838,6 +891,7 @@ export class Scenery {
     rand = mulberry32(WORLD_SEED ^ 0xf0e57);
     this.buildForest(renderer, detail, rock, addKelp, kelpBack, kelpFront, decorLayer);
     this.buildKelpCaves(detail, rock, decorLayer);
+    this.buildShelf(detail, rock, decorLayer);
     rand = keep;
   }
 
@@ -870,26 +924,7 @@ export class Scenery {
       pts.push([WORLD_W + 60, WORLD_H + 300], [14560, WORLD_H + 300]);
       paintRock(g, pts, (x) => (x >= 14560 && x <= WORLD_W + 60 ? gy(x) : NaN), detail * 0.7);
       // The mouth: a dark recess in the wall that grows black further in.
-      // Milestone 7 part 2: it opens into the caves now, so it is one smooth rounded
-      // opening (strips up a steep wall looked like a staircase).
-      const m = SITE_MOUTH;
-      const top = (x: number) => Math.max(gy(x), m.y - m.ry * Math.sqrt(Math.max(0, 1 - ((x - m.x) / m.rx) ** 2)));
-      const bot = (x: number) => Math.min(m.y + m.ry * 0.7, m.y + m.ry * Math.sqrt(Math.max(0, 1 - ((x - m.x) / m.rx) ** 2)));
-      const mouth = (shrink: number): number[] => {
-        const pts: number[] = [];
-        const x0 = m.x - m.rx + 4;
-        const x1 = m.x + m.rx;
-        for (let x = x0; x <= x1; x += 4) if (bot(x) > top(x) + 2) pts.push(x, top(x) + shrink);
-        for (let x = x1; x >= x0; x -= 4) if (bot(x) > top(x) + 2) pts.push(x, bot(x) - shrink * 0.5);
-        return pts;
-      };
-      g.poly(mouth(0)).fill({ color: 0x1c272a });
-      g.poly(mouth(10)).fill({ color: 0x151e21 });
-      g.poly(mouth(22)).fill({ color: 0x10181a, alpha: 0.8 });
-      for (let x = m.x - m.rx + 10; x < m.x + m.rx * 0.6; x += R(6, 14)) {
-        const b0 = bot(x);
-        if (b0 > top(x)) g.circle(x, b0 + R(-2, 2), R(3, 7)).fill({ color: rand() < 0.5 ? 0x3b4a4e : 0x55605c, alpha: 0.9 });
-      }
+      // The mouth of the kelp caves is drawn with the caves (buildKelpCaves), as one smooth opening.
     });
     this.scanPoints.kcaves.push({ x: SITE_MOUTH.x - 90, y: SITE_MOUTH.y + 10 });
     this.scanPoints.forest.push({ x: 10600, y: 700 }, { x: 12200, y: 800 }, { x: 13600, y: 700 });
@@ -1024,36 +1059,29 @@ export class Scenery {
    * chamber gets a darkness layer that lit brackets push back.
    */
   private buildKelpCaves(detail: number, rock: (x0: number, x1: number, build: (g: Graphics) => void) => void, decorLayer: Container): void {
-    const fill = (g: Graphics, s: CaveShape, color: number, alpha = 1, pad = 0) => {
-      if (s.kind === 'ell') {
-        g.ellipse(s.x, s.y, s.rx + pad, s.ry + pad).fill({ color, alpha });
-        return;
-      }
-      const L = Math.hypot(s.x2 - s.x1, s.y2 - s.y1);
-      for (let d = 0; d <= L; d += 6) {
-        const t = d / L;
-        const cx = s.x1 + (s.x2 - s.x1) * t;
-        const cy = s.y1 + (s.y2 - s.y1) * t;
-        g.circle(cx, cy, (s.r1 + (s.r2 - s.r1) * t) * capWobble(cx, cy) + pad).fill({ color, alpha });
-      }
-    };
     rock(KC_BOUNDS.x0 - 40, KC_BOUNDS.x1 + 40, (g) => {
-      // A soft dark rim, then the cave's back wall.
-      for (const s of caveShapes()) fill(g, s, 0x2c3a3f, 0.6, 10);
-      for (const s of caveShapes()) fill(g, s, 0x151e21);
+      // One smooth shape (after milestone 7 part 2): the caves' field, cut off at the
+      // seabed so the mouth meets the wall face exactly, traced with marching squares.
+      const field = (x: number, y: number) => Math.max(caveField(x, y), gy(x) + 1 - y);
+      const trace = (level: number, color: number, alpha: number) =>
+        traceField(g, (x, y) => field(x, y) - level, KC_BOUNDS.x0, KC_BOUNDS.x1, 740, 1980, 8, color, alpha);
+      // A soft dark rim just inside the rock, then the cave's back wall.
+      trace(12, 0x2c3a3f, 0.6);
+      trace(0, 0x151e21, 1);
       // Brushed texture on the back wall.
       for (let i = 0; i < Math.round(900 * detail); i++) {
         const x = R(KC_BOUNDS.x0, KC_BOUNDS.x1);
         const y = R(760, 1940);
-        if (!inKelpCaves(x, y)) continue;
+        if (field(x, y) > -6) continue;
         dab(g, x, y, R(8, 24), R(5, 13), rand() < 0.5 ? 0x26343a : 0x121a1c, R(0.3, 0.5));
       }
       // Floors (silt and pebbles) and ceilings (little hanging drips of rock).
       for (let x = KC_BOUNDS.x0; x < KC_BOUNDS.x1; x += 7) {
         let was = false;
-        for (let y = 760; y < 1960; y += 3) {
-          const open = inKelpCaves(x, y);
-          if (open && !was && rand() < 0.35) {
+        const top = gy(x) + 4;
+        for (let y = Math.max(760, top); y < 1960; y += 3) {
+          const open = field(x, y) < 0;
+          if (open && !was && y > top + 6 && rand() < 0.35) {
             const l = R(4, 14);
             g.poly([x - 3, y - 1, x + 3, y - 1, x + R(-1, 1), y + l]).fill({ color: 0x3a4a4e, alpha: 0.9 });
           }
@@ -1073,20 +1101,32 @@ export class Scenery {
         }
         paintRock(g, pts, (x) => (Math.abs(x - p.x) < p.rx ? ellTop(p, x) : NaN), 0.6);
       }
-      // Air pockets: trapped air in the roof, with a bright water line.
+      // Air pockets: trapped air filling the roof down to a waterline. Traced from the
+      // caves' own shape, so the air follows the real roof (after milestone 8 part 1).
       for (const ap of AIR_POCKETS) {
         const e = ap.shape as { x: number; y: number; rx: number; ry: number };
-        const half = e.rx * Math.sqrt(Math.max(0, 1 - ((ap.waterY - e.y) / e.ry) ** 2));
-        const pts: number[] = [];
-        for (let x = e.x - half; x <= e.x + half; x += 6) pts.push(x, ellTop(e, x) + 1);
-        pts.push(e.x + half, ap.waterY, e.x - half, ap.waterY);
-        g.poly(pts).fill({ color: 0x3e5a5e, alpha: 0.85 });
-        for (let x = e.x - half + 6; x < e.x + half - 6; x += 10) g.moveTo(x, ap.waterY + Math.sin(x * 0.3) * 1.2).lineTo(x + 7, ap.waterY + Math.sin(x * 0.3 + 2) * 1.2);
-        g.stroke({ color: 0xc8e0d8, width: 2, alpha: 0.7 });
-        // Droplets on the roof.
-        for (let k = 0; k < 14; k++) {
-          const x = R(e.x - half * 0.9, e.x + half * 0.9);
-          g.circle(x, ellTop(e, x) + R(3, 8), R(1, 2)).fill({ color: 0xd8f0e8, alpha: 0.5 });
+        const x0 = e.x - e.rx - 80;
+        const x1 = e.x + e.rx + 80;
+        const airField = (x: number, y: number) => Math.max(field(x, y), y - ap.waterY);
+        traceField(g, airField, x0, x1, ap.waterY - 260, ap.waterY + 8, 6, 0x34494d, 0.9);
+        traceField(g, (x, y) => Math.max(field(x, y) + 10, y - ap.waterY + 8), x0, x1, ap.waterY - 260, ap.waterY + 8, 6, 0x45625f, 0.5);
+        // The water surface, rippling, only where there is water under the air.
+        let open = false;
+        for (let x = x0; x < x1; x += 5) {
+          const ok = field(x, ap.waterY + 3) < -2 && field(x, ap.waterY - 3) < -2;
+          const y = ap.waterY + Math.sin(x * 0.21) * 1.3;
+          if (ok && !open) g.moveTo(x, y);
+          else if (ok) g.lineTo(x, y);
+          open = ok;
+        }
+        g.stroke({ color: 0xc8e0d8, width: 2, alpha: 0.65 });
+        // Droplets clinging to the roof.
+        for (let k = 0; k < 18; k++) {
+          const x = R(x0, x1);
+          if (field(x, ap.waterY - 4) > -4) continue;
+          let y = ap.waterY - 4;
+          while (y > ap.waterY - 260 && field(x, y) < 0) y -= 3;
+          g.circle(x, y + R(4, 8), R(1, 2)).fill({ color: 0xd8f0e8, alpha: 0.5 });
         }
         this.scanPoints.airpocket.push({ x: e.x, y: ap.waterY - 8 });
       }
@@ -1190,22 +1230,31 @@ export class Scenery {
       const w = this.kcWall;
       const W = KELP_WALL;
       for (let i = 0; i < 70; i++) {
-        const x = R(W.x0 + 10, W.x1 - 10);
-        const y0 = R(W.y0 - 30, W.y0 + 10);
+        // Only inside the passage, so the tangle doesn't spill over the rock.
+        let x = R(W.x0 + 10, W.x1 - 10);
+        for (let k = 0; k < 20 && caveField(x, (W.y0 + W.y1) / 2) > -8; k++) x = R(W.x0 + 10, W.x1 - 10);
+        const y0 = R(W.y0 - 18, W.y0 + 6);
         w.moveTo(x, y0)
-          .quadraticCurveTo(x + R(-30, 30), (W.y0 + W.y1) / 2, x + R(-20, 20), R(W.y1 - 10, W.y1 + 30))
+          .quadraticCurveTo(x + R(-12, 12), (W.y0 + W.y1) / 2, x + R(-8, 8), R(W.y1 - 6, W.y1 + 16))
           .stroke({ color: rand() < 0.5 ? 0x5a5e34 : 0x6a6a3a, width: R(4, 9), alpha: 0.95, cap: 'round' });
       }
-      for (let i = 0; i < 30; i++) w.circle(R(W.x0 + 10, W.x1 - 10), R(W.y0, W.y1), R(4, 9)).fill({ color: 0x4f5530, alpha: 0.9 });
-      const c = this.kcWallCut;
-      for (let i = 0; i < 14; i++) {
+      for (let i = 0; i < 30; i++) {
         const x = R(W.x0 + 10, W.x1 - 10);
-        c.moveTo(x, W.y0 - 20).lineTo(x + R(-4, 4), W.y0 + R(-6, 4)).stroke({ color: 0x4f5530, width: R(3, 6), cap: 'round' });
-        c.moveTo(x, W.y1 + 24).lineTo(x + R(-4, 4), W.y1 + R(-2, 8)).stroke({ color: 0x4f5530, width: R(3, 6), cap: 'round' });
+        const y = R(W.y0, W.y1);
+        if (caveField(x, y) < -4) w.circle(x, y, R(4, 9)).fill({ color: 0x4f5530, alpha: 0.9 });
+      }
+      // Once cut: only a few charred stubs cling to the passage walls, so the way down is clear.
+      const c = this.kcWallCut;
+      for (let i = 0; i < 6; i++) {
+        const side = i % 2 ? 1 : -1;
+        let x = (W.x0 + W.x1) / 2;
+        const y = R(W.y0, W.y1);
+        while (Math.abs(x - (W.x0 + W.x1) / 2) < 120 && caveField(x, y) < 0) x += side * 3;
+        c.moveTo(x, y).lineTo(x - side * R(6, 12), y + R(-3, 3)).stroke({ color: 0x2e2a1e, width: R(3, 5), cap: 'round' });
       }
       c.visible = false;
+      // Not in the culling slices: their visibility says whether the wall is cut.
       decorLayer.addChild(this.kcWall, this.kcWallCut);
-      this.slices.push({ obj: this.kcWall, x0: W.x0 - 300, x1: W.x1 + 300 }, { obj: this.kcWallCut, x0: W.x0 - 300, x1: W.x1 + 300 });
       this.scanPoints.kwall.push({ x: (W.x0 + W.x1) / 2, y: W.y0 - 10 });
     }
 
@@ -1237,6 +1286,7 @@ export class Scenery {
     this.slices.push({ obj: this.kcSurge, x0: KC.squeeze.x1 - 300, x1: KC.squeeze.x2 + 300 });
     decorLayer.addChild(this.kcDark);
     this.slices.push({ obj: this.kcDark, x0: 17300, x1: 18900 });
+    this.buildBlackWater();
     this.setKelpCaves([false, false, false, false], false);
   }
 
@@ -1252,32 +1302,19 @@ export class Scenery {
       b.core.visible = b.halo.visible = b.lit;
       b.light.intensity = b.lit ? 1.1 : 0;
     });
-    // Black water: darkness strips over the chamber, thinned around lit brackets.
+    // Black water: one smooth haze of silt (built once); lit brackets thin it.
+    this.kcDark.alpha = 1 - 0.16 * lit.filter(Boolean).length;
+  }
+
+  /** The black chamber's silt haze: soft layers that fade towards its edges (no strips or boxes). */
+  private buildBlackWater(): void {
     const d = this.kcDark.clear();
     const e = KC.dark;
-    const litX = BRACKETS.filter((_, i) => lit[i]).map((b) => b.x);
-    for (let x = 17330; x < 18860; x += 6) {
-      let top: number;
-      let bot: number;
-      if (x < e.x - e.rx + 30) {
-        top = 1360;
-        bot = 1700;
-      } else if (x > e.x + e.rx - 60) {
-        top = 1560;
-        bot = 1790;
-      } else {
-        top = ellTop(e, x) - 30;
-        bot = ellBottom(e, x) + 30;
-      }
-      const edge = smooth((x - 17380) / 200) * (1 - smooth((x - 18620) / 220));
-      let light = 0;
-      for (const lx of litX) light = Math.max(light, 1 - smooth(Math.abs(x - lx) / 300));
-      const a = 0.94 * edge * (1 - 0.9 * light);
-      if (a > 0.01) {
-        d.rect(x, top + 24, 6.5, bot - top - 48).fill({ color: 0x000000, alpha: a });
-        d.rect(x, top, 6.5, 24).fill({ color: 0x000000, alpha: a * 0.5 });
-        d.rect(x, bot - 24, 6.5, 24).fill({ color: 0x000000, alpha: a * 0.5 });
-      }
+    for (let k = 0; k < 4; k++) {
+      const rx = e.rx + 90 - k * 70;
+      const ry = e.ry + 70 - k * 22;
+      const fn = (x: number, y: number) => Math.max(caveField(x, y, false), (Math.hypot((x - e.x - 40) / rx, (y - e.y) / ry) - 1) * ry);
+      traceField(d, fn, e.x - rx - 60, e.x + rx + 100, e.y - ry - 40, e.y + ry + 40, 8, 0x000000, 0.24);
     }
   }
 
@@ -1304,6 +1341,303 @@ export class Scenery {
       const light: PointLight = { x, y: y - 50, radius: 200, intensity: 0.7, color: [1, 0.85, 0.55] };
       this.lights.push(light);
       this.relayLights.push(light);
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Milestone 8 part 1: the wreck shelf.
+  private raceG = new Graphics();
+  private towG = new Graphics();
+  private hatchG = new Map<string, { closed: Graphics; open: Graphics }>();
+  /** The flow vane (a hinged plate on a seabed pivot) and its winch. */
+  private vane = new Container();
+  private vaneWinch = new Graphics();
+  private vaneShown = -1;
+  /** The grapple's target marker, drawn unlit so it shows in the dark. */
+  private markG = new Graphics();
+
+  private buildShelf(detail: number, rock: (x0: number, x1: number, build: (g: Graphics) => void) => void, decorLayer: Container): void {
+    // The shelf edge: rock from the plateau down to the shelf floor.
+    rock(19050, 19950, (g) => {
+      const pts: [number, number][] = [];
+      for (let x = 19050; x <= 19950; x += 8) pts.push([x, gy(x)]);
+      pts.push([19950, gy(19950) + 60], [19800, WORLD_H + 300], [19050, WORLD_H + 300]);
+      paintRock(g, pts, (x) => (x >= 19050 && x <= 19950 ? gy(x) : NaN), detail * 0.7);
+    });
+    for (const [x0, x1, th] of [
+      [20450, 20800, 70],
+      [23500, 23850, 60],
+      [24850, 25100, 50],
+    ] as const)
+      rock(x0, x1, (g) => rockPatch(g, x0, x1, th, detail));
+    // The east wall at the end of the world.
+    rock(26700, WORLD_W + 60, (g) => {
+      const pts: [number, number][] = [];
+      for (let x = 26700; x <= WORLD_W + 60; x += 8) pts.push([x, gy(x)]);
+      pts.push([WORLD_W + 60, WORLD_H + 300], [26700, WORLD_H + 300]);
+      paintRock(g, pts, (x) => (x >= 26700 && x <= WORLD_W + 60 ? gy(x) : NaN), detail * 0.6);
+    });
+
+    const decor = new Graphics();
+    decorLayer.addChild(decor);
+    this.slices.push({ obj: decor, x0: 19000, x1: 23400 });
+    const decor2 = new Graphics();
+    decorLayer.addChild(decor2);
+    this.slices.push({ obj: decor2, x0: 23200, x1: WORLD_W + 100 });
+    const dg = (x: number) => (x < 23300 ? decor : decor2);
+
+    // Debris on the shelf floor: rusted plates, ribs, chain and cable.
+    for (let i = 0; i < Math.round(70 * detail); i++) {
+      const x = R(19900, 26700);
+      const y = gy(x) + 3;
+      const g = dg(x);
+      const k = rand();
+      if (k < 0.45) {
+        const w = R(14, 40);
+        g.poly([x - w, y, x - w * 0.6, y - R(5, 14), x + w * 0.7, y - R(3, 10), x + w, y]).fill({ color: rand() < 0.5 ? 0x6a4a38 : 0x5a5450, alpha: 0.95 });
+        rustStreaks(g, x - w * 0.6, x + w * 0.6, y - 6, 2, 6);
+      } else if (k < 0.7) {
+        const h = R(20, 55);
+        g.moveTo(x, y).quadraticCurveTo(x + R(-10, 10), y - h * 0.6, x + R(-14, 14), y - h).stroke({ color: 0x4a3c34, width: R(3, 6), cap: 'round' });
+      } else {
+        for (let c = 0; c < 8; c++) g.ellipse(x + c * 7, y - 2 + Math.sin(c) * 1.5, 4, 2.6).stroke({ color: 0x5a4a3e, width: 1.6 });
+      }
+    }
+    // Pale sea pens and tube worms: the few things that grow in the twilight.
+    for (let i = 0; i < Math.round(40 * detail); i++) {
+      const x = R(19900, 26600);
+      const y = gy(x) + 3;
+      const g = dg(x);
+      const h = R(14, 34);
+      g.moveTo(x, y).lineTo(x + R(-3, 3), y - h).stroke({ color: 0x9a9480, width: 1.6, alpha: 0.8 });
+      for (let k = 0; k < 5; k++) g.circle(x + R(-4, 4), y - h * (0.6 + k * 0.08), R(1.5, 3)).fill({ color: 0xc8b8a0, alpha: 0.6 });
+    }
+
+    // Anchor rings across the race.
+    for (const r of RINGS) {
+      const g = dg(r.x);
+      const base = gy(r.x) + 6;
+      g.rect(r.x - 4, r.y + 14, 8, base - r.y - 14).fill({ color: 0x4a4440 });
+      g.rect(r.x - 4, r.y + 14, 2.5, base - r.y - 14).fill({ color: 0xffffff, alpha: 0.1 });
+      g.circle(r.x, r.y, 15).stroke({ color: 0x8a4a2e, width: 5 });
+      g.circle(r.x, r.y, 15).stroke({ color: 0xc87a4a, width: 1.5, alpha: 0.5 });
+      g.ellipse(r.x, base - 2, 16, 5).fill({ color: 0x3a3632 });
+      rustStreaks(g, r.x - 4, r.x + 4, r.y + 20, 2, 18);
+      for (let c = 0; c < 4; c++) g.ellipse(r.x + 6, r.y + 22 + c * 8, 2.6, 4).stroke({ color: 0x6a4a38, width: 1.4 });
+      this.scanPoints.ring.push({ x: r.x, y: r.y });
+    }
+    this.scanPoints.race.push({ x: 20300, y: 1300 }, { x: 21300, y: 1350 });
+    this.scanPoints.wshelf.push({ x: 22200, y: 1400 }, { x: 24000, y: 1350 });
+
+    // Lurker dens: dark holes under a rusted plate or a rock lip.
+    for (const d of LURKER_DENS) {
+      const g = dg(d.x);
+      const y = gy(d.x) - 22;
+      g.ellipse(d.x, y, 30, 20).fill({ color: 0x0a0e10 });
+      g.ellipse(d.x + d.dir * 6, y + 2, 20, 13).fill({ color: 0x000000 });
+      g.poly([d.x - 52, y - 16, d.x + 54, y - 22, d.x + 48, y - 34, d.x - 46, y - 30]).fill({ color: 0x5a4a40 });
+      rustStreaks(g, d.x - 40, d.x + 40, y - 26, 5, 14);
+    }
+
+    // The two small sealed wrecks and the great wreck of the Corvina.
+    this.drawTrawler(dg(WRECKS[0].x0), WRECKS[0]);
+    this.drawBarge(dg(WRECKS[1].x0), WRECKS[1]);
+    this.drawCorvina(decor2);
+    for (const w of WRECKS) {
+      const x = w.hatchX;
+      const y = gy(x) - 70;
+      const closed = new Graphics();
+      closed.circle(x, y, 24).fill({ color: 0x5a5450 });
+      closed.circle(x, y, 24).stroke({ color: 0x3a3430, width: 3 });
+      closed.circle(x, y, 11).stroke({ color: 0xa8402e, width: 2.6 });
+      closed.moveTo(x - 11, y).lineTo(x + 11, y).moveTo(x, y - 11).lineTo(x, y + 11).stroke({ color: 0xa8402e, width: 2 });
+      for (let k = 0; k < 8; k++) closed.circle(x + Math.cos(k * 0.785) * 19, y + Math.sin(k * 0.785) * 19, 1.4).fill({ color: 0x2a2622 });
+      rustStreaks(closed, x - 16, x + 16, y + 10, 4, 14);
+      const open = new Graphics();
+      open.circle(x, y, 23).fill({ color: 0x050708 });
+      open.circle(x, y, 24).stroke({ color: 0x3a3430, width: 3 });
+      open.poly([x + 22, y - 18, x + 46, y - 30, x + 52, y + 8, x + 26, y + 18]).fill({ color: 0x5a5450 });
+      open.visible = false;
+      decorLayer.addChild(closed, open);
+      this.hatchG.set(w.id, { closed, open });
+      this.scanPoints.wreck.push({ x, y: y - 40 });
+    }
+    this.scanPoints.corvina.push({ x: CORVINA.doorX + 120, y: gy(CORVINA.doorX) - 200 });
+
+    decorLayer.addChild(this.raceG);
+    this.slices.push({ obj: this.raceG, x0: RACE.x0 - 200, x1: RACE.x1 + 200 });
+    this.view.addChild(this.towG);
+    this.emissive.addChild(this.markG);
+
+    // The flow vane: a long riveted plate on a pivot, lying flat until its winch raises it.
+    {
+      const p = new Graphics();
+      const L = 420;
+      p.roundRect(-L, -10, L, 20, 6).fill({ color: 0x5a524c });
+      p.rect(-L, -10, L, 4).fill({ color: 0xffffff, alpha: 0.08 });
+      for (let x = -L + 30; x < -10; x += 60) p.rect(x, -10, 4, 20).fill({ color: 0x3a3430 });
+      for (let x = -L + 12; x < -6; x += 20) p.circle(x, 0, 1.6).fill({ color: 0x2a2622 });
+      for (let x = -L + 40; x < -40; x += 90) p.rect(x, -10, 26, 3).fill({ color: 0xa8402e, alpha: 0.8 });
+      rustStreaks(p, -L + 10, -20, -2, 14, 10);
+      this.vane.addChild(p);
+      this.vane.position.set(VANE.x, gy(VANE.x) - 8);
+      const pivot = new Graphics();
+      pivot.roundRect(VANE.x - 30, gy(VANE.x) - 26, 60, 30, 6).fill({ color: 0x4a4440 });
+      pivot.circle(VANE.x, gy(VANE.x) - 8, 12).fill({ color: 0x6a625c });
+      pivot.circle(VANE.x, gy(VANE.x) - 8, 4).fill({ color: 0x2a2622 });
+      decorLayer.addChild(this.vane, pivot, this.vaneWinch);
+      this.scanPoints.vane.push({ x: VANE.x - 120, y: gy(VANE.x) - 60 });
+      this.setVane(0);
+    }
+  }
+
+  /** 0 = the vane lies flat on the seabed, 1 = raised (the top of the race goes calm). */
+  setVane(t: number): void {
+    if (Math.abs(t - this.vaneShown) < 0.002) return;
+    this.vaneShown = t;
+    this.vane.rotation = smooth(t) * 1.05;
+    const w = this.vaneWinch.clear();
+    const x = VANE.winchX;
+    const y = gy(x) + 4;
+    w.roundRect(x - 26, y - 12, 52, 12, 3).fill({ color: 0x4a4038 });
+    w.rect(x - 22, y - 40, 6, 30).fill({ color: 0x5a4a3e });
+    w.rect(x + 16, y - 40, 6, 30).fill({ color: 0x5a4a3e });
+    w.roundRect(x - 18, y - 36, 36, 20, 6).fill({ color: 0xa88a40 });
+    const a = t * 14;
+    w.circle(x + 30, y - 26, 10).stroke({ color: 0xa8402e, width: 3 });
+    w.moveTo(x + 30 + Math.cos(a) * 10, y - 26 + Math.sin(a) * 10).lineTo(x + 30 - Math.cos(a) * 10, y - 26 - Math.sin(a) * 10).stroke({ color: 0xa8402e, width: 2 });
+    rustStreaks(w, x - 16, x + 16, y - 30, 5, 12);
+    // The cable from the drum to the vane's tip.
+    const L = 420;
+    const ang = this.vane.rotation;
+    const tx = VANE.x - Math.cos(ang) * L;
+    const ty = gy(VANE.x) - 8 - Math.sin(ang) * L;
+    w.moveTo(x - 2, y - 30).quadraticCurveTo((x + tx) / 2, Math.min(y, ty) - 30 * (1 - t), tx, ty).stroke({ color: 0x2a2622, width: 1.6, alpha: 0.9 });
+  }
+
+  /** Where the vane's winch is, for the Collect button. */
+  static vaneWinchPoint(): { x: number; y: number } {
+    return { x: VANE.winchX, y: groundY(VANE.winchX) - 26 };
+  }
+
+  /** The grapple's target: an amber ring and crosshair round the anchor, or none. */
+  setGrappleMark(p: { x: number; y: number } | null, time: number): void {
+    const g = this.markG.clear();
+    if (!p) return;
+    const r = 26 + Math.sin(time * 6) * 3;
+    g.circle(p.x, p.y, r).stroke({ color: 0xffc860, width: 2, alpha: 0.85 });
+    for (let k = 0; k < 4; k++) {
+      const a = (k * Math.PI) / 2 + time * 0.8;
+      g.moveTo(p.x + Math.cos(a) * (r + 4), p.y + Math.sin(a) * (r + 4))
+        .lineTo(p.x + Math.cos(a) * (r + 12), p.y + Math.sin(a) * (r + 12))
+        .stroke({ color: 0xffc860, width: 2, alpha: 0.85 });
+    }
+  }
+
+  private hull(g: Graphics, pts: number[], color: number): void {
+    g.poly(pts).fill({ color });
+    // Plate seams and rivets along the hull.
+    let minX = Infinity;
+    let maxX = -Infinity;
+    let minY = Infinity;
+    let maxY = -Infinity;
+    for (let i = 0; i < pts.length; i += 2) {
+      minX = Math.min(minX, pts[i]);
+      maxX = Math.max(maxX, pts[i]);
+      minY = Math.min(minY, pts[i + 1]);
+      maxY = Math.max(maxY, pts[i + 1]);
+    }
+    for (let i = 0; i < (maxX - minX) / 6; i++) {
+      const x = R(minX + 10, maxX - 10);
+      const y = R(minY + 10, maxY - 6);
+      dab(g, x, y, R(8, 22), R(4, 10), rand() < 0.5 ? 0x4a3a32 : 0x7a5a44, R(0.25, 0.45));
+    }
+  }
+
+  private drawTrawler(g: Graphics, w: { x0: number; x1: number; hatchX: number }): void {
+    const f = (x: number) => gy(x) + 20;
+    const { x0, x1 } = w;
+    // A small fishing boat, keeled over a little and half sunk in silt.
+    this.hull(g, [x0, f(x0) - 150, x1 - 90, f(x1) - 160, x1, f(x1) - 210, x1 - 40, f(x1), x0 + 30, f(x0)], 0x5e4a40);
+    g.rect(x0, f(x0) - 152, x1 - x0 - 80, 8).fill({ color: 0x8a3a28 });
+    // Wheelhouse.
+    g.roundRect(x0 + 60, f(x0) - 250, 170, 102, 6).fill({ color: 0x6a5a50 });
+    for (let k = 0; k < 4; k++) g.roundRect(x0 + 74 + k * 38, f(x0) - 236, 26, 22, 3).fill({ color: 0x0e1416 });
+    rustStreaks(g, x0 + 60, x0 + 230, f(x0) - 210, 8, 30);
+    // A broken mast.
+    g.moveTo(x0 + 320, f(x0) - 160).lineTo(x0 + 360, f(x0) - 330).stroke({ color: 0x4a3c34, width: 7 });
+    g.moveTo(x0 + 352, f(x0) - 300).lineTo(x0 + 410, f(x0) - 290).stroke({ color: 0x4a3c34, width: 4 });
+    for (let k = 0; k < 7; k++) g.circle(x0 + 260 + k * 40, f(x0) - 110, 7).fill({ color: 0x14191b });
+    rustStreaks(g, x0 + 40, x1 - 60, f(x0) - 130, 16, 40);
+  }
+
+  private drawBarge(g: Graphics, w: { x0: number; x1: number; hatchX: number }): void {
+    const f = (x: number) => gy(x) + 18;
+    const { x0, x1 } = w;
+    this.hull(g, [x0, f(x0) - 130, x1, f(x1) - 140, x1 - 30, f(x1), x0 + 20, f(x0)], 0x544c46);
+    g.rect(x0, f(x0) - 132, x1 - x0, 7).fill({ color: 0x6a6460 });
+    // A toppled deck crane and cargo boxes.
+    g.moveTo(x1 - 160, f(x1) - 140).lineTo(x1 - 40, f(x1) - 300).stroke({ color: 0xa8822e, width: 8 });
+    g.moveTo(x1 - 40, f(x1) - 300).lineTo(x1 + 30, f(x1) - 250).stroke({ color: 0xa8822e, width: 5 });
+    for (let k = 0; k < 3; k++) g.rect(x0 + 380 + k * 62, f(x0) - 186, 56, 54).fill({ color: [0x6a4a38, 0x4a5a5a, 0x7a5a3a][k] });
+    rustStreaks(g, x0 + 20, x1 - 20, f(x0) - 120, 20, 50);
+  }
+
+  private drawCorvina(g: Graphics): void {
+    const { x0, x1, doorX } = CORVINA;
+    const f = (x: number) => gy(x) + 30;
+    // A big survey ship lying on the shelf: a long dark hull, its bow raised on a rock.
+    this.hull(g, [x0, f(x0) - 300, x1 - 160, f(x1) - 340, x1, f(x1) - 470, x1 - 60, f(x1), x0 + 40, f(x0)], 0x4a4240);
+    g.rect(x0, f(x0) - 302, x1 - x0 - 150, 10).fill({ color: 0x7a3a2a });
+    for (let k = 0; k < 18; k++) g.circle(x0 + 160 + k * 52, f(x0) - 230, 9).fill({ color: 0x0c1012 });
+    // Superstructure and two masts.
+    g.roundRect(x0 + 160, f(x0) - 470, 380, 170, 8).fill({ color: 0x5a524c });
+    for (let k = 0; k < 6; k++) g.roundRect(x0 + 180 + k * 58, f(x0) - 450, 38, 28, 4).fill({ color: 0x0c1012 });
+    g.moveTo(x0 + 620, f(x0) - 300).lineTo(x0 + 640, f(x0) - 640).stroke({ color: 0x3e3632, width: 9 });
+    g.moveTo(x0 + 860, f(x0) - 310).lineTo(x0 + 900, f(x0) - 560).stroke({ color: 0x3e3632, width: 7 });
+    // The great sealed bulkhead door.
+    const dy = f(doorX) - 120;
+    g.roundRect(doorX - 46, dy - 70, 92, 140, 14).fill({ color: 0x6a625c });
+    g.roundRect(doorX - 46, dy - 70, 92, 140, 14).stroke({ color: 0x2e2826, width: 4 });
+    g.circle(doorX, dy, 18).stroke({ color: 0xa8402e, width: 3.5 });
+    g.moveTo(doorX - 18, dy).lineTo(doorX + 18, dy).moveTo(doorX, dy - 18).lineTo(doorX, dy + 18).stroke({ color: 0xa8402e, width: 2.6 });
+    rustStreaks(g, x0 + 40, x1 - 80, f(x0) - 260, 40, 70);
+    const t = new Text({ text: 'CORVINA', style: { fontFamily: 'monospace', fontSize: 26, fill: 0xd8d0b8, fontWeight: 'bold', letterSpacing: 6 } });
+    t.alpha = 0.55;
+    t.anchor.set(0.5);
+    t.position.set(x0 + 560, f(x0) - 270);
+    this.view.addChild(t);
+    this.slices.push({ obj: t, x0: x0 - 300, x1: x1 + 300 });
+  }
+
+  /** Which sealed hatches are cut open. */
+  setHatches(open: string[]): void {
+    for (const [id, h] of this.hatchG) {
+      const o = open.includes(id);
+      h.closed.visible = !o;
+      h.open.visible = o;
+    }
+  }
+
+  /** The grapple line from the ring to the diver, or none. */
+  setTow(a: { x: number; y: number } | null, b?: { x: number; y: number }): void {
+    const g = this.towG.clear();
+    if (!a || !b) return;
+    const sag = Math.min(40, Math.hypot(b.x - a.x, b.y - a.y) * 0.08);
+    g.moveTo(a.x, a.y).quadraticCurveTo((a.x + b.x) / 2, (a.y + b.y) / 2 + sag, b.x, b.y).stroke({ color: 0xd8c890, width: 2 });
+  }
+
+  /** The race: streaks of silt racing west across the shelf edge. */
+  updateRace(time: number, viewX0: number, viewX1: number): void {
+    const g = this.raceG.clear();
+    if (viewX1 < RACE.x0 - 200 || viewX0 > RACE.x1 + 200) return;
+    for (let i = 0; i < 70; i++) {
+      const span = RACE.x1 - RACE.x0;
+      const x = RACE.x1 - (((i * 997) % span) + time * (380 + (i % 5) * 40)) % span;
+      if (x < viewX0 - 50 || x > viewX1 + 50) continue;
+      const y = 300 + ((i * 613) % 1300);
+      if (y > gy(x) - 10) continue;
+      g.moveTo(x, y).lineTo(x + 50 + (i % 4) * 14, y + 1).stroke({ color: 0xbcd0cc, width: 1.1, alpha: 0.2 });
     }
   }
 

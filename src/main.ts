@@ -35,6 +35,14 @@ import {
   KELP_WALL,
   kelpWall,
   smooth,
+  CORVINA,
+  LURKER_DENS,
+  RACE,
+  race,
+  raceAt,
+  RINGS,
+  WRECK_SHELF,
+  WRECKS,
   SPAWN,
   WORLD_H,
   WORLD_SPAN,
@@ -82,6 +90,7 @@ import { DIVE_LIGHT, GEAR, hasGear, jobOf, jobRunning, LAMP, RESEARCH, tickStati
 import type { BlueprintId } from './game/state';
 import { audio } from './audio/engine';
 import { SoundDirector, WorkKind } from './audio/director';
+import { Lurkers } from './actors/lurker';
 import { initSoundUI } from './ui/sound';
 
 declare const __BUILD_ID__: string;
@@ -192,6 +201,8 @@ async function boot(): Promise<void> {
   const fish = [0, 0, 1].map((look) => new Glowfin(look, GROTTO));
   // Milestone 4: wild creatures to collect, and life inside the creature tanks.
   const wildlife = new Wildlife();
+  // Milestone 8: wreck lurkers in their dens on the shelf.
+  const lurkers = new Lurkers(LURKER_DENS);
   const tankLife = new TankLife();
   const schools = [
     new School(22, { x0: 1850, x1: 3500, y0: 200, y1: 380 }),
@@ -232,6 +243,14 @@ async function boot(): Promise<void> {
     { id: 'surge', points: () => scenery.scanPoints.surge },
     { id: 'blackwater', points: () => scenery.scanPoints.blackwater },
     { id: 'kwall', points: () => (kelpWall.cut ? [] : scenery.scanPoints.kwall) },
+    // Milestone 8: the wreck shelf.
+    { id: 'wshelf', points: () => scenery.scanPoints.wshelf },
+    { id: 'race', points: () => scenery.scanPoints.race },
+    { id: 'ring', points: () => scenery.scanPoints.ring },
+    { id: 'wreck', points: () => scenery.scanPoints.wreck },
+    { id: 'corvina', points: () => scenery.scanPoints.corvina },
+    { id: 'vane', points: () => scenery.scanPoints.vane },
+    { id: 'lurker', points: () => lurkers.list.map((l) => l.head()) },
     { id: 'crab', points: () => wildlife.scanPoints('crab') },
     { id: 'shrimp', points: () => wildlife.scanPoints('shrimp') },
   );
@@ -313,6 +332,7 @@ async function boot(): Promise<void> {
       linesView.view,
       pickups.view,
       wildlife.view,
+      lurkers.view,
       ...schools.map((s) => s.view),
       ...fish.map((f) => f.view),
       sub.view,
@@ -324,8 +344,8 @@ async function boot(): Promise<void> {
       scenery.over,
     );
     frontCam.addChild(scenery.front);
-    emissiveCam.addChild(scenery.emissive, baseView.emissive, tankLife.emissive, pickups.emissive, wildlife.emissive, sub.emissive, drone.emissive, ...fish.map((f) => f.lure), diver.lens, surfaceFx.view);
-    glowCam.addChild(scenery.glow, baseView.glow, tankLife.glow, pickups.glow, wildlife.glow, sub.glow, drone.glow, ...fish.map((f) => f.halo), diver.lensGlow);
+    emissiveCam.addChild(scenery.emissive, baseView.emissive, tankLife.emissive, pickups.emissive, wildlife.emissive, lurkers.emissive, sub.emissive, drone.emissive, ...fish.map((f) => f.lure), diver.lens, surfaceFx.view);
+    glowCam.addChild(scenery.glow, baseView.glow, tankLife.glow, pickups.glow, wildlife.glow, lurkers.glow, sub.glow, drone.glow, ...fish.map((f) => f.halo), diver.lensGlow);
   }
   populate();
 
@@ -449,6 +469,21 @@ async function boot(): Promise<void> {
   /** 0..1: how far the boom gate has swung up. */
   let boomT = save.boomOpen ? 1 : 0;
   let prevDiverX = diver.x;
+  // Milestone 8: the grapple line (Colin, after part 1: it replaced clipping on and hauling).
+  // It fires at an anchor ring in range and reels the diver in, faster than the race.
+  let grapple: { to: number; phase: 'fly' | 'reel'; t: number } | null = null;
+  const GRAPPLE_RANGE = 460;
+  const GRAPPLE_FLY = 0.18;
+  const GRAPPLE_REEL = 580;
+  let vaneT = save.vane ? 1 : 0;
+  race.vane = save.vane;
+  const lineClear = (ax: number, ay: number, bx: number, by: number) => {
+    for (let k = 1; k < 12; k++) if (isSolid(ax + ((bx - ax) * k) / 12, ay + ((by - ay) * k) / 12)) return false;
+    return true;
+  };
+  let suitCalm = 99;
+  let blackoutCause: 'air' | 'suit' = 'air';
+  scenery.setHatches(save.hatches);
   // After milestone 7 part 2 (Colin): the mouse wheel (or - and = keys) zooms the swimming view
   // in and out, like build mode. 1 = the normal view; bigger shows more. Saved on the device.
   const SWIM_ZOOM_MIN = 0.75;
@@ -512,7 +547,7 @@ async function boot(): Promise<void> {
     towcoil: {
       research: 'tow',
       label: "Take the rope store's spool tag",
-      toast: 'Rope store notes taken! A Lab can decode the tow line from them, for the strong currents of the next zone.',
+      toast: 'Rope store notes taken! A Lab can decode the grapple line from them: it hooks anchor points and reels you in, faster than strong currents.',
       y: 0,
     },
     cache: {
@@ -1030,7 +1065,7 @@ async function boot(): Promise<void> {
 
     input.update();
     const s = input.state;
-    const inControl = blackout === 0 && !build.active && !care.active && !dockUI.active && !station.active && !boarding;
+    const inControl = blackout === 0 && !build.active && !care.active && !dockUI.active && !station.active && !boarding && !(grapple && grapple.phase === 'reel');
 
     // ---- The submersible (milestone 6) ----
     const S = save.sub;
@@ -1053,6 +1088,15 @@ async function boot(): Promise<void> {
       hud.toast('Clamps released');
     }
     let impact = 0;
+    // Milestone 8: the race carries the sub west too. Until the flow vane is raised it is
+    // stronger than the sub's thrusters; after, the top is calm and the deep race only slows it.
+    if (save.sub?.aboard && !save.sub.docked) {
+      const sr = raceAt(sub.x, sub.y);
+      if (sr > 0) {
+        const nx = sub.x - RACE.speed * (save.vane ? 0.5 : 1.4) * sr * dt;
+        if (!isSolid(nx - 150, sub.y) && !isSolid(nx - 150, sub.y + 40)) sub.x = nx;
+      }
+    }
     if (S) {
       const piloted = aboard && inControl;
       impact = sub.update(dt, {
@@ -1188,6 +1232,11 @@ async function boot(): Promise<void> {
     const surge = smooth(cyc / 0.7) * (1 - smooth((cyc - 3.6) / 0.7));
     const inSqueeze = !aboard && inShape(KC.squeeze, diver.x, diver.y) && !KC.pockets.some((p) => inShape(p, diver.x, diver.y));
     diver.current.x = inSqueeze ? -560 * surge - 25 : 0;
+    // Milestone 8: the race sweeps west across the shelf edge. Holding on at an anchor ring shelters you.
+    const raceHere = aboard ? 0 : raceAt(diver.x, diver.y);
+    const atRing = RINGS.findIndex((r) => Math.hypot(diver.x - r.x, diver.y - r.y) < 80);
+    diver.current.x += -RACE.speed * raceHere * (atRing >= 0 ? 0.1 : 1) * (0.85 + 0.15 * Math.sin(time * 0.7));
+    scenery.updateRace(time, camX, camX + lastViewW);
     diver.current.y = 0;
     if (diver.x > 15800 && diver.x < 17200) scenery.updateKelpCaves(time, surge);
     scenery.setKelpCaves(save.brackets, save.kelpCut);
@@ -1211,6 +1260,39 @@ async function boot(): Promise<void> {
         boarding = null;
         boardFade = 1;
         if (blackout === 0) boardSub(false);
+      }
+    } else if (grapple && !aboard) {
+      // The grapple: the hook flies out to the ring, then the line reels the diver in.
+      const r = RINGS[grapple.to];
+      grapple.t += dt;
+      if (grapple.phase === 'fly') {
+        diver.update(dt, 0, 0, false, false);
+        const k = Math.min(1, grapple.t / GRAPPLE_FLY);
+        scenery.setTow({ x: diver.x, y: diver.y - 6 }, { x: diver.x + (r.x - diver.x) * k, y: diver.y - 6 + (r.y - diver.y + 6) * k });
+        if (k >= 1) {
+          grapple.phase = 'reel';
+          sound.clip();
+        }
+      } else {
+        const dx = r.x - diver.x;
+        const dy = r.y + 16 - diver.y;
+        const d = Math.hypot(dx, dy);
+        const step = Math.min(d, GRAPPLE_REEL * dt);
+        diver.vx = (dx / Math.max(1, d)) * GRAPPLE_REEL * 0.4;
+        diver.vy = (dy / Math.max(1, d)) * GRAPPLE_REEL * 0.4;
+        diver.x += (dx / Math.max(1, d)) * step;
+        diver.y += (dy / Math.max(1, d)) * step;
+        diver.surfaced = false;
+        scenery.setTow(r, { x: diver.x, y: diver.y - 6 });
+        if (d < 40) {
+          grapple = null;
+          diver.vx = diver.vy = 0;
+          scenery.setTow(null);
+        }
+      }
+      if (grapple && (blackout > 0 || grapple.t > 3)) {
+        grapple = null;
+        scenery.setTow(null);
       }
     } else if (!aboard) diver.update(dt, inControl ? s.moveX : 0, inControl ? s.moveY : 0, inControl && s.boost, inControl && s.lamp);
 
@@ -1245,6 +1327,34 @@ async function boot(): Promise<void> {
       diver.x = blackLimit;
       if (diver.vx > 0) diver.vx = 0;
     }
+    // ---- The wreck shelf (milestone 8): lurkers ----
+    const lk = lurkers.update(dt, diver.x, diver.y, diver.lampOn, !aboard && blackout === 0 && !boarding, camX, camX + lastViewW);
+    if (lk.warn && !save.tips.includes('lurker')) {
+      save.tips.push('lurker');
+      hud.toast('Something stirs in the den ahead: a glowing lure, eyes catching your light. Back off, or wait for it to strike and pull back.', 'warn');
+    }
+    if (lk.warn) sound.lurkWarn(lk.warn.denX - diver.x);
+    if (lk.bite) {
+      save.suit = Math.max(0, save.suit - 0.3);
+      suitCalm = 0;
+      shake = Math.min(1, shake + 0.7);
+      const L = Math.max(1, Math.hypot(diver.x - lk.bite.denX, diver.y - lk.bite.denY));
+      diver.vx = ((diver.x - lk.bite.denX) / L) * 420;
+      diver.vy = ((diver.y - lk.bite.denY) / L) * 420 - 80;
+      sound.bite();
+      hud.suitHit();
+      hud.toast(
+        save.suit > 0
+          ? `Bitten! Suit integrity ${Math.round(save.suit * 100)}%. It seals itself slowly; a dome, the sub, a relay or the surface repair it fully.`
+          : 'Bitten! Your suit gives way.',
+        'warn',
+      );
+    }
+    if (!aboard && diver.x > WRECK_SHELF.x0 && blackout === 0 && !save.tips.includes('wshelf')) {
+      save.tips.push('wshelf');
+      hud.toast('The wreck shelf. Twilight, cold, and old wrecks half sunk in silt. Something lives under the wreckage: watch for glowing lures.', 'big');
+    }
+    scenery.setHatches(save.hatches);
     const inKC = !aboard && inKelpCaves(diver.x, diver.y);
     if (inKC && blackout === 0 && !save.tips.includes('kcaves')) {
       save.tips.push('kcaves');
@@ -1267,6 +1377,10 @@ async function boot(): Promise<void> {
         ? 'Pitch black ahead. The shoulder lamp barely dents this darkness. A proper dive light would open the way: decode the sled recorder in a Lab, then build the light in a Workshop.'
         : inCave && !lit
           ? 'Too dark to go on: switch your dive light on (Lamp).'
+          : aboard && !save.vane && raceAt(sub.x, sub.y) > 0.3
+            ? 'The race is too strong for KS-1, even on full thrusters. The old salvage crew must have had a way to calm it: look on the far side, on foot.'
+          : raceHere > 0.3 && !grapple && !hasGear(save, 'tow')
+            ? 'The race: a current too strong to swim against sweeps across the shelf edge, right up to the surface. Old anchor rings cross it: a grapple line could pull you from ring to ring.'
           : inSqueeze
             ? surge > 0.4
               ? 'Cold surge! Too strong to swim against: wait it out in a pocket in the roof.'
@@ -1331,7 +1445,12 @@ async function boot(): Promise<void> {
         );
       }
       hud.setLowOxygen(atSurface || domeAir || subAir || freshAir ? 0 : Math.max(0, (0.25 - frac) / 0.25) * (0.75 + 0.25 * Math.sin(time * 5)));
-      if (save.oxygen <= 0) {
+      // ---- Suit integrity (milestone 8) ----
+      suitCalm += dt;
+      if (atSurface || domeAir || subAir || relayAir) save.suit = Math.min(1, save.suit + dt * 0.25);
+      else if (suitCalm > 8) save.suit = Math.min(1, save.suit + dt * 0.012);
+      if (save.oxygen <= 0 || save.suit <= 0) {
+        blackoutCause = save.suit <= 0 ? 'suit' : 'air';
         // Blacking out aboard: the crew pull the diver out of the sub first.
         if (aboard) leaveSub(true);
         blackout = 0.0001;
@@ -1386,9 +1505,14 @@ async function boot(): Promise<void> {
         lowWarned = false;
         hud.setLowOxygen(0);
         const where = home.sub ? 'the sub, KS-1' : home.dome ? 'the dome habitat' : home.relay ? 'the nearest air relay' : 'the Kestrel buoy';
+        save.suit = 1;
+        grapple = null;
+        scenery.setTow(null);
+        const why = blackoutCause === 'suit' ? 'Your suit gave way and you blacked out' : 'You blacked out';
+        blackoutCause = 'air';
         blackoutMsg = save.dropped
-          ? `You blacked out. The crew pulled you back to ${where}. Your sample bag is on the seabed where you fell; its amber light is blinking.${jarMsg}`
-          : `You blacked out. The crew pulled you back to ${where}.${jarMsg}`;
+          ? `${why}. The crew pulled you back to ${where}. Your sample bag is on the seabed where you fell; its amber light is blinking.${jarMsg}`
+          : `${why}. The crew pulled you back to ${where}.${jarMsg}`;
         blackout = BLACK_IN + 0.0001;
         writeSave(Object.assign(save, { x: diver.x, y: diver.y }));
       }
@@ -1512,6 +1636,22 @@ async function boot(): Promise<void> {
     // Milestone 7: hold-to-do actions out in the world (the sled recorder, the boom winch).
     let holdAct: { key: string; label: string; seconds: number; done: () => void } | null = null;
     let infoAct = '';
+    // The grapple's target: the best anchor ring in range with a clear line, ahead of the diver first.
+    let grappleTarget = -1;
+    if (!aboard && !grapple && blackout === 0 && inControl && hasGear(save, 'tow') && !diver.surfaced) {
+      const dirX = Math.abs(s.moveX) > 0.2 ? Math.sign(s.moveX) : diver.facing;
+      let best = Infinity;
+      RINGS.forEach((r, i) => {
+        const d = Math.hypot(r.x - diver.x, r.y - diver.y);
+        if (d < 70 || d > GRAPPLE_RANGE || !lineClear(diver.x, diver.y, r.x, r.y)) return;
+        const score = d + ((r.x - diver.x) * dirX > 0 ? 0 : 500);
+        if (score < best) {
+          best = score;
+          grappleTarget = i;
+        }
+      });
+    }
+    scenery.setGrappleMark(grappleTarget >= 0 ? RINGS[grappleTarget] : null, time);
     if (!otherTarget && blackout === 0 && inControl && !diver.surfaced && !aboard) {
       const rx = SLED_X - 20;
       const ry = groundY(SLED_X) - 44;
@@ -1534,6 +1674,64 @@ async function boot(): Promise<void> {
             );
           },
         };
+      // Milestone 8: the grapple line fires at the marked anchor ring.
+      if (grappleTarget >= 0) {
+        const to = grappleTarget;
+        holdAct = {
+          key: 'grapple' + to,
+          label: 'Fire the grapple',
+          seconds: 0.1,
+          done: () => {
+            grapple = { to, phase: 'fly', t: 0 };
+            sound.clip();
+          },
+        };
+      } else if (!hasGear(save, 'tow') && RINGS.some((r) => Math.hypot(diver.x - r.x, diver.y - r.y) < 110))
+        infoAct = 'Anchor ring: a grapple line (Workshop) could hook it';
+      // The flow vane's winch, on the far side of the race.
+      const vw = Scenery.vaneWinchPoint();
+      if (!save.vane && Math.hypot(diver.x - vw.x, diver.y - vw.y) < 110)
+        holdAct = {
+          key: 'vane',
+          label: 'Wind the flow vane winch',
+          seconds: 3,
+          done: () => {
+            save.vane = true;
+            race.vane = true;
+            drone.cheer();
+            hud.toast('The flow vane groans up off the seabed and turns the race down along the shelf. The water at the top of the edge goes calm: KS-1 can cross over the top now.', 'big');
+          },
+        };
+      // Sealed hatches on the small wrecks: the cutter torch opens them.
+      for (const w of WRECKS) {
+        const hy = groundY(w.hatchX) - 70;
+        if (save.hatches.includes(w.id) || Math.hypot(diver.x - w.hatchX, diver.y - hy) > 110) continue;
+        if (hasGear(save, 'cutter'))
+          holdAct = {
+            key: 'hatch-' + w.id,
+            label: 'Cut the sealed hatch open',
+            seconds: 3,
+            done: () => {
+              save.hatches.push(w.id);
+              drone.cheer();
+              if (w.id === 'trawler') {
+                save.tanks.push('tank-trawler');
+                save.oxygen = maxOxygen(save);
+                sound.find('tank');
+                hud.toast(`The hatch falls open. Inside the wheelhouse: a sealed emergency air cylinder. Air tank upgrade! Dive time +${TANK_BONUS} s`, 'big');
+              } else {
+                save.bag.plate += 3;
+                save.bag.brass += 2;
+                hud.refreshInventory();
+                sound.find('bag');
+                hud.toast('The hatch falls open onto a dry cargo locker: 3 hull plating and 2 brass fittings, still crated.', 'big');
+              }
+            },
+          };
+        else infoAct = 'Sealed hatch, rusted shut: a cutter torch would open it';
+      }
+      if (Math.hypot(diver.x - CORVINA.doorX, diver.y - (groundY(CORVINA.doorX) - 90)) < 140)
+        infoAct = "The Corvina's bulkhead door: sealed from inside, and far too thick to cut. Its way in comes in the next update.";
       // Milestone 7 part 2: the finds in the kelp caves.
       for (const k of Object.keys(KC_FINDS) as (keyof typeof KC_FINDS)[]) {
         const f = FIND_INFO[k];
@@ -1621,7 +1819,8 @@ async function boot(): Promise<void> {
     }
     if (!holdAct || holdAct.key !== holdKey) holdProgress = 0;
     holdKey = holdAct?.key ?? '';
-    if (holdAct && collectHeld && speed < 70) {
+    // The grapple fires even while the race is sweeping you away.
+    if (holdAct && collectHeld && (speed < 70 || holdAct.key.startsWith('grapple'))) {
       holdProgress += dt / holdAct.seconds;
       if (holdProgress >= 1) {
         holdProgress = 0;
@@ -1633,6 +1832,9 @@ async function boot(): Promise<void> {
     } else holdProgress = Math.max(0, holdProgress - dt * 0.5);
     boomT += ((save.boomOpen ? 1 : 0) - boomT) * Math.min(1, dt * 0.8);
     scenery.setBoom(boomT > 0.995 ? 1 : boomT);
+    race.vane = save.vane;
+    vaneT += ((save.vane ? 1 : 0) - vaneT) * Math.min(1, dt * 0.6);
+    scenery.setVane(vaneT > 0.995 ? 1 : vaneT);
     let baseAct: { label: string; run: () => void } | null = null;
     if (!otherTarget && blackout === 0 && inControl && !diver.surfaced) {
       const trayN = tankHere ? MATERIALS_LIST.reduce((a, k) => a + (save.tankData[String(tankHere.id)]?.out?.[k] ?? 0), 0) : 0;
@@ -1998,7 +2200,7 @@ async function boot(): Promise<void> {
     diver.lensGlow.position.set(lp.x, lp.y);
     diver.lensGlow.alpha = diver.lamp * diver.view.alpha;
 
-    const lights: Light[] = [...(save.sub ? sub.lights : []), lampLight, ...drone.lights, ...scenery.lights, ...baseView.lights, ...pickups.lights, ...wildlife.lights, ...fish.map((f) => f.light)];
+    const lights: Light[] = [...(save.sub ? sub.lights : []), lampLight, ...drone.lights, ...scenery.lights, ...baseView.lights, ...pickups.lights, ...wildlife.lights, ...lurkers.lights, ...fish.map((f) => f.light)];
     const floor = groundY(Math.max(WORLD_X0, Math.min(WORLD_W, diver.x)));
     const height = floor - diver.y;
     lighting.update({
@@ -2030,7 +2232,9 @@ async function boot(): Promise<void> {
 
     const depthM = Math.max(0, diver.y - SURFACE_Y + 6) / WU_PER_METRE;
     if (domeAir || subAir) diveTime = 0;
-    watch.draw(performance.now(), save.oxygen, maxO2, atSurface ? 0 : depthM, diveTime, atSurface, { kg, ...lim });
+    watch.draw(performance.now(), save.oxygen, maxO2, atSurface ? 0 : depthM, diveTime, atSurface, { kg, ...lim }, save.suit);
+    // The suit bar under the watch: once the wreck shelf has been reached, or whenever the suit is damaged.
+    hud.setSuit(save.suit, !aboard && (save.tips.includes('wshelf') || save.suit < 0.995));
     if (pickups.bagPos) {
       const p = pickups.bagPos;
       hud.setBagMarker((p.x - camX) * zoom, (p.y - camY) * zoom, Math.hypot(p.x - diver.x, p.y - diver.y) / WU_PER_METRE);
@@ -2040,7 +2244,8 @@ async function boot(): Promise<void> {
     {
       let work: WorkKind | null = null;
       if (holdAct && collectHeld && speed < 70)
-        work = holdAct.key === 'winch' || holdAct.key === 'relay' ? 'winch' : holdAct.key === 'kwall' ? 'cutter' : holdAct.key.startsWith('bracket') ? 'moss' : 'recorder';
+        work = holdAct.key === 'winch' || holdAct.key === 'relay' || holdAct.key === 'vane' ? 'winch' : holdAct.key === 'kwall' ? 'cutter' : holdAct.key.startsWith('bracket') ? 'moss' : 'recorder';
+      else if (grapple?.phase === 'reel') work = 'winch';
       else if (repairing) work = 'repair';
       else if (wildlife.working && wildTarget) work = 'creature';
       else if (pickups.working && pt) work = pt.kind;
@@ -2086,6 +2291,8 @@ async function boot(): Promise<void> {
         exhale: !aboard && diver.exhale,
         surge,
         inAir: pocketAir,
+        race: aboard ? raceAt(sub.x, sub.y) : raceAt(diver.x, diver.y),
+        suit: save.suit,
       });
     }
 
