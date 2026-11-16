@@ -188,7 +188,7 @@ const smin = (a: number, b: number) => {
 };
 let shapeBoxes: [number, number, number, number][] | null = null;
 /** The caves' smooth field: negative in open water, positive in rock. */
-export function caveField(x: number, y: number): number {
+export function caveField(x: number, y: number, pillars = true): number {
   if (x < KC_BOUNDS.x0 || x > KC_BOUNDS.x1 || y < 740) return 999;
   shapeBoxes ??= CAVE_SHAPES.map(bboxOf);
   let d = 999;
@@ -197,7 +197,7 @@ export function caveField(x: number, y: number): number {
     if (x < b[0] - BLEND || x > b[2] + BLEND || y < b[1] - BLEND || y > b[3] + BLEND) continue;
     d = smin(d, sdShape(CAVE_SHAPES[i], x, y));
   }
-  if (d > BLEND) return d;
+  if (d > BLEND || !pillars) return d;
   for (const p of KC_PILLARS) d = Math.max(d, -sdShape(p, x, y));
   return d;
 }

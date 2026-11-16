@@ -869,6 +869,12 @@ Cut from High so far: the phone renders at 2× instead of its native 3×. Colin 
   - **Sub:** left alone in the race, it drifted from 20600 to 19813 in 3 s.
   - No console errors.
 
+### After milestone 8 part 1: natural air pockets and black water
+- **Colin** (screenshot): the junction's air pocket didn't look natural, and a rectangular box at the black chamber's entrance looked wrong.
+- **Air pockets** were still drawn from the old oval chamber, so they no longer matched the smooth cave roof. They are now traced from the caves' own shape: air fills exactly the roof above the waterline (with a lighter rim), the rippling water surface appears only where there is water under it, and droplets hang from the real roof.
+- **Black water** was a stack of vertical darkness strips with a flat-topped box at the west end, which caused the box and the stripes on the pillars. It is now one soft silt haze, built once from four smooth layers that fade towards the chamber's edges. Each lit bracket thins the whole haze by 16%; the brackets' own glow and the shrunken lamp do the rest. The 4 m limit past the last lit bracket is unchanged.
+- The marching-squares tracing is now one shared helper (`traceField` in `src/world/scenery.ts`).
+
 ## Next
 
 **Next session: milestone 8 part 2, the Corvina** (prompt in `docs/prompts/milestone-8-part-2.md`). Ask Colin before building:

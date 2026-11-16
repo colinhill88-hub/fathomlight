@@ -27,7 +27,6 @@ import {
   BRACKETS,
   caveFloor,
   caveField,
-  ellBottom,
   ellTop,
   KC,
   KC_BOUNDS,
@@ -208,6 +207,48 @@ function paintRock(g: Graphics, outline: [number, number][], topOf: (x: number) 
       const c = rand() < 0.5 ? PAL.algae : PAL.algaeLight;
       g.circle(x + R(-3, 3), top + R(1, 6), R(2, 4.5)).fill({ color: c, alpha: R(0.5, 0.85) });
     }
+  }
+}
+
+/**
+ * Fill the region where fn(x, y) < 0, traced with marching squares on a grid of
+ * step S (after milestone 7 part 2): smooth, interpolated edges, with whole rows
+ * of inside cells merged into single rectangles.
+ */
+function traceField(g: Graphics, fn: (x: number, y: number) => number, X0: number, X1: number, Y0: number, Y1: number, S: number, color: number, alpha: number): void {
+  const nx = Math.ceil((X1 - X0) / S) + 1;
+  const ny = Math.ceil((Y1 - Y0) / S) + 1;
+  const F = new Float32Array(nx * ny);
+  for (let j = 0; j < ny; j++) for (let i = 0; i < nx; i++) F[j * nx + i] = fn(X0 + i * S, Y0 + j * S);
+  for (let j = 0; j < ny - 1; j++) {
+    let run = -1;
+    const flush = (iEnd: number) => {
+      if (run >= 0) g.rect(X0 + run * S, Y0 + j * S, (iEnd - run) * S, S).fill({ color, alpha });
+      run = -1;
+    };
+    for (let i = 0; i < nx - 1; i++) {
+      const v = [F[j * nx + i], F[j * nx + i + 1], F[(j + 1) * nx + i + 1], F[(j + 1) * nx + i]];
+      const inside = v.map((q) => q < 0);
+      if (inside.every(Boolean)) {
+        if (run < 0) run = i;
+        continue;
+      }
+      flush(i);
+      if (!inside.some(Boolean)) continue;
+      const cx = [X0 + i * S, X0 + (i + 1) * S, X0 + (i + 1) * S, X0 + i * S];
+      const cy = [Y0 + j * S, Y0 + j * S, Y0 + (j + 1) * S, Y0 + (j + 1) * S];
+      const pts: number[] = [];
+      for (let k = 0; k < 4; k++) {
+        const k2 = (k + 1) % 4;
+        if (inside[k]) pts.push(cx[k], cy[k]);
+        if (inside[k] !== inside[k2]) {
+          const t = v[k] / (v[k] - v[k2]);
+          pts.push(cx[k] + (cx[k2] - cx[k]) * t, cy[k] + (cy[k2] - cy[k]) * t);
+        }
+      }
+      if (pts.length >= 6) g.poly(pts).fill({ color, alpha });
+    }
+    flush(nx - 1);
   }
 }
 
@@ -1020,45 +1061,8 @@ export class Scenery {
       // One smooth shape (after milestone 7 part 2): the caves' field, cut off at the
       // seabed so the mouth meets the wall face exactly, traced with marching squares.
       const field = (x: number, y: number) => Math.max(caveField(x, y), gy(x) + 1 - y);
-      const S = 8;
-      const X0 = KC_BOUNDS.x0;
-      const Y0 = 740;
-      const nx = Math.ceil((KC_BOUNDS.x1 - X0) / S) + 1;
-      const ny = Math.ceil((1980 - Y0) / S) + 1;
-      const F = new Float32Array(nx * ny);
-      for (let j = 0; j < ny; j++) for (let i = 0; i < nx; i++) F[j * nx + i] = field(X0 + i * S, Y0 + j * S);
-      const trace = (level: number, color: number, alpha: number) => {
-        for (let j = 0; j < ny - 1; j++) {
-          let run = -1;
-          const flush = (iEnd: number) => {
-            if (run >= 0) g.rect(X0 + run * S, Y0 + j * S, (iEnd - run) * S + 0.5, S + 0.5).fill({ color, alpha });
-            run = -1;
-          };
-          for (let i = 0; i < nx - 1; i++) {
-            const v = [F[j * nx + i] - level, F[j * nx + i + 1] - level, F[(j + 1) * nx + i + 1] - level, F[(j + 1) * nx + i] - level];
-            const inside = v.map((q) => q < 0);
-            if (inside.every(Boolean)) {
-              if (run < 0) run = i;
-              continue;
-            }
-            flush(i);
-            if (!inside.some(Boolean)) continue;
-            const cx = [X0 + i * S, X0 + (i + 1) * S, X0 + (i + 1) * S, X0 + i * S];
-            const cy = [Y0 + j * S, Y0 + j * S, Y0 + (j + 1) * S, Y0 + (j + 1) * S];
-            const pts: number[] = [];
-            for (let k = 0; k < 4; k++) {
-              const k2 = (k + 1) % 4;
-              if (inside[k]) pts.push(cx[k], cy[k]);
-              if (inside[k] !== inside[k2]) {
-                const t = v[k] / (v[k] - v[k2]);
-                pts.push(cx[k] + (cx[k2] - cx[k]) * t, cy[k] + (cy[k2] - cy[k]) * t);
-              }
-            }
-            if (pts.length >= 6) g.poly(pts).fill({ color, alpha });
-          }
-          flush(nx - 1);
-        }
-      };
+      const trace = (level: number, color: number, alpha: number) =>
+        traceField(g, (x, y) => field(x, y) - level, KC_BOUNDS.x0, KC_BOUNDS.x1, 740, 1980, 8, color, alpha);
       // A soft dark rim just inside the rock, then the cave's back wall.
       trace(12, 0x2c3a3f, 0.6);
       trace(0, 0x151e21, 1);
@@ -1095,20 +1099,32 @@ export class Scenery {
         }
         paintRock(g, pts, (x) => (Math.abs(x - p.x) < p.rx ? ellTop(p, x) : NaN), 0.6);
       }
-      // Air pockets: trapped air in the roof, with a bright water line.
+      // Air pockets: trapped air filling the roof down to a waterline. Traced from the
+      // caves' own shape, so the air follows the real roof (after milestone 8 part 1).
       for (const ap of AIR_POCKETS) {
         const e = ap.shape as { x: number; y: number; rx: number; ry: number };
-        const half = e.rx * Math.sqrt(Math.max(0, 1 - ((ap.waterY - e.y) / e.ry) ** 2));
-        const pts: number[] = [];
-        for (let x = e.x - half; x <= e.x + half; x += 6) pts.push(x, ellTop(e, x) + 1);
-        pts.push(e.x + half, ap.waterY, e.x - half, ap.waterY);
-        g.poly(pts).fill({ color: 0x3e5a5e, alpha: 0.85 });
-        for (let x = e.x - half + 6; x < e.x + half - 6; x += 10) g.moveTo(x, ap.waterY + Math.sin(x * 0.3) * 1.2).lineTo(x + 7, ap.waterY + Math.sin(x * 0.3 + 2) * 1.2);
-        g.stroke({ color: 0xc8e0d8, width: 2, alpha: 0.7 });
-        // Droplets on the roof.
-        for (let k = 0; k < 14; k++) {
-          const x = R(e.x - half * 0.9, e.x + half * 0.9);
-          g.circle(x, ellTop(e, x) + R(3, 8), R(1, 2)).fill({ color: 0xd8f0e8, alpha: 0.5 });
+        const x0 = e.x - e.rx - 80;
+        const x1 = e.x + e.rx + 80;
+        const airField = (x: number, y: number) => Math.max(field(x, y), y - ap.waterY);
+        traceField(g, airField, x0, x1, ap.waterY - 260, ap.waterY + 8, 6, 0x34494d, 0.9);
+        traceField(g, (x, y) => Math.max(field(x, y) + 10, y - ap.waterY + 8), x0, x1, ap.waterY - 260, ap.waterY + 8, 6, 0x45625f, 0.5);
+        // The water surface, rippling, only where there is water under the air.
+        let open = false;
+        for (let x = x0; x < x1; x += 5) {
+          const ok = field(x, ap.waterY + 3) < -2 && field(x, ap.waterY - 3) < -2;
+          const y = ap.waterY + Math.sin(x * 0.21) * 1.3;
+          if (ok && !open) g.moveTo(x, y);
+          else if (ok) g.lineTo(x, y);
+          open = ok;
+        }
+        g.stroke({ color: 0xc8e0d8, width: 2, alpha: 0.65 });
+        // Droplets clinging to the roof.
+        for (let k = 0; k < 18; k++) {
+          const x = R(x0, x1);
+          if (field(x, ap.waterY - 4) > -4) continue;
+          let y = ap.waterY - 4;
+          while (y > ap.waterY - 260 && field(x, y) < 0) y -= 3;
+          g.circle(x, y + R(4, 8), R(1, 2)).fill({ color: 0xd8f0e8, alpha: 0.5 });
         }
         this.scanPoints.airpocket.push({ x: e.x, y: ap.waterY - 8 });
       }
@@ -1268,6 +1284,7 @@ export class Scenery {
     this.slices.push({ obj: this.kcSurge, x0: KC.squeeze.x1 - 300, x1: KC.squeeze.x2 + 300 });
     decorLayer.addChild(this.kcDark);
     this.slices.push({ obj: this.kcDark, x0: 17300, x1: 18900 });
+    this.buildBlackWater();
     this.setKelpCaves([false, false, false, false], false);
   }
 
@@ -1283,32 +1300,19 @@ export class Scenery {
       b.core.visible = b.halo.visible = b.lit;
       b.light.intensity = b.lit ? 1.1 : 0;
     });
-    // Black water: darkness strips over the chamber, thinned around lit brackets.
+    // Black water: one smooth haze of silt (built once); lit brackets thin it.
+    this.kcDark.alpha = 1 - 0.16 * lit.filter(Boolean).length;
+  }
+
+  /** The black chamber's silt haze: soft layers that fade towards its edges (no strips or boxes). */
+  private buildBlackWater(): void {
     const d = this.kcDark.clear();
     const e = KC.dark;
-    const litX = BRACKETS.filter((_, i) => lit[i]).map((b) => b.x);
-    for (let x = 17330; x < 18860; x += 6) {
-      let top: number;
-      let bot: number;
-      if (x < e.x - e.rx + 30) {
-        top = 1360;
-        bot = 1700;
-      } else if (x > e.x + e.rx - 60) {
-        top = 1560;
-        bot = 1790;
-      } else {
-        top = ellTop(e, x) - 30;
-        bot = ellBottom(e, x) + 30;
-      }
-      const edge = smooth((x - 17380) / 200) * (1 - smooth((x - 18620) / 220));
-      let light = 0;
-      for (const lx of litX) light = Math.max(light, 1 - smooth(Math.abs(x - lx) / 300));
-      const a = 0.94 * edge * (1 - 0.9 * light);
-      if (a > 0.01) {
-        d.rect(x, top + 24, 6.5, bot - top - 48).fill({ color: 0x000000, alpha: a });
-        d.rect(x, top, 6.5, 24).fill({ color: 0x000000, alpha: a * 0.5 });
-        d.rect(x, bot - 24, 6.5, 24).fill({ color: 0x000000, alpha: a * 0.5 });
-      }
+    for (let k = 0; k < 4; k++) {
+      const rx = e.rx + 90 - k * 70;
+      const ry = e.ry + 70 - k * 22;
+      const fn = (x: number, y: number) => Math.max(caveField(x, y, false), (Math.hypot((x - e.x - 40) / rx, (y - e.y) / ry) - 1) * ry);
+      traceField(d, fn, e.x - rx - 60, e.x + rx + 100, e.y - ry - 40, e.y + ry + 40, 8, 0x000000, 0.24);
     }
   }
 
