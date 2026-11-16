@@ -1,6 +1,6 @@
 # Fathomlight progress
 
-Last updated: 2026-11-16, **milestone 7 part 1 deployed (Lab, Workshop, the dive light, the kelp forest, tinker crab and lantern shrimp)**. Next is **milestone 7 part 2, the kelp caves** (see Next).
+Last updated: 2026-11-16, **milestone 7b deployed (audio, all made by code)**. Next is **milestone 7 part 2, the kelp caves** (see Next).
 
 Play link: https://colinhill88-hub.github.io/fathomlight/ (live; first successful deploy 2026-11-14)
 
@@ -704,16 +704,47 @@ Cut from High so far: the phone renders at 2× instead of its native 3×. Colin 
   - No console errors. As before, the software test browser can't show the real frame rate.
 - Deployed: GitHub Actions run 43874694191 built and deployed to Pages successfully from `claude/optimistic-archimedes-n3w5pz`. Merge it into the default branch `claude/underwater-game-m0-0qqajg` before the next session.
 
+### Milestone 7b: audio, all made by code
+- **Feedback on the last build:** milestone 7 part 1 is all fine ("I like everything so far. this looks awesome on my pc. let's continue"). Nothing to fix.
+- **Colin's choices before building:** warm synth-ambient music; sparse, coming and going; grounded, physical effects; subtle breathing that gets faster and louder as air runs low.
+- **No sound files.** Everything is synthesised with the Web Audio API in `src/audio/`:
+  - `engine.ts`: the audio context, four buses (music, ambience, effects, and "ui" for unmuffled clicks and notices), a shared reverb made from generated noise, an echo on the music, a limiter, the underwater muffle, and voice helpers (tone, hiss, FM bell, struck metal, thump, bubbles).
+  - `ambience.ts`: the ambient bed per zone.
+  - `music.ts`: the generative soundtrack.
+  - `director.ts`: reads a snapshot of the game every frame (built at the end of the frame loop in `src/main.ts`, search "Sound (milestone 7b)") and plays the loops and cues.
+  - `src/ui/sound.ts`: the Sound settings.
+- **Settings → Sound** (at the top of the panel): Master, Music, Ambience and Effects sliders, Mute (also the M key), and on iPhone/iPad a "silent switch" choice. These are saved on the device (`fathomlight.audio` in local storage, beside the graphics preset).
+  - **Starting sound:** the first tap or key press starts it, as iOS requires. If iOS pauses it (after a call, for example), the next tap resumes it. It goes silent while the app is hidden.
+  - **The silent switch:** by default the game follows the switch (`navigator.audioSession.type = 'ambient'`, which also lets Spotify or podcasts keep playing). The button switches to "Plays with the silent switch on" (`'playback'`), which stops other apps' audio.
+- **Underwater muffle:** effects and ambience pass through a low-pass filter that closes with depth (about 4.2 kHz just under the surface, about 1.9 kHz at 25 m), and more in the cave and forest. With the head above water it opens fully, so splashes and waves are bright. Music is never muffled.
+- **Ambience per zone,** crossfading over about 2 s as you swim (`zoneMix` in `director.ts`):
+  - **Shallows:** bright fizz, snapping-shrimp crackle, bubbles drifting past, and waves overhead near the surface.
+  - **Kestrel basin:** a darker water wash, a low hum, and rare distant groans.
+  - **Kelp forest:** a muffled, enclosed wash, a lower hum, kelp stalks creaking and soft knocks.
+  - **Cave (and the grotto, and near the kelp caves mouth):** a hollow resonant breath, drips ringing in a long echo.
+  - Everything gets darker with depth.
+- **Generative soundtrack:** warm detuned-saw pads (with a slow breathing filter), a soft FM electric-piano melody wandering in short phrases, and glassy chimes, in a big reverb.
+  - A passage plays for 70 to 150 s, then rests for 40 to 100 s with only ambience. Entering a new zone during a long rest starts a passage sooner.
+  - Each zone has its own key and mood: shallows D lydian (calm, bright), basin A dorian (lower, spacious), forest E minor with a flat second (darker and slower, with occasional uneasy notes), cave a near-drone with rare notes.
+  - It ducks to 40% while any panel is open (build, tend, dock, Lab/Workshop, settings, log) and dims as air runs low.
+- **Cues:**
+  - **Diving:** breathing (demand-valve hiss in, bubbles out; faster and louder below a quarter tank), swimming water rush, a boost whoosh, splashes breaking the surface and diving back in, breath at the surface, the lamp switch, and a low-air double beep from the watch that speeds up as air drops.
+  - **Scanning:** a rising sweep while held, a two-note chime when done, and a soft sonar ping for a Scan tap.
+  - **Collect work,** per material: cut (kelp), pry and clank (scrap), dig thuds (copper), crystal taps (quartz), scrape (resin), soft tear (moss); bubbles while coaxing a creature; weld crackle repairing the drone; ratchet clicks winding the boom winch; latches on the sled recorder. Plus a pickup clink (pitched per material) and bigger chimes for air tank upgrades, echo whorls and the recovered bag.
+  - **Base:** the drone's welding crackle wherever it works (by distance and side), each plate press stroke (thump, clank and steam hiss), and a machinery hum near running auto feeders.
+  - **Sub:** motor hum and propeller wash rising with speed, a thruster rush and whine, a metal clang and thud for dents, a two-tone alarm with rushing water for a breach, clamps docking and undocking, and the hatch when boarding or leaving.
+  - **Interface:** a soft click for buttons, a short tone when a panel opens or closes, a small chime for big notices and a falling two-note tone for warnings.
+  - **Blackout:** sound fades down, a slow heartbeat plays, and a soft tone sounds on waking.
+- **Tested** (type check and production build pass; headless Chromium, emulated iPhone 15 Pro landscape, scripted):
+  - No audio context exists before the first tap; after the tap it is "running".
+  - Output was measured at the surface, in the shallows, the basin, the cave, the forest, and the forest with low air: all have sound, louder with low air. Mute gives exact silence, and the settings save.
+  - The music was playing in the forest key after the teleports.
+  - Every voice type rendered offline with no NaN or silence, and every cue in `director.ts` ran without errors.
+  - No console errors. The test browser can't play sound to a speaker, so the mix itself still needs Colin's ears.
+
 ## Next
 
-**Next session: audio (milestone 7b), before part 2** (Colin, after testing part 1 on his PC). All sound made by code with the Web Audio API, no sound files. The prompt is in `docs/prompts/audio.md`. Plan:
-- One module (for example `src/audio/`) with a master, music and effects volume, saved settings, and unlocking on the first tap (iPhone needs a user gesture). It pauses when the app is hidden.
-- **Cues:** scan sweep and completion chime, the Collect work sounds per material (chip, pry, dig, cut, scrape, peel), pickups, the drone's weld crackle, the plate press stroke, feeder hum, bubbles and breathing, surface splash, sub thrusters, dents and the breach alarm, docking clamps, low-air warning, blackout, and soft UI clicks for panels and the build bar.
-- **Ambience per zone,** fading by depth and place: bright and airy in the shallows, deeper in the basin, muffled and creaking in the kelp forest, a hollow drip in the cave.
-- **A generative soundtrack:** slow, warm pads and a sparse melody per zone, which change as you move between zones and duck while panels are open. Keep it calm in the shallows and a little uneasy in the forest.
-- Ask Colin about the overall style before building (for example warm and synth-ambient versus more natural and organic).
-
-After that, **milestone 7 part 2**; its prompt is in `docs/prompts/milestone-7-part-2.md`.
+**Next session: milestone 7 part 2**; its prompt is in `docs/prompts/milestone-7-part-2.md`. Audio (milestone 7b) is done: new sounds for part 2 (the caves puzzles, the cutter torch, the new pieces) should use the helpers in `src/audio/engine.ts` and be triggered from `src/audio/director.ts`.
 
 **Milestone 7, part 2: the kelp caves** (Colin's decisions above):
 - **The major site**, through the mouth in the forest's east wall (`SITE_MOUTH` in `src/world/terrain.ts`; the banner in `src/main.ts` says it opens next). It is diver-only and works like a Zelda dungeon: a few navigation puzzles (ideas: currents through narrow squeezes, a flooded chamber lit only by lumen moss you carry, an old Kestrel hatch to wind open, a grown lantern shrimp or glowfin lighting a passage), and the **cutter torch blueprint** at the end (DESIGN.md gives the kelp forest both the cutter torch and the tow line; check with Colin whether the tow line comes from here too).
@@ -731,7 +762,14 @@ Where things are (milestone 7 part 1): gear, research and Workshop rules in `src
 - **Milestone 7 part 1 numbers to tune after Colin plays:** Lab and Workshop costs and weld times (`PIECES`); research 75 s and build 45 s, dive light cost and its reach and brightness (`src/game/gear.ts`); the shrimp's +25% cleaning bonus and 35% slower fouling (`CLEAN_BONUS`, `SHRIMP_CLEAN_WATER`); resin and moss weights and spot counts; how dim the forest is (the canopy factor in `bakeSkyVisibility`).
 - **The east cliff changed shape.** Its top used to be right at the surface; it is now a 2.8 m deep shelf (so the sub has a way over). The cave mouth is where it was.
 - **Power as a mechanic later** (Colin): see DESIGN.md, The base. Not planned into a milestone yet.
-- **Audio moved forward** (Colin, after milestone 7 part 1): it is now milestone 7b, before part 2, and made entirely by code (DESIGN.md, Milestones).
+- **Milestone 7b sound to tune after Colin listens** (all single numbers):
+  - bus levels and make-up gains in `applyVolumes` (`src/audio/engine.ts`);
+  - the muffle cutoffs and reverb amounts in `SoundDirector.update` (`setScene`);
+  - breathing level and pace (the "Breathing" block in `director.ts`);
+  - how often the music plays and rests (`Music.update`: 70–150 s on, 40–100 s off) and each zone's key, chords and brightness (`PROFILES` in `src/audio/music.ts`);
+  - ambience layer levels in `Ambience.update`.
+- **Audio CPU on the iPhone:** about 25 continuous oscillators and noise sources, plus short voices. If the frame rate drops with sound on, the first thing to try is one saw per pad note instead of two (`Music.nextChord`).
+- **Not yet given sounds:** turbines, conveyors and feed pipes; creatures (glowfins and others are silent); tank bubbling. Candidates for milestone 12's final mix, along with the Choir's own sound in the sanctum.
 
 - **Milestone 6 numbers to tune after Colin plays** (`src/game/sub.ts`, `src/actors/sub.ts`):
   - sub cost (12 plating + 4 quartz, 3 copper, 2 fibre), weld 60 s, dock cost and weld time in `PIECES`;

@@ -70,6 +70,9 @@ import { Factory, FEEDER_MASH_CAP, HOPPER_CAP, machineData, PRESS_COPPER_CAP, PR
 import { LinesView } from './world/linegfx';
 import { StationMode } from './ui/station';
 import { DIVE_LIGHT, GEAR, hasGear, jobOf, LAMP, RESEARCH, tickStations } from './game/gear';
+import { audio } from './audio/engine';
+import { SoundDirector, WorkKind } from './audio/director';
+import { initSoundUI } from './ui/sound';
 
 declare const __BUILD_ID__: string;
 
@@ -302,6 +305,20 @@ async function boot(): Promise<void> {
 
   const input = new Input(host);
   const hud = new Hud(() => save);
+  // Milestone 7b: sound, all made by code. The first tap or key press starts it.
+  audio.attachUnlock();
+  const sound = new SoundDirector();
+  {
+    const toast = hud.toast.bind(hud);
+    hud.toast = (text, kind = 'item') => {
+      toast(text, kind);
+      sound.toast(kind);
+    };
+  }
+  const soundUI = initSoundUI();
+  document.getElementById('settings-btn')!.addEventListener('click', () => soundUI.refresh());
+  const settingsPanel = document.getElementById('settings-panel')!;
+  const logPanel = document.getElementById('log-panel')!;
 
   // Camera state, shared with build mode (which turns screen taps into world positions).
   let camX = 0;
@@ -648,6 +665,7 @@ async function boot(): Promise<void> {
   function breach(): void {
     const S = save.sub;
     if (!S) return;
+    sound.breach();
     leaveSub(true);
     S.hull = 0;
     const home = subDock(save, layout) ?? docks(layout)[0] ?? null;
@@ -974,6 +992,7 @@ async function boot(): Promise<void> {
       if (aboard && S.stage === 'built' && !S.docked && impact > DENT_SPEED) {
         const dmg = (impact - DENT_SPEED) * DENT_PER_SPEED;
         S.hull = Math.max(0, S.hull - dmg);
+        sound.dent(dmg);
         shake = Math.min(1, shake + 0.2 + dmg * 4);
         const hx = sub.x + Math.sign(sub.vx || sub.face) * 90;
         subBubbles.puff(hx, sub.y + 10, 0, -40, 6 + Math.round(dmg * 30));
@@ -1246,14 +1265,17 @@ async function boot(): Promise<void> {
     for (const ev of pickups.update(dt, time, reachPt.x, reachPt.y, save, collectHeld && !atDrone && !bagFull && !wildTarget, speed)) {
       if (ev.type === 'material') {
         save.bag[ev.kind]++;
+        sound.pickup(ev.kind);
         drone.cheer();
         hud.refreshInventory(ev.kind);
         hud.toast(`+1 ${MATERIALS[ev.kind].name}`);
       } else if (ev.type === 'tank') {
         save.oxygen = maxOxygen(save);
+        sound.find('tank');
         hud.toast(`Air tank upgrade! Dive time +${TANK_BONUS} s`, 'big');
         drone.cheer();
       } else if (ev.type === 'whorl') {
+        sound.find('whorl');
         drone.cheer();
         hud.toast(
           `Echo whorl found (${save.whorls.length})! In build mode, select a creature tank or an auto feeder and fit it: ×2 output with one, ×3 with two, but it uses its inputs that much faster too.`,
@@ -1270,6 +1292,7 @@ async function boot(): Promise<void> {
           n += v;
         }
         hud.refreshInventory();
+        sound.find('bag');
         hud.toast(`Sample bag recovered (${n} item${n === 1 ? '' : 's'})`, 'big');
       }
       persist();
@@ -1547,6 +1570,7 @@ async function boot(): Promise<void> {
     if (inControl && s.scanTap && save.scans.length) {
       idTimer = 6;
       scanner.pulseIdentify(diver.x, diver.y);
+      sound.ping();
     }
     idTimer = Math.max(0, idTimer - dt);
 
@@ -1741,6 +1765,56 @@ async function boot(): Promise<void> {
       hud.setBagMarker((p.x - camX) * zoom, (p.y - camY) * zoom, Math.hypot(p.x - diver.x, p.y - diver.y) / WU_PER_METRE);
     } else hud.setBagMarker(null, 0, 0);
 
+    // ---- Sound (milestone 7b) ----
+    {
+      let work: WorkKind | null = null;
+      if (holdAct && collectHeld && speed < 70) work = holdAct.key === 'winch' ? 'winch' : 'recorder';
+      else if (repairing) work = 'repair';
+      else if (wildlife.working && wildTarget) work = 'creature';
+      else if (pickups.working && pt) work = pt.kind;
+      const workX = workAt?.x ?? diver.x;
+      let dark = 0;
+      if (blackout > 0) dark = blackout < BLACK_IN ? blackout / BLACK_IN : blackout < BLACK_IN + BLACK_HOLD ? 1 : Math.max(0, 1 - (blackout - BLACK_IN - BLACK_HOLD) / BLACK_OUT);
+      const presses: { id: number; x: number; y: number; stroke: number }[] = [];
+      const feeders: { x: number; y: number }[] = [];
+      for (const p of layout.pieces) {
+        if (p.kind === 'press' && isDone(p)) {
+          const r = pieceRect(p);
+          presses.push({ id: p.id, x: r.x + r.w / 2, y: r.y + r.h / 2, stroke: factory.stroke.get(p.id) ?? 99 });
+        } else if (p.kind === 'feeder' && factory.feederState.get(p.id) === 'running') {
+          const r = pieceRect(p);
+          feeders.push({ x: r.x + r.w / 2, y: r.y + r.h / 2 });
+        }
+      }
+      const freeAir = atSurface || domeAir || subAir;
+      const frac = save.oxygen / maxO2;
+      sound.update({
+        dt,
+        x: aboard ? sub.x : diver.x,
+        y: aboard ? sub.y : diver.y,
+        depthM: atSurface ? 0 : depthM,
+        surfaced: !aboard && diver.surfaced,
+        aboard,
+        inDome: domeAir,
+        blackout: dark,
+        panel: build.active ? 'build' : care.active ? 'care' : dockUI.active ? 'dock' : station.active ? 'station' : !settingsPanel.hidden ? 'settings' : !logPanel.hidden ? 'log' : '',
+        speed,
+        boosting: !aboard && diver.boosting,
+        lampOn: diver.lampOn,
+        lowAir: freeAir || blackout > 0 ? 0 : Math.max(0, (0.25 - frac) / 0.25),
+        freeAir,
+        work,
+        workX,
+        scanning: inControl && s.scan && scanner.target && scanner.progress > 0 ? scanner.progress : null,
+        drone: { x: drone.x, y: drone.y, welding: !!(drone.welding || drone.weldingSub) },
+        presses,
+        feeders,
+        sub: S ? { x: sub.x, y: sub.y, speed: Math.hypot(sub.vx, sub.vy), thrust: sub.thrust > 0, docked: S.docked, built: S.stage === 'built' } : null,
+        splash: aboard ? 0 : diver.splash,
+        exhale: !aboard && diver.exhale,
+      });
+    }
+
     saveTimer += dt;
     if (saveTimer > 5) persist();
     ui.tick(ticker.deltaMS);
@@ -1822,6 +1896,8 @@ async function boot(): Promise<void> {
     sub,
     dockUI,
     station,
+    audio,
+    sound,
     tickStations: (sec: number) => {
       for (let t = 0; t < sec; t += 0.5) tickStations(save, layout, 0.5);
     },
