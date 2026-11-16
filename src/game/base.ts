@@ -65,7 +65,7 @@ export function onSeabed(gx: number, gy: number): boolean {
 /** How many cells of the site are open water. */
 export const OPEN_CELLS = OPEN.filter(Boolean).length;
 
-export type PieceKind = 'dome' | 'corridor' | 'turbine' | 'storage' | 'tank' | 'filter' | 'feeder' | 'press' | 'dock' | 'lab' | 'workshop' | 'gtank' | 'sorter';
+export type PieceKind = 'dome' | 'corridor' | 'turbine' | 'storage' | 'tank' | 'filter' | 'feeder' | 'press' | 'dock' | 'lab' | 'workshop' | 'gtank' | 'sorter' | 'recomp' | 'crane';
 /** Creature tanks of either size (milestone 7 part 2 added the Grand tank). */
 export function isTankKind(k: PieceKind): boolean {
   return k === 'tank' || k === 'gtank';
@@ -272,8 +272,27 @@ export const PIECES: Record<PieceKind, PieceDef> = {
       },
     ],
   },
+  // Milestone 8 part 2: the wreck shelf pieces (Colin: recompression room and salvage crane).
+  recomp: {
+    kind: 'recomp',
+    name: 'Recompression room',
+    job: 'A brass pressure chamber. Swim inside: it mends a cracked suit fast and refills your air. Later, with the pressure suit, it prepares you for the deep.',
+    cost: { brass: 5, plate: 3, quartz: 2 },
+    buildTime: 40,
+    blueprint: 'recomp',
+    shapes: [{ w: 2, h: 1, collars: [{ cx: 0, cy: 0, dir: 'L' }, { cx: 1, cy: 0, dir: 'R' }] }],
+  },
+  crane: {
+    kind: 'crane',
+    name: 'Salvage crane',
+    job: 'Lift heavy salvage off the wreck shelf with the sub\'s grabber arm and lower it here: the crane breaks each piece into 4 scrap, 2 brass and 1 hull plating, into storage.',
+    cost: { brass: 4, plate: 4, scrap: 4 },
+    buildTime: 45,
+    blueprint: 'crane',
+    shapes: [{ w: 2, h: 2, collars: [{ cx: 0, cy: 0, dir: 'L' }, { cx: 1, cy: 0, dir: 'R' }] }],
+  },
 };
-export const PIECE_ORDER: PieceKind[] = ['dome', 'corridor', 'turbine', 'storage', 'tank', 'filter', 'feeder', 'press', 'dock', 'lab', 'workshop', 'gtank', 'sorter'];
+export const PIECE_ORDER: PieceKind[] = ['dome', 'corridor', 'turbine', 'storage', 'tank', 'filter', 'feeder', 'press', 'dock', 'lab', 'workshop', 'gtank', 'sorter', 'recomp', 'crane'];
 /** Each sorting pod's bay for every material. */
 export const SORT_BAY = 12;
 
@@ -507,6 +526,8 @@ const CODE_PREFIX: Record<PieceKind, string> = {
   workshop: 'WS-',
   gtank: 'GT-',
   sorter: 'SP-',
+  recomp: 'RC-',
+  crane: 'SC-',
 };
 
 /** A piece's stencil code, as painted on it: CT-1, AF-2, PP-1, TANK 3. Pieces are numbered per kind in build order. */

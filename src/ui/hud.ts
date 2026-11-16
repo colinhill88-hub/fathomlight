@@ -161,6 +161,8 @@ export class Hud {
       ['workshop', 'Workshop'],
       ['gtank', 'Grand tank'],
       ['sorter', 'Sorting pod'],
+      ['recomp', 'Recompression room'],
+      ['crane', 'Salvage crane'],
     ];
     const base = save.pieces.length
       ? [
@@ -243,7 +245,9 @@ export class Hud {
       .join('');
     const lit = save.brackets.filter(Boolean).length;
     const shelf = save.scans.includes('wshelf')
-      ? `<p class="note">The wreck shelf: suit integrity ${Math.round(save.suit * 100)}% · sealed hatches opened ${save.hatches.length} / 2${save.gear.includes('tow') ? '' : ' · the race needs a grapple line'}${save.vane ? ' · flow vane raised' : ''}</p>`
+      ? `<p class="note">The wreck shelf: suit integrity ${Math.round(save.suit * 100)}% · sealed hatches opened ${save.hatches.length} / 2${save.gear.includes('tow') ? '' : ' · the race needs a grapple line'}${save.vane ? ' · flow vane raised' : ''}</p><p class="note">The Corvina: ${
+          !save.corvina.hatch ? 'deck hatch sealed (grapple her stern bollard, cut the hatch)' : save.corvina.breakers.every(Boolean) ? 'power restored' : `breakers thrown ${save.corvina.breakers.filter(Boolean).length} / 2`
+        }${save.scans.includes('cvlog') ? " · log read" : ''}${save.hiddenOpen ? ' · hidden passage found' : ''}</p>`
       : '';
     return `${shelf}<p class="note">The kelp caves:</p><ul class="note">${rows}${pieces}<li>Black water brackets lit: ${lit} / 4</li><li>Kelp wall: ${save.kelpCut ? 'cut open' : 'uncut (needs the cutter torch)'}</li>${
       save.relays.length || save.relayKits ? `<li>Air relays planted: ${save.relays.length}${save.relayKits ? `, ${save.relayKits} kit${save.relayKits > 1 ? 's' : ''} to plant` : ''}</li>` : ''

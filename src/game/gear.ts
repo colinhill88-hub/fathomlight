@@ -85,10 +85,43 @@ export const RESEARCH: Record<BlueprintId, ResearchDef> = {
     scans: [],
     seconds: 120,
   },
+  // Milestone 8 part 2: the wreck shelf.
+  recomp: {
+    id: 'recomp',
+    name: 'Recompression room RC-1 blueprint',
+    text: 'From your scans of the wreck shelf and the wreck lurker: a brass pressure chamber that mends a cracked suit fast. Unlocks a build card.',
+    finds: [],
+    scans: ['wshelf', 'lurker'],
+    seconds: 90,
+  },
+  crane: {
+    id: 'crane',
+    name: 'Salvage crane SC-1 blueprint',
+    text: 'From your scans of the sealed wrecks and the Corvina: a crane that breaks heavy salvage the sub brings home into scrap, brass and plating. Unlocks a build card.',
+    finds: [],
+    scans: ['wreck', 'corvina'],
+    seconds: 80,
+  },
+  sonar: {
+    id: 'sonar',
+    name: 'Sonar pulse blueprint',
+    text: "Reads the Corvina's sonar test logs: a pulse that maps hollows behind rock and silt, and drives hunters back into their dens.",
+    finds: ['sonardata'],
+    scans: [],
+    seconds: 100,
+  },
+  psuit: {
+    id: 'psuit',
+    name: 'Pressure suit PS-1 blueprint',
+    text: "The Corvina's drawings for a deep-water suit, brass-ringed and pressure-sealed: safe far deeper than the Kestrel suit. For the trench.",
+    finds: ['suitplans'],
+    scans: [],
+    seconds: 140,
+  },
 };
-export const RESEARCH_ORDER: BlueprintId[] = ['light', 'gtank', 'sorter', 'relay', 'welder', 'tow', 'cutter'];
+export const RESEARCH_ORDER: BlueprintId[] = ['light', 'gtank', 'sorter', 'relay', 'welder', 'tow', 'cutter', 'recomp', 'crane', 'sonar', 'psuit'];
 /** Blueprints that unlock a base piece (build card) instead of Workshop gear. */
-export const PIECE_BLUEPRINTS: Partial<Record<BlueprintId, string>> = { gtank: 'gtank', sorter: 'sorter' };
+export const PIECE_BLUEPRINTS: Partial<Record<BlueprintId, string>> = { gtank: 'gtank', sorter: 'sorter', recomp: 'recomp', crane: 'crane' };
 
 export interface GearDef {
   id: GearId;
@@ -146,8 +179,26 @@ export const GEAR: Record<GearId, GearDef> = {
     cost: { plate: 3, resin: 4, moss: 3, copper: 2 },
     seconds: 45,
   },
+  sonar: {
+    id: 'sonar',
+    name: 'Sonar pulse',
+    code: 'SN-1',
+    job: 'Tap Scan to send a pulse (every 6 s): it reveals hollows hidden behind silt and rock, and sends lurkers nearby back into their dens for a while.',
+    blueprint: 'sonar',
+    cost: { brass: 3, copper: 2, quartz: 2, plate: 1 },
+    seconds: 55,
+  },
+  psuit: {
+    id: 'psuit',
+    name: 'Pressure suit',
+    code: 'PS-1',
+    job: 'A brass-ringed deep suit, safe far below the Kestrel suit. Nothing on the reef needs it yet: the trench will (milestone 10).',
+    blueprint: 'psuit',
+    cost: { brass: 6, plate: 4, resin: 2 },
+    seconds: 80,
+  },
 };
-export const GEAR_ORDER: GearId[] = ['light', 'cutter', 'tow', 'welder', 'relay'];
+export const GEAR_ORDER: GearId[] = ['light', 'cutter', 'tow', 'welder', 'relay', 'sonar', 'psuit'];
 /** Gear that is a kit you can build again and again (it isn't kept in save.gear). */
 export const KIT_GEAR: GearId[] = ['relay'];
 
@@ -157,6 +208,8 @@ export const FINDS: Record<FindId, { name: string; text: string }> = {
   weldchip: { name: 'KD WELD control chip', text: 'A drone welder controller from a broken crate in the caves.' },
   towcoil: { name: 'Rope store spool tag', text: 'The tag and waterproof notes from a grapple line spool in the caves\' old rope store.' },
   cache: { name: 'Survey cache cartridge', text: 'The data cartridge from the earlier expedition\'s cache, deep in the kelp caves.' },
+  sonardata: { name: 'Corvina sonar logs', text: "Test logs from the Corvina's lab: a pulse sonar her crew were building." },
+  suitplans: { name: 'Pressure suit drawings', text: "A waterproof roll of drawings from the Corvina's lab: a deep-water suit." },
 };
 
 /** The dive light (DL-1) against the shoulder lamp: reach, brightness and beam width. */

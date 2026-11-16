@@ -483,6 +483,15 @@ export class SoundDirector {
     audio.bell({ freq: 1320, gain: 0.04, decay: 1.4, ratio: 1, index: 0.25, send: 0.8 });
   }
 
+  /** Milestone 8 part 2: the sonar pulse: a deep, ringing ping that rolls away. */
+  sonar(): void {
+    if (!audio.running) return;
+    const t = audio.now;
+    audio.bell({ t, freq: 520, gain: 0.07, decay: 2.4, ratio: 1, index: 0.2, send: 0.9 });
+    audio.tone({ t, freq: 900, to: 260, dur: 0.5, gain: 0.05, send: 0.8 });
+    audio.bell({ t: t + 0.7, freq: 520, gain: 0.025, decay: 2, ratio: 1, index: 0.2, send: 0.9 });
+  }
+
   /** Milestone 8: a lurker warns (a dry clicking rattle from its den). */
   lurkWarn(dx: number): void {
     if (!audio.running) return;

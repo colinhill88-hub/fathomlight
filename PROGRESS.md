@@ -1,6 +1,6 @@
 # Fathomlight progress
 
-Last updated: 2026-11-16, **milestone 8 part 1 deployed (the wreck shelf, the race and tow line, wreck lurkers, suit integrity)**, plus smoother kelp caves. Next is **milestone 8 part 2, the Corvina** (see Next).
+Last updated: 2026-11-16, **milestone 8 part 2 deployed (the Corvina, the sonar pulse, the recompression room and salvage crane)**. Next is **milestone 9, breeding** (see Next).
 
 Play link: https://colinhill88-hub.github.io/fathomlight/ (live; first successful deploy 2026-11-14)
 
@@ -897,18 +897,76 @@ Cut from High so far: the phone renders at 2× instead of its native 3×. Colin 
   - **Sub:** on full thrusters before the vane, it was pushed from 20600 back to 19541 in 4 s; after the vane, it crossed from 20600 to 21712 near the top.
   - No console errors.
 
+### Milestone 8, part 2: the Corvina, the sonar pulse, and the shelf's base pieces
+- **Colin's choices before building:**
+  - **way in:** grapple up to her deck;
+  - **puzzles:** restore her power, and grapple across the hold;
+  - the **sonar pulse is usable now**, and the pressure suit is found now but only matters in the trench;
+  - **pieces:** the recompression room and the salvage crane.
+- **The Corvina** (`CORVINA`, `CV_*`, `corvinaSolid` in `src/world/terrain.ts`; drawing `Scenery.drawCorvina` / `setCorvina`; rules in `src/main.ts`, search "Milestone 8 part 2"):
+  - Her hull and superstructure are now **solid steel with rooms inside**, drawn as a cut-away: dark decks with ribs, grating and ceiling lamps.
+  - **The upwelling:** water boils up over her deck (520 units/s), so nobody can sink onto it.
+  - **Her stern bollard** is a grapple anchor. Hooked and holding it, you're out of the flow, beside the **deck hatch**. Cut the hatch with the cutter torch (3 s), and a shaft drops to the lower corridor.
+  - **The stern door** at the corridor's west end is sealed until you **release it from inside** (a lever): a shortcut in and out at seabed level.
+  - **The hold:** a downdraft through her holed keel (460 units/s) pins you to the floor, except right under the **three beam hooks**, which are grapple anchors. Grapple hook to hook to cross to the engine room door, high on the far wall.
+  - **Power:** two breakers, one on the hold floor (drop down to it, then grapple back up) and one in the engine room. With both thrown, her lamps come on and the **powered door to the lab** in her superstructure opens.
+  - **The lab:**
+    - the **sonar test logs** (→ sonar pulse);
+    - the **pressure suit drawings** (→ PS-1);
+    - **her log**, the first story fragment: her crew came to follow cyan and violet light patterns rising from the deep; it goes into the scanner log as an Artefact.
+- **The grapple** now hooks any anchor: the race's rings, the bollard and the hold's hooks (`ANCHORS`). It fires only on a **fresh tap** of Collect: a Collect still held after finishing another action no longer fires it by surprise.
+- **New research** (Lab):
+  - Recompression room RC-1: scans of the wreck shelf + wreck lurker, 90 s.
+  - Salvage crane SC-1: scans of a sealed hatch + the Corvina, 80 s.
+  - Sonar pulse: her sonar logs, 100 s.
+  - Pressure suit PS-1: her suit drawings, 140 s.
+- **New gear** (Workshop):
+  - **Sonar pulse SN-1** (3 brass, 2 copper, 2 quartz, 1 plating; 55 s). A tap of Scan also sends a pulse (every 6 s), with a deep ringing ping. Lurkers within 700 shrink back into their dens and rest for about 10 s.
+  - **Pressure suit PS-1** (6 brass, 4 plating, 2 resin; 80 s). It can be built now; the trench (milestone 10) will use it.
+- **The hidden passage:** a silt slump at the foot of the shelf edge (x about 19760, inside the race). A sonar pulse within 700 units finds the hollow behind it and the silt slides away. Inside is an **old salvage locker** with 3 brass and an Echo whorl.
+- **New base pieces:**
+
+| Piece | Size | Cost | Weld | Job |
+| --- | --- | --- | --- | --- |
+| Recompression room RC-1 | 2 × 1 | 5 brass, 3 plating, 2 quartz | 40 s | Swim inside (powered): the suit mends at 60%/s and air refills |
+| Salvage crane SC-1 | 2 × 2 | 4 brass, 4 plating, 4 scrap | 45 s | Breaks heavy salvage into 4 scrap, 2 brass, 1 plating (one a minute per crane), into storage |
+
+- **Heavy salvage:** a winch drum, a propeller hub and an engine block lie on the shelf (x 22720, 23660, 25300).
+  - With the sub's grabber, hold Collect: "Lift the salvage". It hangs from the claw.
+  - Near a powered salvage crane: "Lower the salvage onto the crane".
+  - The crane waits, holding the piece, until storage has room. Salvage comes back after 15 minutes.
+- **Tested** (scripted, game seconds; no console errors):
+  - **Outside:** the upwelling lifted a diver from y 1150 to 838 in 1 s. From beside her stern, the grapple pulled the diver onto the bollard, and the deck hatch cut open.
+  - **Inside:** the hold's downdraft pinned a diver from 1480 to the floor (1576). The floor breaker threw, and grapple shots crossed the hooks to the engine room. Both breakers gave power.
+  - **Lab:** her log, the sonar logs and the suit drawings could all be taken; the stern door lever opened the door.
+  - **Sonar:** a pulse at the shelf edge revealed the hidden passage, and the locker gave the whorl and brass.
+  - **Base:** with a turbine, salvage crane and recompression room joined and powered, the sub lifted salvage, lowered it on the crane, and the crane broke it down. In the recompression room the suit went from 30% to 100% in about a second.
+  - Screenshots of her outside, the lit hold and the lab.
+  - The test found and fixed: the grapple firing from a held Collect; a salvage piece too close to a brass spot; and the crane throwing away output when storage was full.
+
 ## Next
 
-**Next session: milestone 8 part 2, the Corvina** (prompt in `docs/prompts/milestone-8-part-2.md`). Ask Colin before building:
-- the Corvina as a dungeon: how you get in (the bulkhead is sealed from inside: another way in through the bow on the rock, a cargo hold, a vent?), and its puzzles (flooded decks, power to restore, doors to open in order, lurkers inside?);
-- what she was studying (the story: the Choir's light signals?), and which blueprints are inside (DESIGN.md: pressure suit and sonar pulse);
-- the wreck shelf's base pieces made from brass (ideas: a pressure lock / hyperbaric room that repairs the suit, a brass condenser that makes air relays cheaper, a salvage winch);
-- whether crush depth starts here (the shelf is about 22 m; the suit's safe depth would be set by the pressure suit tiers in milestone 10);
-- power as a real mechanic (Colin, milestone 7): still to be planned.
+**Next session: milestone 9, breeding** (DESIGN.md: Hatchery, Kelp farm, inherited traits, creatures that act as keys). Prompt in `docs/prompts/milestone-9.md`. Ask Colin before building:
+- how breeding works: two grown, happy creatures of a species in a Hatchery-joined tank lay eggs? How long, how many?
+- which traits pass on (colour, glow pattern, size, output) and how they show;
+- the Kelp farm: grows creature food (kelp fibre) and tank plants from what?
+- creatures as keys (DESIGN.md: a grown glowfin lights passages the dive light cannot): where in the world, and which species open what;
+- breeding the wreck shelf's species: should the lurker (or a new shelf creature) be collectable?
+- power as a real mechanic (Colin, milestone 7): still to be planned, maybe alongside the trench.
 
-Where things are (milestone 8 part 1): the shelf's shape, `RACE`, `RINGS`, `WRECKS`, `CORVINA`, `LURKER_DENS` in `src/world/terrain.ts`; its drawing in `Scenery.buildShelf` (`src/world/scenery.ts`); the lurkers in `src/actors/lurker.ts`; the race, hauling, suit, bites and hatches in `src/main.ts` (search "Milestone 8"); the suit arc in `src/ui/watch.ts`.
+Where things are (milestone 8 part 2): the Corvina's shape and rooms in `src/world/terrain.ts` (`corvinaHull`, `CV_ROOMS`, `CV_SPOTS`, `cvUpwell`, `cvDowndraft`, `HIDDEN`, `SALVAGE`); drawing in `src/world/scenery.ts` (`drawCorvina`, `setCorvina`, `buildHidden`, salvage); the new pieces in `src/game/base.ts` and `src/world/basegfx.ts` (`drawRecomp`, `drawCrane`); the rules in `src/main.ts` (search "Milestone 8 part 2", "salvage", "sonar").
 
 ## Problems and open questions
+
+- **Milestone 8 part 2 numbers to tune after Colin plays:**
+  - the upwelling (520) and downdraft (460);
+  - the grapple reaching the bollard from the seabed (range 460);
+  - the sonar cooldown (6 s), its range (700) and the lurkers' rest (about 10 s);
+  - research and build times and costs (`src/game/gear.ts`, `PIECES`);
+  - the crane's minute per piece and its 4/2/1 output; salvage regrowth (15 min);
+  - the recompression room's repair rate.
+- **The Corvina is a cut-away:** from outside you can see into her decks. That reads clearly in a side view. If Colin prefers her closed until the hatch is cut, the interior can be hidden until then.
+- **The pressure suit does nothing yet** (by Colin's choice): crush depth and the trench come in milestone 10.
 
 - **Milestone 8 part 1 numbers to tune after Colin plays:**
   - the race (`RACE.speed` 500, 10% at a ring), hauling speed (`HAUL_SPEED` 170), and the sub's half-strength drift;

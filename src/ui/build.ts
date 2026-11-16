@@ -77,6 +77,10 @@ import { WHORL_ICON } from '../world/whorl';
 
 /** Small side-view icons for the palette, drawn as SVG. */
 const PIECE_ICONS: Record<PieceKind, string> = {
+  recomp:
+    '<svg viewBox="0 0 40 32"><rect x="2" y="8" width="36" height="20" rx="10" fill="#7a6a4a"/><rect x="6" y="8" width="3" height="20" fill="#a8822e"/><rect x="31" y="8" width="3" height="20" fill="#a8822e"/><circle cx="20" cy="18" r="6" fill="#0f2a33"/><circle cx="20" cy="18" r="6" fill="none" stroke="#e8c870" stroke-width="1.6"/><rect x="14" y="3" width="12" height="5" rx="1" fill="#5b6467"/></svg>',
+  crane:
+    '<svg viewBox="0 0 40 32"><rect x="6" y="24" width="28" height="7" rx="1" fill="#5b6467"/><rect x="12" y="6" width="5" height="18" fill="#a8822e"/><path d="M14 6l22 4v2L14 9z" fill="#a8822e"/><path d="M33 12v8" stroke="#3b4448" stroke-width="1.2"/><path d="M30 20h6l-3 4z" fill="#8a9496"/><rect x="18" y="18" width="12" height="6" rx="1" fill="#6a4a38"/></svg>',
   gtank:
     '<svg viewBox="0 0 40 32"><rect x="2" y="3" width="36" height="26" fill="#1f4a4c"/><rect x="2" y="3" width="36" height="10" fill="#3d7470" opacity=".6"/><path d="M2 25q9-2 18 0t18 0v4H2z" fill="#b7a47a"/><path d="M8 20c3-3 7-3 9 0-2 3-6 3-9 0zm9 0l3-2v4z" fill="#d27a86"/><path d="M24 15c2-2 5-2 7 0-2 2-5 2-7 0z" fill="#c88a5a"/><rect x="19" y="3" width="2" height="24" fill="#5b6467"/><rect x="0" y="1" width="40" height="3.5" rx="1" fill="#a8402e"/><rect x="0" y="27" width="40" height="3.5" rx="1" fill="#a8402e"/><rect x="0" y="4.5" width="40" height="1.5" fill="#c88a2a"/></svg>',
   sorter:

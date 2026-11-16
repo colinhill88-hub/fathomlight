@@ -53,6 +53,19 @@ export class Lurker {
     this.light = { x: this.denX, y: this.denY, radius: 110, intensity: 0.5, color: [1, 0.7, 0.35] };
   }
 
+  /** Milestone 8 part 2: a sonar pulse sends it back into its den to rest for about 10 s. Returns true if it was out. */
+  scare(): boolean {
+    const was = this.state !== 'rest';
+    if (this.state === 'lunge') {
+      this.state = 'retreat';
+      this.t = 0;
+    } else if (this.state !== 'retreat') {
+      this.state = 'rest';
+      this.t = -6.5;
+    }
+    return was;
+  }
+
   /** Where the head is now. */
   head(): { x: number; y: number } {
     const k = this.ext;
