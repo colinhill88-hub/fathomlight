@@ -18,11 +18,22 @@ import { mulberry32, WORLD_SEED } from '../rng';
  *  6850 - 8400  a seagrass meadow on a plateau, with a narrow crevice
  *  8400 - 9000  the east cliff, with a cave mouth that leads into darkness (the
  *               gear gate to the kelp forest and caves zone: it needs a real dive light)
+ *
+ * Milestone 7 added the kelp forest east of the cliff:
+ *  8640 - 9600  the cliff top: a shallow rock shelf under 3 m of water. The cave
+ *               runs right under it and comes out on the far side. The sub can
+ *               cross the shelf, but an old survey boom gate hangs across it
+ *               (x = 8900); its winch is on the forest side.
+ *  9600 - 10050 the shelf's east face drops 15 m to the forest floor
+ * 10050 - 14800 the kelp forest: giant kelp from the floor to the surface,
+ *               rock outcrops, holdfasts (resin) and shaded rock (lumen moss)
+ * 14800 - 15600 the east wall, with the mouth of the kelp caves (the zone's
+ *               major site, milestone 7 part 2)
  */
 
 /** West edge of the world (milestone 5 added the basin west of the old wall). */
 export const WORLD_X0 = -5600;
-export const WORLD_W = 9000;
+export const WORLD_W = 15600;
 /** Width of the whole world, from WORLD_X0 to WORLD_W. */
 export const WORLD_SPAN = WORLD_W - WORLD_X0;
 export const WORLD_H = 1980;
@@ -36,8 +47,34 @@ export const SLED_X = 4120;
 export const ANCHOR_X = 2860;
 export const CREVICE_X = 7700;
 export const GROTTO = { x0: 5810, x1: 6500, y0: 760, y1: 1000 };
-/** The diver cannot go past this point inside the cave: it is too dark. */
+/** The diver cannot go past this point inside the cave without the dive light: it is too dark. */
 export const CAVE_GATE_X = 8790;
+
+/** Milestone 7: the kelp forest beyond the east cliff. */
+export const FOREST = { x0: 10050, x1: 14800 };
+/** The shelf on top of the east cliff (the sub's way over), and the boom gate across it. */
+export const SHELF = { x0: 8640, x1: 9600, floor: 210 };
+export const BOOM_X = 8900;
+/** The boom gate's winch, on the forest side of the gate. */
+export const WINCH_X = 9040;
+/** Is the boom gate open? Set from the save (src/main.ts). */
+export const boom = { open: false };
+/** The mouth of the kelp caves in the east wall (the major site, part 2). */
+export const SITE_MOUTH = { x: 14975, y: 1150, rx: 170, ry: 100 };
+
+function forestFloor(x: number): number {
+  let y = 1290 + Math.sin(x * 0.0017) * 28 + Math.sin(x * 0.0041 + 1) * 14;
+  y -= bump(x, 11150, 260, 80) + bump(x, 12850, 220, 110) + bump(x, 13850, 200, 60);
+  return y;
+}
+
+/** The shelf, the east face, the forest floor and the east wall. */
+function eastGround(x: number): number {
+  let y = SHELF.floor + Math.sin(x * 0.011) * 5 - bump(x, 9300, 90, 22);
+  y += (forestFloor(x) - y) * smooth((x - 9600) / 450);
+  y += (260 - y) * smooth((x - 14800) / 420);
+  return y;
+}
 
 const rand = mulberry32(WORLD_SEED ^ 0x1111);
 const bumps = Array.from({ length: 6 }, (_, i) => ({
@@ -128,9 +165,11 @@ export function groundY(x: number): number {
   // Seagrass meadow: a few soft hollows, and a narrow crevice.
   y += bump(x, 7250, 180, 25) + bump(x, 8050, 140, 20);
   y += bump(x, CREVICE_X, 38, 130);
-  // The east cliff.
-  y -= smooth((x - 8380) / 260) * 420;
-  for (const b of bumps) y += Math.sin(x * b.f + b.p) * b.a;
+  // The east cliff (milestone 7: it now rises out of the water).
+  y -= smooth((x - 8380) / 260) * 270;
+  if (x > 8540) y += (eastGround(x) - y) * smooth((x - 8540) / 100);
+  const k = x > 8700 ? 0.5 : 1;
+  for (const b of bumps) y += Math.sin(x * b.f + b.p) * b.a * k;
   return y;
 }
 
@@ -157,8 +196,12 @@ export const LEDGE: [number, number][] = (() => {
   return pts;
 })();
 
-/** The cave in the east cliff: a tunnel sloping gently down into the rock. */
-export const CAVE = { x0: 8470, x1: 8960 };
+/**
+ * The cave in the east cliff: a tunnel sloping gently down into the rock.
+ * Milestone 7: it runs right through, under the island, and comes out on
+ * its east face above the kelp forest.
+ */
+export const CAVE = { x0: 8470, x1: 9960 };
 export function caveTop(x: number): number {
   return 420 + (x - CAVE.x0) * 0.2 + Math.sin(x * 0.03) * 8;
 }
@@ -167,10 +210,7 @@ export function caveBottom(x: number): number {
 }
 /** The open part of the tunnel at x, as [top, bottom]; it closes off in a rounded end. */
 export function caveSpan(x: number): [number, number] {
-  const endFade = smooth((x - (CAVE.x1 - 80)) / 80);
-  const mid = (caveTop(x) + caveBottom(x)) / 2;
-  const half = ((caveBottom(x) - caveTop(x)) / 2) * Math.sqrt(1 - endFade * 0.98);
-  return [mid - half, mid + half];
+  return [caveTop(x), caveBottom(x)];
 }
 function inCave(x: number, y: number): boolean {
   if (x < CAVE.x0 - 40 || x > CAVE.x1) return false;
@@ -188,10 +228,16 @@ function inPolygon(x: number, y: number, poly: [number, number][]): boolean {
   return inside;
 }
 
+function inMouth(x: number, y: number): boolean {
+  const m = SITE_MOUTH;
+  return ((x - m.x) / m.rx) ** 2 + ((y - m.y) / m.ry) ** 2 < 1 && y < m.y + m.ry * 0.7;
+}
+
 /** Is this point inside rock or sand? Used for collisions. */
 export function isSolid(x: number, y: number): boolean {
   if (x < WORLD_X0 || x > WORLD_W) return true;
-  if (y >= groundY(x)) return !inCave(x, y);
+  if (!boom.open && Math.abs(x - BOOM_X) < 16 && y < SHELF.floor + 8) return true;
+  if (y >= groundY(x)) return !inCave(x, y) && !(x > SITE_MOUTH.x - SITE_MOUTH.rx && inMouth(x, y));
   if (y > 540 && y < 780 && x > 5690 && x < 6880 && inPolygon(x, y, LEDGE)) return true;
   return false;
 }
@@ -208,6 +254,8 @@ export function inCaveTunnel(x: number, y: number): boolean {
  * The lighting shader reads it every frame, so shadows cost nothing at runtime.
  */
 export function bakeSkyVisibility(cell: number, blurPasses: number): HTMLCanvasElement {
+  const wasOpen = boom.open;
+  boom.open = true;
   const w = Math.ceil(WORLD_SPAN / cell);
   const h = Math.ceil(WORLD_H / cell);
   const vis = new Float32Array(w * h);
@@ -221,7 +269,9 @@ export function bakeSkyVisibility(cell: number, blurPasses: number): HTMLCanvasE
       vis[j * w + i] = Math.exp(-rock / 70);
       if (solid) rock += cell;
       // Deep inside the cave nothing gets through.
-      else if (x > CAVE.x0 && y > caveTop(x) - 10 && y < caveBottom(x) + 10) rock += cell * 0.4;
+      else if (x > CAVE.x0 && x < CAVE.x1 - 120 && y > caveTop(x) - 10 && y < caveBottom(x) + 10) rock += cell * 0.4;
+      // Milestone 7: the kelp canopy shades the forest more the deeper you go.
+      else if (x > 9650 && y > 40) rock += cell * 0.055 * smooth((x - 9650) / 450) * (1 - 0.5 * smooth((x - 14700) / 400));
     }
   }
   // Soft shadow edges: repeated small box blurs approximate a smooth blur.
@@ -253,5 +303,6 @@ export function bakeSkyVisibility(cell: number, blurPasses: number): HTMLCanvasE
     img.data[k * 4 + 3] = 255;
   }
   ctx.putImageData(img, 0, 0);
+  boom.open = wasOpen;
   return canvas;
 }

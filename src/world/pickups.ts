@@ -53,6 +53,15 @@ const SPOTS: Spot[] = (() => {
   // the nook in the basin's west wall, one just inside the dark cave mouth.
   s.push({ id: 'whorl-nook', kind: 'whorl', x: WALL_NOOK.x, y: groundY(WALL_NOOK.x) - 9 });
   s.push({ id: 'whorl-cave', kind: 'whorl', x: 8660, y: caveBottom(8660) - 9 });
+  // Milestone 7: the kelp forest. Resin beside giant kelp holdfasts, lumen
+  // moss on shaded rock (the outcrops and the foot of the east wall), and a
+  // little wreckage the tinker crabs have been picking at.
+  add('resin', [10300, 10990, 11720, 12400, 13330, 14250, 9930]);
+  add('moss', [11080, 12880, 13980, 14720, 10920]);
+  s.push({ id: 'scrap-f0', kind: 'scrap', x: 12160, y: surfaceAt(12160) - 5 });
+  s.push({ id: 'scrap-f1', kind: 'scrap', x: 13560, y: surfaceAt(13560) - 5 });
+  // An air tank hidden at the mouth of the kelp caves.
+  s.push({ id: 'tank-forest', kind: 'tank', x: 14860, y: surfaceAt(14860, 1100) - 12 });
   return s;
 })();
 
@@ -121,7 +130,27 @@ function drawBag(g: Graphics): void {
   g.roundRect(8, -1, 5, 7, 1).fill({ color: 0xc29b45 });
 }
 
+function drawResin(g: Graphics): void {
+  // A knot of holdfast root weeping amber resin.
+  for (let i = 0; i < 6; i++) {
+    const a = Math.PI + (i / 5) * Math.PI;
+    g.moveTo(0, 0).lineTo(Math.cos(a) * 11, 3 + Math.sin(a) * -2).stroke({ color: 0x5a4a2a, width: 2.4, cap: 'round' });
+  }
+  g.ellipse(0, -2, 8, 5).fill({ color: 0x4e4026 });
+  g.moveTo(-3, -9).bezierCurveTo(-7, -2, -6, 3, -1, 3).bezierCurveTo(4, 3, 5, -2, -3, -9).fill({ color: 0xc8862e, alpha: 0.92 });
+  g.circle(4, -4, 2.6).fill({ color: 0xd89a3a, alpha: 0.9 });
+  g.ellipse(-3, -2, 1.4, 2.4).fill({ color: 0xffe0a0, alpha: 0.6 });
+}
+
+function drawMoss(g: Graphics): void {
+  g.ellipse(0, 1, 12, 4).fill({ color: 0x3e4e2a });
+  for (let i = 0; i < 9; i++) g.circle(R(-10, 10), R(-5, 1), R(2.2, 4.2)).fill({ color: rand() < 0.5 ? 0x8aa84a : 0xa8c860 });
+  for (let i = 0; i < 6; i++) g.circle(R(-9, 9), R(-6, 0), R(0.6, 1.1)).fill({ color: 0xf0f8b0 });
+}
+
 const DRAW: Record<Spot['kind'], (g: Graphics) => void> = {
+  resin: drawResin,
+  moss: drawMoss,
   scrap: drawScrap,
   copper: drawCopper,
   quartz: drawQuartz,
@@ -146,6 +175,8 @@ export const EFFORT: Record<ReefMaterial, { seconds: number; verb: string }> = {
   scrap: { seconds: 2.2, verb: 'Pry loose' },
   copper: { seconds: 2.6, verb: 'Dig out' },
   quartz: { seconds: 3.0, verb: 'Chip off' },
+  resin: { seconds: 2.0, verb: 'Scrape off' },
+  moss: { seconds: 1.4, verb: 'Peel off' },
 };
 /** How close the diver's middle must be to reach a material. */
 const REACH = 72;
@@ -398,6 +429,8 @@ export class Pickups {
       copper: [0x9f8d66, 0xcdb98c, 0x5f9a72],
       quartz: [0xe8ecdf, 0xffffff, 0xa9b5ad],
       fibre: [0xc9a24a, 0x8a6d32, 0x6f8a45],
+      resin: [0xc8862e, 0xffe0a0, 0x5a4a2a],
+      moss: [0x8aa84a, 0xe8f6a0, 0x4e6a30],
     };
     const cs = colors[kind];
     const n = kind === 'copper' ? 6 : 4;
@@ -466,6 +499,6 @@ export class Pickups {
 export function bagRestingPlace(x: number, y: number): { x: number; y: number } {
   let yy = y;
   while (yy < WORLD_H && !isSolid(x, yy + 12)) yy += 4;
-  return { x, y: Math.min(yy, 1290) };
+  return { x, y: Math.min(yy, WORLD_H - 30) };
 }
 

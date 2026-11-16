@@ -89,7 +89,7 @@ export const SCAN_ENTRIES: ScanEntry[] = [
     id: 'sled',
     name: 'Survey sled wreck',
     category: 'Wreckage',
-    text: 'A towed survey sled from an earlier expedition. Its recorder still holds part of a dive light design; the Lab could read it (milestone 6).',
+    text: 'A towed survey sled from an earlier expedition. Its recorder still holds part of a dive light design: unclip it (Collect) and take it to a Lab to decode.',
   },
   {
     id: 'drone',
@@ -119,7 +119,56 @@ export const SCAN_ENTRIES: ScanEntry[] = [
     id: 'cave',
     name: 'Dark cave mouth',
     category: 'Place',
-    text: 'A tunnel into the east cliff, black beyond a few metres. The shoulder lamp is not strong enough. A proper dive light would open it.',
+    text: 'A tunnel into the east cliff, black beyond a few metres. The shoulder lamp is not strong enough. A proper dive light, built in the Workshop, would open it. The current through it smells of kelp.',
+  },
+  // ---- Milestone 7: the kelp forest ----
+  {
+    id: 'boom',
+    name: 'Survey boom gate',
+    category: 'Wreckage',
+    text: 'A rusted steel boom hung across the shelf on top of the east cliff by the earlier expedition, to keep drifting kelp out of the shallows. Too heavy to shift from this side. Its winch sits on the far side; open it there and the sub can cross.',
+  },
+  {
+    id: 'forest',
+    name: 'Kelp forest',
+    category: 'Place',
+    text: 'Beyond the east cliff, giant kelp rises 17 m from the floor to the surface, so close overhead that the daylight turns green and dim. Things move between the stalks and watch your lamp. The rock is shaded enough for glowing moss.',
+  },
+  {
+    id: 'gkelp',
+    name: 'Giant kelp',
+    category: 'Plant',
+    text: 'Stalks as tall as the water is deep, held up by gas floats and anchored by knotted holdfasts. The holdfasts weep amber resin where the current rubs them.',
+  },
+  {
+    id: 'bladder',
+    name: 'Bladder kelp',
+    category: 'Plant',
+    text: 'A short, bushy kelp studded with round gas floats. Tinker crabs pick through it and hang bits of it on their shells. Planted in a tank, it takes 1 holdfast resin to root.',
+  },
+  {
+    id: 'lumen',
+    name: 'Lumen moss',
+    category: 'Plant',
+    text: 'Soft moss that glows a warm yellow-green on shaded rock. Lantern shrimp graze it and hide in it. It can be gathered, and planted in a tank.',
+  },
+  {
+    id: 'crab',
+    name: 'Tinker crab',
+    category: 'Creature',
+    text: 'A wary little decorator crab that glues flakes of metal, shell and kelp to its back. It picks through holdfasts and old wreckage, and its eyes catch the lamp. Keep: likes bladder kelp and any tank-mate. Grown, it picks rust and grit off its shell and leaves scrap metal. Its claws snip puffcap ribbons.',
+  },
+  {
+    id: 'shrimp',
+    name: 'Lantern shrimp',
+    category: 'Creature',
+    text: 'A see-through shrimp with a row of amber lights down its side. A cleaner: it picks tank-mates clean, so each other species in its tank makes more, and the water stays clean longer. Keep: likes lumen moss and another species to clean. Grown, it leaves tufts of lumen moss.',
+  },
+  {
+    id: 'kcaves',
+    name: 'The kelp caves',
+    category: 'Place',
+    text: 'A wide, cold-breathing mouth in the east wall of the forest. The crew think it opens into a whole cave system, maybe where the strange light signals echo. They are still surveying a safe way in.',
   },
 ];
 

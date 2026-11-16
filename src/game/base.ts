@@ -65,7 +65,7 @@ export function onSeabed(gx: number, gy: number): boolean {
 /** How many cells of the site are open water. */
 export const OPEN_CELLS = OPEN.filter(Boolean).length;
 
-export type PieceKind = 'dome' | 'corridor' | 'turbine' | 'storage' | 'tank' | 'filter' | 'feeder' | 'press' | 'dock';
+export type PieceKind = 'dome' | 'corridor' | 'turbine' | 'storage' | 'tank' | 'filter' | 'feeder' | 'press' | 'dock' | 'lab' | 'workshop';
 export type PortKind = 'beltIn' | 'beltOut' | 'pipeIn' | 'pipeOut';
 export type Dir = 'L' | 'R' | 'U' | 'D';
 
@@ -193,8 +193,35 @@ export const PIECES: Record<PieceKind, PieceDef> = {
     // The hall is the top row (collars there); the bottom row is the open berth.
     shapes: [{ w: 3, h: 2, collars: [{ cx: 0, cy: 1, dir: 'L' }, { cx: 2, cy: 1, dir: 'R' }] }],
   },
+  // Milestone 7: the first gear gate.
+  lab: {
+    kind: 'lab',
+    name: 'Lab',
+    job: 'Reads scans and data finds (like the sled recorder) and decodes them into blueprints. Tap Lab beside it.',
+    cost: { scrap: 3, quartz: 3, copper: 2 },
+    buildTime: 26,
+    shapes: [
+      {
+        w: 1,
+        h: 1,
+        collars: [
+          { cx: 0, cy: 0, dir: 'L' },
+          { cx: 0, cy: 0, dir: 'R' },
+          { cx: 0, cy: 0, dir: 'U' },
+        ],
+      },
+    ],
+  },
+  workshop: {
+    kind: 'workshop',
+    name: 'Workshop',
+    job: 'Builds gear from the blueprints the Lab decodes. Tap Workshop beside it.',
+    cost: { plate: 4, scrap: 3, copper: 2 },
+    buildTime: 36,
+    shapes: [{ w: 2, h: 1, collars: [{ cx: 0, cy: 0, dir: 'L' }, { cx: 1, cy: 0, dir: 'R' }] }],
+  },
 };
-export const PIECE_ORDER: PieceKind[] = ['dome', 'corridor', 'turbine', 'storage', 'tank', 'filter', 'feeder', 'press', 'dock'];
+export const PIECE_ORDER: PieceKind[] = ['dome', 'corridor', 'turbine', 'storage', 'tank', 'filter', 'feeder', 'press', 'dock', 'lab', 'workshop'];
 
 /** Where a docked sub sits in a Moon pool dock (milestone 6): its hull in the berth, its dome up in the pool. */
 export function berthOf(p: { kind: PieceKind; gx: number; gy: number; rot: number }): { x: number; y: number } {
@@ -422,6 +449,8 @@ const CODE_PREFIX: Record<PieceKind, string> = {
   feeder: 'AF-',
   press: 'PP-',
   dock: 'MP-',
+  lab: 'LAB-',
+  workshop: 'WS-',
 };
 
 /** A piece's stencil code, as painted on it: CT-1, AF-2, PP-1, TANK 3. Pieces are numbered per kind in build order. */

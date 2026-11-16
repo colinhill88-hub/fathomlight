@@ -1,6 +1,6 @@
 # Fathomlight progress
 
-Last updated: 2026-11-16, **milestone 6 deployed (the submersible KS-1 and the Moon pool dock, with cargo bay, floodlights and grabber arm)**. Next is **milestone 7, the first gear gate** (see Next).
+Last updated: 2026-11-16, **milestone 7 part 1 deployed (Lab, Workshop, the dive light, the kelp forest, tinker crab and lantern shrimp)**. Next is **milestone 7 part 2, the kelp caves** (see Next).
 
 Play link: https://colinhill88-hub.github.io/fathomlight/ (live; first successful deploy 2026-11-14)
 
@@ -643,23 +643,86 @@ Cut from High so far: the phone renders at 2× instead of its native 3×. Colin 
 - **Jar deposits on the Collect button:** with a creature in the jar, stop by a tank and tap Collect ("Put young puffcap in tank 1"; "Tank 1 is full" when it has 4). This comes before the tray action. Texts that said "swim up to the tank" now say "tap Collect".
 - Tested in the emulated iPhone with an old-layout save: a storage pod and a tank (holding a young ray) in the new rock came out. Storage got back exactly their cost (5 scrap, 1 copper, 3 quartz, 2 kelp fibre), and the ray moved to the other tank. A dome on the lowest ledge stayed, and a tap put the puffcap from the jar into the tank. Screenshots of the terraces in the swim and build views. No console errors.
 
+### Milestone 7, part 1: the first gear gate and the kelp forest
+- **Feedback on the last build:** milestone 6 and its follow-ups (sub, dock, Collect-button actions, terraces) are all fine. Nothing to fix.
+- **Colin's decisions before building:**
+  - **Costs:** Lab cheap, Workshop needs plating (numbers below).
+  - **Blueprints:** specific data sources unlock specific blueprints, researched in the Lab over time while it has power.
+  - **Species:** tinker crab (scavenger, makes scrap) and lantern shrimp (cleaner). A third, a small wary predator, may come later.
+  - **Materials and pieces:** holdfast resin and lumen moss; the pieces are the Grand tank GT-1, Sorting pod SP-1 and Air relay AR-1 (part 2). Colin added: **power should become a real mechanic later** (nuclear, fusion or Choir power needed to grow the base further). Recorded in DESIGN.md.
+  - **Drone:** one upgrade (DR-2 welder, about 2× faster) arrives in part 2, built in the Workshop from a blueprint found in the caves.
+  - **Sub:** it can go into the open kelp forest, but not through the cave; the cave system is diver-only.
+  - **Split:** part 1 is this session; part 2 is the kelp caves dungeon, the kelp base pieces and the drone upgrade.
+- **Lab** (piece 10, `LAB-`, keyboard 0) and **Workshop** (piece 11, `WS-`). Same collar and power rules as every piece. Rules in `src/game/gear.ts`, panel in `src/ui/station.ts`, drawings `drawLab` / `drawWorkshop` in `src/world/basegfx.ts`.
+
+| Piece | Size | Collars | Cost | Weld | Job |
+| --- | --- | --- | --- | --- | --- |
+| Lab | 1 × 1 | left, right, up | 3 scrap, 3 quartz, 2 copper | 26 s | Decodes data finds and scans into blueprints |
+| Workshop | 2 × 1 | left, right | 4 hull plating, 3 scrap, 2 copper | 36 s | Builds gear from blueprints |
+
+  - **Look:** the Lab is a pressure capsule with one big brass-ringed port onto a lit bench, sample jars and a cartridge reader whose screen has a scan bar sweeping while it decodes; a little mast and dish on the roof. The Workshop is a riveted shed with a half-rolled door, a parts rack, and a yellow fabrication arm that slides and swings with a flickering torch and sparks while it builds.
+  - **The panel:** stop beside one and tap **Lab** / **Workshop** (green button, top right; keyboard K). The camera frames the piece, the air clock pauses, and a panel shows the job and its progress, data finds carried, and blueprints (Lab) or gear (Workshop). A Workshop job can be stopped (two taps) for a refund. Jobs only run with power, and pause without it.
+  - Removing a Lab or Workshop mid-job gives back the data find or the materials.
+- **The dive light DL-1** (the first gear):
+  1. Scan the survey sled wreck. Then stop by it and **hold Collect: "Unclip the SLED 2 recorder"** (1.6 s). Data finds weigh nothing and survive blackouts.
+  2. At a Lab: **Decode** the dive light blueprint (75 s, uses the recorder).
+  3. At a Workshop: **Build** the dive light: **2 hull plating, 2 quartz, 1 copper**, 45 s.
+  4. It replaces the shoulder lamp: reach 980 (was 560), brighter, and a wider beam (`DIVE_LIGHT` / `LAMP` in `src/game/gear.ts`). The cave's black throat thins to a deep shadow your light cuts through.
+  - With it (and the lamp on) the diver can pass the "too dark" point in the east cliff cave. Lamp off: "switch your dive light on".
+  - The scanner log has a **Gear and blueprints** section saying what to do next.
+- **The world grew east** (`src/world/terrain.ts`): `WORLD_W` 9000 → 15600.
+  - **The east cliff** now tops out at a shallow rock **shelf** about 2.8 m under the surface (8640–9600). In a side view a notch can't be bypassed, so the sub's way over is the whole shelf, blocked by the **survey boom gate** (`KS BOOM 1`, x = 8900): a rusted steel gate hanging from a post that breaks the surface. Its **winch** is on the forest side: hold Collect there, **"Wind the boom winch"** (3 s), and the gate swings up out of the water for good (`boomOpen` in the save). The sub is stopped by the closed gate, as tested.
+  - **The cave** now runs right under the shelf and comes out on its east face, about 9 m down, above the forest. It is still too tight for the sub from either end.
+  - **The kelp forest** (10050–14800): floor about 17 m deep, with three rock outcrops. The bake that shades daylight adds a canopy factor there, so it is dim, green and enclosed.
+    - **Giant kelp** (48 stalks on High) from floor to surface, golden brown, with knotted holdfasts at their feet; dark stalks in the foreground; a wary silverbar shoal between them.
+    - **Bladder kelp** bushes with round floats, and **lumen moss** glowing warm yellow-green on the outcrops and the foot of the east wall (soft lights that pulse slowly).
+    - **The east wall** with the **mouth of the kelp caves**, a dark recess going black further in. A banner says the crew is still surveying the way in (part 2). A third **air tank upgrade** hides at the mouth (3 in total now).
+  - **New materials** (`src/game/state.ts`): **holdfast resin** (1 kg, "Scrape off", 7 spots by holdfasts) and **lumen moss** (0.5 kg, "Peel off", 5 spots on shaded rock), plus 2 scrap spots. Their chips (amber drop, glowing moss) hide until you have some. With seven materials the chip column wraps into a second column on short screens.
+  - **New scanner entries (9):** Survey boom gate, Kelp forest, Giant kelp, Bladder kelp, Lumen moss, Tinker crab, Lantern shrimp, The kelp caves; the sled and cave entries were updated.
+- **New creatures** (`src/actors/critters.ts`, homes in `src/world/wildlife.ts`, rules in `src/game/creatures.ts`). Curious but wary: they edge closer to a diver who keeps still and keep a little distance; they bolt from a fast swimmer or a boost from further away than shallows creatures do.
+  - **Tinker crab:** a small decorator crab with a low rust-brown shell. It has metal flakes, a bit of shell and a curl of kelp glued to its back, two stalk eyes whose shine catches the lamp (amber), and claws with tiny teeth that pick at things. It walks the floor. One adult and three young among the holdfasts (10520, 12300, 13480).
+  - **Lantern shrimp:** see-through, with a curved segmented body, one big dark eye, long waving antennae, flickering swimmerets and a row of amber lights down its side. One adult and two young by the glowing moss (11080, 13980).
+  - **Their needs and pairings** (Colin: mixed tanks should become the best setup; clashes stay):
+
+| Species | Favourite plant (cost) | Company | Makes | Pairing |
+| --- | --- | --- | --- | --- |
+| Tinker crab | Bladder kelp (1 resin) | any tank-mate | **scrap metal** | Clash: snips puffcap ribbons (puffcap −40% comfort) |
+| Lantern shrimp | Lumen moss (1 moss) | content with **another species to clean** | lumen moss | Cleaner: each other species in its tank makes **+25%**, and the tank fouls **35% slower** |
+
+  - So a crab with a shrimp is already better than crabs alone. Today one tank holds one plant, so the shrimp settles at 70% comfort beside crabs on bladder kelp. Part 2's Grand tank with two planters lets both reach 100%: the mixed tank becomes the best setup.
+  - A grown, happy crab makes scrap at the usual 0.25/min before bonuses (with a shrimp, shoal and reef bonuses, more). That is the long-term scrap source Colin chose.
+  - Care panel: the two new plants, and "+N% cleaned" in the output line. Tank swimming: crabs walk the tank floor, shrimp keep low-to-middle.
+- **The 30-scrap test gift is gone.** Any scrap still owed is dropped on load (`gift` stays in the save type only so old saves load).
+- **Other:** a dropped sample bag now rests on the real seabed anywhere (it used to be capped at 1290, mid-water in the basin). The foreground kelp layer keeps its old layout in the shallows (`FRONT_REF`). Some procedural decoration in the shallows is reshuffled slightly, because the random sequence changed with the bigger world.
+- **Tested** (type check and production build pass; emulated iPhone 15 Pro in landscape, scripted):
+  - Teleported through the cliff cave mouth, the shelf, the boom gate and winch, the tunnel with the light, the tunnel exit, three places in the forest and the kelp caves mouth, with screenshots.
+  - Without the light the diver stops at the gate with the "pitch black" banner. With it, the diver follows the tunnel through.
+  - A seeded base (turbine, storage, Lab, Workshop, tank, all powered). The Lab button appeared; Decode used the recorder, and 80 simulated seconds gave the blueprint. The Workshop took 2 plating and built the dive light in 50 s.
+  - A tank with a grown crab, a grown shrimp and a young puffcap on bladder kelp, after 4 simulated minutes: crab 100% comfort, shrimp 70%, puffcap 10% (snipped by the crab). The water dropped more slowly, and the tray held 1 scrap and 1 lumen moss.
+  - A sub driven at the closed boom gate stopped at it.
+  - The old save's leftover gift (12 owed) was dropped on load.
+  - No console errors. As before, the software test browser can't show the real frame rate.
+
 ## Next
 
-The prompt for the next session is in `docs/prompts/milestone-7.md`.
+The prompt for the next session is in `docs/prompts/milestone-7-part-2.md`.
 
-**Milestone 7: the first gear gate** (DESIGN.md): Lab, Workshop and the dive light; the kelp forest and caves zone with its major site. The auto feeder in DESIGN.md's milestone 7 line was already built in milestone 5.
-- **Decided:** a scavenger creature that makes scrap lives in the kelp forest (see "After milestone 6" above). Design it with Colin: its look, what it likes, its partner species and its clashes. Then remove the scrap test gift.
-- Ask Colin before building:
-  - which new base pieces the kelp forest brings, and their materials (DESIGN.md, "Base growth across biomes");
-  - whether drone upgrades arrive with the Workshop;
-  - which new species (and partner pairings) the kelp forest has;
-  - whether the sub can enter the kelp forest, or the dive light gate is diver-only.
-- More sub modules come with the deeper zones: sonar (milestone 10 gear) and depth plating. The slots and `MODULES` in `src/game/sub.ts` take new ones as single entries.
-- Still open from milestone 5: a splitter or merger if balancing needs one; more Echo whorls in later biomes.
+**Milestone 7, part 2: the kelp caves** (Colin's decisions above):
+- **The major site**, through the mouth in the forest's east wall (`SITE_MOUTH` in `src/world/terrain.ts`; the banner in `src/main.ts` says it opens next). It is diver-only and works like a Zelda dungeon: a few navigation puzzles (ideas: currents through narrow squeezes, a flooded chamber lit only by lumen moss you carry, an old Kestrel hatch to wind open, a grown lantern shrimp or glowfin lighting a passage), and the **cutter torch blueprint** at the end (DESIGN.md gives the kelp forest both the cutter torch and the tow line; check with Colin whether the tow line comes from here too).
+- **Kelp forest base pieces**, made from holdfast resin and lumen moss, each unlocked by Lab research on kelp forest scans and samples:
+  - **Grand tank GT-1:** 3 × 2 cells, 8 creatures, a planter with two plant kinds. With it a crab and shrimp tank reaches 100% for both.
+  - **Sorting pod SP-1:** storage with per-material limits, so creature output can't fill storage.
+  - **Air relay AR-1:** a buoy planted out in the world that refills air and is a wake-up point far from home.
+- **DR-2 drone welder** (about 2× faster), built in the Workshop from a blueprint found in the caves. `droneWeldRate` in `src/game/state.ts` is the hook.
+- Ask Colin the costs and research sources for each, and the puzzle ideas.
 
-Where things are (milestone 6): sub rules and costs in `src/game/sub.ts` (every number is a constant at the top); drawing and driving in `src/actors/sub.ts` (`CRUISE`, `BOOST`, `BURST`); the dock panel in `src/ui/dock.ts`; the dock piece in `PIECES` (`src/game/base.ts`) and `drawDock` (`src/world/basegfx.ts`); boarding, air, dents, docking and unloading in the frame loop in `src/main.ts` (search "The submersible").
+Where things are (milestone 7 part 1): gear, research and Workshop rules in `src/game/gear.ts`; the panel in `src/ui/station.ts`; recorder and winch holds, the cave and sub gates, and the dive light in `src/main.ts` (search "Milestone 7"); the forest's drawing in `Scenery.buildForest` (`src/world/scenery.ts`); the boom gate is `boom` / `SHELF` / `BOOM_X` in `src/world/terrain.ts`.
 
 ## Problems and open questions
+
+- **Milestone 7 part 1 numbers to tune after Colin plays:** Lab and Workshop costs and weld times (`PIECES`); research 75 s and build 45 s, dive light cost and its reach and brightness (`src/game/gear.ts`); the shrimp's +25% cleaning bonus and 35% slower fouling (`CLEAN_BONUS`, `SHRIMP_CLEAN_WATER`); resin and moss weights and spot counts; how dim the forest is (the canopy factor in `bakeSkyVisibility`).
+- **The east cliff changed shape.** Its top used to be right at the surface; it is now a 2.8 m deep shelf (so the sub has a way over). The cave mouth is where it was.
+- **Power as a mechanic later** (Colin): see DESIGN.md, The base. Not planned into a milestone yet.
 
 - **Milestone 6 numbers to tune after Colin plays** (`src/game/sub.ts`, `src/actors/sub.ts`):
   - sub cost (12 plating + 4 quartz, 3 copper, 2 fibre), weld 60 s, dock cost and weld time in `PIECES`;
@@ -669,7 +732,7 @@ Where things are (milestone 6): sub rules and costs in `src/game/sub.ts` (every 
   - the cargo bay's +36 / +40 kg; module costs.
 - **The sub on the phone:** the controls are the swimming ones, so check it feels heavy but not sluggish on the touch stick. If it is too slow to stop, raise the 0.55 drag in `Sub.update`.
 - **The sub isn't solid to the base.** Like the diver, it passes in front of base pieces, so it never snags on the factory. Only rock dents it.
-- **The cave gate:** the sub is stopped at the cave mouth like the diver (too dark, too tight). Milestone 7 decides whether the sub can go into the kelp forest.
+- **The cave gate (decided in milestone 7):** the cave stays diver-only; the sub reaches the forest over the cliff-top shelf once the boom gate is wound open.
 
 - **Milestone 5 part 2 numbers to tune after Colin plays** (top of `src/game/factory.ts`): press 0.5 plating/min, recipe 2 scrap + 1 copper, hoppers 6 / 3, rack 4; tray 4 per tank; CB-1 4 and CB-2 10 items/min; FL-1 10 and FL-2 25 L/min; tier-2 plating cost (1 per 4 cells); plating weight 4 kg; the press's cost and build time in `PIECES`.
 - **Tank output no longer goes straight to storage.** Without a conveyor, creatures fill the 4-item tray and pause until the diver swims by. If that feels like a chore before conveyors are affordable, a bigger tray or a "crew empties the tray when you visit the dome" rule are easy changes.

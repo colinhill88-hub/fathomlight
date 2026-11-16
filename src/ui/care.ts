@@ -66,7 +66,7 @@ function makeLine(save: SaveData, layout: BaseLayout, c: CreatureData): string {
   const r = makeRate(save, layout, c);
   if (r.perMin <= 0) return 'Makes nothing while unhappy.';
   const sp = SPECIES[c.species];
-  const parts = [r.shoal > 0 ? `+${Math.round(r.shoal * 100)}% shoal` : '', r.reef > 0 ? `+${Math.round(r.reef * 100)}% reef` : '', r.whorl > 1 ? `×${r.whorl} whorl` : '']
+  const parts = [r.shoal > 0 ? `+${Math.round(r.shoal * 100)}% shoal` : '', r.clean > 0 ? `+${Math.round(r.clean * 100)}% cleaned` : '', r.reef > 0 ? `+${Math.round(r.reef * 100)}% reef` : '', r.whorl > 1 ? `×${r.whorl} whorl` : '']
     .filter(Boolean)
     .join(', ');
   return `Makes ${r.perMin.toFixed(2)} ${sp.makes === 'fibre' ? 'kelp fibre' : sp.makes}/min${parts ? ` (${parts})` : ''}. Happy tank-mates and other thriving tanks raise it.`;

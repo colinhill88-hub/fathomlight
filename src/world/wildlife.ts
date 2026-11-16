@@ -103,6 +103,15 @@ export class Wildlife {
     add({ id: 'ray-adult', species: 'ray', stage: 'grown', collectible: false, homeX: 7600, homeY: groundY(7600) - 90, range: 600, size: 2.1 });
     add({ id: 'ray-0', species: 'ray', stage: 'young', collectible: true, homeX: 7180, homeY: groundY(7180) - 50, range: 200, size: 1.35 });
     add({ id: 'ray-1', species: 'ray', stage: 'young', collectible: true, homeX: 8000, homeY: groundY(8000) - 50, range: 180, size: 1.35 });
+    // Milestone 7, the kelp forest: tinker crabs on the floor among the
+    // holdfasts, lantern shrimp by the glowing moss on shaded rock.
+    add({ id: 'crab-adult', species: 'crab', stage: 'grown', collectible: false, homeX: 11250, homeY: groundY(11250) - 8, range: 260, size: 1.5 });
+    add({ id: 'crab-0', species: 'crab', stage: 'young', collectible: true, homeX: 10520, homeY: groundY(10520) - 8, range: 160, size: 1.2 });
+    add({ id: 'crab-1', species: 'crab', stage: 'young', collectible: true, homeX: 12300, homeY: groundY(12300) - 8, range: 160, size: 1.2 });
+    add({ id: 'crab-2', species: 'crab', stage: 'young', collectible: true, homeX: 13480, homeY: groundY(13480) - 8, range: 140, size: 1.2 });
+    add({ id: 'shrimp-adult', species: 'shrimp', stage: 'grown', collectible: false, homeX: 12880, homeY: groundY(12880) - 70, range: 120, size: 1.6 });
+    add({ id: 'shrimp-0', species: 'shrimp', stage: 'young', collectible: true, homeX: 11080, homeY: groundY(11080) - 50, range: 90, size: 1.2 });
+    add({ id: 'shrimp-1', species: 'shrimp', stage: 'young', collectible: true, homeX: 13980, homeY: groundY(13980) - 50, range: 90, size: 1.2 });
     for (const w of this.all) {
       w.x = w.homeX + R(-30, 30);
       w.y = w.stage === 'egg' ? w.homeY : w.homeY + R(-20, 20);
@@ -119,11 +128,16 @@ export class Wildlife {
   private pickTarget(w: Wild): void {
     for (let i = 0; i < 10; i++) {
       w.tx = w.homeX + R(-w.range, w.range);
+      const gy = groundY(Math.max(0, Math.min(WORLD_W, w.tx)));
       if (w.species === 'ray') {
         // Rays keep low over the grass.
-        const gy = groundY(Math.max(0, Math.min(WORLD_W, w.tx)));
         w.ty = gy - (w.stage === 'grown' ? R(70, 130) : R(36, 80));
-      } else w.ty = w.homeY + R(-w.range * 0.6, w.range * 0.6);
+      } else if (w.species === 'crab') {
+        // Crabs walk the floor.
+        w.ty = gy - 8;
+        break;
+      } else if (w.species === 'shrimp') w.ty = gy - R(24, 110);
+      else w.ty = w.homeY + R(-w.range * 0.6, w.range * 0.6);
       if (!isSolid(w.tx, w.ty) && !isSolid(w.tx, w.ty + 20)) break;
     }
     w.retarget = R(3, 7);
@@ -178,7 +192,8 @@ export class Wildlife {
       const fd = Math.hypot(fdx, fdy);
       if (w.stage !== 'egg') {
         // Boosting close by startles it.
-        if (fd < 220 && (boosting || diverSpeed > 220) && w.scared <= 0) {
+        const jumpy = w.species === 'crab' || w.species === 'shrimp';
+        if (fd < (jumpy ? 280 : 220) && (boosting || diverSpeed > (jumpy ? 160 : 220)) && w.scared <= 0) {
           w.scared = 3;
           w.rest = 0;
         }
@@ -190,7 +205,15 @@ export class Wildlife {
         }
         let ax = w.tx - w.x;
         let ay = w.ty - w.y;
-        let speed = w.species === 'puffcap' ? 22 : w.stage === 'grown' ? 60 : 48;
+        let speed = w.species === 'puffcap' ? 22 : w.species === 'crab' ? (w.stage === 'grown' ? 30 : 24) : w.stage === 'grown' ? 60 : 48;
+        // Kelp forest creatures are curious but wary: they edge closer to a
+        // diver who keeps still, and keep a little distance.
+        const forest = w.species === 'crab' || w.species === 'shrimp';
+        if (forest && fd < 300 && fd > 110 && diverSpeed < 45 && w.scared <= 0 && !held) {
+          ax = dx - w.x;
+          ay = w.species === 'crab' ? 0 : dy - w.y;
+          speed *= 0.6;
+        }
         if (w.rest > 0) {
           // Resting on the sand, wings still.
           w.rest -= dt;
@@ -201,7 +224,8 @@ export class Wildlife {
         if (w.scared > 0 && fd < 320) {
           ax = fdx;
           ay = fdy * 0.6;
-          speed = w.species === 'puffcap' ? 70 : 170;
+          speed = w.species === 'puffcap' ? 70 : w.species === 'crab' ? 110 : 170;
+          if (w.species === 'crab') ay = 0;
         } else if (w === this.findTarget() && held && diverSpeed < STILL_SPEED && w.collectible) {
           // Being coaxed: it drifts calmly towards the diver.
           ax = dx - w.x;
@@ -214,7 +238,12 @@ export class Wildlife {
         w.vy += ((ay / l2) * speed * (w.species === 'puffcap' ? 0.8 : 0.5) - w.vy) * k;
         const nx = w.x + w.vx * dt;
         const ny = w.y + w.vy * dt;
-        if (!isSolid(nx, ny + 6) && ny > 60) {
+        if (w.species === 'crab') {
+          // Walk along the floor.
+          w.x = Math.max(w.homeX - w.range - 200, Math.min(w.homeX + w.range + 200, nx));
+          w.y = groundY(w.x) - 8;
+          w.vy = 0;
+        } else if (!isSolid(nx, ny + 6) && ny > 60) {
           w.x = nx;
           w.y = ny;
         } else {

@@ -9,14 +9,19 @@ import { Diver } from './actors/diver';
 import { Glowfin } from './actors/glowfin';
 import { Bubbles } from './fx/bubbles';
 import { Light, Lighting } from './fx/lighting';
-import { Scenery } from './world/scenery';
+import { FRONT_REF, Scenery } from './world/scenery';
 import { bagRestingPlace, Pickups } from './world/pickups';
 import { School } from './actors/school';
 import {
   bakeSkyVisibility,
   CAVE,
   CAVE_GATE_X,
+  caveBottom,
   caveTop,
+  boom,
+  FOREST,
+  SITE_MOUTH,
+  SLED_X,
   GROTTO,
   groundY,
   inCaveTunnel,
@@ -63,6 +68,8 @@ import { creaturesIn, newCreature, SPECIES, tankNumber, tickCare, TANK_CAPACITY 
 import { RatesPanel } from './ui/rates';
 import { Factory, FEEDER_MASH_CAP, HOPPER_CAP, machineData, PRESS_COPPER_CAP, PRESS_PLATE_CAP, PRESS_SCRAP_CAP, whorlMult } from './game/factory';
 import { LinesView } from './world/linegfx';
+import { StationMode } from './ui/station';
+import { DIVE_LIGHT, GEAR, hasGear, jobOf, LAMP, RESEARCH, tickStations } from './game/gear';
 
 declare const __BUILD_ID__: string;
 
@@ -73,6 +80,8 @@ const VIEW_H_CARE = 235;
 /** Milestone 6: driving the sub shows more water; the dock panel frames the dock. */
 const VIEW_H_SUB = 820;
 const VIEW_H_DOCK = 470;
+/** Milestone 7: the Lab and Workshop panel frames the piece. */
+const VIEW_H_STATION = 400;
 
 /*
  * How a frame is drawn (back to front):
@@ -174,7 +183,10 @@ async function boot(): Promise<void> {
   const schools = [
     new School(22, { x0: 1850, x1: 3500, y0: 200, y1: 380 }),
     new School(16, { x0: 6950, x1: 8250, y0: 300, y1: 450 }),
+    // Milestone 7: a wary shoal between the giant kelp.
+    new School(18, { x0: 10400, x1: 14200, y0: 520, y1: 1050 }),
   ];
+  boom.open = save.boomOpen;
   const scanner = new Scanner([
     { id: 'silverbar', points: () => schools.map((s) => ({ x: s.cx, y: s.cy })) },
     { id: 'glowfin', points: () => fish.map((f) => ({ x: f.light.x - 20, y: f.light.y + 18 })) },
@@ -196,6 +208,15 @@ async function boot(): Promise<void> {
     { id: 'ray', points: () => wildlife.scanPoints('ray') },
     { id: 'whorl', points: () => pickups.whorlPoints() },
     { id: 'basin', points: () => [{ x: -2200, y: groundY(-2200) - 60 }, { x: 150, y: 1200 }] },
+    // Milestone 7: the kelp forest.
+    { id: 'boom', points: () => scenery.scanPoints.boom },
+    { id: 'forest', points: () => scenery.scanPoints.forest },
+    { id: 'gkelp', points: () => scenery.scanPoints.gkelp },
+    { id: 'bladder', points: () => scenery.scanPoints.bladder },
+    { id: 'lumen', points: () => scenery.scanPoints.lumen },
+    { id: 'kcaves', points: () => scenery.scanPoints.kcaves },
+    { id: 'crab', points: () => wildlife.scanPoints('crab') },
+    { id: 'shrimp', points: () => wildlife.scanPoints('shrimp') },
   );
   const surfaceFx = new SurfaceFx();
 
@@ -219,6 +240,10 @@ async function boot(): Promise<void> {
     feeder: (id: number) => {
       const m = machineData(save, id);
       return { hopper: Math.min(1, m.fibre / HOPPER_CAP), mash: Math.min(1, m.mash / FEEDER_MASH_CAP), run: factory.feederState.get(id) === 'running' };
+    },
+    station: (id: number) => {
+      const p = layout.pieces.find((q) => q.id === id);
+      return !!p && !!jobOf(save, p);
     },
     press: (id: number) => {
       const m = machineData(save, id);
@@ -355,6 +380,31 @@ async function boot(): Promise<void> {
       return Math.hypot(sub.x - b.x, sub.y - b.y) / WU_PER_METRE;
     },
   });
+  // Milestone 7: the Lab and Workshop panel.
+  const station = new StationMode({
+    save,
+    layout,
+    toast: (t, k) => hud.toast(t, k),
+    refreshInventory: () => hud.refreshInventory(),
+    persist: () => persist(),
+    refund,
+  });
+  /** A finished Lab or Workshop the diver is beside. */
+  function stationAround(x: number, y: number): Placed | null {
+    for (const p of layout.pieces) {
+      if ((p.kind !== 'lab' && p.kind !== 'workshop') || !isDone(p)) continue;
+      const r = pieceRect(p);
+      if (x > r.x - 50 && x < r.x + r.w + 50 && y > r.y - 60 && y < r.y + r.h + 40) return p;
+    }
+    return null;
+  }
+  /** Hold-to-do actions out in the world on the Collect button (milestone 7: the sled recorder, the boom winch). */
+  let holdProgress = 0;
+  let holdKey = '';
+  /** 0..1: how far the boom gate has swung up. */
+  let boomT = save.boomOpen ? 1 : 0;
+  let prevDiverX = diver.x;
+
   /*
    * The terraces (Colin, after milestone 6): the cliff under the shelf now
    * steps down in three rock ledges. Pieces an older save had built where the
@@ -724,36 +774,6 @@ async function boot(): Promise<void> {
   const BLACK_HOLD = 2.6;
   const BLACK_OUT = 1.2;
 
-  // One-time test gift for Colin (after milestone 6): 30 scrap for the base,
-  // while scrap has no creature source yet. It goes into storage as room allows.
-  if (loaded.loaded && !save.tips.includes('gift-scrap-30')) {
-    save.tips.push('gift-scrap-30');
-    save.gift = (save.gift ?? 0) + 30;
-  }
-  let giftClock = 1;
-  let giftAnnounced = false;
-  function deliverGift(dt: number): void {
-    if (!save.gift) return;
-    giftClock -= dt;
-    if (giftClock > 0) return;
-    giftClock = 1;
-    const n = Math.min(save.gift, Math.max(0, storageRoom()));
-    if (n > 0) {
-      save.gift -= n;
-      save.stored.scrap += n;
-      hud.refreshInventory();
-      hud.toast(
-        `Supply drop: ${n} scrap metal into base storage${save.gift ? ` (${save.gift} more as storage frees up)` : ''}`,
-        giftAnnounced ? 'item' : 'big',
-      );
-      giftAnnounced = true;
-      persist();
-    } else if (!giftAnnounced && layout.countDone('storage')) {
-      giftAnnounced = true;
-      hud.toast(`Supply drop of ${save.gift} scrap is waiting: it moves into storage as soon as there is room`, 'big');
-    }
-  }
-
   if (!loaded.loaded) {
     setTimeout(() => hud.toast('Explore the shallows: scan new things and gather materials for the base', 'big'), 1500);
   } else if (save.oxygen <= 0) {
@@ -829,7 +849,7 @@ async function boot(): Promise<void> {
 
     // Build mode: only at the Kestrel site, and not while blacking out.
     const atSite = diver.x > GRID_X0 - 260 && diver.x < GRID_X1 + 260 && diver.y < GRID_BASE + 120;
-    build.setAvailable(atSite && blackout === 0 && !care.active && !dockUI.active);
+    build.setAvailable(atSite && blackout === 0 && !care.active && !dockUI.active && !station.active);
     const aboardNow = !!save.sub?.aboard;
     build.pollPad(dt);
     if (!build.active && rates.open) rates.close();
@@ -846,6 +866,20 @@ async function boot(): Promise<void> {
         : null;
     dockUI.setAvailable(dockHere?.id ?? (dockUI.active ? dockUI.dockId : null));
     dockUI.update(dt);
+    // Milestone 7: the Lab / Workshop button beside a finished one.
+    const stationHere =
+      blackout === 0 && !build.active && !care.active && !dockUI.active && !aboardNow && !diver.surfaced ? stationAround(diver.x, diver.y) : null;
+    station.setAvailable(stationHere?.id ?? (station.active ? station.pieceId : null));
+    station.update(dt);
+    if (stationHere && !save.tips.includes('station-' + stationHere.kind) && blackout === 0) {
+      save.tips.push('station-' + stationHere.kind);
+      hud.toast(
+        stationHere.kind === 'lab'
+          ? `Lab: tap Lab${input.state.lastDevice === 'touch' ? '' : ' (K)'} to decode data finds and scans into blueprints`
+          : `Workshop: tap Workshop${input.state.lastDevice === 'touch' ? '' : ' (K)'} to build gear from the blueprints the Lab decodes`,
+        'big',
+      );
+    }
     if (dockHere && !save.tips.includes('dock') && blackout === 0) {
       save.tips.push('dock');
       hud.toast(
@@ -853,7 +887,7 @@ async function boot(): Promise<void> {
         'big',
       );
     }
-    input.suspended = build.active || care.active || dockUI.active;
+    input.suspended = build.active || care.active || dockUI.active || station.active;
     if (atSite && !save.tips.includes('build') && blackout === 0) {
       save.tips.push('build');
       hud.toast(
@@ -866,7 +900,7 @@ async function boot(): Promise<void> {
 
     input.update();
     const s = input.state;
-    const inControl = blackout === 0 && !build.active && !care.active && !dockUI.active;
+    const inControl = blackout === 0 && !build.active && !care.active && !dockUI.active && !station.active;
 
     // ---- The submersible (milestone 6) ----
     const S = save.sub;
@@ -894,10 +928,18 @@ async function boot(): Promise<void> {
       });
       if (aboard) {
         if (piloted && s.lamp) S.lights = !S.lights;
-        // The cave in the east cliff is too dark, and too tight for the sub.
-        if (sub.face > 0 && sub.bowX() > CAVE_GATE_X - 40 && sub.y > caveTop(CAVE_GATE_X) - 80) {
-          sub.x -= sub.bowX() - (CAVE_GATE_X - 40);
+        // The cave through the east cliff is too tight for the sub, from
+        // either end (milestone 7: it goes over the cliff-top shelf instead).
+        const inBand = (x: number) => sub.y > caveTop(x) - 70 && sub.y < caveBottom(x) + 60;
+        const WEST_STOP = CAVE.x0 + 70;
+        const EAST_STOP = 9740;
+        if (sub.x < 9150 && sub.bowX() > WEST_STOP && sub.face > 0 && inBand(WEST_STOP)) {
+          sub.x -= sub.bowX() - WEST_STOP;
           sub.vx = Math.min(0, sub.vx);
+        }
+        if (sub.x > 9150 && sub.bowX() < EAST_STOP && sub.face < 0 && inBand(EAST_STOP)) {
+          sub.x += EAST_STOP - sub.bowX();
+          sub.vx = Math.max(0, sub.vx);
         }
         diver.x = sub.x;
         diver.y = sub.y - 10;
@@ -1016,17 +1058,32 @@ async function boot(): Promise<void> {
     if (diver.splash > 0) surfaceFx.splash(hx, diver.splash, time);
     if (diver.exhale && hy < 0) surfaceFx.breath(hx + (hx > diver.x ? 10 : -10), hy - 4, hx > diver.x ? 1 : -1);
 
-    // The cave in the east cliff is too dark to go further in.
-    if (diver.x > CAVE_GATE_X && diver.y > caveTop(CAVE_GATE_X) - 30) {
+    // The cave in the east cliff is too dark to go further in without the
+    // dive light (milestone 7), switched on.
+    const hasLight = hasGear(save, 'light');
+    const lit = hasLight && diver.lampOn;
+    if (!aboard && !lit && prevDiverX <= CAVE_GATE_X + 2 && diver.x > CAVE_GATE_X && diver.x < CAVE_GATE_X + 140 && diver.y > caveTop(CAVE_GATE_X) - 30 && diver.y < caveBottom(diver.x) + 30) {
       diver.x = CAVE_GATE_X;
       if (diver.vx > 0) diver.vx = 0;
     }
-    const inCave = inCaveTunnel(diver.x, diver.y) && diver.x > CAVE.x0 + 120;
+    prevDiverX = diver.x;
+    const inCave = inCaveTunnel(diver.x, diver.y) && diver.x > CAVE.x0 + 120 && diver.x < CAVE_GATE_X + 40;
+    // First time through to the kelp forest.
+    if (!aboard && diver.x > FOREST.x0 - 150 && blackout === 0 && !save.tips.includes('forest')) {
+      save.tips.push('forest');
+      hud.toast('The kelp forest! Giant kelp from the floor to the surface, dim green light, and things watching your lamp. Scan what you find: the Lab will want it.', 'big');
+      persist();
+    }
+    const atMouth = Math.hypot((diver.x - SITE_MOUTH.x) / SITE_MOUTH.rx, (diver.y - SITE_MOUTH.y) / SITE_MOUTH.ry) < 1.25;
     const domeHere = blackout === 0 && !build.active && !aboard ? domeAround(diver.x, diver.y) : null;
     hud.setBanner(
-      inCave
-        ? 'Pitch black ahead. The shoulder lamp barely dents this darkness. A proper dive light would open the way (built later in the Workshop).'
-        : domeHere && !isDone(domeHere)
+      inCave && !hasLight
+        ? 'Pitch black ahead. The shoulder lamp barely dents this darkness. A proper dive light would open the way: decode the sled recorder in a Lab, then build the light in a Workshop.'
+        : inCave && !lit
+          ? 'Too dark to go on: switch your dive light on (Lamp).'
+          : atMouth
+            ? 'The kelp caves. Cold water breathes out of the dark. The crew is still surveying a safe way in (it opens in the next update).'
+            : domeHere && !isDone(domeHere)
           ? 'This habitat is still a frame. The build drone has to finish welding it before there is air inside.'
           : domeHere && !layout.powered.has(domeHere.id)
             ? 'This habitat has no power. Join it to a current turbine (directly or through corridors) to get air here.'
@@ -1049,7 +1106,7 @@ async function boot(): Promise<void> {
         persist();
       }
     }
-    if ((build.active || care.active || dockUI.active) && blackout === 0) {
+    if ((build.active || care.active || dockUI.active || station.active) && blackout === 0) {
       // Planning the base, or tending a tank, pauses the air clock.
     } else if (blackout === 0) {
       if (atSurface || domeAir || subAir) {
@@ -1233,6 +1290,58 @@ async function boot(): Promise<void> {
     const collectTap = collectRaw && !collectWas;
     collectWas = collectRaw;
     const otherTarget = atDrone || !!wildTarget || (!!pt && (!aboard || grab));
+    // Milestone 7: hold-to-do actions out in the world (the sled recorder, the boom winch).
+    let holdAct: { key: string; label: string; seconds: number; done: () => void } | null = null;
+    if (!otherTarget && blackout === 0 && inControl && !diver.surfaced && !aboard) {
+      const rx = SLED_X - 20;
+      const ry = groundY(SLED_X) - 44;
+      const recNeeded =
+        save.scans.includes('sled') &&
+        !save.finds.includes('recorder') &&
+        !save.blueprints.includes('light') &&
+        !Object.values(save.jobs).some((j) => j.id === 'research:light');
+      if (recNeeded && Math.hypot(diver.x - rx, diver.y - ry) < 120)
+        holdAct = {
+          key: 'recorder',
+          label: 'Unclip the SLED 2 recorder',
+          seconds: 1.6,
+          done: () => {
+            save.finds.push('recorder');
+            drone.cheer();
+            hud.toast(
+              `SLED 2 recorder unclipped! It weighs nothing. Take it to a Lab at the base (build card 10) to decode the dive light design.`,
+              'big',
+            );
+          },
+        };
+      const wp = Scenery.winchPoint();
+      if (!save.boomOpen && Math.hypot(diver.x - wp.x, diver.y - wp.y) < 110)
+        holdAct = {
+          key: 'winch',
+          label: 'Wind the boom winch',
+          seconds: 3,
+          done: () => {
+            save.boomOpen = true;
+            boom.open = true;
+            drone.cheer();
+            hud.toast('The boom gate grinds up out of the water. The sub can now cross the shelf on top of the east cliff, into the kelp forest.', 'big');
+          },
+        };
+    }
+    if (!holdAct || holdAct.key !== holdKey) holdProgress = 0;
+    holdKey = holdAct?.key ?? '';
+    if (holdAct && collectHeld && speed < 70) {
+      holdProgress += dt / holdAct.seconds;
+      if (holdProgress >= 1) {
+        holdProgress = 0;
+        holdAct.done();
+        holdAct = null;
+        holdKey = '';
+        persist();
+      }
+    } else holdProgress = Math.max(0, holdProgress - dt * 0.5);
+    boomT += ((save.boomOpen ? 1 : 0) - boomT) * Math.min(1, dt * 0.8);
+    scenery.setBoom(boomT > 0.995 ? 1 : boomT);
     let baseAct: { label: string; run: () => void } | null = null;
     if (!otherTarget && blackout === 0 && inControl && !diver.surfaced) {
       const trayN = tankHere ? MATERIALS_LIST.reduce((a, k) => a + (save.tankData[String(tankHere.id)]?.out?.[k] ?? 0), 0) : 0;
@@ -1265,7 +1374,8 @@ async function boot(): Promise<void> {
     }
     if (baseAct && collectTap) baseAct.run();
 
-    if (baseAct) hud.setCollect(baseAct.label, 0, true);
+    if (holdAct) hud.setCollect(holdAct.label, holdProgress);
+    else if (baseAct) hud.setCollect(baseAct.label, 0, true);
     else if (aboard && !grab) hud.setCollect(null, 0);
     else if (atDrone) {
       hud.setCollect(missing.length ? `Repair drone: need ${missing.join(', ')}` : 'Repair build drone', drone.repairProgress);
@@ -1370,7 +1480,24 @@ async function boot(): Promise<void> {
 
     hud.setJar(jarText());
 
-    deliverGift(dt);
+    // ---- Labs and Workshops (milestone 7) ----
+    for (const ev of tickStations(save, layout, dt)) {
+      drone.cheer();
+      if (ev.type === 'decoded') {
+        hud.toast(`${pieceCode(layout, ev.piece)} decoded the ${RESEARCH[ev.id].name.toLowerCase()}! Build it in a Workshop.`, 'big');
+        if (!layout.pieces.some((p) => p.kind === 'workshop'))
+          setTimeout(() => hud.toast('A Workshop (build card 11) builds gear from blueprints. It takes hull plating from the plate press.', 'big'), 2600);
+      } else {
+        const g = GEAR[ev.id];
+        hud.toast(
+          ev.id === 'light'
+            ? `${g.name} ${g.code} built and clipped to your suit! It replaces the shoulder lamp: much brighter and wider. The dark cave in the east cliff is open to you now.`
+            : `${g.name} ${g.code} built!`,
+          'big',
+        );
+      }
+      persist();
+    }
 
     // ---- Factory (milestone 5): conveyors, the auto feeder and feed pipes ----
     factory.tick(save, layout, dt, storageRoom);
@@ -1434,7 +1561,17 @@ async function boot(): Promise<void> {
     }
 
     // Zoom out while building (the build camera is steered by pan and pinch).
-    const wantH = build.active ? build.cam.h : care.active ? VIEW_H_CARE : dockUI.active ? VIEW_H_DOCK : aboard ? VIEW_H_SUB : VIEW_H;
+    const wantH = build.active
+      ? build.cam.h
+      : care.active
+        ? VIEW_H_CARE
+        : dockUI.active
+          ? VIEW_H_DOCK
+          : station.active
+            ? VIEW_H_STATION
+            : aboard
+              ? VIEW_H_SUB
+              : VIEW_H;
     viewH += (wantH - viewH) * (1 - Math.exp(-(build.active ? 10 : 4) * dt));
     zoom = cssH / viewH;
     const viewW = cssW / zoom;
@@ -1452,6 +1589,14 @@ async function boot(): Promise<void> {
       const d = layout.pieces.find((p) => p.id === dockUI.dockId);
       if (d) {
         const r = pieceRect(d);
+        const panelW = Math.min(380, cssW * 0.46) + 24;
+        lookX = r.x + r.w / 2 + panelW / zoom / 2;
+        lookY = r.y + r.h / 2 + 10;
+      }
+    } else if (station.active && station.pieceId !== null) {
+      const p = layout.pieces.find((q) => q.id === station.pieceId);
+      if (p) {
+        const r = pieceRect(p);
         const panelW = Math.min(380, cssW * 0.46) + 24;
         lookX = r.x + r.w / 2 + panelW / zoom / 2;
         lookY = r.y + r.h / 2 + 10;
@@ -1502,7 +1647,7 @@ async function boot(): Promise<void> {
     for (const sc of schools) sc.update(dt, time, diver.x, diver.y, camX, camX + viewW);
     tankLife.update(dt, time, save, camX, camX + viewW);
     // While tending a tank, the diver and drone fade so they don't hide it.
-    const fade = care.active ? 0.12 : dockUI.active ? 0.3 : 1;
+    const fade = care.active ? 0.12 : dockUI.active || station.active ? 0.3 : 1;
     diver.view.alpha += (fade - diver.view.alpha) * Math.min(1, dt * 6);
     drone.view.alpha = drone.emissive.alpha = drone.glow.alpha = diver.view.alpha;
 
@@ -1513,7 +1658,7 @@ async function boot(): Promise<void> {
     // Foreground plants are "closer" to us, so they are bigger and move faster.
     const fz = zoom * 1.25;
     frontCam.scale.set(fz);
-    frontCam.position.set(cssW / 2 - camCX * 1.3 * fz + WORLD_W * 0.15 * fz, cssH / 2 - camCY * fz + 40 * zoom);
+    frontCam.position.set(cssW / 2 - camCX * 1.3 * fz + FRONT_REF * 0.15 * fz, cssH / 2 - camCY * fz + 40 * zoom);
     // Far out in build mode the near kelp would fill the screen: fade it away.
     frontCam.alpha = Math.max(0, Math.min(1, (1300 - viewH) / 400));
 
@@ -1547,7 +1692,12 @@ async function boot(): Promise<void> {
     lampLight.y = lp.y;
     lampLight.dirX = lp.dirX;
     lampLight.dirY = lp.dirY;
-    lampLight.intensity = aboard ? 0 : 1.5 * diver.lamp * diver.view.alpha;
+    // Milestone 7: the dive light DL-1 replaces the shoulder lamp: further, brighter and wider.
+    const lampSpec = hasGear(save, 'light') ? DIVE_LIGHT : LAMP;
+    lampLight.radius = lampSpec.radius;
+    lampLight.coneCos = lampSpec.coneCos;
+    lampLight.intensity = aboard ? 0 : lampSpec.intensity * diver.lamp * diver.view.alpha;
+    scenery.caveDark.alpha = hasGear(save, 'light') && diver.lamp > 0.5 && !aboard ? 0.15 : 1;
     diver.lens.position.set(lp.x, lp.y);
     diver.lens.alpha = (0.25 + 0.75 * diver.lamp) * diver.view.alpha;
     diver.lensGlow.position.set(lp.x, lp.y);
@@ -1671,6 +1821,10 @@ async function boot(): Promise<void> {
     },
     sub,
     dockUI,
+    station,
+    tickStations: (sec: number) => {
+      for (let t = 0; t < sec; t += 0.5) tickStations(save, layout, 0.5);
+    },
     snap: () => {
       camCX = diver.x;
       camCY = diver.y;

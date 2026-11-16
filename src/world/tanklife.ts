@@ -70,6 +70,19 @@ function drawPlant(kind: PlantId): Container {
       const h = 22 + (i % 3) * 8;
       g.moveTo(x, 0).quadraticCurveTo(x + 3, -h * 0.5, x + (i % 2 ? 5 : -3), -h).stroke({ color: i % 2 ? 0x6f9a4a : 0x5a8a40, width: 2 });
     }
+  } else if (kind === 'bladder') {
+    // Bladder kelp (milestone 7): short brown fronds with round floats.
+    for (let i = 0; i < 5; i++) {
+      const lean = (i - 2) * 4;
+      const h = 22 + (i % 2) * 10;
+      g.moveTo(i * 3 - 6, 0).quadraticCurveTo(lean * 0.4, -h * 0.6, lean, -h).stroke({ color: i % 2 ? 0x7a6a30 : 0x8c7a38, width: 2.4, cap: 'round' });
+      for (const t of [0.5, 0.8, 1]) g.circle(lean * t * t, -h * t, 2.6).fill({ color: 0xa8923e });
+    }
+  } else if (kind === 'lumen') {
+    // Lumen moss (milestone 7): a glowing cushion on a stone.
+    g.ellipse(0, -3, 14, 6).fill({ color: 0x55605c });
+    for (let i = 0; i < 10; i++) g.circle(-11 + i * 2.4, -7 - (i % 3) * 1.5, 3).fill({ color: i % 2 ? 0x8aa84a : 0xa8c860 });
+    for (let i = 0; i < 7; i++) g.circle(-9 + i * 3, -9 - (i % 2) * 2, 0.9).fill({ color: 0xf0f8b0 });
   } else {
     for (let k = 0; k < 2; k++) {
       const pts: number[] = [];
@@ -292,14 +305,15 @@ export class TankLife {
         s.ty = flake.y;
       } else if (s.retarget <= 0 || Math.hypot(s.tx - s.x, s.ty - s.y) < 8) {
         s.tx = b.x + pad + Math.random() * (b.w - pad * 2);
-        // Puffcaps drift high, rays keep low, glowfins swim the middle.
-        const lo = sp === 'ray' ? 0.7 : sp === 'puffcap' ? 0.2 : 0.3;
-        const hi = sp === 'ray' ? 0.85 : sp === 'puffcap' ? 0.55 : 0.75;
+        // Puffcaps drift high, rays keep low, glowfins swim the middle;
+        // crabs walk the floor and shrimp keep low-to-middle (milestone 7).
+        const lo = sp === 'crab' ? 0.9 : sp === 'ray' ? 0.7 : sp === 'puffcap' ? 0.2 : sp === 'shrimp' ? 0.45 : 0.3;
+        const hi = sp === 'crab' ? 0.9 : sp === 'ray' ? 0.85 : sp === 'puffcap' ? 0.55 : sp === 'shrimp' ? 0.8 : 0.75;
         s.ty = b.y + b.h * (lo + Math.random() * (hi - lo));
         s.retarget = 2 + Math.random() * 4;
         if (sp === 'ray' && Math.random() < 0.3) s.rest = 2 + Math.random() * 3;
       }
-      let speed = (sp === 'puffcap' ? 12 : 30) * (0.5 + vig * 0.5) * (1 - sick * 0.6);
+      let speed = (sp === 'puffcap' ? 12 : sp === 'crab' ? 16 : 30) * (0.5 + vig * 0.5) * (1 - sick * 0.6);
       let ax = s.tx - s.x;
       let ay = s.ty - s.y;
       if (s.rest > 0 && !flake) {

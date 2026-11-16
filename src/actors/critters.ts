@@ -67,6 +67,8 @@ export class Critter {
     if (stage === 'egg') this.drawEggs(r);
     else if (species === 'glowfin') this.drawGlowfin();
     else if (species === 'puffcap') this.drawPuffcap();
+    else if (species === 'crab') this.drawCrab(r);
+    else if (species === 'shrimp') this.drawShrimp();
     else this.drawRay();
   }
 
@@ -76,6 +78,8 @@ export class Critter {
     const young = this.stage === 'young';
     if (this.species === 'glowfin') return young ? 0.62 : 0.88;
     if (this.species === 'puffcap') return young ? 0.85 : 1.3;
+    if (this.species === 'crab') return young ? 0.8 : 1.15;
+    if (this.species === 'shrimp') return young ? 0.75 : 1.05;
     return young ? 0.85 : 1.25;
   }
 
@@ -216,6 +220,91 @@ export class Critter {
     d.moveTo(17, 1.5).quadraticCurveTo(19, 3, 20.5, 1.2).stroke({ color: 0x5a4030, width: 0.8, alpha: 0.6 });
   }
 
+  // ---- Tinker crab (milestone 7, kelp forest: curious but wary) ----
+  private drawCrab(r: () => number): void {
+    const legs = new Graphics();
+    const shell = new Graphics();
+    // Carapace: a low dome, mottled rust-brown, with a paler rim.
+    shell.moveTo(-15, 2).bezierCurveTo(-15, -12, 15, -12, 15, 2).quadraticCurveTo(0, 6, -15, 2).fill({ color: 0x8a5a3a });
+    shell.moveTo(-13, 1).bezierCurveTo(-12, -8, 12, -8, 13, 1).stroke({ color: 0xc08a5a, width: 1, alpha: 0.6 });
+    shell.ellipse(-4, -6, 7, 2.4).fill({ color: 0xffffff, alpha: 0.12 });
+    for (let i = 0; i < 6; i++) shell.circle(-10 + r() * 20, -6 + r() * 6, 0.8 + r() * 1.2).fill({ color: 0x5a3422, alpha: 0.7 });
+    // What it has glued to its back: metal flakes, a bit of shell, a curl of kelp.
+    const flakes = [0x8e9a9c, 0x7a685a, 0xa8402e, 0xa9b4b6];
+    for (let i = 0; i < 5; i++) {
+      const x = -11 + i * 5 + r() * 2;
+      const y = -9 - r() * 3 + Math.abs(x) * 0.12;
+      const w = 2.4 + r() * 2.2;
+      const a = (r() - 0.5) * 1.2;
+      shell.poly([x - w * Math.cos(a), y - w * Math.sin(a) - 1, x + w * Math.cos(a), y + w * Math.sin(a) - 2, x + w * 0.6, y + 1.6, x - w, y + 1.2]).fill({ color: flakes[i % 4] });
+      shell.moveTo(x - w * 0.6, y - 1).lineTo(x + w * 0.5, y - 1.6).stroke({ color: 0xffffff, width: 0.5, alpha: 0.35 });
+    }
+    shell.moveTo(4, -11).quadraticCurveTo(7, -18, 3, -21).stroke({ color: 0x7a6a30, width: 1.6, cap: 'round' });
+    shell.circle(3, -21, 1.6).fill({ color: 0xa8923e });
+    // Eye stalks with small dark eyes; the shine on them is emissive (they catch the lamp).
+    for (const ex of [8, 12]) {
+      shell.moveTo(ex - 1, -4).lineTo(ex + 1, -11).stroke({ color: 0x8a5a3a, width: 1.4 });
+      shell.circle(ex + 1, -12, 1.9).fill({ color: 0x1a1210 });
+    }
+    // A small mouth line under the front: no grin, just a hint of mouthparts.
+    shell.moveTo(13, 1).lineTo(15.5, 2.2).stroke({ color: 0x4a2a1a, width: 0.7, alpha: 0.7 });
+    // Claws (animated) with a few tiny teeth on the inner edge.
+    const claw = new Graphics();
+    claw.moveTo(0, 0).lineTo(5, -2).stroke({ color: 0x8a5a3a, width: 2.4, cap: 'round' });
+    claw.ellipse(8, -3, 4.2, 2.8).fill({ color: 0x9a6440 });
+    claw.moveTo(10, -5).quadraticCurveTo(14, -6, 14.5, -3.4).lineTo(11.5, -3).closePath().fill({ color: 0x9a6440 });
+    claw.moveTo(10, -1).quadraticCurveTo(13.5, 0, 14, -2.2).lineTo(11.5, -2.6).closePath().fill({ color: 0x7a4a30 });
+    for (const tx of [11.6, 12.6, 13.5]) claw.poly([tx, -3.3, tx + 0.4, -2.6, tx + 0.8, -3.3]).fill({ color: 0xe8d8c0, alpha: 0.85 });
+    claw.position.set(10, 1);
+    this.body.addChild(legs, claw, shell);
+    this.parts.legs = legs;
+    this.parts.claw = claw;
+    const eyes = new Graphics();
+    for (const ex of [9, 13]) eyes.circle(ex + 0.4, -12.6, 0.7).fill({ color: 0xffc860 });
+    this.emissive.addChild(eyes);
+    this.parts.dots = eyes;
+    const halo = new Graphics();
+    for (const ex of [9, 13]) halo.circle(ex, -12, 4).fill({ color: 0xffb040, alpha: 0.6 });
+    this.glow.addChild(halo);
+    this.parts.halo = halo;
+  }
+
+  // ---- Lantern shrimp (milestone 7) ----
+  private drawShrimp(): void {
+    const g = new Graphics();
+    // A see-through curved body in segments, with the gut line showing.
+    const segs = 6;
+    for (let i = 0; i < segs; i++) {
+      const x = 10 - i * 4.4;
+      const y = -Math.sin((i / segs) * Math.PI * 0.8) * 3 - 1;
+      const rad = 5.2 - i * 0.55;
+      g.ellipse(x, y, 3.2, rad).fill({ color: 0xf0c8a0, alpha: 0.45 });
+      g.ellipse(x, y - rad * 0.4, 2.6, rad * 0.4).fill({ color: 0xffffff, alpha: 0.15 });
+      g.arc(x - 1.5, y, rad, -1.1, 1.1).stroke({ color: 0xe8a070, width: 0.6, alpha: 0.55 });
+    }
+    g.moveTo(10, -1).quadraticCurveTo(0, -4, -14, 0).stroke({ color: 0xc8704a, width: 0.8, alpha: 0.5 });
+    // Head with a short rostrum, one big dark eye, and long antennae.
+    g.ellipse(13, -2, 5, 4.4).fill({ color: 0xf0c8a0, alpha: 0.55 });
+    g.moveTo(16, -4).lineTo(22, -6).stroke({ color: 0xe8b08a, width: 1, alpha: 0.8 });
+    g.circle(15, -4, 2.2).fill({ color: 0x1a1210 });
+    g.circle(15.7, -4.8, 0.7).fill({ color: 0xffffff, alpha: 0.85 });
+    // Tail fan.
+    g.moveTo(-15, 0).lineTo(-22, -4).lineTo(-21, 1).lineTo(-23, 5).closePath().fill({ color: 0xf0c8a0, alpha: 0.55 });
+    const feelers = new Graphics();
+    const legs = new Graphics();
+    this.body.addChild(legs, g, feelers);
+    this.parts.feelers = feelers;
+    this.parts.legs = legs;
+    // A row of amber lights down its side.
+    const dots = new Graphics();
+    for (let i = 0; i < 5; i++) dots.circle(9 - i * 4.4, 2 - Math.sin((i / 6) * Math.PI * 0.8) * 3, 0.9).fill({ color: 0xffd070 });
+    this.emissive.addChild(dots);
+    this.parts.dots = dots;
+    const halo = new Graphics().ellipse(0, 1, 16, 6).fill({ color: 0xffc060, alpha: 0.45 });
+    this.glow.addChild(halo);
+    this.parts.halo = halo;
+  }
+
   // ---- Eggs ----
   private drawEggs(r: () => number): void {
     const g = new Graphics();
@@ -300,6 +389,45 @@ export class Critter {
       }
       this.parts.dots.alpha = 0.35 + 0.65 * vig;
       this.parts.halo.alpha = 0.55 * vig * (0.8 + 0.2 * p);
+    } else if (this.species === 'crab') {
+      // Scuttles: legs tick, claws pick at things, the body sways a little.
+      const walk = Math.min(1, sp / 30);
+      bob = Math.abs(Math.sin(t * 9)) * walk * -1;
+      rot = sick * 0.2;
+      const lg = this.parts.legs;
+      lg.clear();
+      for (let i = 0; i < 4; i++) {
+        const bx = -9 + i * 5;
+        const ph = Math.sin(t * 9 + i * 1.7) * walk;
+        lg.moveTo(bx, 0).lineTo(bx - 3 + ph * 2, 5).lineTo(bx - 6 + ph * 3, 9).stroke({ color: 0x7a4a30, width: 1.4, cap: 'round', join: 'round' });
+      }
+      this.parts.claw.rotation = Math.sin(t * 1.3) * 0.15 + (Math.sin(t * 0.37) > 0.6 ? Math.sin(t * 12) * 0.12 : 0);
+      this.parts.dots.alpha = 0.5 + 0.5 * vig;
+      this.parts.halo.alpha = 0.35 * vig;
+    } else if (this.species === 'shrimp') {
+      // Swims with flicks of its swimmerets; antennae trail and wave.
+      rot = Math.atan2(vy, Math.abs(vx) + 25) * 0.5 * this.face + sick * 0.25;
+      bob = Math.sin(t * 2.1) * 1.4;
+      const fg = this.parts.feelers;
+      fg.clear();
+      for (const [k, len] of [
+        [0, 30],
+        [1, 24],
+      ] as const) {
+        fg.moveTo(16, -5);
+        for (let j = 1; j <= 6; j++) fg.lineTo(16 + (j / 6) * len, -6 - j * 1.4 + Math.sin(t * 2 + j * 0.8 + k) * 2.4 * (j / 6));
+        fg.stroke({ color: 0xe8b08a, width: 0.6, alpha: 0.75 });
+      }
+      const lg = this.parts.legs;
+      lg.clear();
+      for (let i = 0; i < 5; i++) {
+        const bx = 8 - i * 4;
+        const ph = Math.sin(t * 14 + i * 0.9);
+        lg.moveTo(bx, 3).lineTo(bx - 1.5 + ph * 1.2, 7).stroke({ color: 0xf0c8a0, width: 0.8, alpha: 0.7 });
+      }
+      const p = 0.75 + 0.25 * Math.sin(t * 2.6);
+      this.parts.dots.alpha = (0.35 + 0.65 * vig) * p;
+      this.parts.halo.alpha = 0.5 * vig * p;
     } else {
       // Ray: glides level, tilting a little with its climb.
       rot = Math.atan2(vy, Math.abs(vx) + 30) * 0.4 * this.face;
