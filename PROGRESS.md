@@ -645,6 +645,8 @@ Cut from High so far: the phone renders at 2× instead of its native 3×. Colin 
 
 ## Next
 
+The prompt for the next session is in `docs/prompts/milestone-7.md`.
+
 **Milestone 7: the first gear gate** (DESIGN.md): Lab, Workshop and the dive light; the kelp forest and caves zone with its major site. The auto feeder in DESIGN.md's milestone 7 line was already built in milestone 5.
 - **Decided:** a scavenger creature that makes scrap lives in the kelp forest (see "After milestone 6" above). Design it with Colin: its look, what it likes, its partner species and its clashes. Then remove the scrap test gift.
 - Ask Colin before building:
