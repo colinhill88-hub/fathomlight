@@ -1619,7 +1619,7 @@ export class Scenery {
     }
   }
 
-  /** The tow line from the ring behind to the diver, or none. */
+  /** The grapple line from the ring to the diver, or none. */
   setTow(a: { x: number; y: number } | null, b?: { x: number; y: number }): void {
     const g = this.towG.clear();
     if (!a || !b) return;

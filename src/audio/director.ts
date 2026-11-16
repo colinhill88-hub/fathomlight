@@ -503,7 +503,7 @@ export class SoundDirector {
     audio.bubbles({ t: t + 0.05, n: 20, spread: 0.9, gain: 0.05, low: 300, high: 1300, bus: 'ui' });
   }
 
-  /** Milestone 8: clipping the tow line onto an anchor ring. */
+  /** Milestone 8: the grapple hook firing and biting into an anchor ring. */
   clip(): void {
     if (!audio.running) return;
     audio.metal({ freq: 900, gain: 0.05, decay: 0.2 });

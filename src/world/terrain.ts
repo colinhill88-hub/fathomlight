@@ -39,7 +39,7 @@ import { mulberry32, WORLD_SEED } from '../rng';
  * Milestone 8 part 1 added the wreck shelf east of the plateau:
  * 19300 - 19750 the shelf edge: the plateau drops 18 m to the shelf floor
  * 19450 - 21900 the race: a strong current sweeps west across the edge; old
- *               anchor rings cross it (the tow line clips on)
+ *               anchor rings cross it (the grapple line hooks them)
  * 21900 - 27000 the wreck shelf: twilight, about 22 m down, silt and wreckage,
  *               two small sealed wrecks, wreck lurkers in dens, brass fittings,
  *               and the great sealed wreck of the Corvina (the major site, part 2)

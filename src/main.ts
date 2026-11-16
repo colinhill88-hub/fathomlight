@@ -547,7 +547,7 @@ async function boot(): Promise<void> {
     towcoil: {
       research: 'tow',
       label: "Take the rope store's spool tag",
-      toast: 'Rope store notes taken! A Lab can decode the tow line from them, for the strong currents of the next zone.',
+      toast: 'Rope store notes taken! A Lab can decode the grapple line from them: it hooks anchor points and reels you in, faster than strong currents.',
       y: 0,
     },
     cache: {
