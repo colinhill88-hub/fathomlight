@@ -28,7 +28,7 @@ function trayLine(save: SaveData, td: TankData): string {
   const belt = save.lines.some((l) => l.kind === 'belt' && save.tankData[String(l.from)] === td);
   const good = n < TRAY_CAP;
   return `<li class="${good ? 'good' : 'bad'}">${good ? '✓' : '✗'} Output tray ${n}/${TRAY_CAP}${what ? ` (${what})` : ''}${
-    belt ? ': a conveyor carries it away' : n ? ': swim up to the tank to take it, or run a conveyor from the tank' : ''
+    belt ? ': a conveyor carries it away' : n ? ': stop by the tank and tap Collect to take it, or run a conveyor from the tank' : ''
   }${good ? '' : '. Full: making is paused'}</li>`;
 }
 
@@ -287,7 +287,7 @@ export class CareMode {
     const c = list.find((x) => x.id === this.selected);
     let body = '';
     if (!c) {
-      body = `<p class="status">This tank is empty. Collect a young creature or an egg clutch out on the reef with Collect, then swim back here to put it in.</p>`;
+      body = `<p class="status">This tank is empty. Collect a young creature or an egg clutch out on the reef with Collect, then stop by this tank and tap Collect to put it in.</p>`;
     } else if (c.stage === 'egg') {
       body = `<p class="status">${statusLine(save, c)}</p><p class="note">Eggs only need time. The fry will need feeding once they hatch.</p>`;
     } else {

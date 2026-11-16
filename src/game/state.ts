@@ -46,7 +46,7 @@ export const REGROW_SECONDS = 10 * 60;
  * shallows it only makes a trip slower and thirstier.
  *
  * Later gear raises these limits: a lift bag, a buoyancy vest, the drone
- * carrying loads and the sub's cargo bay (milestone 5). They all plug in
+ * carrying loads and the sub's cargo bay (milestone 6). They all plug in
  * through bagLimits().
  */
 export const BAG_RATED_KG = 15;
@@ -56,7 +56,21 @@ export function bagWeight(bag: Record<MaterialId, number>): number {
   return MATERIAL_ORDER.reduce((a, k) => a + bag[k] * MATERIALS[k].kg, 0);
 }
 
-export function bagLimits(_d: SaveData): { rated: number; max: number } {
+/**
+ * How much the diver can carry. Milestone 6: aboard the submersible with a
+ * cargo bay fitted, the bay takes the load, so both limits rise by a lot
+ * (see CARGO_BAY_KG in src/game/sub.ts). On leaving the sub, whatever the
+ * diver cannot carry stays in the bay's hold.
+ */
+export function bagLimits(d: SaveData): { rated: number; max: number } {
+  const bay = d.sub && d.sub.aboard && d.sub.modules.includes('cargo') ? CARGO_BAY : null;
+  return { rated: BAG_RATED_KG + (bay?.rated ?? 0), max: BAG_MAX_KG + (bay?.max ?? 0) };
+}
+/** Extra kg the sub's cargo bay adds to the rated and full load while aboard. */
+export const CARGO_BAY = { rated: 36, max: 40 };
+
+/** The diver's own limits, without the sub. */
+export function diverLimits(): { rated: number; max: number } {
   return { rated: BAG_RATED_KG, max: BAG_MAX_KG };
 }
 
@@ -152,10 +166,41 @@ export interface MachineData {
   plate?: number;
 }
 
+/** Modules that fit the submersible's slots (milestone 6; rules in src/game/sub.ts). */
+export type SubModule = 'cargo' | 'lights' | 'grabber';
+
+/** The submersible KS-1 (milestone 6). There is one; it is built at a Moon pool dock. */
+export interface SubData {
+  /** A frame while the build drone welds it at its dock, then built. */
+  stage: 'frame' | 'built';
+  /** 0..1 while still a frame. */
+  progress?: number;
+  /** The Moon pool dock (piece id) it was built at, or last docked in. */
+  dock: number;
+  x: number;
+  y: number;
+  /** 1 facing right, -1 facing left. */
+  face: number;
+  /** 0..1. Hard knocks against rock dent it; at 0 the crew tows it home. */
+  hull: number;
+  /** Seconds of air in the sub's reserve. */
+  air: number;
+  /** Clamped in its dock's berth. */
+  docked: boolean;
+  /** The diver is piloting it. */
+  aboard: boolean;
+  /** Fitted modules, one per slot. */
+  modules: SubModule[];
+  /** Cargo left in the cargo bay when the diver climbed out. */
+  hold: Partial<Record<MaterialId, number>>;
+  /** Floodlights / running lamp on. */
+  lights: boolean;
+}
+
 /** A base piece as saved (see src/game/base.ts). */
 export interface SavedPiece {
   id: number;
-  kind: 'dome' | 'corridor' | 'turbine' | 'storage' | 'tank' | 'filter' | 'feeder' | 'press';
+  kind: 'dome' | 'corridor' | 'turbine' | 'storage' | 'tank' | 'filter' | 'feeder' | 'press' | 'dock';
   gx: number;
   gy: number;
   rot: number;
@@ -210,6 +255,14 @@ export interface SaveData {
   whorls: string[];
   /** Base piece id -> how many Echo whorls are fitted to it. */
   fitted: Record<string, number>;
+  /** The submersible (milestone 6), once one is started at a Moon pool dock. */
+  sub: SubData | null;
+  /**
+   * Test gift (Colin, after milestone 6): scrap still owed to the base's
+   * storage. It moves in as storage has room. Remove once a scavenger
+   * creature (kelp forest, milestone 7) makes scrap.
+   */
+  gift?: number;
   /** One-time tips already shown. */
   tips: string[];
   playSeconds: number;
@@ -248,6 +301,7 @@ export function freshSave(spawnX: number, spawnY: number): SaveData {
     machines: {},
     whorls: [],
     fitted: {},
+    sub: null,
     tips: [],
     playSeconds: 0,
     savedAt: 0,
@@ -282,6 +336,7 @@ export function loadSave(spawnX: number, spawnY: number): { data: SaveData; load
       machines: d.machines && typeof d.machines === 'object' ? d.machines : {},
       whorls: Array.isArray(d.whorls) ? d.whorls : [],
       fitted: d.fitted && typeof d.fitted === 'object' ? d.fitted : {},
+      sub: d.sub && typeof d.sub === 'object' ? { ...d.sub, modules: Array.isArray(d.sub.modules) ? d.sub.modules : [], hold: d.sub.hold ?? {} } : null,
       site: typeof d.site === 'number' ? d.site : 1,
     } as SaveData;
     // Milestone 5: the build grid grew around the old site. Shift older bases

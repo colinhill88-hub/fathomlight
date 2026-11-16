@@ -65,7 +65,7 @@ export function onSeabed(gx: number, gy: number): boolean {
 /** How many cells of the site are open water. */
 export const OPEN_CELLS = OPEN.filter(Boolean).length;
 
-export type PieceKind = 'dome' | 'corridor' | 'turbine' | 'storage' | 'tank' | 'filter' | 'feeder' | 'press';
+export type PieceKind = 'dome' | 'corridor' | 'turbine' | 'storage' | 'tank' | 'filter' | 'feeder' | 'press' | 'dock';
 export type PortKind = 'beltIn' | 'beltOut' | 'pipeIn' | 'pipeOut';
 export type Dir = 'L' | 'R' | 'U' | 'D';
 
@@ -119,7 +119,7 @@ export const PIECES: Record<PieceKind, PieceDef> = {
   storage: {
     kind: 'storage',
     name: 'Storage pod',
-    job: 'Swim up to it to unload what you carry. Stored materials are safe from blackouts.',
+    job: 'Stop by it and tap Collect to unload what you carry. Stored materials are safe from blackouts.',
     cost: { scrap: 3, copper: 1, fibre: 1 },
     buildTime: 18,
     ports: { beltOut: 4, beltIn: 4 },
@@ -139,7 +139,7 @@ export const PIECES: Record<PieceKind, PieceDef> = {
   tank: {
     kind: 'tank',
     name: 'Creature tank',
-    job: 'Houses up to four creatures. Swim up with a creature in your jar to put it in; tap Tend to look after them.',
+    job: 'Houses up to four creatures. Stop by it with a creature in your jar and tap Collect to put it in; tap Tend to look after them.',
     cost: { scrap: 2, quartz: 3, fibre: 1 },
     buildTime: 24,
     ports: { pipeIn: 1, beltOut: 2 },
@@ -184,8 +184,23 @@ export const PIECES: Record<PieceKind, PieceDef> = {
     ports: { beltIn: 2, beltOut: 2 },
     whorls: true,
   },
+  dock: {
+    kind: 'dock',
+    name: 'Moon pool dock',
+    job: 'Builds, berths, repairs and refits the submersible. The sub rises into the pool from the open berth underneath.',
+    cost: { plate: 6, scrap: 4, copper: 3, quartz: 2 },
+    buildTime: 45,
+    // The hall is the top row (collars there); the bottom row is the open berth.
+    shapes: [{ w: 3, h: 2, collars: [{ cx: 0, cy: 1, dir: 'L' }, { cx: 2, cy: 1, dir: 'R' }] }],
+  },
 };
-export const PIECE_ORDER: PieceKind[] = ['dome', 'corridor', 'turbine', 'storage', 'tank', 'filter', 'feeder', 'press'];
+export const PIECE_ORDER: PieceKind[] = ['dome', 'corridor', 'turbine', 'storage', 'tank', 'filter', 'feeder', 'press', 'dock'];
+
+/** Where a docked sub sits in a Moon pool dock (milestone 6): its hull in the berth, its dome up in the pool. */
+export function berthOf(p: { kind: PieceKind; gx: number; gy: number; rot: number }): { x: number; y: number } {
+  const r = pieceRect(p);
+  return { x: r.x + r.w / 2, y: r.y + r.h - 74 };
+}
 
 /** How many materials each storage pod holds, all kinds together. */
 export const STORAGE_PER_POD = 40;
@@ -406,6 +421,7 @@ const CODE_PREFIX: Record<PieceKind, string> = {
   filter: 'FP-',
   feeder: 'AF-',
   press: 'PP-',
+  dock: 'MP-',
 };
 
 /** A piece's stencil code, as painted on it: CT-1, AF-2, PP-1, TANK 3. Pieces are numbered per kind in build order. */

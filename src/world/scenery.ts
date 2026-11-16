@@ -539,12 +539,13 @@ export class Scenery {
       this.slices.push({ obj: g, x0: x0 - 60, x1: x1 + 60 });
     };
     // The cliff from the shelf down into the basin, and the rock under the shelf (milestone 5).
-    rock(180, 1760, (g) => {
+    // Since the terraces (after milestone 6) the rock starts at the foot of the lowest ledge.
+    rock(-320, 1760, (g) => {
       const pts: [number, number][] = [];
       const top = (x: number) => gy(x) + 90 * smooth((x - 360) / 60) * (1 - smooth((x - 1640) / 120));
-      for (let x = 180; x <= 1760; x += 8) pts.push([x, top(x)]);
-      pts.push([1760, WORLD_H + 300], [180, WORLD_H + 300]);
-      paintRock(g, pts, (x) => (x >= 180 && x <= 1760 ? top(x) : NaN), detail * 0.7);
+      for (let x = -320; x <= 1760; x += 8) pts.push([x, top(x)]);
+      pts.push([1760, WORLD_H + 300], [-320, WORLD_H + 300]);
+      paintRock(g, pts, (x) => (x >= -320 && x <= 1760 ? top(x) : NaN), detail * 0.7);
     });
     rock(2080, 2500, (g) => rockPatch(g, 2080, 2500, 60, detail));
     rock(3020, 3290, (g) => rockPatch(g, 3020, 3290, 45, detail));

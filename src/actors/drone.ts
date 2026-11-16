@@ -61,7 +61,31 @@ const ANT_LEN = 9;
 
 type Mode = 'stranded' | 'waking' | 'follow' | 'toFrame' | 'weld' | 'parked';
 
-export type DroneEvent = { type: 'repaired' } | { type: 'finished'; piece: Placed } | { type: 'started'; piece: Placed };
+export type DroneEvent =
+  | { type: 'repaired' }
+  | { type: 'finished'; piece: Placed }
+  | { type: 'started'; piece: Placed | null }
+  | { type: 'subDone' };
+
+/**
+ * Something to weld that is not a base piece (milestone 6: the submersible
+ * in its dock's berth). It is welded after any base frames waiting.
+ */
+export interface WeldJob {
+  rect: { x: number; y: number; w: number; h: number };
+  progress: number;
+  buildTime: number;
+}
+
+/** One frame in the drone's queue: a base piece, or the extra job. */
+interface Job {
+  id: number;
+  rect: { x: number; y: number; w: number; h: number };
+  piece: Placed | null;
+  get(): number;
+  set(v: number): void;
+  time: number;
+}
 
 export interface DroneInput {
   diverX: number;
@@ -75,6 +99,10 @@ export interface DroneInput {
   layout: BaseLayout;
   /** Welding speed (1 = normal). */
   rate: number;
+  /** The sub frame to weld after the base frames (milestone 6). */
+  extra?: WeldJob | null;
+  /** How far beside and above the one it follows to keep (bigger for the sub). */
+  gap?: { x: number; y: number };
 }
 
 let rand = mulberry32(WORLD_SEED ^ 0xd201e);
@@ -149,6 +177,8 @@ export class Drone {
   inReach = false;
   /** The frame being welded right now, if any. */
   welding: Placed | null = null;
+  /** Welding the submersible frame right now (milestone 6). */
+  weldingSub = false;
 
   private vx = 0;
   private vy = 0;
@@ -295,6 +325,21 @@ export class Drone {
     return { x: x / layout.pieces.length, y: Math.max(60, top - 50) };
   }
 
+  /** Base frames oldest first, then the sub frame if there is one. */
+  private static jobs(inp: DroneInput): Job[] {
+    const out: Job[] = inp.layout.frames().map((p) => ({
+      id: p.id,
+      rect: pieceRect(p),
+      piece: p,
+      get: () => p.progress ?? 0,
+      set: (v: number) => (p.progress = v),
+      time: PIECES[p.kind].buildTime,
+    }));
+    const e = inp.extra;
+    if (e && e.progress < 1) out.push({ id: -1, rect: e.rect, piece: null, get: () => e.progress, set: (v) => (e.progress = v), time: e.buildTime });
+    return out;
+  }
+
   update(dt: number, time: number, inp: DroneInput): DroneEvent[] {
     this.time += dt;
     const events: DroneEvent[] = [];
@@ -312,8 +357,9 @@ export class Drone {
     this.inReach = this.mode === 'stranded' && dDiver < REPAIR_REACH;
     let tx = this.x;
     let ty = this.y;
-    let maxSpeed = 440;
+    let maxSpeed = Math.max(440, inp.diverSpeed * 1.2);
     this.welding = null;
+    this.weldingSub = false;
     // What the eye looks at: the diver, unless something else is more interesting.
     let lookX = inp.diverX;
     let lookY = inp.diverY - 10;
@@ -349,10 +395,10 @@ export class Drone {
         this.hop = 0;
       }
     } else {
-      const frames = inp.layout.frames();
+      const frames = Drone.jobs(inp);
       if (frames.length && this.mode !== 'toFrame' && this.mode !== 'weld') {
         this.mode = 'toFrame';
-        events.push({ type: 'started', piece: frames[0] });
+        events.push({ type: 'started', piece: frames[0].piece });
       }
       if (!frames.length && (this.mode === 'toFrame' || this.mode === 'weld')) this.mode = dDiver < 900 ? 'follow' : 'parked';
       if (this.mode === 'parked' && dDiver < 760) this.mode = 'follow';
@@ -363,8 +409,8 @@ export class Drone {
         if (inp.diverSpeed > 70) this.side = -inp.diverFace;
         const moving = inp.diverSpeed > 45;
         const p = moving ? (this.trail[Math.max(0, this.trail.length - 6)] ?? { x: inp.diverX, y: inp.diverY }) : { x: inp.diverX, y: inp.diverY };
-        tx = p.x + this.side * 50;
-        ty = p.y - 34 + Math.sin(this.time * 0.8) * 4;
+        tx = p.x + this.side * (inp.gap?.x ?? 50);
+        ty = p.y - (inp.gap?.y ?? 34) + Math.sin(this.time * 0.8) * 4;
         if (isSolid(tx, ty)) {
           tx = p.x;
           ty = p.y - 20;
@@ -387,8 +433,8 @@ export class Drone {
       } else {
         // Fly to the oldest frame and weld it, sweeping along the seam from the bottom up.
         const f = frames[0];
-        const r = pieceRect(f);
-        const prog = f.progress ?? 0;
+        const r = f.rect;
+        const prog = f.get();
         const seamY = r.y + r.h * (1 - prog);
         const sx = r.x + r.w * (0.5 + 0.38 * Math.sin(this.time * 0.9 + f.id));
         tx = sx - 12;
@@ -399,18 +445,20 @@ export class Drone {
         const dist = Math.hypot(tx - this.x, ty - this.y);
         if (this.mode === 'toFrame' && dist < 30) this.mode = 'weld';
         if (this.mode === 'weld') {
-          this.welding = f;
-          f.progress = Math.min(1, prog + (dt * inp.rate) / PIECES[f.kind].buildTime);
-          if (f.progress >= 1) {
-            delete f.progress;
-            events.push({ type: 'finished', piece: f });
-            const r2 = pieceRect(f);
-            this.burst(r2.x + r2.w / 2, r2.y + r2.h / 2, 20);
+          this.welding = f.piece;
+          this.weldingSub = !f.piece;
+          f.set(Math.min(1, prog + (dt * inp.rate) / f.time));
+          if (f.get() >= 1) {
+            if (f.piece) {
+              delete f.piece.progress;
+              events.push({ type: 'finished', piece: f.piece });
+            } else events.push({ type: 'subDone' });
+            this.burst(r.x + r.w / 2, r.y + r.h / 2, 20);
             this.hop = 0;
-            const next = inp.layout.frames().find((q) => q.id !== f.id);
+            const next = Drone.jobs(inp).find((q) => q.id !== f.id);
             if (next) {
               this.mode = 'toFrame';
-              events.push({ type: 'started', piece: next });
+              events.push({ type: 'started', piece: next.piece });
             } else this.mode = dDiver < 900 ? 'follow' : 'parked';
           }
         }

@@ -65,10 +65,32 @@ export const BASIN_WEST = -4990;
 /** A nook in the west wall (an Echo whorl hides there). */
 export const WALL_NOOK = { x: -5225, y: 770 };
 
+/*
+ * The terraces line up with the build grid (src/game/base.ts can't be
+ * imported here, so its numbers are repeated): cells are 112 units, the grid
+ * starts at x = -4884 and its bottom row sits on y = 1655. A ledge `rows`
+ * high fills that many cells of its two columns with rock; its riser sits
+ * inside its own west column, so the cells beside it stay open. Its top is
+ * 16 below the row line, which keeps the row above open despite the ripples.
+ * They take 30 cells: 2 columns × (2 + 5 + 8) rows.
+ */
+const T_CELL = 112;
+const T_GRID_X0 = -4884;
+const T_GRID_BASE = 1655;
+const TERRACES = [
+  { col: 41, rows: 2 },
+  { col: 43, rows: 5 },
+  { col: 45, rows: 8 },
+].map((t) => ({ x: T_GRID_X0 + t.col * T_CELL, y: T_GRID_BASE - t.rows * T_CELL + 16 }));
+
 function basinGround(x: number): number {
   // Gentle ripples on the floor, and a few low sand mounds.
   let y = BASIN_FLOOR + 6 + Math.sin(x * 0.004) * 6 + Math.sin(x * 0.0113 + 2) * 4;
   y -= bump(x, -3300, 260, 10) + bump(x, -1450, 320, 12);
+  // Terraces at the foot of the cliff (Colin, after milestone 6): three rock
+  // ledges, each two grid columns wide, stepping down from the shelf, so pieces
+  // built off the shelf edge stand on a ledge instead of on 17 m legs.
+  for (const t of TERRACES) y += (t.y - y) * smooth((x - t.x) / 46);
   // The cliff up to the shelf: steep, with a shoulder part-way up.
   const up = smooth((x - (BASIN_EAST - 10)) / 85);
   y += (430 - y) * up;

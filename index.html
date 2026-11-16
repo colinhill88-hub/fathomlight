@@ -30,10 +30,12 @@
       <div id="jar-chip" aria-label="Specimen jar"></div>
     </div>
 
+    <div id="sub-chip" aria-label="Submersible status"></div>
     <div id="tags"></div>
     <div id="toasts" aria-live="polite"></div>
     <div id="banner"></div>
     <div id="bag-marker"><div class="arrow"></div><span>Bag</span><span id="bag-dist"></span></div>
+    <div id="sub-marker"><div class="arrow"></div><span>KS-1</span><span id="sub-dist"></span></div>
 
     <div id="controls">
       <div id="stick-base"></div>
@@ -57,6 +59,13 @@
         </svg>
       </button>
       <div id="collect-label"></div>
+      <button id="btn-sub" type="button" aria-label="Board or exit the submersible">
+        <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+          <path fill="currentColor" d="M5 12a3 3 0 0 1 3-3h5a5 5 0 0 1 9 2v1a4 4 0 0 1-4 4H8a3 3 0 0 1-3-3zm-3-2h2v6H2z" opacity=".9"/>
+          <path fill="#1d2a30" d="M14 9.2a3.4 3.4 0 0 1 6.4 1.3H14z" opacity=".55"/>
+        </svg>
+        <span>Board</span>
+      </button>
       <button id="btn-boost" type="button" aria-label="Boost">
         <svg viewBox="0 0 24 24" width="28" height="28" aria-hidden="true">
           <path fill="currentColor" d="M4 6l8 6-8 6zm8 0l8 6-8 6z" />
@@ -66,7 +75,7 @@
 
     <div id="hint">
       <span class="touch-only">Drag on the left to swim · hold Scan near new things, tap it to name known ones · stop by materials or young creatures and hold Collect</span>
-      <span class="desk-only">WASD or arrows to swim · Shift boost · L lamp · E scan (hold for new, tap to name known) · hold C to collect · B build at the Kestrel site · T tend a creature tank</span>
+      <span class="desk-only">WASD or arrows to swim · Shift boost · L lamp · E scan (hold for new, tap to name known) · hold C to collect · B build at the Kestrel site · T tend a creature tank · V board or leave the sub</span>
     </div>
 
     <div id="hud">
@@ -83,6 +92,13 @@
           <path fill="currentColor" d="M9.5 13.5c1.5-2 4-2 5.5 0-1.5 2-4 2-5.5 0zm5.5 0l2-1.4v2.8zM7 17h3v1H7zM11.5 4.5l1 1.5h-2z"/>
         </svg>
         <span class="lbl">Tend</span>
+      </button>
+      <button id="dock-btn" type="button" aria-label="Moon pool dock" aria-pressed="false">
+        <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+          <path fill="currentColor" d="M3 4h18v6H3zm2 6h2v10H5zm12 0h2v10h-2z" opacity=".9"/>
+          <path fill="currentColor" d="M8 15h8a2.5 2.5 0 0 1 0 5H8a2.5 2.5 0 0 1 0-5zm2-1a2 2 0 0 1 4 0z"/>
+        </svg>
+        <span class="lbl">Dock</span>
       </button>
       <button id="log-btn" type="button" aria-label="Scanner log" aria-expanded="false">
         <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
@@ -171,6 +187,9 @@
       <div id="build-bar" role="toolbar" aria-label="Base pieces"></div>
     </div>
 
+    <div id="dock-ui">
+      <div id="dock-panel" role="dialog" aria-label="Moon pool dock"></div>
+    </div>
     <div id="care-ui">
       <div id="care-panel" role="dialog" aria-label="Tank care"></div>
     </div>

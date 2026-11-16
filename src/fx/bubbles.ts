@@ -34,6 +34,11 @@ export class Bubbles {
     g.destroy();
   }
 
+  /** Release a few bubbles at a point (the sub's propeller wash, milestone 6). */
+  puff(x: number, y: number, vx: number, vy: number, n = 1): void {
+    for (let i = 0; i < n; i++) this.spawn(x, y, vx, vy);
+  }
+
   private spawn(x: number, y: number, vx: number, vy: number): void {
     let b = this.pool.find((q) => !q.alive);
     if (!b) {

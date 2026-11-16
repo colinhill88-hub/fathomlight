@@ -1,3 +1,4 @@
+import { airClock, MODULES } from '../game/sub';
 import { MATERIAL_ORDER, MATERIALS, MaterialId, SaveData, TOTAL_AIR_TANKS, maxOxygen, bagLimits, bagWeight } from '../game/state';
 import { SCAN_ENTRIES, entry } from '../game/scanner';
 import { SPECIES, SPECIES_ORDER, statusLine } from '../game/creatures';
@@ -24,6 +25,15 @@ export const MATERIAL_ICONS: Record<MaterialId, string> = {
   plate:
     '<svg viewBox="0 0 24 24"><path d="M3 9l9-4 9 4v7l-9 4-9-4z" fill="#6b777a"/><path d="M3 9l9-4 9 4-9 4z" fill="#a9b4b6"/><path d="M12 13v7l9-4V9z" fill="#4e585b"/><path d="M5.5 9.3l6.5-2.9 6.5 2.9" fill="none" stroke="#c9a24a" stroke-width="1.1"/><circle cx="7" cy="10" r=".9" fill="#3b4448"/><circle cx="12" cy="7.6" r=".9" fill="#3b4448"/><circle cx="17" cy="10" r=".9" fill="#3b4448"/><circle cx="12" cy="12" r=".9" fill="#3b4448"/></svg>',
 };
+
+/** The submersible line in the log (milestone 6). */
+function subNote(save: SaveData): string {
+  const s = save.sub;
+  if (!s) return 'Submersible: not built. Build a Moon pool dock (it takes hull plating from a plate press), then build the sub there.';
+  if (s.stage === 'frame') return `Submersible KS-1: frame in the dock, ${Math.floor((s.progress ?? 0) * 100)}% welded.`;
+  const mods = s.modules.length ? s.modules.map((m) => MODULES[m].name.toLowerCase()).join(', ') : 'no modules yet';
+  return `Submersible KS-1: hull ${Math.round(s.hull * 100)}%, air ${airClock(s.air)}, ${mods}. ${s.docked ? 'Berthed at the Moon pool dock.' : 'Out on the reef.'}`;
+}
 
 export class Hud {
   private chips = document.getElementById('inventory')!;
@@ -140,6 +150,7 @@ export class Hud {
       ['filter', 'Filter pump'],
       ['feeder', 'Auto feeder'],
       ['press', 'Plate press'],
+      ['dock', 'Moon pool dock'],
     ];
     const base = save.pieces.length
       ? [
@@ -171,6 +182,7 @@ export class Hud {
           ? 'Build drone KD-1: repaired. It welds every frame you place.'
           : 'Build drone: missing. It was lost near the survey sled wreck in the sand channel.'
       }</p>
+      <p class="note">${subNote(save)}</p>
       <h2>Creatures</h2>
       ${this.creatureNotes(save)}
       <p class="note">Air tank upgrades found: ${save.tanks.length} / ${TOTAL_AIR_TANKS} · Dive time ${maxOxygen(save)} s</p>
@@ -218,7 +230,8 @@ export class Hud {
   }
 
   /** The Collect button: shown only with a material in reach. */
-  setCollect(label: string | null, progress: number): void {
+  setCollect(label: string | null, progress: number, tap = false): void {
+    this.collectLabel.classList.toggle('tap', tap);
     this.collectBtn.classList.toggle('ready', !!label);
     this.collectBtn.style.setProperty('--p', String(progress));
     const text = label ?? '';
@@ -276,8 +289,20 @@ export class Hud {
 
   /** Point at the dropped bag when it is off screen. sx, sy are its screen position in CSS px. */
   setBagMarker(sx: number | null, sy: number, metres: number): void {
+    this.placeMarker(this.bagMarker, this.bagDist, sx, sy, metres);
+  }
+
+  /** Milestone 6: where the parked sub is, when it is off screen. */
+  setSubMarker(sx: number | null, sy: number, metres: number): void {
+    this.placeMarker(this.subMarker, this.subDist, sx, sy, metres);
+  }
+
+  private subMarker = document.getElementById('sub-marker')!;
+  private subDist = document.getElementById('sub-dist')!;
+
+  private placeMarker(marker: HTMLElement, dist: HTMLElement, sx: number | null, sy: number, metres: number): void {
     if (sx === null) {
-      this.bagMarker.classList.remove('show');
+      marker.classList.remove('show');
       return;
     }
     const w = window.innerWidth;
@@ -285,7 +310,7 @@ export class Hud {
     const m = 44;
     const onScreen = sx > m && sx < w - m && sy > m && sy < h - m;
     if (onScreen) {
-      this.bagMarker.classList.remove('show');
+      marker.classList.remove('show');
       return;
     }
     // Sit on the edge of an inner frame, clear of the watch and the buttons.
@@ -298,9 +323,26 @@ export class Hud {
     const dx = sx - cx;
     const dy = sy - cy;
     const k = Math.min((w - Rm - L) / 2 / Math.abs(dx || 1), (h - B - T) / 2 / Math.abs(dy || 1));
-    this.bagMarker.style.transform = `translate(${cx + dx * k}px, ${cy + dy * k}px)`;
-    this.bagMarker.style.setProperty('--a', `${Math.atan2(dy, dx)}rad`);
-    this.bagDist.textContent = `${Math.round(metres)} m`;
-    this.bagMarker.classList.add('show');
+    marker.style.transform = `translate(${cx + dx * k}px, ${cy + dy * k}px)`;
+    marker.style.setProperty('--a', `${Math.atan2(dy, dx)}rad`);
+    dist.textContent = `${Math.round(metres)} m`;
+    marker.classList.add('show');
+  }
+
+  /** The sub's status chip under the watch (milestone 6), shown while aboard. */
+  setSubChip(html: string | null, warn = false): void {
+    const el = document.getElementById('sub-chip')!;
+    const text = html ?? '';
+    if (el.innerHTML !== text) el.innerHTML = text;
+    el.classList.toggle('show', !!html);
+    el.classList.toggle('warn', warn);
+  }
+
+  /** The Board / Exit button (touch), with its label. */
+  setBoard(label: string | null): void {
+    const btn = document.getElementById('btn-sub')!;
+    btn.classList.toggle('ready', !!label);
+    const span = btn.querySelector('span')!;
+    if (label && span.textContent !== label) span.textContent = label;
   }
 }

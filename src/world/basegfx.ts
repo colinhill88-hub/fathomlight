@@ -792,6 +792,103 @@ function drawPress(n: number): PieceArt {
   };
 }
 
+
+/**
+ * Moon pool dock (milestone 6): a pressurised hall on the top row with a
+ * pool cut in its floor, over an open berth on the bottom row. The sub
+ * rises into the pool from below until its dome sits up in the hall, where
+ * clamps hold it and the crane over the pool lifts modules on and off.
+ * Heavy side pillars carry the hall down to the seabed; amber guide lamps
+ * on the pillars show the way in.
+ */
+function drawDock(n: number): PieceArt {
+  const W = CELL * 3;
+  const H = CELL * 2;
+  const HALL = CELL; // the hall is the top row
+  const body = new Container();
+  const g = body.addChild(new Graphics());
+  const windows = new Graphics();
+  const windowGlow = new Graphics();
+  const cy = HALL / 2;
+  // Collar stubs on the hall.
+  tubeH(g, 0, 20, cy, 1);
+  tubeH(g, W - 20, W, cy, 1);
+  // Berth: pillars and bracing (behind), down to the bottom of the footprint.
+  for (const x of [14, W - 34]) {
+    g.rect(x, HALL, 20, H - HALL).fill({ color: PAL.steelDark });
+    g.rect(x, HALL, 5, H - HALL).fill({ color: 0xffffff, alpha: 0.1 });
+    hazardBand(g, x, HALL + 14, 20, 8);
+    rivets(g, x + 10, HALL + 30, x + 10, H - 8, 6);
+    g.roundRect(x - 6, H - 8, 32, 8, 2).fill({ color: PAL.steel });
+  }
+  g.moveTo(34, HALL + 10).lineTo(70, H - 10).moveTo(W - 34, HALL + 10).lineTo(W - 70, H - 10);
+  g.stroke({ color: PAL.steelDark, width: 3, alpha: 0.75 });
+  // Hall shell: a long drum with a curved roof.
+  g.roundRect(18, 10, W - 36, HALL - 6, 26).fill({ color: PAL.steel });
+  g.roundRect(18, 10, W - 36, 10, 6).fill({ color: 0xffffff, alpha: 0.12 });
+  g.rect(18, HALL - 22, W - 36, 18).fill({ color: PAL.steelDeep, alpha: 0.4 });
+  hazardBand(g, 24, 30, W - 48, 7);
+  for (const sx of [70, 130, W - 130, W - 70]) {
+    g.moveTo(sx, 14).lineTo(sx, HALL).stroke({ color: PAL.steelDeep, width: 1, alpha: 0.6 });
+    rivets(g, sx + 4, 18, sx + 4, HALL - 6, 7);
+  }
+  // Portholes.
+  for (const px of [52, W - 52]) {
+    porthole(g, px, 62, 11);
+    windows.circle(px, 62, 10).fill({ color: 0xffe2a8, alpha: 0.85 });
+    windowGlow.circle(px, 62, 22).fill({ color: PAL.warm, alpha: 0.32 });
+  }
+  // The pool: an opening in the hall floor, with water light rippling inside.
+  const p0 = W / 2 - 70;
+  const p1 = W / 2 + 70;
+  g.rect(18, HALL - 8, W - 36, 14).fill({ color: PAL.steelDark });
+  g.rect(18, HALL - 8, W - 36, 2.5).fill({ color: 0xffffff, alpha: 0.14 });
+  g.rect(p0, 40, p1 - p0, HALL - 34).fill({ color: 0x0f2a33 });
+  g.rect(p0, 40, p1 - p0, 4).fill({ color: PAL.yellow });
+  for (const x of [p0 - 8, p1]) {
+    g.rect(x, 36, 8, HALL - 30).fill({ color: PAL.steelDark });
+    rivets(g, x + 4, 42, x + 4, HALL, 5);
+  }
+  windows.rect(p0 + 4, 46, p1 - p0 - 8, 3).fill({ color: 0xbfe0d8, alpha: 0.55 });
+  windowGlow.rect(p0, 40, p1 - p0, 20).fill({ color: 0xffe0b0, alpha: 0.2 });
+  // Clamp arms hanging from the floor edges, down into the berth.
+  for (const [x, s] of [
+    [p0 - 4, -1],
+    [p1 + 4, 1],
+  ] as const) {
+    g.rect(x - 4, HALL + 4, 8, 22).fill({ color: PAL.steelDark });
+    g.poly([x - 4, HALL + 26, x + 4, HALL + 26, x - s * 8, HALL + 40, x - s * 14, HALL + 36]).fill({ color: PAL.yellow });
+    g.circle(x, HALL + 26, 3).fill({ color: PAL.steelLight });
+  }
+  // Crane rail and hook block over the pool.
+  g.rect(p0 - 20, 22, p1 - p0 + 40, 5).fill({ color: PAL.steelDark });
+  g.roundRect(W / 2 - 12, 26, 24, 9, 2).fill({ color: PAL.yellow });
+  g.moveTo(W / 2, 35).lineTo(W / 2, 44).stroke({ color: 0x9aa3a5, width: 1.2 });
+  g.moveTo(W / 2 - 3, 44).quadraticCurveTo(W / 2 - 4, 49, W / 2, 49).quadraticCurveTo(W / 2 + 3, 49, W / 2 + 2, 46).stroke({ color: PAL.steelLight, width: 1.6 });
+  // Amber guide lamps on the pillars.
+  for (const [x, y] of [
+    [24, HALL + 54],
+    [W - 24, HALL + 54],
+    [24, HALL + 84],
+    [W - 24, HALL + 84],
+  ]) {
+    g.circle(x, y, 4).fill({ color: PAL.steelDeep });
+    windows.circle(x, y, 2.6).fill({ color: 0xffc060 });
+    windowGlow.circle(x, y, 10).fill({ color: 0xffb040, alpha: 0.6 });
+  }
+  body.addChild(stencil(`MP-${n}`, W / 2, 16, 8));
+  body.addChild(stencil('MOON POOL', 100, 74, 5));
+  body.addChild(stencil('CLEAR BERTH', W - 100, 74, 5));
+  streaks(g, 24, W - 24, 36, 12, 20);
+  streaks(g, 24, W - 24, HALL, 8, 16);
+  scratches(g, 22, 14, W - 22, HALL - 8, 14);
+  algaeLine(g, 22, W - 22, HALL + 4, 20);
+  algaeLine(g, 30, W - 30, 12, 8);
+  algaeLine(g, 8, 40, H - 4, 5);
+  algaeLine(g, W - 40, W - 8, H - 4, 5);
+  return { body, windows, windowGlow, lamp: { x: W / 2 + 40, y: 16 } };
+}
+
 /** Draw a piece's art. The same drawing is used for placed pieces and the build ghost. */
 export function drawPiece(kind: PieceKind, n: number, rot: number, seed: number): PieceArt {
   rand = mulberry32(WORLD_SEED ^ (seed * 7919 + 0x1b5e));
@@ -802,6 +899,7 @@ export function drawPiece(kind: PieceKind, n: number, rot: number, seed: number)
   if (kind === 'filter') return drawFilter(n);
   if (kind === 'feeder') return drawFeeder(n);
   if (kind === 'press') return drawPress(n);
+  if (kind === 'dock') return drawDock(n);
   return drawStorage(n);
 }
 
@@ -924,7 +1022,7 @@ export class BaseView {
       for (const w of l.whorls) this.dropWhorl(w);
       this.live.delete(id);
     }
-    const counts: Record<PieceKind, number> = { dome: 0, corridor: 0, turbine: 0, storage: 0, tank: 0, filter: 0, feeder: 0, press: 0 };
+    const counts: Record<PieceKind, number> = { dome: 0, corridor: 0, turbine: 0, storage: 0, tank: 0, filter: 0, feeder: 0, press: 0, dock: 0 };
     for (const p of [...layout.pieces].sort((a, b) => a.id - b.id)) {
       counts[p.kind]++;
       if (this.live.has(p.id)) continue;
@@ -954,7 +1052,9 @@ export class BaseView {
           ? { x: r.x + r.w / 2, y: r.y + r.h - 130, radius: 330, intensity: 0, color: [1, 0.86, 0.66] }
           : p.kind === 'tank'
             ? { x: r.x + r.w / 2, y: r.y + 30, radius: 170, intensity: 0, color: [1, 0.92, 0.75] }
-            : null;
+            : p.kind === 'dock'
+              ? { x: r.x + r.w / 2, y: r.y + CELL + 40, radius: 260, intensity: 0, color: [1, 0.85, 0.6] }
+              : null;
       const isFresh = fresh.includes(p.id);
       let frame: Live['frame'] = null;
       if (!isDone(p)) {
