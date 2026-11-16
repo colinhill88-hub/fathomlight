@@ -75,7 +75,7 @@
 
     <div id="hint">
       <span class="touch-only">Drag on the left to swim · hold Scan near new things, tap it to name known ones · stop by materials or young creatures and hold Collect</span>
-      <span class="desk-only">WASD or arrows to swim · Shift boost · L lamp · E scan (hold for new, tap to name known) · hold C to collect · B build at the Kestrel site · T tend a creature tank · V board or leave the sub</span>
+      <span class="desk-only">WASD or arrows to swim · Shift boost · L lamp · E scan (hold for new, tap to name known) · hold C to collect · B build at the Kestrel site · T tend a creature tank · V board or leave the sub · M mute</span>
     </div>
 
     <div id="hud">
@@ -124,7 +124,19 @@
       <div id="log-panel" class="panel" hidden></div>
 
       <div id="settings-panel" class="panel" hidden>
-        <h2>Graphics</h2>
+        <h2>Sound</h2>
+        <div id="sound-rows">
+          <label class="vol"><span>Master</span><input type="range" min="0" max="100" step="1" data-vol="master" /><output></output></label>
+          <label class="vol"><span>Music</span><input type="range" min="0" max="100" step="1" data-vol="music" /><output></output></label>
+          <label class="vol"><span>Ambience</span><input type="range" min="0" max="100" step="1" data-vol="ambience" /><output></output></label>
+          <label class="vol"><span>Effects</span><input type="range" min="0" max="100" step="1" data-vol="effects" /><output></output></label>
+        </div>
+        <div class="sound-toggles">
+          <button id="mute-btn" type="button" aria-pressed="false">Mute</button>
+          <button id="silent-btn" type="button" aria-pressed="false" hidden>Silent switch: mutes</button>
+        </div>
+        <p id="sound-note"></p>
+        <h2 class="gap">Graphics</h2>
         <div class="preset-row" role="radiogroup" aria-label="Graphics preset">
           <button type="button" data-preset="auto" role="radio">Auto</button>
           <button type="button" data-preset="high" role="radio">High</button>

@@ -50,6 +50,14 @@ export const TOTAL_AIR_TANKS = 3;
  * app makes anything grow back sooner.
  */
 export const REGROW_SECONDS = 10 * 60;
+/**
+ * Scrap grows back faster (Colin, after milestone 7b: waiting for scrap made the
+ * fresh-save road to the Lab and Workshop slow).
+ */
+export const REGROW_BY_KIND: Partial<Record<MaterialId, number>> = { scrap: 6 * 60 };
+export function regrowSeconds(kind: string): number {
+  return REGROW_BY_KIND[kind as MaterialId] ?? REGROW_SECONDS;
+}
 
 /**
  * The dive bag (milestone 3 follow-up). Every material has a weight. Up to

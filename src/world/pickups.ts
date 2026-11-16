@@ -2,7 +2,7 @@ import { Container, Graphics } from 'pixi.js';
 import { mulberry32, WORLD_SEED } from '../rng';
 import { isSolid, CREVICE_X, caveBottom, groundY, WALL_NOOK, WORLD_H } from './terrain';
 import { WhorlArt } from './whorl';
-import { MATERIALS, MaterialId, ReefMaterial, REGROW_SECONDS, SaveData, DroppedBag } from '../game/state';
+import { MATERIALS, MaterialId, ReefMaterial, regrowSeconds, SaveData, DroppedBag } from '../game/state';
 import type { PointLight } from './scenery';
 
 /**
@@ -42,7 +42,9 @@ const SPOTS: Spot[] = (() => {
     });
   // Scarcer after milestone 4 (Colin: "I seem to have more than I need"), so
   // kept creatures, which make materials, matter more. 39 spots became 28.
-  add('scrap', [3960, 4040, 4210, 4290, 4930, 7420, [6120, 760], 2890]);
+  // Four more after milestone 7b (Colin: early scrap was too slow), appended so
+  // saved ids (scrap-0 … scrap-7) keep their places.
+  add('scrap', [3960, 4040, 4210, 4290, 4930, 7420, [6120, 760], 2890, 2050, 3620, 5600, 6560]);
   add('copper', [520, 1260, 2660, 3400, 4460, 7120, [6330, 760]]);
   // quartz-0 moved from the old west wall (now the basin) to the top of the cliff.
   add('quartz', [372, 2220, 3140, 4720, 5310, 6020, 6420]);
@@ -300,7 +302,7 @@ export class Pickups {
       const isTank = spot.kind === 'tank' || isWhorl;
       const found = (id: string) => (isWhorl ? save.whorls.includes(id) : save.tanks.includes(id));
       const taken = isTank ? found(spot.id) : spot.id in save.taken;
-      if (!isTank && taken && now - save.taken[spot.id] > REGROW_SECONDS) delete save.taken[spot.id];
+      if (!isTank && taken && now - save.taken[spot.id] > regrowSeconds(spot.kind)) delete save.taken[spot.id];
       const gone = isTank ? found(spot.id) : spot.id in save.taken;
       const art = this.whorls.get(spot.id);
       if (art) {

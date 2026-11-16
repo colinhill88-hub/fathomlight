@@ -2344,3 +2344,101 @@ body.docking #station-btn {
   color: #1d1a12;
 }
 
+
+/* Milestone 7b: the Sound settings. */
+#sound-rows {
+  display: grid;
+  gap: 2px;
+}
+
+.vol {
+  display: grid;
+  grid-template-columns: 74px 1fr 34px;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  font-size: 13px;
+}
+
+.vol span {
+  color: var(--ui-dim);
+}
+
+.vol output {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.vol input[type='range'] {
+  width: 100%;
+  height: 44px;
+  margin: 0;
+  background: transparent;
+  accent-color: var(--ui-accent);
+  -webkit-appearance: none;
+  appearance: none;
+  touch-action: none;
+}
+
+.vol input[type='range']::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--ui-line);
+}
+
+.vol input[type='range']::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 22px;
+  height: 22px;
+  margin-top: -9px;
+  border-radius: 50%;
+  background: var(--ui-accent);
+  border: none;
+}
+
+.vol input[type='range']::-moz-range-track {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--ui-line);
+}
+
+.vol input[type='range']::-moz-range-thumb {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--ui-accent);
+  border: none;
+}
+
+.sound-toggles {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.sound-toggles button {
+  min-height: 44px;
+  border-radius: 10px;
+  border: 1px solid var(--ui-line);
+  background: transparent;
+  color: var(--ui-text);
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.sound-toggles button[aria-pressed='true'] {
+  background: var(--ui-accent);
+  border-color: var(--ui-accent);
+  color: #1d1a12;
+}
+
+#sound-note {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: var(--ui-dim);
+}
+
+#sound-note:empty {
+  display: none;
+}
