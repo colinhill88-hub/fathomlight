@@ -2535,6 +2535,8 @@ async function boot(): Promise<void> {
     input.update();
     const s = input.state;
     const paused = hud.reading;
+    // The interior reads her state straight from the save, so they never drift apart.
+    interior.syncState(save.corvina.breakers, save.corvina.taken ?? []);
     const evs: InteriorEvent[] = interior.update(dt, { moveX: s.moveX, moveY: s.moveY, jump: s.jumpHeld, collect: s.collect, lamp: s.lamp }, paused);
     const maxO2 = maxOxygen(save);
     if (!paused) {

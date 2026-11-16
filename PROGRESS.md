@@ -1,6 +1,6 @@
 # Fathomlight progress
 
-Last updated: 2026-11-16, **milestone 8 part 2 deployed (the Corvina, the sonar pulse, the recompression room and salvage crane)**. Next is **milestone 9, breeding** (see Next).
+Last updated: 2026-11-16, **the Corvina on foot deployed (dry interiors, the walking explorer, a three-deck dungeon)**. Next is **the walkable base** (see Next).
 
 Play link: https://colinhill88-hub.github.io/fathomlight/ (live; first successful deploy 2026-11-14)
 
@@ -944,19 +944,69 @@ Cut from High so far: the phone renders at 2× instead of its native 3×. Colin 
   - Screenshots of her outside, the lit hold and the lab.
   - The test found and fixed: the grapple firing from a held Collect; a salvage piece too close to a brass spot; and the crane throwing away output when storage was full.
 
+### After milestone 8 part 2: on foot, and the Corvina as a real dungeon
+- **Colin:** the ship felt clunky and not fun inside, and too small for a dungeon; the grapple to get in didn't feel good; the logs vanished too fast. He asked for:
+  - entry by cutting the hatch only;
+  - a dry inside with gravity, where the grapple hops you up to higher ledges;
+  - a character that can walk and jump, reusable for later interiors;
+  - a walkable base, which he chose to have **everything indoors**, machines included, as a later milestone (and it doesn't need to be save compatible).
+- **Colin's choices:**
+  - interiors are **separate spaces**;
+  - **the Corvina first, the base after**;
+  - indoors, the helmet's **face plate lifts with a short animation**.
+- **Outside, the Corvina is solid steel again.** The upwelling, the bollard, the hold downdraft, the stern door and the cut-away decks are gone. Swim to her deck hatch, cut it with the cutter torch (3 s), then hold Collect: "Climb down into the Corvina".
+- **Interiors on foot** (`src/interior/interior.ts`, new reusable system):
+  - A separate dry space built from a tile map (40 units a tile) with its own lighting shader (`src/interior/light.ts`). The lighting is a low ambient that stays dark until a ship's power is back, plus ceiling lamps, red emergency lamps and the helmet lamp's beam. The world is hidden and paused while you're inside; dry air refills your tank.
+  - **The explorer on foot** (`src/actors/walker.ts`): the same suit, drawn by code from joint angles, with stand, walk, jump, fall and hang poses. The lime-glass face plate lifts on entering.
+  - **Controls:** the stick or A/D walks. Boost (Space/Shift, A on a pad) jumps, and holding it gives a higher jump; there's a short grace after stepping off a ledge, and a press just before landing still counts. Down + jump drops through a grating. Collect holds to use things.
+  - **The grapple** marks the best anchor ring in range (420): ahead and above first, with a clear line. A tap of Collect fires it and reels you up to hang under the ring. Jump swings you off with a push; down lets go.
+  - **Hazards:** steam vents burst every 3.2 s (8% suit and a knock back). The flooded bilge costs 10% suit and hauls you back to your last safe footing. If the suit gives way, you're back outside and the usual blackout follows.
+  - After any hold action completes, Collect must be let go before the next one starts (so the lift doesn't carry you up and straight back).
+- **The Corvina inside** (`src/interior/corvina.ts`, 100 × 36 tiles: 4000 × 1440 units, about 3× her outside length):
+  - **The upper deck:** the hatch ladder, crates, a steam vent, a grating shelf, a hole down, the lift's top, and the powered bulkhead door to the **survey lab**.
+  - **The crew deck:** bunks (gratings), a step too tall to jump (grapple up), a wide gap over the hold (grapple across), steam vents, **breaker 1**, and a drop into the hold.
+  - **The great hold:** steel islands over the flooded bilge, crossed by grappling the anchor rings overhead. Shelves, a salvage crate (3 brass, 2 plating) on the far west island, and on the far east ledge **breaker 2** and the lift's bottom.
+  - **With both breakers thrown:** lamps all over, the lift running (a shortcut from the hold to the upper deck) and the lab door open. The lab holds the **sonar test logs**, the **pressure suit drawings** and **the Corvina's log**.
+  - Her state is saved (`save.corvina.breakers`, `save.corvina.taken`). The save point while inside is just outside her hatch.
+- **Logs and documents** now open in a **reading panel** that stays until closed (Close, Esc or Enter) and pauses the game. The sonar logs, suit drawings and her log use it, and her log stays in the scanner log.
+- **Notices last longer:** about a quarter of a second a word (up to 14 s), and a tap dismisses one.
+- **Fixed on the way:** a brass spot sat on the Corvina's deck right beside the hatch and took the Collect button; it moved to the seabed beside her stern.
+- **Tested** (scripted in headless Chromium, timed in game seconds; no console errors):
+  - **Entering:** at the cut hatch, "Climb down into the Corvina" put the walker on the upper deck.
+  - **Walking and jumping:** walking stops at crates, and a jump clears them. A full jump is 98 units (about 2.4 tiles). Down + jump dropped through a grating (y 240 → 360).
+  - **The grapple:** the tall step blocks walking, and the grapple pulled the walker up to hang under its ring. Swinging off went across the crew deck's gap (to x 2344), and in the hold from a ring to the east ledge (x 3912).
+  - **Hazards:** a steam vent cost 8% suit. The bilge hauled the walker back to its last footing and cost suit.
+  - **Power:** the lab door blocks without power. Both breakers gave power; the lift went up (and no longer bounces straight back), and the door opened.
+  - **The lab:** the sonar logs opened the reading panel and paused the game; Esc closed it.
+  - **Leaving:** climbing out put the diver back above her deck.
+  - Screenshots: the dark decks lit by the helmet lamp, the hold, the lit lab.
+  - The tests found and fixed: the lift ping-pong (Collect must now be released between actions), too dark and too small a view (zoomed in, brighter ambient before power), and the interior's state drifting from the save.
+
 ## Next
 
-**Next session: milestone 9, breeding** (DESIGN.md: Hatchery, Kelp farm, inherited traits, creatures that act as keys). Prompt in `docs/prompts/milestone-9.md`. Ask Colin before building:
-- how breeding works: two grown, happy creatures of a species in a Hatchery-joined tank lay eggs? How long, how many?
-- which traits pass on (colour, glow pattern, size, output) and how they show;
-- the Kelp farm: grows creature food (kelp fibre) and tank plants from what?
-- creatures as keys (DESIGN.md: a grown glowfin lights passages the dive light cannot): where in the world, and which species open what;
-- breeding the wreck shelf's species: should the lurker (or a new shelf creature) be collectable?
-- power as a real mechanic (Colin, milestone 7): still to be planned, maybe alongside the trench.
+**Next session: the walkable base** (Colin, after the Corvina on foot), before milestone 9. Prompt in `docs/prompts/base-on-foot.md`.
+- **Colin's choices so far:** everything goes indoors, factory machines included. Pieces become larger and more detailed, and their layout must make sense to walk through. **Save compatibility doesn't matter:** he'll playtest from scratch, so old bases can simply be reset.
+- **Reuse:** the on-foot system (`src/interior/`: tile maps, walker, gratings, grapple, interior lighting).
+- **Ask Colin before building:**
+  - how the base is entered (the dome's airlock? the moon pool?) and whether you still build from outside (the zoomed-out build view) or from inside;
+  - how rooms connect (doors, ladders, lifts between floors) and how big a piece is in tiles;
+  - how conveyors and pipes run indoors (along walls and ceilings?);
+  - what happens to the outside look of the base;
+  - whether creature tanks are viewed from inside (big windows);
+  - the phone controls for building indoors.
+- **After that,** milestone 9, breeding (prompt in `docs/prompts/milestone-9.md`, questions in DESIGN.md).
 
-Where things are (milestone 8 part 2): the Corvina's shape and rooms in `src/world/terrain.ts` (`corvinaHull`, `CV_ROOMS`, `CV_SPOTS`, `cvUpwell`, `cvDowndraft`, `HIDDEN`, `SALVAGE`); drawing in `src/world/scenery.ts` (`drawCorvina`, `setCorvina`, `buildHidden`, salvage); the new pieces in `src/game/base.ts` and `src/world/basegfx.ts` (`drawRecomp`, `drawCrane`); the rules in `src/main.ts` (search "Milestone 8 part 2", "salvage", "sonar").
+Where things are (on foot): the interior system in `src/interior/interior.ts` (physics constants at the top), its lighting in `src/interior/light.ts`, the Corvina's map in `src/interior/corvina.ts` (edit the ASCII map to change the level), the walker in `src/actors/walker.ts`, and the hand-off in `src/main.ts` (`enterCorvina`, `exitCorvina`, `interiorFrame`).
 
 ## Problems and open questions
+
+- **On-foot numbers to tune after Colin plays** (top of `src/interior/interior.ts`):
+  - walk 270, jump 660 (about 2.4 tiles high), gravity 1900, coyote 0.1 s, jump buffer 0.13 s;
+  - grapple range 420 and pull 760;
+  - steam vents (3.2 s cycle, 8% each), bilge 10%;
+  - the camera's view height (560 units), the dark ambient before her power is back, and the lamp's beam.
+- **The world pauses while you're inside an interior** (the base, creatures, regrowth and the factory wait). That keeps things simple. If it matters for long dungeons, the base's simulation could tick on while you're inside.
+- **Touch controls on foot:** the stick walks, Boost jumps, Lamp toggles the helmet lamp, Collect uses things or fires the grapple. Scan, Board and the base buttons hide indoors. Check this on the iPhone.
 
 - **Milestone 8 part 2 numbers to tune after Colin plays:**
   - the upwelling (520) and downdraft (460);

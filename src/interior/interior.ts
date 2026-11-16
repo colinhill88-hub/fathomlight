@@ -97,7 +97,7 @@ export class Interior {
   private vents: { x: number; y: number; phase: number; hitAt: number }[] = [];
   private time = 0;
   private cam = { x: 0, y: 0 };
-  private viewH = 760;
+  private viewH = 560;
   private cssW = 1;
   private cssH = 1;
   private coyote = 0;
@@ -207,6 +207,12 @@ export class Interior {
     this.active = true;
     this.view.visible = true;
     this.shownKey = '';
+  }
+
+  /** Point at the save's own state lists (they're changed in place). */
+  syncState(breakers: boolean[], taken: string[]): void {
+    this.state.breakers = breakers;
+    this.state.taken = taken;
   }
 
   leave(): void {
@@ -336,7 +342,7 @@ export class Interior {
         this.lamps.push({ light: { x, y: y + 24, radius: 300, intensity: 0, color: [1, 0.9, 0.72], haze: 0.04 }, core, halo });
         if ((tx / 7) % 3 === 0) {
           e.circle(x + 18, y, 2.2).fill({ color: 0xd8492e });
-          this.emergency.push({ x: x + 18, y: y + 10, radius: 170, intensity: 0.45, color: [1, 0.3, 0.2] });
+          this.emergency.push({ x: x + 18, y: y + 10, radius: 220, intensity: 0.6, color: [1, 0.32, 0.22] });
         }
       }
     // The lab's sign.
@@ -714,7 +720,7 @@ export class Interior {
       viewH,
       cssW: this.cssW,
       cssH: this.cssH,
-      ambient: this.power ? [0.42, 0.4, 0.38] : [0.07, 0.08, 0.1],
+      ambient: this.power ? [0.46, 0.44, 0.42] : [0.16, 0.17, 0.2],
       lights,
     });
     this.renderer.render({ container: this.litRoot, target: this.sceneRT, clear: true, clearColor: [0, 0, 0, 0] });
