@@ -606,6 +606,7 @@ Cut from High so far: the phone renders at 2× instead of its native 3×. Colin 
     - The grabber pried loose a scrap spot under the bow (+1 scrap).
     - Floodlights in the dark grotto, facing left with the stencils readable. After a reload, the sub's place, hull, air, modules and aboard state were all kept.
   - No console errors. As before, the software test browser can't show the real frame rate or speeds; those need checking on the phone.
+- Deployed: GitHub Actions run 43778650636 built and deployed to Pages successfully from `claude/funny-bell-6fvfos`. Merge it into the default branch `claude/underwater-game-m0-0qqajg` before the next session.
 
 ## Next
 
