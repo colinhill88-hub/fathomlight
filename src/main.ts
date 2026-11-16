@@ -572,6 +572,36 @@ async function boot(): Promise<void> {
   const BLACK_HOLD = 2.6;
   const BLACK_OUT = 1.2;
 
+  // One-time test gift for Colin (after milestone 6): 30 scrap for the base,
+  // while scrap has no creature source yet. It goes into storage as room allows.
+  if (loaded.loaded && !save.tips.includes('gift-scrap-30')) {
+    save.tips.push('gift-scrap-30');
+    save.gift = (save.gift ?? 0) + 30;
+  }
+  let giftClock = 1;
+  let giftAnnounced = false;
+  function deliverGift(dt: number): void {
+    if (!save.gift) return;
+    giftClock -= dt;
+    if (giftClock > 0) return;
+    giftClock = 1;
+    const n = Math.min(save.gift, Math.max(0, storageRoom()));
+    if (n > 0) {
+      save.gift -= n;
+      save.stored.scrap += n;
+      hud.refreshInventory();
+      hud.toast(
+        `Supply drop: ${n} scrap metal into base storage${save.gift ? ` (${save.gift} more as storage frees up)` : ''}`,
+        giftAnnounced ? 'item' : 'big',
+      );
+      giftAnnounced = true;
+      persist();
+    } else if (!giftAnnounced && layout.countDone('storage')) {
+      giftAnnounced = true;
+      hud.toast(`Supply drop of ${save.gift} scrap is waiting: it moves into storage as soon as there is room`, 'big');
+    }
+  }
+
   if (!loaded.loaded) {
     setTimeout(() => hud.toast('Explore the shallows: scan new things and gather materials for the base', 'big'), 1500);
   } else if (save.oxygen <= 0) {
@@ -779,7 +809,7 @@ async function boot(): Promise<void> {
       unloadClock -= dt;
       if (S.docked && layout.powered.has(S.dock) && unloadClock <= 0 && S.stage === 'built') {
         unloadClock = 0.5;
-        let room = storageRoom();
+        let room = Math.max(0, storageRoom());
         let moved = 0;
         for (const k of MATERIALS_LIST) {
           const fromHold = Math.min(room, S.hold[k] ?? 0);
@@ -1204,6 +1234,8 @@ async function boot(): Promise<void> {
     nearTank = tankNow;
     hud.setJar(jarText());
 
+    deliverGift(dt);
+
     // ---- Factory (milestone 5): conveyors, the auto feeder and feed pipes ----
     factory.tick(save, layout, dt, storageRoom);
 
@@ -1255,7 +1287,7 @@ async function boot(): Promise<void> {
         if (carried)
           hud.toast(podFrame ? 'This storage pod is still a frame: the drone has to finish it first' : 'This storage pod has no power: join it to a current turbine', 'warn');
       } else if (carried) {
-        let room = storageCapacity(layout) - MATERIALS_LIST.reduce((a, k) => a + save.stored[k], 0);
+        let room = Math.max(0, storageCapacity(layout) - MATERIALS_LIST.reduce((a, k) => a + save.stored[k], 0));
         let moved = 0;
         for (const k of MATERIALS_LIST) {
           const n = Math.min(room, save.bag[k]);

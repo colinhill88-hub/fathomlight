@@ -608,9 +608,20 @@ Cut from High so far: the phone renders at 2× instead of its native 3×. Colin 
   - No console errors. As before, the software test browser can't show the real frame rate or speeds; those need checking on the phone.
 - Deployed: GitHub Actions run 43778650636 built and deployed to Pages successfully from `claude/funny-bell-6fvfos`. Merge it into the default branch `claude/underwater-game-m0-0qqajg` before the next session.
 
+### After milestone 6: scrap balance and a test gift
+- **Colin's question:** scrap is the first big bottleneck. Is a creature meant to make it? No: rays make copper, puffcaps kelp fibre and glowfins quartz. Scrap only comes from the 8 wreckage spots, at most about 0.8 a minute. The dock, sub and all three modules take about 59 scrap once their hull plating is counted.
+- **Decided:** a **scavenger creature** that makes scrap, arriving with the **kelp forest (milestone 7)**, not the shallows. It is in DESIGN.md (The base, and the milestone 7 line).
+- **Test gift:** existing saves get a one-time **30 scrap** delivered into base storage on the next load (`gift` in the save; `deliverGift` in `src/main.ts`).
+  - It moves in as storage has room. Whatever doesn't fit waits and trickles in as space frees up, with a "Supply drop" message.
+  - The tip id `gift-scrap-30` stops it repeating. New games don't get it.
+  - Remove it once the scavenger creature exists.
+- **Bug fixed while doing it:** unloading at a storage pod or the dock could take a negative amount (pulling items back into the bag) if storage ever held more than its capacity. Both now clamp at zero.
+- Tested in the emulated iPhone: with 26 of 40 storage used, 14 scrap arrived and 16 waited. After freeing 6 slots, 6 more arrived. A reload kept the remaining 10 owed and didn't give the gift again. Type check and build pass.
+
 ## Next
 
 **Milestone 7: the first gear gate** (DESIGN.md): Lab, Workshop and the dive light; the kelp forest and caves zone with its major site. The auto feeder in DESIGN.md's milestone 7 line was already built in milestone 5.
+- **Decided:** a scavenger creature that makes scrap lives in the kelp forest (see "After milestone 6" above). Design it with Colin: its look, what it likes, its partner species and its clashes. Then remove the scrap test gift.
 - Ask Colin before building:
   - which new base pieces the kelp forest brings, and their materials (DESIGN.md, "Base growth across biomes");
   - whether drone upgrades arrive with the Workshop;

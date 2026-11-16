@@ -257,6 +257,12 @@ export interface SaveData {
   fitted: Record<string, number>;
   /** The submersible (milestone 6), once one is started at a Moon pool dock. */
   sub: SubData | null;
+  /**
+   * Test gift (Colin, after milestone 6): scrap still owed to the base's
+   * storage. It moves in as storage has room. Remove once a scavenger
+   * creature (kelp forest, milestone 7) makes scrap.
+   */
+  gift?: number;
   /** One-time tips already shown. */
   tips: string[];
   playSeconds: number;
