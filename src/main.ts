@@ -1312,6 +1312,7 @@ async function boot(): Promise<void> {
       diver.vx = ((diver.x - lk.bite.denX) / L) * 420;
       diver.vy = ((diver.y - lk.bite.denY) / L) * 420 - 80;
       sound.bite();
+      hud.suitHit();
       hud.toast(
         save.suit > 0
           ? `Bitten! Suit integrity ${Math.round(save.suit * 100)}%. It seals itself slowly; a dome, the sub, a relay or the surface repair it fully.`
@@ -2167,6 +2168,8 @@ async function boot(): Promise<void> {
     const depthM = Math.max(0, diver.y - SURFACE_Y + 6) / WU_PER_METRE;
     if (domeAir || subAir) diveTime = 0;
     watch.draw(performance.now(), save.oxygen, maxO2, atSurface ? 0 : depthM, diveTime, atSurface, { kg, ...lim }, save.suit);
+    // The suit bar under the watch: once the wreck shelf has been reached, or whenever the suit is damaged.
+    hud.setSuit(save.suit, !aboard && (save.tips.includes('wshelf') || save.suit < 0.995));
     if (pickups.bagPos) {
       const p = pickups.bagPos;
       hud.setBagMarker((p.x - camX) * zoom, (p.y - camY) * zoom, Math.hypot(p.x - diver.x, p.y - diver.y) / WU_PER_METRE);

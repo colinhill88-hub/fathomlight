@@ -388,6 +388,30 @@ export class Hud {
     marker.classList.add('show');
   }
 
+  private suitShown = '';
+  private suitHitTimer = 0;
+  /** Milestone 8: the suit integrity bar under the watch. */
+  setSuit(frac: number, show: boolean): void {
+    const el = document.getElementById('suit-bar')!;
+    const pct = Math.round(frac * 100);
+    const cls = frac < 0.35 ? 'red' : frac < 0.7 ? 'amber' : '';
+    const key = `${show}|${pct}|${cls}`;
+    if (key === this.suitShown) return;
+    this.suitShown = key;
+    el.classList.toggle('show', show);
+    el.classList.toggle('amber', cls === 'amber');
+    el.classList.toggle('red', cls === 'red');
+    (el.querySelector('.track i') as HTMLElement).style.width = `${pct}%`;
+    el.querySelector('b')!.textContent = `${pct}%`;
+  }
+  /** A red flash on the suit bar when the diver is bitten. */
+  suitHit(): void {
+    const el = document.getElementById('suit-bar')!;
+    el.classList.add('hit');
+    clearTimeout(this.suitHitTimer);
+    this.suitHitTimer = window.setTimeout(() => el.classList.remove('hit'), 450);
+  }
+
   /** The sub's status chip under the watch (milestone 6), shown while aboard. */
   setSubChip(html: string | null, warn = false): void {
     const el = document.getElementById('sub-chip')!;

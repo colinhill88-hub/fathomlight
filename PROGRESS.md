@@ -875,6 +875,11 @@ Cut from High so far: the phone renders at 2× instead of its native 3×. Colin 
 - **Black water** was a stack of vertical darkness strips with a flat-topped box at the west end, which caused the box and the stripes on the pillars. It is now one soft silt haze, built once from four smooth layers that fade towards the chamber's edges. Each lit bracket thins the whole haze by 16%; the brackets' own glow and the shrunken lamp do the rest. The 4 m limit past the last lit bracket is unchanged.
 - The marching-squares tracing is now one shared helper (`traceField` in `src/world/scenery.ts`).
 
+### After milestone 8 part 1: a clear suit bar
+- **Colin:** the suit integrity arc on the watch was hard to see.
+- **A suit bar under the dive watch** (`#suit-bar`, `Hud.setSuit` / `suitHit`): a helmet icon, a thick bar and a percentage. It is lume green above 70%, amber above 35%, and red with a pulsing border below that, and the whole chip flashes red when the diver is bitten. It shows once the wreck shelf has been reached, or whenever the suit is damaged, and hides aboard the sub (the sub's chip uses that spot) and in panels. The arc on the dial stays as a secondary hint.
+- Checked on an emulated iPhone in landscape: amber at 56% and red at 26%, clearly readable under the watch.
+
 ## Next
 
 **Next session: milestone 8 part 2, the Corvina** (prompt in `docs/prompts/milestone-8-part-2.md`). Ask Colin before building:
