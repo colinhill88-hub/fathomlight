@@ -230,7 +230,8 @@ export class Hud {
   }
 
   /** The Collect button: shown only with a material in reach. */
-  setCollect(label: string | null, progress: number): void {
+  setCollect(label: string | null, progress: number, tap = false): void {
+    this.collectLabel.classList.toggle('tap', tap);
     this.collectBtn.classList.toggle('ready', !!label);
     this.collectBtn.style.setProperty('--p', String(progress));
     const text = label ?? '';

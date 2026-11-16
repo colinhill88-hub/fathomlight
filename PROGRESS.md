@@ -618,6 +618,17 @@ Cut from High so far: the phone renders at 2× instead of its native 3×. Colin 
 - **Bug fixed while doing it:** unloading at a storage pod or the dock could take a negative amount (pulling items back into the bag) if storage ever held more than its capacity. Both now clamp at zero.
 - Tested in the emulated iPhone: with 26 of 40 storage used, 14 scrap arrived and 16 waited. After freeing 6 slots, 6 more arrived. A reload kept the remaining 10 owed and didn't give the gift again. Type check and build pass.
 
+### After milestone 6: unloading and trays on the Collect button
+- **Colin's feedback:** swimming around a connected base, he kept emptying tank trays and unloading into storage by accident.
+- **Now nothing moves just by swimming past.** Stop by a storage pod and **tap Collect** ("Unload 6 items into storage"), or stop by a tank with something in its output tray and tap Collect ("Take 2 from tank 1's tray"). Keyboard C, gamepad X; on PC the label ends "· press C".
+  - It's a single tap: holding the button doesn't repeat it.
+  - Materials, the drone repair and wild creatures still take priority on the button.
+  - Aboard the sub, Collect unloads at a pod even without a grabber arm.
+  - A one-time tip explains the change. Unpowered pods and pods still being welded say so on the label.
+- **Still automatic, on purpose:** putting a creature from the jar into a tank (you carry it there to do that), and a berthed sub unloading at a powered dock (docking is already a deliberate act).
+- **Colin's storage question, answered (no change):** storage is one shared pool. Each finished pod adds 40 to the total. A conveyor from any pod sends what its far end needs: kelp fibre to a feeder; scrap and copper to a press, emptiest hopper first, so the 2:1 ratio holds. A possible later need: per-material limits or a sorter, so creature output can't fill storage and leave no room for plating.
+- Tested in the emulated iPhone: waiting by a pod and a tank moved nothing. A tap unloaded 3 scrap and took 2 copper from the tray. No console errors.
+
 ## Next
 
 **Milestone 7: the first gear gate** (DESIGN.md): Lab, Workshop and the dive light; the kelp forest and caves zone with its major site. The auto feeder in DESIGN.md's milestone 7 line was already built in milestone 5.

@@ -119,7 +119,7 @@ export const PIECES: Record<PieceKind, PieceDef> = {
   storage: {
     kind: 'storage',
     name: 'Storage pod',
-    job: 'Swim up to it to unload what you carry. Stored materials are safe from blackouts.',
+    job: 'Stop by it and tap Collect to unload what you carry. Stored materials are safe from blackouts.',
     cost: { scrap: 3, copper: 1, fibre: 1 },
     buildTime: 18,
     ports: { beltOut: 4, beltIn: 4 },

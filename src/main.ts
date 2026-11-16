@@ -376,6 +376,68 @@ async function boot(): Promise<void> {
   let subWashClock = 0;
   let grabTipShown = false;
 
+  /**
+   * Base actions on the Collect button (Colin, after milestone 6): nothing
+   * moves just by swimming past. Stop by a storage pod and tap Collect to
+   * unload; stop by a tank and tap it to take what waits in the output tray.
+   */
+  function takeTray(tankId: number): void {
+    const td = save.tankData[String(tankId)];
+    if (!td?.out) return;
+    let took = 0;
+    const what: string[] = [];
+    for (const k of MATERIALS_LIST) {
+      let n = 0;
+      while ((td.out[k] ?? 0) > 0 && bagHasRoom(save, k)) {
+        td.out[k]!--;
+        save.bag[k]++;
+        n++;
+      }
+      if (!td.out[k]) delete td.out[k];
+      if (n) what.push(`${n} ${MATERIALS[k].name.toLowerCase()}`);
+      took += n;
+    }
+    if (took) {
+      hud.toast(`Took ${what.join(' and ')} from tank ${tankNumber(layout, tankId)}'s output tray`, 'item');
+      hud.refreshInventory();
+      persist();
+    } else hud.toast('Dive bag full: the output tray stays where it is', 'warn');
+  }
+  /** The storage pods the diver (or the sub) is next to. */
+  function podNear(): { by: boolean; powered: boolean; frame: boolean } {
+    const out = { by: false, powered: false, frame: false };
+    for (const p of layout.pieces) {
+      if (p.kind !== 'storage') continue;
+      const r = pieceRect(p);
+      if (diver.x > r.x - 40 && diver.x < r.x + r.w + 40 && diver.y > r.y - 40 && diver.y < r.y + r.h + 40) {
+        out.by = true;
+        out.powered ||= layout.powered.has(p.id);
+        out.frame ||= !isDone(p);
+      }
+    }
+    return out;
+  }
+  function unloadAtPod(pod: { powered: boolean; frame: boolean }): void {
+    if (!pod.powered) {
+      hud.toast(pod.frame ? 'This storage pod is still a frame: the drone has to finish it first' : 'This storage pod has no power: join it to a current turbine', 'warn');
+      return;
+    }
+    let room = Math.max(0, storageRoom());
+    let moved = 0;
+    for (const k of MATERIALS_LIST) {
+      const n = Math.min(room, save.bag[k]);
+      save.bag[k] -= n;
+      save.stored[k] += n;
+      room -= n;
+      moved += n;
+    }
+    if (moved) hud.toast(`Stored ${moved} item${moved === 1 ? '' : 's'} in the base${MATERIALS_LIST.some((k) => save.bag[k]) ? ' (storage is full)' : ''}`, 'big');
+    else hud.toast('Storage is full: build another storage pod', 'warn');
+    hud.refreshInventory();
+    persist();
+  }
+  let collectWas = false;
+
   /** Climb out of the sub. What the diver cannot carry stays in the cargo bay. */
   function leaveSub(quiet: boolean): void {
     const S = save.sub;
@@ -540,7 +602,6 @@ async function boot(): Promise<void> {
     return best ?? { ...SPAWN, dome: false, sub: false };
   }
   let insideDome: number | null = null;
-  let nearStorage = false;
   const watch = new DiveWatch(document.getElementById('watch') as HTMLCanvasElement);
   const hintEl = document.getElementById('hint')!;
   let hintTimer = 0;
@@ -1076,7 +1137,39 @@ async function boot(): Promise<void> {
       grabTipShown = true;
       hud.toast('To collect from the sub, fit a grabber arm at the Moon pool dock. Or climb out (Exit) and swim.', 'big');
     }
-    if (aboard && !grab) hud.setCollect(null, 0);
+    // Base actions (unload at a pod, take a tank's tray) when nothing else wants Collect.
+    const collectRaw = inControl && s.collect && !diver.surfaced;
+    const collectTap = collectRaw && !collectWas;
+    collectWas = collectRaw;
+    const otherTarget = atDrone || !!wildTarget || (!!pt && (!aboard || grab));
+    let baseAct: { label: string; run: () => void } | null = null;
+    if (!otherTarget && blackout === 0 && inControl && !diver.surfaced) {
+      const trayN = tankHere ? MATERIALS_LIST.reduce((a, k) => a + (save.tankData[String(tankHere.id)]?.out?.[k] ?? 0), 0) : 0;
+      const carried = MATERIALS_LIST.reduce((a, k) => a + save.bag[k], 0);
+      const pod = carried ? podNear() : null;
+      if (tankHere && trayN) {
+        const id = tankHere.id;
+        baseAct = { label: `Take ${trayN} from tank ${tankNumber(layout, id)}'s tray`, run: () => takeTray(id) };
+      } else if (pod?.by) {
+        baseAct = {
+          label: pod.powered ? `Unload ${carried} item${carried === 1 ? '' : 's'} into storage` : pod.frame ? 'Storage pod: still a frame' : 'Storage pod: no power',
+          run: () => unloadAtPod(pod),
+        };
+      }
+    }
+    if (baseAct && !save.tips.includes('baseact')) {
+      save.tips.push('baseact');
+      hud.toast(
+        input.state.lastDevice === 'touch'
+          ? 'Tap Collect to unload at a storage pod, or to take what waits in a tank\'s output tray. Swimming past no longer moves anything.'
+          : 'Press C (X on a gamepad) to unload at a storage pod, or to take what waits in a tank\'s output tray. Swimming past no longer moves anything.',
+        'big',
+      );
+    }
+    if (baseAct && collectTap) baseAct.run();
+
+    if (baseAct) hud.setCollect(baseAct.label, 0, true);
+    else if (aboard && !grab) hud.setCollect(null, 0);
     else if (atDrone) {
       hud.setCollect(missing.length ? `Repair drone: need ${missing.join(', ')}` : 'Repair build drone', drone.repairProgress);
       if (collectHeld && missing.length && time - fullWarnAt > 4) {
@@ -1207,30 +1300,6 @@ async function boot(): Promise<void> {
         persist();
       }
     }
-    // Milestone 5 part 2: take what is waiting in the tank's output tray.
-    if (tankNow !== null && tankNow !== nearTank && !build.active && blackout === 0) {
-      const td = save.tankData[String(tankNow)];
-      if (td?.out) {
-        let took = 0;
-        const what: string[] = [];
-        for (const k of MATERIALS_LIST) {
-          let n = 0;
-          while ((td.out[k] ?? 0) > 0 && bagHasRoom(save, k)) {
-            td.out[k]!--;
-            save.bag[k]++;
-            n++;
-          }
-          if (!td.out[k]) delete td.out[k];
-          if (n) what.push(`${n} ${MATERIALS[k].name.toLowerCase()}`);
-          took += n;
-        }
-        if (took) {
-          hud.toast(`Took ${what.join(' and ')} from tank ${tankNumber(layout, tankNow)}'s output tray`, 'item');
-          hud.refreshInventory();
-          persist();
-        } else if (MATERIALS_LIST.some((k) => td.out![k])) hud.toast('Dive bag full: the output tray stays where it is', 'warn');
-      }
-    }
     nearTank = tankNow;
     hud.setJar(jarText());
 
@@ -1257,7 +1326,7 @@ async function boot(): Promise<void> {
           setTimeout(
             () =>
               hud.toast(
-                "What creatures make now waits in their tank's output tray (4 items). Swim up to the tank to take it, or run a conveyor from the tank to a storage pod or a machine.",
+                "What creatures make now waits in their tank's output tray (4 items). Stop by the tank and tap Collect to take it, or run a conveyor from the tank to a storage pod or a machine.",
                 'big',
               ),
             2400,
@@ -1268,41 +1337,6 @@ async function boot(): Promise<void> {
       persist();
     }
 
-    // ---- Storage: swim up to a powered pod to unload everything carried ----
-    let byPod = false;
-    let podPowered = false;
-    let podFrame = false;
-    for (const p of layout.pieces) {
-      if (p.kind !== 'storage') continue;
-      const r = pieceRect(p);
-      if (diver.x > r.x - 30 && diver.x < r.x + r.w + 30 && diver.y > r.y - 30 && diver.y < r.y + r.h + 30) {
-        byPod = true;
-        podPowered ||= layout.powered.has(p.id);
-        podFrame ||= !isDone(p);
-      }
-    }
-    if (byPod && !nearStorage && blackout === 0 && !build.active && !dockUI.active) {
-      const carried = MATERIALS_LIST.reduce((a, k) => a + save.bag[k], 0);
-      if (!podPowered) {
-        if (carried)
-          hud.toast(podFrame ? 'This storage pod is still a frame: the drone has to finish it first' : 'This storage pod has no power: join it to a current turbine', 'warn');
-      } else if (carried) {
-        let room = Math.max(0, storageCapacity(layout) - MATERIALS_LIST.reduce((a, k) => a + save.stored[k], 0));
-        let moved = 0;
-        for (const k of MATERIALS_LIST) {
-          const n = Math.min(room, save.bag[k]);
-          save.bag[k] -= n;
-          save.stored[k] += n;
-          room -= n;
-          moved += n;
-        }
-        if (moved) hud.toast(`Stored ${moved} item${moved === 1 ? '' : 's'} in the base${MATERIALS_LIST.some((k) => save.bag[k]) ? ' (storage is full)' : ''}`, 'big');
-        else hud.toast('Storage is full: build another storage pod', 'warn');
-        hud.refreshInventory();
-        persist();
-      }
-    }
-    nearStorage = byPod;
 
     // ---- Scanner ----
     const done = new Set(save.scans);

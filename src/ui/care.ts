@@ -28,7 +28,7 @@ function trayLine(save: SaveData, td: TankData): string {
   const belt = save.lines.some((l) => l.kind === 'belt' && save.tankData[String(l.from)] === td);
   const good = n < TRAY_CAP;
   return `<li class="${good ? 'good' : 'bad'}">${good ? '✓' : '✗'} Output tray ${n}/${TRAY_CAP}${what ? ` (${what})` : ''}${
-    belt ? ': a conveyor carries it away' : n ? ': swim up to the tank to take it, or run a conveyor from the tank' : ''
+    belt ? ': a conveyor carries it away' : n ? ': stop by the tank and tap Collect to take it, or run a conveyor from the tank' : ''
   }${good ? '' : '. Full: making is paused'}</li>`;
 }
 

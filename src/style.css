@@ -697,6 +697,10 @@ body:not(.touch) #collect-label::after {
   color: var(--ui-dim);
 }
 
+body:not(.touch) #collect-label.tap::after {
+  content: ' · press C';
+}
+
 #tags {
   position: fixed;
   inset: 0;
