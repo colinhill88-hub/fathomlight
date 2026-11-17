@@ -979,6 +979,7 @@ export class BaseHooks implements InteriorHooks {
         g.roundRect(b.cx + 90, bot - 60, 34, 16, 3).fill({ color: COL.chromeDark });
         g.rect(b.cx + 100, bot - 74, 14, 14).fill({ color: COL.chrome });
         for (let i = 0; i < 4; i++) g.rect(b.cx - 130 + i * 50, bot - 30, 40, 22).stroke({ color: DC.bevelLo, width: 1.2 });
+        break;
       }
       case 'recomp': {
         // A pressure chamber: a chrome cylinder with gold bands and a round door, lime light inside.
@@ -1004,6 +1005,7 @@ export class BaseHooks implements InteriorHooks {
           g.moveTo(b.ox + 58, yy).lineTo(b.ox + 61, yy - 3).stroke({ color: COL.red, width: 1 });
         }
         pipeUp(g, b.ox + 86, b.oy + 20, bot - 80, 4, DC.copper, DC.copperHi);
+        break;
       }
       case 'crane': {
         // Upper level: the gantry beam and trolley. Lower: the cradle where salvage is broken down.
