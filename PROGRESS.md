@@ -1,6 +1,6 @@
 # Fathomlight progress
 
-Last updated: 2026-11-17, **graphics session G4 deployed (materials and life)**, the last of the four planned graphics sessions (G1 measure and HDR post stack, G2 lamp shadows and relief, G3 atmosphere, G4 materials). Next is **milestone 9, breeding**, unless Colin wants a graphics tuning pass first after testing G3 and G4.
+Last updated: 2026-11-17, **character animation session A deployed (the swimming diver)**. Next is **character animation session B, the walker** (prompt in `docs/prompts/animation-b.md`), then milestone 9, breeding. Before that: graphics sessions G1 to G4 are done.
 
 Play link: https://colinhill88-hub.github.io/fathomlight/ (live; first successful deploy 2026-11-14)
 
@@ -1206,9 +1206,45 @@ Cut from High so far: the phone renders at 2× instead of its native 3×. Colin 
 - **If High slows on the iPhone**, cut in this order: Metal sheen, Grime and grain, Eye-shine. Render scale is off by default.
 - **Tested:** type check and build pass; every Settings toggle (all effects of G1 to G4, including Render scale) flipped on and off with no console errors; before and after screenshots of the seven scenes.
 
+### Character animation, session A: the swimming diver (2026-11-17)
+Colin asked for a dedicated polish pass on the player character before milestone 9: natural, weighty, fluid movement for someone in a heavy exploration suit, with nothing cartoonish. Session A covers the diver (`src/actors/diver.ts`); session B covers the walker. The architecture is unchanged: drawn by code, jointed pieces, no sprites or animation libraries.
+
+**Audit (what was wrong before)**
+- **Turning snapped.** The body's tilt was multiplied by the facing (`pitch * face`), so at the moment the diver turned, the tilt flipped sign in one frame (about 0.44 rad when floating head-up) while the width was still squashing.
+- **The knee bent both ways** (it over-straightened backwards on half of every kick), the fin angle was a fixed sine with no follow-through, and boosting switched the kick strength on and off in one frame.
+- **No breathing underwater.** Bubbles came from their own timer in `fx/bubbles.ts`, unrelated to the diver.
+- **Two small arrays were created every frame** in the limb code, and the thruster plume was cleared every frame even when not boosting.
+- The pose **froze while the grapple reeled the diver in** (`update` is not called then).
+- **Performance:** Colin's 28 fps grotto reading (G2 section) was a 35.9 ms frame with only 1.7 ms of game code, so the time goes to the graphics card (lighting, shadows, post), not the CPU or the character.
+
+**What changed** (all in `animate()`, `animateHead()`, `animateGear()` and `animateLimbs()`; physics, controls and collisions are untouched)
+- **Flutter kick from the hips.** The thigh swings; the knee only bends one way, most as the thigh starts down, then straightens through the downbeat (the whip). Each **fin is a damped spring** pushed by the water against the sweep of the foot, so it trails and flexes. The fin is now two pieces, so its **softer red-tipped end bends further** than the root.
+- **Effort builds and fades.** A smoothed `drive` (0..1) sets the kick rate and size, so acceleration builds up the kick and letting go slows it gradually. The diver then **glides with legs together** and settles into the floating pose over about 2 seconds. The kick phase only ever advances, so the legs never jump. Slow swimming kicks slow and small, fast swimming quicker and bigger, and a heavy bag harder.
+- **Boost** ramps in fast and fades over about half a second: a harder, quicker whip, arms tucked in tight, head down a little.
+- **Turning** is a mirror in world space (the view's x scale, driven by a critically damped spring), so the tilt never flips. While coming round, the body lifts slightly, the kick picks up and **the hands scull to steer**. The lamp beam swaps sides when the body is edge-on.
+- **Body angle** follows a soft spring (a hint of follow-through), with a little torso roll and rise and fall from the kick.
+- **Arms:** a lazy figure-of-eight scull in front when floating; when setting off they **pull back along the body like a stroke**, then trim a little with each kick; they drift forward slowly when stopping. They also scull a little on slow climbs.
+- **Floating still:** knees bent and hips a little flexed (the far leg slightly different from the near one), small irregular holding kicks, the existing buoyancy bob, and **breathing**: the chest rises and the body lifts slightly on each breath in. Every few seconds the head inside the glass **looks up, down or ahead**. There is an occasional **blink**.
+- **Breathing and bubbles:** breaths are slow when still (about 4.2 s) and quicker when working hard (about 2 s when boosting). **Bubbles now leave the helmet on each breath out**: a burst, then a short trickle (`Diver.takeBubbles()`, read by `Bubbles.update` in `main.ts`).
+- **Equipment:** the dive bag swings on its clip like a pendulum (back when speeding up, forward when slowing, jiggling with the kick); the breathing hose is now its own piece and sways a little with the head, the breath and changes of speed. The head is its own piece, so it can turn inside the glass.
+- **While being reeled in by the grapple** the diver keeps animating (`Diver.pose(dt)`).
+- `lampPose()` now reuses one object (no garbage per frame); no arrays are made per frame.
+
+**Animation lab** (`animlab.html`, `src/dev/animlab.ts`; on the play link at `.../fathomlight/animlab.html`, or `npm run dev`)
+- The diver swims through a fixed 50-second script without moving across the screen: floating, slow, fast, boost, cruising, let go, set off, turn, diagonal up, straight up, straight down, turn while diving, stop, boost from still, floating. It is shown at iPhone landscape **gameplay scale** (640 world units to the screen height) on the left and **3× close up** on the right.
+- WASD or arrow keys take over, Shift boosts, P or a tap pauses. `?seg=N` starts at segment N. `?frozen` with `window.__lab.step(seconds)` steps it in exact 1/60 s steps for screenshots, and `__lab.bench(n)` times the diver's update.
+- Frame strips from the lab, and an in-game sheet at 844 × 390: `docs/art/animation/a-*.jpg` (fast, turn, stop, boost, vert, idle, in-game).
+
+**Performance**
+- The diver's whole update (physics and animation): **0.011 ms per frame, was 0.009 ms** (headless Chromium, 100,000 updates). That is about 0.01% of a 60 fps frame.
+- **Draw calls:** 120.6 against 119.6 per frame in the shallows and 86.2 against 85.2 in the grotto (`?bench&still`, software GL). That is one more draw call, from the head and hose now being separate pieces. Triangles and lights are unchanged, and no new effects were added.
+- The plume is only redrawn while boosting. Nothing is created per frame.
+
+**Tested** (type check and production build pass; headless Chromium, software GL): every lab segment as frame strips (stationary, slow, fast, boost, glide and settle, restart, turn, diagonal, vertical up and down, turn while diving, boost from still), and in the real game at 844 × 390: surfaced and treading water, swimming, boost, diving and turning, with the lamp following the helmet. No console errors. **Not tested on a real iPhone.** Every number to tune is at the top of the relevant block in `animate()` and `animateLimbs()` (kick rates, amplitudes, spring speeds, breath periods).
+
 ## Next
 
-**Next session: milestone 9, breeding** (prompt in `docs/prompts/milestone-9.md`, questions in DESIGN.md), unless Colin reorders. The four graphics sessions are done; what is left of the graphics plan is tuning from Colin's testing (every effect is a toggle and a number in `src/presets.ts`) and his PC and iPhone `?bench` tables, which are still to come. Graphics ideas not done: refraction through glass, cave rock-pillar backdrops, hand-placed shine lines, more bioluminescent detail on the shelf.
+**Next session: character animation session B, the walker** (prompt in `docs/prompts/animation-b.md`). After that: **milestone 9, breeding** (prompt in `docs/prompts/milestone-9.md`, questions in DESIGN.md), unless Colin reorders. The four graphics sessions are done; what is left of the graphics plan is tuning from Colin's testing (every effect is a toggle and a number in `src/presets.ts`) and his PC and iPhone `?bench` tables, which are still to come. Graphics ideas not done: refraction through glass, cave rock-pillar backdrops, hand-placed shine lines, more bioluminescent detail on the shelf.
 - **Left over from the walkable base:** more detail in the machine rooms (feeder, press, filter, sorter, crane), line code plates indoors, and a sound for the lines and machines. Do these alongside a later milestone if Colin asks.
 - **The harpoon:** decoration on the Crest diver for now; use its design for later tools and weapons.
 
