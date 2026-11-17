@@ -1034,9 +1034,16 @@ Cut from High so far: the phone renders at 2× instead of its native 3×. Colin 
   - screenshots of the dome, sorting pod, tank room, the outside of the base and the boosting diver.
   - The tests found and fixed: the dome ladder running past its mezzanine (you couldn't step off), and glowing fills (tank water, dome glass) drawing over the explorer.
 
+### Graphics fidelity audit (planning only, 2026-11-17)
+- **Colin asked for** a graphics fidelity initiative: a more polished, premium look without changing the art direction, the renderer or gameplay. This session was an audit and plan only; **no code changed**.
+- **The plan is in `docs/graphics-fidelity-plan.md`**: how the renderer works today (draw order, passes, shaders), what is missing (no HDR or tone mapping, bloom only on opted-in objects, lights that pass through rock, flat-lit surfaces, generic backdrops, unlit particles), the performance picture, ten upgrades ranked by visual impact, and four sessions (G1 measure + HDR post stack; G2 light with form and shadow; G3 atmosphere and composition; G4 materials and creatures, optional).
+- **Baseline screenshots** (Ultra, cloud software renderer, 1280 × 680): `docs/art/fidelity/before-*.png` (shallows, grotto with lamp, kelp forest, wreck shelf).
+- **No frame times were measured**: the cloud browser has no GPU. Session G1 builds a performance overlay and a fixed benchmark route so Colin can measure his PC (RTX 5080, about 106 fps at 2560 × 1360 on Ultra today) and iPhone before and after each session.
+- **Waiting for Colin's approval** of the plan, and his choice of where it goes relative to the walkable base part 2.
+
 ## Next
 
-**Next session: the walkable base, part 2** (prompt in `docs/prompts/base-on-foot-part-2.md`). Then milestone 9, breeding (prompt in `docs/prompts/milestone-9.md`, questions in DESIGN.md).
+**Proposed first: graphics session G1** (if Colin approves `docs/graphics-fidelity-plan.md`; he decides the order). **Otherwise next: the walkable base, part 2** (prompt in `docs/prompts/base-on-foot-part-2.md`). Then milestone 9, breeding (prompt in `docs/prompts/milestone-9.md`, questions in DESIGN.md).
 - **Part 2 (agreed with Colin):**
   - every machine room more detailed and usable indoors: feeder, press, filter, sorter and crane controls, and whorls fitted from inside;
   - conveyors and feed pipes run along the ceilings of the rooms they pass through, with items moving on them;
