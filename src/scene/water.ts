@@ -25,6 +25,7 @@ uniform vec2 uView;
 uniform vec2 uWorld;
 uniform vec2 uOrigin;
 uniform sampler2D uMask;
+uniform float uShimmer;
 
 ${GLSL_COMMON}
 
@@ -49,6 +50,15 @@ void main() {
 
   // Brightness just under the surface.
   col += vec3(0.8, 0.95, 0.9) * exp(-max(d, 0.0) / 60.0) * 0.16;
+
+  // G3: a faint caustic shimmer drifting through the water just under the surface.
+  if (uShimmer > 0.0 && d < 420.0) {
+    vec2 q = wp * 0.019;
+    float n1 = abs(sin(q.x * 1.7 + sin(q.y * 1.3 + uTime * 0.6) * 1.4 + uTime * 0.5));
+    float n2 = abs(sin(q.y * 2.1 + sin(q.x * 1.1 - uTime * 0.45) * 1.6 - uTime * 0.4));
+    float net = pow(1.0 - min(n1, n2), 7.0);
+    col += vec3(0.8, 0.95, 0.9) * net * uShimmer * exp(-max(d, 0.0) / 190.0) * vis * smoothstep(8.0, 60.0, d) * (0.35 + 0.65 * noise(wp * 0.008 + uTime * 0.05)) * 0.08;
+  }
 
   // The surface seen from below: a bright, rippling mirror.
   float wave = sin(wp.x * 0.021 + uTime * 1.3) * 4.0 + sin(wp.x * 0.047 - uTime * 1.9) * 2.5
@@ -86,6 +96,7 @@ export class Water {
     uView: Float32Array;
     uWorld: Float32Array;
     uOrigin: Float32Array;
+    uShimmer: number;
   };
 
   constructor(mask: Texture) {
@@ -103,12 +114,18 @@ export class Water {
           uView: { value: new Float32Array([1, 1]), type: 'vec2<f32>' },
           uWorld: { value: new Float32Array([WORLD_SPAN, WORLD_H]), type: 'vec2<f32>' },
           uOrigin: { value: new Float32Array([WORLD_X0, 0]), type: 'vec2<f32>' },
+          uShimmer: { value: 0, type: 'f32' },
         },
         uMask: mask.source,
       },
     });
     this.u = shader.resources.waterUniforms.uniforms;
     this.view = new Mesh({ geometry, shader });
+  }
+
+  /** G3: strength of the caustic shimmer in the water near the surface (0 = off). */
+  setShimmer(v: number): void {
+    this.u.uShimmer = v;
   }
 
   update(time: number, camX: number, camY: number, viewW: number, viewH: number, pxW: number, pxH: number): void {

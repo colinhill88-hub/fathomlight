@@ -139,19 +139,54 @@ void main() {
 }
 `;
 
+// G3 god rays: from every pixel march towards the sun above the screen; anything drawn in the lit
+// picture (rock, kelp, hardware, the diver) blocks the way, so shafts are cut by what stands in them.
+const RAYS = /* glsl */ `
+precision highp float;
+in vec2 vUV;
+out vec4 finalColor;
+uniform sampler2D uLit;
+uniform vec4 uP;   // steps, time, camera phase, 0
+uniform vec2 uSun; // in screen uv, above the top edge
+
+${GLSL_COMMON}
+
+void main() {
+  float here = 1.0 - texture(uLit, vUV).a;
+  vec2 d = uSun - vUV;
+  float steps = uP.x;
+  vec2 stepv = d * 0.85 / steps;
+  vec2 p = vUV + stepv * hash(vUV * vec2(311.0, 197.0) + fract(uP.y));
+  float acc = 0.0;
+  float w = 1.0;
+  for (int i = 0; i < 24; i++) {
+    if (float(i) >= steps) break;
+    p += stepv;
+    acc += (1.0 - texture(uLit, p).a) * w;
+    w *= 0.94;
+  }
+  acc /= steps * 0.55;
+  float ang = atan(vUV.x - uSun.x, vUV.y - uSun.y);
+  float beams = 0.35 + 0.65 * pow(0.5 + 0.5 * sin(ang * 17.0 + uP.z), 3.0) * (0.7 + 0.3 * sin(ang * 41.0 - uP.y * 0.12));
+  finalColor = vec4(vec3(acc * beams * here), 1.0);
+}
+`;
+
 const FINAL = /* glsl */ `
 precision highp float;
 in vec2 vUV;
 out vec4 finalColor;
 uniform sampler2D uScene;
 uniform sampler2D uBloom;
+uniform sampler2D uRays;
 uniform vec2 uResolution;
 uniform float uTime;
 uniform vec4 uFlags;   // tone map amount, bloom strength, vignette amount, grain amount
 uniform vec4 uTint;    // colour balance multiplier (rgb), exposure (a)
 uniform vec4 uGrade;   // saturation, contrast, unused, unused
 uniform vec4 uLift;    // shadow tint (rgb)
-uniform vec4 uMode;    // x: 1 when bloom is on
+uniform vec4 uMode;    // x: 1 when bloom is on, y: 1 when god rays are on
+uniform vec4 uRayCol;  // god ray colour times strength
 
 ${GLSL_COMMON}
 
@@ -166,6 +201,7 @@ vec3 shoulder(vec3 x) {
 void main() {
   vec3 c = texture(uScene, vUV).rgb;
   if (uMode.x > 0.5) c += texture(uBloom, vUV).rgb * uFlags.y;
+  if (uMode.y > 0.5) c += texture(uRays, vUV).r * uRayCol.rgb;
   c *= uTint.a;
   vec3 col = mix(min(c, vec3(1.0)), shoulder(c), uFlags.x);
 
@@ -257,6 +293,10 @@ export interface PostOptions {
   grain: number;
   bloomThreshold: number;
   bloomGlowFeed: number;
+  /** G3: god rays strength (0 = off, pass skipped), march steps, and the sway phase. */
+  rays: number;
+  raySteps: number;
+  rayPhase: number;
 }
 
 function quad(): Geometry {
@@ -274,7 +314,11 @@ export class PostStack {
   private downs: Mesh<Geometry, Shader>[] = [];
   private ups: Mesh<Geometry, Shader>[] = [];
   private finalShader: Shader;
-  private fu: { uResolution: Float32Array; uTime: number; uFlags: Float32Array; uTint: Float32Array; uGrade: Float32Array; uLift: Float32Array; uMode: Float32Array };
+  private rays!: RenderTexture;
+  private raysMesh: Mesh<Geometry, Shader>;
+  private ru: { uP: Float32Array; uSun: Float32Array };
+  private raysOn = false;
+  private fu: { uResolution: Float32Array; uTime: number; uFlags: Float32Array; uTint: Float32Array; uGrade: Float32Array; uLift: Float32Array; uMode: Float32Array; uRayCol: Float32Array };
   private pu: { uTexel: Float32Array; uGlowTexel: Float32Array; uParams: Float32Array };
   private width = 4;
   private height = 4;
@@ -288,6 +332,7 @@ export class PostStack {
   constructor(
     private readonly renderer: Renderer,
     private readonly glow: RenderTexture,
+    private readonly lit: RenderTexture,
   ) {
     this.canHalf = halfFloatSupported();
     // Make sure the context lets us render to half-float (Pixi asks for the float one itself).
@@ -318,12 +363,17 @@ export class PostStack {
           uGrade: { value: new Float32Array([1, 1, 0, 0]), type: 'vec4<f32>' },
           uLift: { value: new Float32Array([0, 0, 0, 0]), type: 'vec4<f32>' },
           uMode: { value: new Float32Array([1, 0, 0, 0]), type: 'vec4<f32>' },
+          uRayCol: { value: new Float32Array([0, 0, 0, 0]), type: 'vec4<f32>' },
         },
         uScene: this.scene.source,
         uBloom: this.scene.source,
+        uRays: this.scene.source,
       },
     });
     this.fu = this.finalShader.resources.postUniforms.uniforms;
+    this.rays = RenderTexture.create({ width: 4, height: 4, antialias: false, scaleMode: 'linear' });
+    this.raysMesh = this.makePass(RAYS, { rayUniforms: { uP: { value: new Float32Array([10, 0, 0, 0]), type: 'vec4<f32>' }, uSun: { value: new Float32Array([0.55, -0.35]), type: 'vec2<f32>' } }, uLit: this.lit.source }, 'rayUniforms');
+    this.ru = (this.raysMesh.shader as Shader).resources.rayUniforms.uniforms;
     this.view = new Mesh({ geometry: quad(), shader: this.finalShader });
   }
 
@@ -368,6 +418,9 @@ export class PostStack {
     this.scene.resize(cssW, cssH, res);
     this.width = Math.max(1, Math.round(cssW * res));
     this.height = Math.max(1, Math.round(cssH * res));
+    // God rays are drawn at a quarter of the screen: soft by nature.
+    this.rays.resize(Math.max(2, Math.round(this.width / 4)), Math.max(2, Math.round(this.height / 4)), 1);
+    this.finalShader.resources.uRays = this.rays.source;
     this.rebuildLevels();
     // Only now that every shader points at the new pictures is it safe to free the old one.
     oldScene?.destroy(true);
@@ -449,6 +502,14 @@ export class PostStack {
     f.uLift[0] = g.lift[0] * a;
     f.uLift[1] = g.lift[1] * a;
     f.uLift[2] = g.lift[2] * a;
+    this.raysOn = o.rays > 0.01;
+    f.uMode[1] = this.raysOn ? 1 : 0;
+    f.uRayCol[0] = 0.78 * o.rays;
+    f.uRayCol[1] = 0.94 * o.rays;
+    f.uRayCol[2] = 0.9 * o.rays;
+    this.ru.uP[0] = o.raySteps;
+    this.ru.uP[1] = o.time;
+    this.ru.uP[2] = o.rayPhase;
     f.uMode[0] = this.useBloom && this.levels.length > 0 ? 1 : 0;
     // The prefilter's taps are spaced so they still cover every source pixel when the first step is smaller than half.
     const step = 0.5 / this.bloomScale;
@@ -459,6 +520,11 @@ export class PostStack {
     this.pu.uParams[0] = o.bloomThreshold;
     this.pu.uParams[1] = 0.45;
     this.pu.uParams[2] = o.bloomGlowFeed;
+  }
+
+  /** The god rays pass (skipped when they are off or too deep to matter). */
+  renderRays(): void {
+    if (this.raysOn) this.renderer.render({ container: this.raysMesh, target: this.rays, clear: false });
   }
 
   /** Run the bloom chain (after the world has been drawn into `sceneRT`). */

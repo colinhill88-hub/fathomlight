@@ -5,7 +5,8 @@ import { Bench, BENCH, BENCH_SCENES, STILL, scenePos, seedBenchSave } from './de
 import { FxToggles, loadChoice, loadFx, pixelRatioFor, Preset, PresetChoice, resolveChoice, saveChoice, saveFx } from './presets';
 import { Water } from './scene/water';
 import { Backdrop } from './scene/backdrop';
-import { MarineSnow } from './scene/particles';
+import { MarineSnow, SnowLight } from './scene/particles';
+import { ZoneBackdrop } from './scene/zonebackdrop';
 import { initSettingsUI } from './ui';
 import { Input } from './input';
 import { Diver } from './actors/diver';
@@ -171,12 +172,16 @@ async function boot(): Promise<void> {
   const glowRT = RenderTexture.create({ width: 4, height: 4 });
   // Graphics session G1: the world is drawn into one picture (half-float where the device can), then
   // the post stack (bloom, tone mapping, grading, vignette, grain) turns it into the screen.
-  const post = new PostStack(renderer, glowRT);
+  const post = new PostStack(renderer, glowRT, litRT);
   /** Everything of the world that goes through the post stack. Not on the stage: it is drawn into `post.sceneRT`. */
   const hdrRoot = new Container();
 
   const water = new Water(mask);
   const backdrop = new Backdrop();
+  const zoneBackdrop = new ZoneBackdrop();
+  zoneBackdrop.build();
+  // G3: a soft blur for the near foreground kelp (Ultra).
+  const dofBlur = new BlurFilter({ strength: 2, quality: 2 });
   const lighting = new Lighting(litRT, mask);
   const snow = new MarineSnow();
 
@@ -376,13 +381,13 @@ async function boot(): Promise<void> {
   }
   populate();
 
-  hdrRoot.addChild(water.view, backdrop.view, lighting.view, emissiveCam, glowSprite, snow.view);
+  hdrRoot.addChild(water.view, backdrop.view, zoneBackdrop.view, lighting.view, emissiveCam, glowSprite, snow.view);
   // On the stage after the post pass, so the scanner, the build grid and the collect rings stay crisp.
   app.stage.addChild(post.view, overlayCam);
   // After milestone 8 part 2: dry interiors on foot, drawn over the (hidden) world.
   const interior = new Interior(renderer);
   hdrRoot.addChild(interior.view);
-  const worldLayers = [water.view, backdrop.view, lighting.view, emissiveCam, glowSprite, snow.view, overlayCam];
+  const worldLayers = [water.view, backdrop.view, zoneBackdrop.view, lighting.view, emissiveCam, glowSprite, snow.view, overlayCam];
   /** Which interior you're on foot in, if any. */
   let inside: 'corvina' | 'base' | null = null;
   /** The walkable base: the dome you came in by, and the level built from the layout. */
@@ -1028,7 +1033,7 @@ async function boot(): Promise<void> {
     blur.resolution = res * preset.glowResolution;
     blur.strength = 9 * zoom;
     backdrop.build(preset.parallaxLayers);
-    snow.build(renderer, preset.particleDensity, cssW, cssH);
+    snow.build(renderer, preset.particleDensity, cssW, cssH, fx.litSnow ? preset.bokeh : 0);
     if (builtDetail !== preset.detail) {
       scenery.view.destroy({ children: true });
       scenery = new Scenery(renderer, preset.detail);
@@ -1057,6 +1062,7 @@ async function boot(): Promise<void> {
       fx = { ...fx, [key]: on };
       saveFx(fx);
       if (key === 'perf') perfOverlay.show(on);
+      else if (key === 'litSnow') snow.build(renderer, preset.particleDensity, cssW, cssH, on ? preset.bokeh : 0);
       else if (key === 'hdr' || key === 'bloom' || key === 'edges' || key === 'shadows' || key === 'relief') applyPost();
     },
     fxNote: () => (post.supportsHalfFloat ? (post.halfFloat ? 'HDR picture: half-float' : 'HDR picture: off (8-bit)') : 'This device cannot render to half-float, so the picture is 8-bit: tone mapping is off (nothing to roll off) and bloom starts lower.'),
@@ -1314,8 +1320,13 @@ async function boot(): Promise<void> {
       grain: fx.grain ? preset.grain : 0,
       bloomThreshold: post.halfFloat ? preset.bloomThreshold : preset.bloomThreshold - 0.18,
       bloomGlowFeed: preset.bloomGlowFeed,
+      // G3: rays only near the surface (they fade out with depth) and only where the sun can reach.
+      rays: fx.rays && !interior.active ? preset.godRays * Math.exp(-Math.max(0, camCY) / 650) : 0,
+      raySteps: preset.godRaySteps,
+      rayPhase: camCX * 0.0016,
     });
     perf.pass('scene', () => renderer.render({ container: hdrRoot, target: post.sceneRT, clear: true, clearColor: '#0b2a33' }));
+    perf.pass('rays', () => post.renderRays());
     perf.pass('bloom', () => post.renderBloom());
     perf.pass('post', () => app.render());
   }
@@ -2657,7 +2668,22 @@ async function boot(): Promise<void> {
     });
     water.update(time, camX, camY, viewW, viewH, app.canvas.width, app.canvas.height);
     backdrop.update(camCX, camCY, zoom, cssW, cssH);
-    snow.update(dt, time, (camCX - prevX) * zoom, (camCY - prevY) * zoom, Math.max(0.25, 1 - camCY / 1400));
+    zoneBackdrop.view.visible = fx.zones;
+    zoneBackdrop.view.alpha = preset.zoneAlpha;
+    if (fx.zones) zoneBackdrop.update(camCX, camCY, zoom, cssW, cssH);
+    water.setShimmer(fx.shimmer ? preset.shimmer : 0);
+    // Near foreground kelp goes soft (Ultra); nothing to blur once it has faded away.
+    dofBlur.strength = preset.dof * zoom;
+    frontCam.filters = fx.dof && preset.dof > 0 && frontCam.alpha > 0.03 ? [dofBlur] : null;
+    // Marine snow catches the brightest lights.
+    const snowLamps: SnowLight[] = fx.litSnow
+      ? lights
+          .filter((l) => l.intensity > 0.05)
+          .sort((a, b) => b.intensity * b.radius - a.intensity * a.radius)
+          .slice(0, 4)
+          .map((l) => ({ x: (l.x - camX) * zoom, y: (l.y - camY) * zoom, r: l.radius * zoom, k: preset.snowLight * Math.min(1.2, l.intensity), dirX: l.dirX ?? 0, dirY: l.dirY ?? 0, cone: l.coneCos ?? -2 }))
+      : [];
+    snow.update(dt, time, (camCX - prevX) * zoom, (camCY - prevY) * zoom, Math.max(0.25, 1 - camCY / 1400), snowLamps);
 
     perf.lights = lighting.lightCount;
     perf.pass('lit', () => renderer.render({ container: litRoot, target: litRT, clear: true, clearColor: [0, 0, 0, 0] }));

@@ -69,6 +69,19 @@ export interface Preset {
   /** Most contact shadows drawn where things meet the seabed, and how strong the base's are. */
   contactShadows: number;
   contactStrength: number;
+  // ---- Graphics session G3: atmosphere and composition. Each has a Settings toggle (FxToggles). ----
+  /** Zone silhouettes behind the play area (basin boulders and arches, distant kelp, shelf hulks): how visible, 0..1. */
+  zoneAlpha: number;
+  /** God rays from the surface: strength (0 = off) and march steps. */
+  godRays: number;
+  godRaySteps: number;
+  /** Marine snow catching the lamp: strength, and how many big soft out-of-focus specks float past in front. */
+  snowLight: number;
+  bokeh: number;
+  /** Soft blur on the near foreground kelp, in CSS pixels (0 = off; Ultra only). */
+  dof: number;
+  /** Caustic shimmer in the water just under the surface: strength. */
+  shimmer: number;
   /** Leave out caustics where they cannot be seen (deep water, caves, shade). */
   skipHiddenCaustics: boolean;
 }
@@ -86,13 +99,19 @@ export interface FxToggles {
   shadows: boolean;
   relief: boolean;
   contact: boolean;
+  /** G3 */
+  zones: boolean;
+  rays: boolean;
+  litSnow: boolean;
+  dof: boolean;
+  shimmer: boolean;
   /** Smooth edges (MSAA on the world picture). Missing = the preset's own choice (Ultra on, High off). */
   edges?: boolean;
   /** The dev performance overlay. */
   perf: boolean;
 }
 
-export const FX_DEFAULT: FxToggles = { hdr: true, tone: true, grade: true, bloom: true, vignette: true, grain: true, causticSkip: true, shadows: true, relief: true, contact: true, perf: false };
+export const FX_DEFAULT: FxToggles = { hdr: true, tone: true, grade: true, bloom: true, vignette: true, grain: true, causticSkip: true, shadows: true, relief: true, contact: true, zones: true, rays: true, litSnow: true, dof: true, shimmer: true, perf: false };
 
 const FX_KEY = 'fathomlight.fx';
 
@@ -153,6 +172,14 @@ export const PRESETS: Record<PresetId, Preset> = {
     reliefWide: false,
     contactShadows: 6,
     contactStrength: 0.4,
+    // G3: the phone gets quiet versions: fainter silhouettes, short ray marches, a few bokeh specks, no blur.
+    zoneAlpha: 0.8,
+    godRays: 0.09,
+    godRaySteps: 8,
+    snowLight: 0.9,
+    bokeh: 5,
+    dof: 0,
+    shimmer: 0.6,
   },
   ultra: {
     id: 'ultra',
@@ -186,6 +213,13 @@ export const PRESETS: Record<PresetId, Preset> = {
     reliefWide: true,
     contactShadows: 12,
     contactStrength: 0.5,
+    zoneAlpha: 1,
+    godRays: 0.14,
+    godRaySteps: 14,
+    snowLight: 1.3,
+    bokeh: 12,
+    dof: 2.4,
+    shimmer: 1,
   },
 };
 
