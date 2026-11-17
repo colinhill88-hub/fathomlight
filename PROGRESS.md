@@ -1,6 +1,6 @@
 # Fathomlight progress
 
-Last updated: 2026-11-17, **graphics session G2 deployed (shadowed lamps, relief lighting, contact shadows)**, on top of G1 (performance overlay, `?bench`, HDR post stack). Next is **graphics session G3** (atmosphere and composition; see Next), then milestone 9, breeding, unless Colin reorders. Colin's PC and iPhone `?bench` numbers for G1 and G2 are still to come.
+Last updated: 2026-11-17, **graphics session G3 deployed (zone backdrops, god rays, lit snow, depth of field, surface shimmer)**, on top of G1 (performance overlay, `?bench`, HDR post stack) and G2 (lamp shadows, relief lighting, contact shadows). Next is **graphics session G4** (materials and life), then milestone 9, breeding, unless Colin reorders.
 
 Play link: https://colinhill88-hub.github.io/fathomlight/ (live; first successful deploy 2026-11-14)
 
@@ -43,6 +43,11 @@ These are defined in `src/presets.ts`. **Auto** picks High on touch devices (iPh
 | *G1:* Colour grading, vignette | per zone, vignette as before | same |
 | *G1:* Film grain | 0.6 | 1.0 |
 | *G1:* Skip hidden caustics | on | on |
+| *G3:* Zone backdrops | faint (0.8) silhouettes | full (1.0) |
+| *G3:* God rays | strength 0.09, 8 steps, at ¼ screen | 0.14, 14 steps |
+| *G3:* Lit snow and bokeh | lamp strength 0.9, 5 soft near specks | 1.3, 12 specks |
+| *G3:* Depth of field (near kelp) | off | 2.4 px blur |
+| *G3:* Surface shimmer | 0.6 | 1.0 |
 | *G2:* Lamp shadows | the diver's lamp casts; 10 march steps | the diver's lamp and the sub's lights (up to 3 lights); 22 steps |
 | *G2:* Relief lighting | 4 taps, strength 0.55 | 8 taps, strength 0.8 |
 | *G2:* Contact shadows | up to 6, base 0.4 | up to 12, base 0.5 |
@@ -1168,6 +1173,19 @@ Cut from High so far: the phone renders at 2× instead of its native 3×. Colin 
 - **First real iPhone number (Colin, after G2):** High, every effect on, swimming in the grotto with the lamp on (screenshot of the overlay): **28 fps, frame 35.9 ms, CPU update 1.7 ms, CPU render 4.2 ms, 146 draw calls, 235.7k triangles, 8 lights, 1748 x 804.** The GPU timer is not available on Safari, so there is no per-pass split. Colin is **happy with it**. For reference, his milestone 1 reading in the same kind of scene was the mid 30s fps, so this is a little lower, but it is a different build and a single reading; the CPU side is tiny, so the time is on the GPU. No `?bench` table yet, and no with-and-without comparison: still to come if Colin wants to tune further.
 - **Cost to measure on real hardware:** the shadow march only runs for pixels inside a lit cone (10 taps High, 22 Ultra, jittered per pixel and per frame so it shows up as grain, not bands); relief is 4 or 8 taps for every lit pixel. The G1 overlay shows GPU ms per pass: compare the `scene` pass with Lamp shadows and Relief lighting on and off in the grotto and the black chamber.
 - **If High is more than about 10% slower than after G1 on the iPhone**, cut in this order (each a toggle and a number in `presets.ts`): Relief lighting, then `shadowSteps` (10 to 6), then Contact shadows. Nothing has been cut from High yet.
+
+### Graphics session G3: atmosphere and composition (2026-11-17)
+- **Colin's feedback on G2:** he ran High with every option on in the grotto on the iPhone and was **happy with the performance** (28 fps, 35.9 ms; details in the G2 section). He asked for G3 and then G4 to follow so he can test them together.
+- **Zone backdrops** (`src/scene/zonebackdrop.ts`): faint mid-ground silhouettes, drawn once, fogged to the water colour and positioned in world space at one parallax depth: **the basin** gets boulders and natural arches, **the kelp forest** ranks of distant kelp, **the wreck shelf** sunk hulks with masts and a crane. Kept low-contrast (alpha 0.62 at most) so they never read as swimmable rock. The kelp caves have none (the cave interior hides the backdrop anyway).
+- **God rays:** a quarter-screen pass marches from each pixel toward a sun above the screen through the flat lit picture, so shafts are cut by kelp, rock, hardware and the diver; they fade with camera depth (gone below about 20 m) and are skipped entirely when too deep or indoors.
+- **Lit marine snow:** specks inside the four brightest lights catch them (brighter and warm), and a sparse near layer of big soft out-of-focus specks ("bokeh", 5 on High and 12 on Ultra) slides past in front.
+- **Depth of field (Ultra only):** the near foreground kelp gets a soft 2.4 px blur; High keeps it sharp.
+- **Surface shimmer:** a faint, noise-broken caustic net drifting through the water just under the surface.
+- **Settings → Graphics effects:** Zone backdrops, God rays, Lit snow, Depth of field, Surface shimmer (all saved on the device).
+- **Readability:** mean brightness of the seven benchmark scenes changed by -0% to +5% (the shallows get brighter from the rays and shimmer). Screenshots before and after (Ultra, 960 x 510, software renderer): `docs/art/fidelity/g3-before-*.jpg` and `g3-after-*.jpg`.
+- **Cloud numbers, relative only** (640 x 340 Ultra, 422 x 195 High, two runs each, six outdoor scenes averaged, software frame ms, about 20% noise): Ultra 526 before and 535 after (+2%); High 199 before and 204 after (+2%). Draw calls +3.
+- **Not done from the G3 plan:** the kelp caves' rock-pillar backdrop, and forward scattering in the lamp beam as its own effect (the lit snow gives the sparkle).
+- **If High slows more than about 10% on the iPhone**, cut in this order: God rays, Lit snow, Zone backdrops (each a toggle and a number in `presets.ts`). Nothing has been cut yet.
 
 ## Next
 
