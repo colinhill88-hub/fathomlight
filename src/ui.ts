@@ -13,6 +13,8 @@ interface SettingsDeps {
   buildId: string;
   /** Graphics session G1: the effect toggles, and a note on what the device could not do. */
   getFx(): FxToggles;
+  /** Whether an effect is really on (Smooth edges follows the preset until it is switched by hand). */
+  fxOn(key: keyof FxToggles): boolean;
   setFx(key: keyof FxToggles, on: boolean): void;
   fxNote(): string;
 }
@@ -60,7 +62,7 @@ export function initSettingsUI(deps: SettingsDeps) {
   for (const b of fxButtons) {
     b.addEventListener('click', () => {
       const key = b.dataset.fx as keyof FxToggles;
-      deps.setFx(key, !deps.getFx()[key]);
+      deps.setFx(key, !deps.fxOn(key));
       refresh();
     });
   }
@@ -76,8 +78,7 @@ export function initSettingsUI(deps: SettingsDeps) {
     const [w, h] = deps.getPixelSize();
     statRes.textContent = `${w} × ${h}`;
     statRenderer.textContent = deps.getRendererName();
-    const fx = deps.getFx();
-    for (const b of fxButtons) b.setAttribute('aria-pressed', String(fx[b.dataset.fx as keyof FxToggles]));
+    for (const b of fxButtons) b.setAttribute('aria-pressed', String(deps.fxOn(b.dataset.fx as keyof FxToggles)));
     fxNote.textContent = deps.fxNote();
   }
 

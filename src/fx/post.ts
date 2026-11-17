@@ -1,4 +1,4 @@
-import { Geometry, Mesh, RenderTexture, Renderer, Shader } from 'pixi.js';
+import { Geometry, Mesh, RenderTexture, Renderer, Shader, Texture } from 'pixi.js';
 import { FULLSCREEN_VERTEX, GLSL_COMMON, RT_VERTEX } from './shared';
 
 /**
@@ -212,7 +212,7 @@ const GRADES: Record<keyof ZoneWeights | 'interior', Grade> = {
   // Grey-teal.
   shelf: { tint: [0.96, 1.01, 1.01], exposure: 1.0, sat: 0.7, contrast: 1.08, lift: [0.006, 0.014, 0.014] },
   // Near black.
-  cave: { tint: [0.97, 1.0, 1.02], exposure: 0.94, sat: 0.82, contrast: 1.12, lift: [0, 0.002, 0.004] },
+  cave: { tint: [0.97, 1.0, 1.02], exposure: 0.98, sat: 0.84, contrast: 1.05, lift: [0.002, 0.006, 0.01] },
   // Dry steel and lamplight.
   interior: { tint: [1.02, 1.0, 0.97], exposure: 1.0, sat: 0.96, contrast: 1.05, lift: [0.004, 0.004, 0.004] },
 };
@@ -280,8 +280,10 @@ export class PostStack {
   private height = 4;
   private useBloom = true;
   private wantHalf = true;
+  private msaa = false;
   private canHalf = false;
   private bloomLevels = 4;
+  private bloomScale = 0.5;
 
   constructor(
     private readonly renderer: Renderer,
@@ -296,7 +298,7 @@ export class PostStack {
     } catch {
       /* the check above decides */
     }
-    this.scene = this.makeRT(this.canHalf && this.wantHalf);
+    this.scene = this.makeRT(this.canHalf && this.wantHalf, false);
 
     this.prefilter = this.makePass(PREFILTER, {
       prefilterUniforms: { uTexel: { value: new Float32Array([1, 1]), type: 'vec2<f32>' }, uGlowTexel: { value: new Float32Array([1, 1]), type: 'vec2<f32>' }, uParams: { value: new Float32Array([0.9, 0.5, 0.5, 0]), type: 'vec4<f32>' } },
@@ -325,9 +327,10 @@ export class PostStack {
     this.view = new Mesh({ geometry: quad(), shader: this.finalShader });
   }
 
-  private makeRT(half: boolean): RenderTexture {
+  private makeRT(half: boolean, msaa: boolean): RenderTexture {
     this.halfFloat = half;
-    return RenderTexture.create({ width: 4, height: 4, antialias: false, scaleMode: 'linear', ...(half ? { format: 'rgba16float' as const } : {}) });
+    this.msaa = msaa;
+    return RenderTexture.create({ width: 4, height: 4, antialias: msaa, scaleMode: 'linear', ...(half ? { format: 'rgba16float' as const } : {}) });
   }
 
   private makePass(fragment: string, resources: Record<string, unknown>, group: string): Mesh<Geometry, Shader> {
@@ -351,62 +354,72 @@ export class PostStack {
    * fallback to 8-bit is automatic), `levels` is how many halving steps the
    * bloom blur uses, and `bloom` false skips the chain entirely.
    */
-  resize(cssW: number, cssH: number, res: number, hdr: boolean, levels: number, bloom: boolean): void {
+  resize(cssW: number, cssH: number, res: number, hdr: boolean, levels: number, bloom: boolean, scale: number, msaa: boolean): void {
     this.useBloom = bloom;
     this.bloomLevels = levels;
+    this.bloomScale = scale;
     const half = hdr && this.canHalf;
-    if (half !== this.halfFloat || this.wantHalf !== hdr) {
+    let oldScene: RenderTexture | null = null;
+    if (half !== this.halfFloat || this.wantHalf !== hdr || msaa !== this.msaa) {
       this.wantHalf = hdr;
-      const old = this.scene;
-      this.scene = this.makeRT(half);
-      old.destroy(true);
-      this.rebuildLevels();
+      oldScene = this.scene;
+      this.scene = this.makeRT(half, msaa);
     }
     this.scene.resize(cssW, cssH, res);
     this.width = Math.max(1, Math.round(cssW * res));
     this.height = Math.max(1, Math.round(cssH * res));
     this.rebuildLevels();
+    // Only now that every shader points at the new pictures is it safe to free the old one.
+    oldScene?.destroy(true);
   }
 
   /** (Re)create the bloom chain: each level is half the size of the one before. */
   private rebuildLevels(): void {
-    for (const l of this.levels) {
-      l.down.destroy(true);
-      l.up.destroy(true);
-    }
+    const oldLevels = this.levels;
+    const oldPasses = [...this.downs, ...this.ups].filter(Boolean);
     this.levels = [];
     this.downs = [];
     this.ups = [];
-    if (!this.useBloom) {
-      this.finalShader.resources.uBloom = this.scene.source;
-      this.finalShader.resources.uScene = this.scene.source;
-      return;
+    if (this.useBloom) {
+      let w = this.width;
+      let h = this.height;
+      for (let i = 0; i < this.bloomLevels; i++) {
+        // The first step is `bloomScale` of the screen (1/2 on Ultra, 1/4 on High); each one after halves again.
+        const f = i === 0 ? this.bloomScale : 0.5;
+        w = Math.max(2, Math.ceil(w * f));
+        h = Math.max(2, Math.ceil(h * f));
+        const down = this.makeLevelRT(w, h);
+        const up = i === this.bloomLevels - 1 ? down : this.makeLevelRT(w, h);
+        this.levels.push({ down, up, w, h });
+      }
+      // Shaders: level 0 is filled by the prefilter, the rest by downsampling the one before.
+      for (let i = 1; i < this.levels.length; i++) {
+        const prev = this.levels[i - 1].down;
+        this.downs[i] = this.makePass(DOWN, { downUniforms: { uTexel: { value: new Float32Array([1 / this.levels[i - 1].w, 1 / this.levels[i - 1].h]), type: 'vec2<f32>' } }, uSrc: prev.source }, 'downUniforms');
+      }
+      for (let i = this.levels.length - 2; i >= 0; i--) {
+        const low = this.levels[i + 1].up;
+        this.ups[i] = this.makePass(
+          UP,
+          { upUniforms: { uTexel: { value: new Float32Array([1 / this.levels[i + 1].w, 1 / this.levels[i + 1].h]), type: 'vec2<f32>' }, uWeight: { value: 0.65, type: 'f32' } }, uBase: this.levels[i].down.source, uLow: low.source },
+          'upUniforms',
+        );
+      }
     }
-    let w = this.width;
-    let h = this.height;
-    for (let i = 0; i < this.bloomLevels; i++) {
-      w = Math.max(2, Math.ceil(w / 2));
-      h = Math.max(2, Math.ceil(h / 2));
-      const down = this.makeLevelRT(w, h);
-      const up = i === this.bloomLevels - 1 ? down : this.makeLevelRT(w, h);
-      this.levels.push({ down, up, w, h });
-    }
-    // Shaders: level 0 is filled by the prefilter, the rest by downsampling the one before.
     this.prefilter.shader!.resources.uSrc = this.scene.source;
-    for (let i = 1; i < this.levels.length; i++) {
-      const prev = this.levels[i - 1].down;
-      this.downs[i] = this.makePass(DOWN, { downUniforms: { uTexel: { value: new Float32Array([1 / this.levels[i - 1].w, 1 / this.levels[i - 1].h]), type: 'vec2<f32>' } }, uSrc: prev.source }, 'downUniforms');
-    }
-    for (let i = this.levels.length - 2; i >= 0; i--) {
-      const low = this.levels[i + 1].up;
-      this.ups[i] = this.makePass(
-        UP,
-        { upUniforms: { uTexel: { value: new Float32Array([1 / this.levels[i + 1].w, 1 / this.levels[i + 1].h]), type: 'vec2<f32>' }, uWeight: { value: 0.65, type: 'f32' } }, uBase: this.levels[i].down.source, uLow: low.source },
-        'upUniforms',
-      );
-    }
     this.finalShader.resources.uScene = this.scene.source;
-    this.finalShader.resources.uBloom = this.levels[0].up.source;
+    this.finalShader.resources.uBloom = this.levels.length ? this.levels[0].up.source : this.scene.source;
+    // The old chain is no longer referenced by anything that will draw: free it.
+    for (const m of oldPasses) {
+      // Unbind the pictures first, so freeing them doesn't leave a shader pointing at a destroyed texture.
+      const r = m.shader!.resources as Record<string, unknown>;
+      for (const k of ['uSrc', 'uBase', 'uLow']) if (k in r) r[k] = Texture.EMPTY.source;
+      m.destroy({ children: true });
+    }
+    for (const l of oldLevels) {
+      l.down.destroy(true);
+      if (l.up !== l.down) l.up.destroy(true);
+    }
   }
 
   private makeLevelRT(w: number, h: number): RenderTexture {
@@ -437,8 +450,10 @@ export class PostStack {
     f.uLift[1] = g.lift[1] * a;
     f.uLift[2] = g.lift[2] * a;
     f.uMode[0] = this.useBloom && this.levels.length > 0 ? 1 : 0;
-    this.pu.uTexel[0] = 1 / this.width;
-    this.pu.uTexel[1] = 1 / this.height;
+    // The prefilter's taps are spaced so they still cover every source pixel when the first step is smaller than half.
+    const step = 0.5 / this.bloomScale;
+    this.pu.uTexel[0] = step / this.width;
+    this.pu.uTexel[1] = step / this.height;
     this.pu.uGlowTexel[0] = 1 / Math.max(1, this.glow.source.pixelWidth);
     this.pu.uGlowTexel[1] = 1 / Math.max(1, this.glow.source.pixelHeight);
     this.pu.uParams[0] = o.bloomThreshold;

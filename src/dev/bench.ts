@@ -56,7 +56,7 @@ export interface BenchScene {
 
 export const BENCH_SCENES: BenchScene[] = [
   { id: 'shallows', name: 'Shallows at the buoy', x: 900, y: 160, floor: true, face: 1, lamp: false, zoom: 1, sway: 120 },
-  { id: 'basin', name: 'Basin, seeded big base', x: -2500, y: 700, face: 1, lamp: true, zoom: 2.2, sway: 160 },
+  { id: 'basin', name: 'Basin, seeded big base', x: -1970, y: 1320, face: 1, lamp: true, zoom: 2.2, sway: 160 },
   { id: 'grotto', name: 'Grotto, lamp on', x: (GROTTO.x0 + GROTTO.x1) / 2 - 120, y: 900, face: 1, lamp: true, zoom: 1, sway: 90 },
   { id: 'forest', name: 'Kelp forest', x: 12300, y: 260, floor: true, face: 1, lamp: true, zoom: 1, sway: 140 },
   { id: 'caves', name: 'Kelp caves, black chamber', x: 17960, y: 1650, face: 1, lamp: true, zoom: 1, sway: 60 },
@@ -276,7 +276,7 @@ export class Bench {
     this.host.done();
     const pad = (v: string | number, n: number, left = false) => (left ? String(v).padStart(n) : String(v).padEnd(n));
     const head = ['scene', 'fps', 'ms', 'p95', 'worst', 'cpuUpd', 'cpuRnd', 'gpuMs', 'draws', 'tris k', 'lights', 'frames', 'resolution'];
-    const w = [27, 5, 6, 6, 6, 7, 7, 6, 6, 7, 6, 6, 11];
+    const w = [30, 5, 6, 6, 6, 7, 7, 6, 6, 7, 6, 6, 11];
     const lines: string[] = [head.map((h, i) => pad(h, w[i], i > 0)).join(' ')];
     for (const r of this.rows) {
       lines.push(

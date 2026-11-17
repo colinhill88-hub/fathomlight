@@ -45,6 +45,8 @@ export interface Preset {
   /** Bloom: how much bright things glow, how many halving steps the blur uses, and the brightness where it starts. */
   bloom: number;
   bloomLevels: number;
+  /** Size of the first bloom picture as a fraction of the screen (the rest halve from there). */
+  bloomScale: number;
   bloomThreshold: number;
   /** How much of the old glow layer is fed into the bloom as well. */
   bloomGlowFeed: number;
@@ -52,6 +54,11 @@ export interface Preset {
   vignette: number;
   /** Fine film grain, 0..1 (also dithers 8-bit output). */
   grain: number;
+  /**
+   * Antialias the world picture itself. The canvas no longer needs MSAA (the screen is one full-screen quad),
+   * but the world's own edges (rock ridges, emissive shapes) do on a screen that is not very dense. Ultra only.
+   */
+  hdrMsaa: boolean;
   /** Leave out caustics where they cannot be seen (deep water, caves, shade). */
   skipHiddenCaustics: boolean;
 }
@@ -65,6 +72,8 @@ export interface FxToggles {
   vignette: boolean;
   grain: boolean;
   causticSkip: boolean;
+  /** Smooth edges (MSAA on the world picture). Missing = the preset's own choice (Ultra on, High off). */
+  edges?: boolean;
   /** The dev performance overlay. */
   perf: boolean;
 }
@@ -114,13 +123,15 @@ export const PRESETS: Record<PresetId, Preset> = {
     hdr: true,
     toneMap: 1,
     grade: 1,
-    bloom: 0.34,
+    bloom: 0.3,
     bloomLevels: 4,
+    bloomScale: 0.25,
     bloomThreshold: 1.0,
-    bloomGlowFeed: 0.22,
+    bloomGlowFeed: 0.18,
     vignette: 1,
     grain: 0.6,
     skipHiddenCaustics: true,
+    hdrMsaa: false,
   },
   ultra: {
     id: 'ultra',
@@ -139,13 +150,15 @@ export const PRESETS: Record<PresetId, Preset> = {
     hdr: true,
     toneMap: 1,
     grade: 1,
-    bloom: 0.4,
+    bloom: 0.34,
     bloomLevels: 6,
+    bloomScale: 0.5,
     bloomThreshold: 1.0,
-    bloomGlowFeed: 0.26,
+    bloomGlowFeed: 0.2,
     vignette: 1,
     grain: 1,
     skipHiddenCaustics: true,
+    hdrMsaa: true,
   },
 };
 

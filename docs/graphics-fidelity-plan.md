@@ -138,6 +138,8 @@ Four sessions, each independently playable and testable, each touching rendering
 
 ### Session G1: measure, then HDR and the post stack
 
+**Built 2026-11-17** (see PROGRESS.md, "Graphics session G1"). The plan below is what was asked for; what shipped is in PROGRESS.md, including the benchmark tables (cloud numbers are relative only) and Colin's PC and iPhone numbers once he sends them.
+
 1. **Dev performance overlay** (Settings → "Show performance", off by default): CPU update and render ms, GPU ms per pass (timer queries where supported), draw calls, light count, resolution.
 2. **Benchmark route** (`?bench` in the URL): fixed scenes, about 8 s each: shallows at the buoy, basin with a seeded big base, grotto with the lamp on, kelp forest, kelp caves black chamber, wreck shelf by the Corvina, and the base interior with its ceiling lines. It prints a table Colin can copy.
 3. **Baseline numbers** recorded in PROGRESS.md (Colin's PC and iPhone).

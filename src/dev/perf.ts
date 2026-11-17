@@ -66,6 +66,12 @@ class Perf {
   /** The graphics chip's name, when the browser says (it may be hidden), and whether it is a software renderer. */
   gpuName = 'unknown';
   software = false;
+  /**
+   * ?bench&sync: where there is no GPU timer (a software renderer, or Safari), wait for each pass to
+   * finish and report how long it took. It stalls the pipeline, so frame times get worse, but the
+   * per-pass numbers show where the work is. Used for the cloud's relative numbers.
+   */
+  syncTiming = typeof location !== 'undefined' && new URLSearchParams(location.search).has('sync');
 
   attach(gl: GL): void {
     this.gl = gl;
@@ -135,6 +141,18 @@ class Perf {
     }
     const gl = this.gl;
     const ext = this.ext;
+    if (this.syncTiming && gl && !ext) {
+      const t0 = performance.now();
+      try {
+        fn();
+        gl.finish();
+      } finally {
+        const ms = performance.now() - t0;
+        this.renderMs += ms;
+        this.gpuMs[name] = ms;
+      }
+      return;
+    }
     let q: WebGLQuery | null = null;
     // Only one timer query can run at a time, so a pass inside a pass is timed with the outer one.
     if (gl && ext && !this.active) {

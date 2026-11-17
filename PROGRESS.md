@@ -1,6 +1,6 @@
 # Fathomlight progress
 
-Last updated: 2026-11-17, **the walkable base, part 2 deployed (conveyors and pipes along the ceilings, the moon pool entry, lifts, whorl fitting from inside)**. Next is **graphics session G1** (see Next; plan in `docs/graphics-fidelity-plan.md`), then milestone 9, breeding.
+Last updated: 2026-11-17, **graphics session G1 deployed (performance overlay, `?bench` benchmark route, HDR post stack)**. Next is **graphics session G2** (light with form and shadow; see Next), then milestone 9, breeding, unless Colin reorders. Colin's PC and iPhone benchmark numbers for G1 are still to come (see "Graphics session G1").
 
 Play link: https://colinhill88-hub.github.io/fathomlight/ (live; first successful deploy 2026-11-14)
 
@@ -38,6 +38,11 @@ These are defined in `src/presets.ts`. **Auto** picks High on touch devices (iPh
 | Glow (bloom) sharpness and smoothness | ¼ resolution, 2 blur passes | ½ resolution, 4 blur passes |
 | Plants and coral | normal | about 1.6× more |
 | Soft shadows | baked rock shadows | baked rock shadows **plus** the diver's moving soft shadow on the seabed |
+| *G1:* HDR picture and tone mapping | half-float picture, soft shoulder from 0.72 | same, with MSAA on the picture ("Smooth edges") |
+| *G1:* Bloom | strength 0.30, starts at 1.0, 4 steps from ¼ screen, glow feed 0.18 | strength 0.34, starts at 1.0, 6 steps from ½ screen, glow feed 0.20 |
+| *G1:* Colour grading, vignette | per zone, vignette as before | same |
+| *G1:* Film grain | 0.6 | 1.0 |
+| *G1:* Skip hidden caustics | on | on |
 
 Every effect in the DESIGN.md High row is on in High: dynamic lights, light shafts, caustics, depth fog, glow, water distortion and particles.
 
@@ -1058,9 +1063,96 @@ Cut from High so far: the phone renders at 2× instead of its native 3×. Colin 
 - **No frame times were measured**: the cloud browser has no GPU. Session G1 builds a performance overlay and a fixed benchmark route so Colin can measure his PC (RTX 5080, about 106 fps at 2560 × 1360 on Ultra today) and iPhone before and after each session.
 - **Colin approved the plan** and chose to run session G1 next, before milestone 9 (the walkable base part 2 was finished in a parallel session). The G1 prompt is in `docs/prompts/graphics-g1.md`.
 
+### Graphics session G1: measure, then HDR and the post stack (2026-11-17)
+- **Colin's feedback on the walkable base, part 2:** "looks good". Nothing was flagged, so nothing was fixed.
+- **Housekeeping:** the plan (`docs/graphics-fidelity-plan.md`) and this session's prompt lived on the audit branch `claude/fathomlight-graphics-audit-2p8vp3`; they were merged into this branch (a fast-forward) so the session could read them.
+- **Rendering only.** No gameplay, save format or drawing code changed beyond what the passes need. No new dependencies, no WebGPU, no Three.js. All colours still obey the Choir rule (cyan, violet and magenta only for the Choir).
+
+**1. Performance overlay** (`src/dev/perf.ts`; Settings → Graphics effects → **Show performance**, off by default)
+- Shows fps and frame ms, **CPU update** ms (the game's own frame code) and **CPU render** ms (handing drawing to the graphics card), **GPU ms per pass**, draw calls, triangles, light count and render resolution.
+- GPU times come from `EXT_disjoint_timer_query_webgl2` where the browser has it (desktop Chrome and Edge do). Safari on the iPhone does not, so there it says "GPU timer: not available here" and the frame time and fps are the numbers to read. A software renderer (like the cloud's) is detected and its timer is not used.
+- Passes: `lit` (the flat picture), `glow`, `scene` (water, rock, lighting, emissives, glow and snow into the HDR picture), `bloom`, `post` (the final pass plus the crisp overlays).
+- Draw calls and triangles are counted by wrapping the GL draw calls, only while measuring is on.
+
+**2. Benchmark route** (`src/dev/bench.ts`; open the play link with `?bench` on the end)
+- Seven scenes, about 8 s each (the first 2 s and 3 frames of each are not measured; a slow machine runs on until it has 10 frames): shallows at the buoy, basin with a seeded big base (40 pieces, 17 lines, view zoomed out 2.2×), grotto with the lamp on, kelp forest, kelp caves black chamber (two brackets lit), wreck shelf by the Corvina, base interior with ceiling lines (standing in the press room). The diver is held still with a slow sideways sway so water, particles and lights all move.
+- It prints a table (fps, mean ms, p95, worst, CPU update and render, GPU ms, draws, triangles, lights, frames, resolution) with a **Copy table** button, and GPU ms per pass underneath.
+- **It never touches the real save:** with `?bench`, `loadSave`, `writeSave` and `clearSave` in `src/game/state.ts` skip the device's save entirely (checked: no save key is written). The base is seeded from a fixed recipe (`seedBenchSave`).
+- Extra developer switches: `&still` holds the view perfectly still, `&scene=N` (0 to 6) stays in one scene for screenshots, `&at=x,y` moves that scene, `&sync` waits for each pass to finish and times it (a stalling estimate for machines without a GPU timer, used here for the cloud).
+
+**3. Baseline numbers (cloud, before any rendering change): relative only.** The cloud browser has **no GPU** (SwiftShader, software), so frame times there are not GPU times and are not comparable with Colin's devices: they only say whether something got dramatically worse. What is reliable is draw calls, triangles, lights and the CPU numbers. These came from the code as it stood before the post stack (measuring tools only), at 1280 × 680 Ultra and 844 × 390 High, one run each (noise is about ±20% per scene).
+
+| Scene (Ultra, 1280 × 680) | Draw calls | Triangles (k) | Lights | CPU update ms | CPU render ms | Software frame ms |
+| --- | --- | --- | --- | --- | --- | --- |
+| Shallows at the buoy | 223 | 532 | 1 | 2.4 | 13.0 | 656 |
+| Basin, seeded big base | 219 | 391 | 10 | 1.5 | 5.9 | 614 |
+| Grotto, lamp on | 153 | 363 | 12 | 1.8 | 7.2 | 788 |
+| Kelp forest | 147 | 260 | 4 | 2.1 | 6.6 | 780 |
+| Kelp caves, black chamber | 136 | 470 | 6 | 1.4 | 5.3 | 564 |
+| Wreck shelf, by the Corvina | 139 | 475 | 2 | 1.6 | 7.3 | 903 |
+| Base interior, ceiling lines | 17 | 121 | 13 | 0.9 | 3.2 | (65, sync-stalled) |
+
+| Scene (High, 844 × 390) | Draw calls | Triangles (k) | Lights | CPU update ms | CPU render ms | Software frame ms |
+| --- | --- | --- | --- | --- | --- | --- |
+| Shallows at the buoy | 211 | 414 | 1 | 1.6 | 6.8 | 262 |
+| Basin, seeded big base | 209 | 375 | 8 | 1.5 | 5.5 | 344 |
+| Grotto, lamp on | 143 | 256 | 8 | 1.8 | 5.5 | 315 |
+| Kelp forest | 138 | 204 | 4 | 1.5 | 4.3 | 231 |
+| Kelp caves, black chamber | 126 | 360 | 7 | 1.2 | 3.1 | 312 |
+| Wreck shelf, by the Corvina | 128 | 364 | 3 | 1.7 | 6.7 | 261 |
+| Base interior, ceiling lines | 17 | 121 | 15 | 1.1 | 2.7 | (110, sync-stalled) |
+
+- **Reading them:** the world is about 140 to 230 draw calls and 250 to 530 thousand triangles; the CPU side is small (the game's own code 1 to 2.5 ms, submitting drawing 3 to 13 ms), so the CPU is not the limit on a PC and probably not on the phone either. Where the time goes on a real GPU is the question for **Colin's PC and iPhone numbers** (see "What Colin should do next" below). **No GPU timings were invented.**
+
+**4. Cheap wins**
+- **Caustics skipped where they cannot be seen** (`src/fx/lighting.ts`): the caustic net (about a hundred transcendental operations per pixel, three times over on Ultra) is skipped wherever it would add less than about one level of 255 (deep water, caves, shaded areas, under rock). Settings toggle "Skip hidden caustics" turns it off to compare. In the cloud the grotto (caves, shade) was the scene that got cheaper in software (about 590 to 470 ms in one run); the real saving has to be measured on a GPU.
+- **Canvas MSAA is off** (`antialias: false` in `src/main.ts`): the screen is now one full-screen quad (the post pass) plus thin overlays. The world's own edges are antialiased in the pictures it is drawn from: the flat picture still has MSAA, and on **Ultra the world picture has MSAA too** ("Smooth edges (MSAA)" in Settings, `hdrMsaa` in `presets.ts`). Without it, the long rock ridges in the backdrop show faint stair-steps on a 1× screen (checked in a crop); with it they match the old look. **High has no MSAA** (the phone renders at 2×, and the screenshots at that density look clean). Note: in the software renderer, MSAA on a half-float picture is a slow path (about +50% frame time there); a real GPU should not care, but this is **the first thing to compare on the PC** (Smooth edges on and off).
+
+**5. The HDR post stack** (`src/fx/post.ts`; wired up in `src/main.ts`, search "Measuring" and `drawPost`)
+- **New draw order.** The world (water, backdrop, lighting, emissives, glow sprite, snow, and dry interiors) is drawn into one **half-float picture** (`PostStack.sceneRT`). Then the **bloom chain**, then **one full-screen post pass** to the screen, then the **scanner, build grid and collect rings** (`overlayCam`) on top, crisp. The old CSS vignette (`#vignette`) is gone; the DOM HUD, low-air edge and blackout are unchanged.
+- **Half-float check:** the device is tested on a scratch WebGL context (`halfFloatSupported`): the extension, plus a real framebuffer-completeness check. If it fails (older iPhones), the picture is **8-bit** instead: the whole stack still works, but tone mapping is switched off (there is no light brighter than white to roll off, so it would only dim highlights) and bloom starts 0.18 lower. Settings shows which path is in use under "Graphics effects".
+- **Tone mapping:** a soft shoulder, untouched below 0.72 and rolling off towards white above it (continuous in value and slope), per channel so very bright warm lights go creamy white instead of clipping into flat coloured discs.
+- **Per-zone colour grading** (`GRADES` in `post.ts`; zone weights from `zoneMix`, eased so crossing a boundary never pops): shallows warm and clear, basin cool, forest green and dim, shelf grey-teal (saturation 0.7), caves near black but kept readable (brightness within about 8% of before), interiors dry steel. Brightness stays within about ±6% of the old look in every other scene (measured on the benchmark screenshots).
+- **Bloom** (threshold with a soft knee, 13-tap downsample chain, tent upsample, with the old **glow layer fed into it** through a wide filter so its sharp stored edges never show): anything brighter than white blooms, lamp-lit hull and brass roll off softly, lures and anemones glow naturally. The existing glow sprite is unchanged, so existing glows keep their look.
+- **Vignette** moved into the final shader (same shape and strength as the CSS one). **Fine grain** (strongest in the mid-tones) also dithers the 8-bit output.
+- **Interiors get the same post pass** (their own grade). Their lighting shaders now draw into the HDR picture (`RT_VERTEX` in `src/fx/shared.ts`: Pixi stores off-screen pictures upside down, so the water and the two lighting shaders use a flipped vertex shader).
+- **Settings → Graphics effects** (all saved on the device): HDR picture, Tone mapping, Colour grading, Bloom, Vignette, Film grain, Smooth edges (MSAA), Skip hidden caustics, Show performance. With **everything off** the picture is the old look (clamped colours, no vignette); that is the A/B reference.
+- **Readability checks:** pickups, the lurker's warning flare and the grotto's glowing lures still pop (warm glows, bloom is subtle: strengths 0.30 to 0.34); build ghosts and grid are in `overlayCam`, drawn after post, so they are crisp (checked in build mode); the basin floor, caves and wreck shelf stay readable (mean brightness of the benchmark screenshots: shallows +4%, basin +1%, grotto -6%, forest -4%, caves -8%, shelf -3%, base -4%).
+- **Screenshots** of the same fixed scenes before and after, Ultra, 1280 × 680, software renderer: `docs/art/fidelity/g1-before-*.jpg` and `g1-after-*.jpg` (shallows, basin, grotto, forest, caves, shelf, base). The earlier `before-*.png` are from the audit.
+
+**After, in the cloud (relative only).** Same scenes and settings as the baseline, with the post stack. Draw calls rise by about 8 (High) or 12 (Ultra) for the bloom chain and the final pass; triangles, lights and CPU time are unchanged within noise. Software frame time (not a GPU time): High averaged 288 ms before and 288 ms after over the six outdoor scenes; Ultra averaged 717 ms before and 693 ms after with Smooth edges off, and about 1115 ms with it on (the software-only MSAA slow path above).
+
+| Ultra, 1280 × 680 | Draw calls | CPU update ms | CPU render ms | Software frame ms: before → after (edges off) → after (edges on) |
+| --- | --- | --- | --- | --- |
+| Shallows at the buoy | 223 → 235 | 2.4 → 2.5 | 13.0 → 7.8 | 656 → 629 → 988 |
+| Basin, seeded big base | 219 → 231 | 1.5 → 1.5 | 5.9 → 5.3 | 614 → 682 → 1008 |
+| Grotto, lamp on | 153 → 165 | 1.8 → 1.8 | 7.2 → 6.6 | 788 → 730 → 1217 |
+| Kelp forest | 147 → 159 | 2.1 → 1.5 | 6.6 → 7.9 | 780 → 702 → 1205 |
+| Kelp caves, black chamber | 136 → 148 | 1.4 → 1.5 | 5.3 → 3.4 | 564 → 662 → 1088 |
+| Wreck shelf, by the Corvina | 139 → 151 | 1.6 → 1.6 | 7.3 → 6.8 | 903 → 752 → 1183 |
+| Base interior (60 fps-capped; sync-stalled, not comparable) | 17 → 29 | 0.9 → 1.4 | 3.2 → 3.0 | n/m |
+
+| High, 844 × 390 | Draw calls | CPU update ms | CPU render ms | Software frame ms |
+| --- | --- | --- | --- | --- |
+| Shallows at the buoy | 211 → 219 | 1.6 → 2.1 | 6.8 → 6.2 | 262 → 260 |
+| Basin, seeded big base | 209 → 217 | 1.5 → 1.5 | 5.5 → 5.0 | 344 → 360 |
+| Grotto, lamp on | 143 → 151 | 1.8 → 1.5 | 5.5 → 4.2 | 315 → 321 |
+| Kelp forest | 138 → 146 | 1.5 → 1.4 | 4.3 → 5.3 | 231 → 232 |
+| Kelp caves, black chamber | 126 → 134 | 1.2 → 1.2 | 3.1 → 3.3 | 312 → 288 |
+| Wreck shelf, by the Corvina | 128 → 136 | 1.7 → 1.5 | 6.7 → 5.3 | 261 → 265 |
+| Base interior (sync-stalled, not comparable) | 17 → 25 | 1.1 → 1.2 | 2.7 → 2.4 | n/m |
+
+- **High cost review (the 10% rule).** The iPhone cannot be measured from the cloud, so High was built as the cheap set from the start: half-float picture with no MSAA, bloom starting at **¼** screen (a quarter of Ultra's pixels) with 4 steps instead of 6, a lighter grain, one extra full-screen pass in all. Nothing was cut from High yet. **If the phone is more than about 10% slower in the grotto than Colin's mid-30s**, cut in this order, each one a Settings toggle and a number in `presets.ts`: (1) Bloom, (2) HDR picture off (8-bit), (3) Film grain. The caustics skip should give some of it back in the grotto.
+- **Tested** (type check and production build pass; headless Chromium in the cloud, software GL, so slow): the whole benchmark ran in both presets with no console errors and wrote no save; every Settings toggle switches on and off at runtime with no Pixi warnings (after fixing a texture-lifetime warning); the 8-bit fallback was forced by hiding the float extensions and the game ran with the note shown; build mode (grid, ghost, bottom bar) draws correctly over the post pass; phone layout (844 × 390 at 2×) shows the new Settings block and the overlay; before and after screenshots of all seven scenes.
+
+**What Colin should do next (also sent as a message):**
+1. Open the play link with `?bench` on the end (on the PC and then on the iPhone, with the phone in landscape and plugged in or at normal battery). Wait for the table (about a minute), tap **Copy table**, and send both tables. On the PC, run it again with **Smooth edges (MSAA)** switched off in Settings to see what that costs, and once with **Show performance** on while swimming the grotto with the lamp.
+2. Look at the game in the shallows, grotto, forest and shelf, and flip **Tone mapping, Colour grading, Bloom, Vignette** one at a time (Settings → Graphics effects). Say which you like and which are too strong.
+3. Tell us the grotto's frame rate on the iPhone with everything on, against his earlier mid-30s.
+
 ## Next
 
-**Next session: graphics session G1** (prompt in `docs/prompts/graphics-g1.md`; plan in `docs/graphics-fidelity-plan.md`): a performance overlay and benchmark route, baseline numbers, the caustics early-out, and the HDR post stack (tone mapping, zone grading, bloom, vignette, grain). Then G2 and G3 as Colin approves, then **milestone 9, breeding** (prompt in `docs/prompts/milestone-9.md`, questions in DESIGN.md), unless Colin reorders.
+**Next session: graphics session G2, light with form and shadow** (plan in `docs/graphics-fidelity-plan.md`, section 5), once Colin has looked at G1 and sent his PC and iPhone numbers: a baked occupancy map of the world, shadowed lamp and floodlights (the beam stops at walls), 2.5D normals from the art, and contact shadows. The grotto and the black chamber are its stress scenes; run the `?bench` route before and after. Then G3 (atmosphere and composition), then milestone 9, breeding (prompt in `docs/prompts/milestone-9.md`, questions in DESIGN.md), unless Colin reorders.
 - **Left over from the walkable base:** more detail in the machine rooms (feeder, press, filter, sorter, crane), line code plates indoors, and a sound for the lines and machines. Do these alongside a later milestone if Colin asks.
 - **The harpoon:** decoration on the Crest diver for now; use its design for later tools and weapons.
 
@@ -1073,6 +1165,14 @@ Where things are (on foot):
 - the hand-off: `src/main.ts` (`enterBase`, `exitBase`, `peekOut`, `backInside`, `simBase`, `interiorFrame`).
 
 ## Problems and open questions
+
+- **Graphics session G1, to check after Colin measures:**
+  - **No real GPU numbers exist yet.** The cloud has none. Colin's PC (RTX 5080) and iPhone numbers from `?bench` are the first real ones; until then the High cost review in the G1 section is a plan, not a measurement.
+  - **Ultra's "Smooth edges" (MSAA on the half-float picture)** replaced the canvas MSAA. It looked right in screenshots but is untested for cost on a real GPU. If it costs more than the old canvas MSAA did, switch `hdrMsaa` off in `presets.ts` for Ultra and consider an FXAA step in the final pass instead.
+  - **The 8-bit fallback** (devices that cannot render to half-float) was forced and ran in the cloud, but not on an older iPhone. It has no tone mapping by design.
+  - **Tuning numbers (all single values):** bloom strength, threshold and steps in `presets.ts`; the tone-map knee (0.72, `shoulder` in the final shader in `src/fx/post.ts`); the per-zone grades (`GRADES` in `post.ts`); grain in `presets.ts`. Bloom was kept subtle on purpose (the glow layer was already doing the soft halos).
+  - **The interior's grapple ring** is drawn inside the post pass (it is part of the interior's own scene), so it is tone-mapped and can bloom slightly. The world's scanner, build grid and collect rings are after post.
+  - **Benchmark scenes use fixed positions** (`BENCH_SCENES` in `src/dev/bench.ts`). If the world or the basin changes a lot, re-check them with `?bench&still&scene=N`.
 
 - **The walkable base, part 2, to check after Colin plays:**
   - the ceiling lines when a base is big: lines crossing or overlapping (four lanes, `% 4` in `BaseHooks`' constructor), and long routes through many rooms;

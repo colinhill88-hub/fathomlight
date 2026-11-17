@@ -1003,7 +1003,7 @@ async function boot(): Promise<void> {
 
   /** Size the post stack's pictures and pick half-float or the 8-bit fallback (from the preset and the Settings toggles). */
   function applyPost(res = pixelRatioFor(preset, cssW, cssH)): void {
-    post.resize(cssW, cssH, res, preset.hdr && fx.hdr, preset.bloomLevels, fx.bloom && preset.bloom > 0);
+    post.resize(cssW, cssH, res, preset.hdr && fx.hdr, preset.bloomLevels, fx.bloom && preset.bloom > 0, preset.bloomScale, fx.edges ?? preset.hdrMsaa);
   }
 
   function rebuild(): void {
@@ -1045,13 +1045,14 @@ async function boot(): Promise<void> {
     },
     buildId: __BUILD_ID__,
     getFx: () => fx,
+    fxOn: (key) => (key === 'edges' ? (fx.edges ?? preset.hdrMsaa) : !!fx[key]),
     setFx: (key, on) => {
       fx = { ...fx, [key]: on };
       saveFx(fx);
       if (key === 'perf') perfOverlay.show(on);
-      else if (key === 'hdr' || key === 'bloom') applyPost();
+      else if (key === 'hdr' || key === 'bloom' || key === 'edges') applyPost();
     },
-    fxNote: () => (post.supportsHalfFloat ? (post.halfFloat ? 'HDR picture: half-float' : 'HDR picture: off (8-bit)') : 'This device cannot render to half-float, so the picture is 8-bit (tone mapping still works, with less headroom).'),
+    fxNote: () => (post.supportsHalfFloat ? (post.halfFloat ? 'HDR picture: half-float' : 'HDR picture: off (8-bit)') : 'This device cannot render to half-float, so the picture is 8-bit: tone mapping is off (nothing to roll off) and bloom starts lower.'),
     setChoice: (c) => {
       choice = c;
       saveChoice(c);
@@ -1297,12 +1298,14 @@ async function boot(): Promise<void> {
       cssW,
       cssH,
       zone: interior.active ? null : zoneNow,
-      tone: fx.tone ? preset.toneMap : 0,
+      // An 8-bit picture can't hold light brighter than white, so there is nothing for the shoulder to roll off
+      // (it would only dim the highlights), and bloom has to start lower to catch anything at all.
+      tone: fx.tone && post.halfFloat ? preset.toneMap : 0,
       grade: fx.grade ? preset.grade : 0,
       bloom: fx.bloom ? preset.bloom : 0,
       vignette: fx.vignette ? preset.vignette : 0,
       grain: fx.grain ? preset.grain : 0,
-      bloomThreshold: preset.bloomThreshold,
+      bloomThreshold: post.halfFloat ? preset.bloomThreshold : preset.bloomThreshold - 0.18,
       bloomGlowFeed: preset.bloomGlowFeed,
     });
     perf.pass('scene', () => renderer.render({ container: hdrRoot, target: post.sceneRT, clear: true, clearColor: '#0b2a33' }));
