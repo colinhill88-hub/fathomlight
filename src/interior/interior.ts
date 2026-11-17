@@ -1,3 +1,4 @@
+import { perf } from '../dev/perf';
 import { BlurFilter, Container, Graphics, RenderTexture, Renderer, Sprite, Text } from 'pixi.js';
 import type { Light } from '../fx/lighting';
 import { Walker } from '../actors/walker';
@@ -995,8 +996,9 @@ export class Interior {
       ambient: this.hooks ? [0.3, 0.32, 0.34] : this.power ? [0.46, 0.44, 0.42] : [0.16, 0.17, 0.2],
       lights,
     });
-    this.renderer.render({ container: this.litRoot, target: this.sceneRT, clear: true, clearColor: [0, 0, 0, 0] });
-    this.renderer.render({ container: this.glowCam, target: this.glowRT, clear: true, clearColor: [0, 0, 0, 0] });
+    perf.lights = lights.length;
+    perf.pass('lit', () => this.renderer.render({ container: this.litRoot, target: this.sceneRT, clear: true, clearColor: [0, 0, 0, 0] }));
+    perf.pass('glow', () => this.renderer.render({ container: this.glowCam, target: this.glowRT, clear: true, clearColor: [0, 0, 0, 0] }));
   }
 
   /** For tests and the sound: where the walker is. */

@@ -1,5 +1,8 @@
-import { Application, BlurFilter, Container, RenderTexture, Sprite, Texture } from 'pixi.js';
-import { loadChoice, pixelRatioFor, Preset, PresetChoice, resolveChoice, saveChoice } from './presets';
+import { Application, BlurFilter, Container, RenderTexture, Sprite, Texture, UPDATE_PRIORITY } from 'pixi.js';
+import { perf, PerfOverlay } from './dev/perf';
+import { PostStack, ZoneWeights } from './fx/post';
+import { Bench, BENCH, BENCH_SCENES, STILL, scenePos, seedBenchSave } from './dev/bench';
+import { FxToggles, loadChoice, loadFx, pixelRatioFor, Preset, PresetChoice, resolveChoice, saveChoice, saveFx } from './presets';
 import { Water } from './scene/water';
 import { Backdrop } from './scene/backdrop';
 import { MarineSnow } from './scene/particles';
@@ -96,7 +99,7 @@ import { StationMode } from './ui/station';
 import { DIVE_LIGHT, GEAR, hasGear, jobOf, jobRunning, LAMP, RESEARCH, tickStations } from './game/gear';
 import type { BlueprintId } from './game/state';
 import { audio } from './audio/engine';
-import { SoundDirector, WorkKind } from './audio/director';
+import { SoundDirector, WorkKind, zoneMix } from './audio/director';
 import { Lurkers } from './actors/lurker';
 import { Interior, InteriorEvent } from './interior/interior';
 import { CORVINA_MAP } from './interior/corvina';
@@ -144,7 +147,9 @@ async function boot(): Promise<void> {
   const app = new Application();
   await app.init({
     preference: 'webgl',
-    antialias: true,
+    // G1: the screen is only ever a full-screen quad (the post pass) plus thin overlays, and the
+    // world's edges are antialiased in the pictures it is drawn from, so canvas MSAA bought nothing.
+    antialias: false,
     background: '#0b2a33',
     resolution: pixelRatioFor(preset, window.innerWidth, window.innerHeight),
     autoDensity: true,
@@ -154,6 +159,7 @@ async function boot(): Promise<void> {
   });
   host.appendChild(app.canvas);
   const renderer = app.renderer;
+  perf.attach((renderer as unknown as { gl: WebGL2RenderingContext }).gl);
 
   // Baked daylight/shadow map for the whole world (soft shadows under rock).
   const mask = Texture.from(bakeSkyVisibility(8, 3));
@@ -163,6 +169,11 @@ async function boot(): Promise<void> {
   // Off-screen pictures for the lit layer and the glow layer.
   const litRT = RenderTexture.create({ width: 4, height: 4, antialias: true });
   const glowRT = RenderTexture.create({ width: 4, height: 4 });
+  // Graphics session G1: the world is drawn into one picture (half-float where the device can), then
+  // the post stack (bloom, tone mapping, grading, vignette, grain) turns it into the screen.
+  const post = new PostStack(renderer, glowRT);
+  /** Everything of the world that goes through the post stack. Not on the stage: it is drawn into `post.sceneRT`. */
+  const hdrRoot = new Container();
 
   const water = new Water(mask);
   const backdrop = new Backdrop();
@@ -186,6 +197,7 @@ async function boot(): Promise<void> {
   // Progress from the last visit (or a fresh start at the Kestrel buoy).
   const loaded = loadSave(SPAWN.x, SPAWN.y);
   const save: SaveData = loaded.data;
+  if (BENCH) seedBenchSave(save);
 
   let scenery = new Scenery(renderer, preset.detail);
   const pickups = new Pickups();
@@ -363,10 +375,12 @@ async function boot(): Promise<void> {
   }
   populate();
 
-  app.stage.addChild(water.view, backdrop.view, lighting.view, emissiveCam, glowSprite, snow.view, overlayCam);
+  hdrRoot.addChild(water.view, backdrop.view, lighting.view, emissiveCam, glowSprite, snow.view);
+  // On the stage after the post pass, so the scanner, the build grid and the collect rings stay crisp.
+  app.stage.addChild(post.view, overlayCam);
   // After milestone 8 part 2: dry interiors on foot, drawn over the (hidden) world.
   const interior = new Interior(renderer);
-  app.stage.addChild(interior.view);
+  hdrRoot.addChild(interior.view);
   const worldLayers = [water.view, backdrop.view, lighting.view, emissiveCam, glowSprite, snow.view, overlayCam];
   /** Which interior you're on foot in, if any. */
   let inside: 'corvina' | 'base' | null = null;
@@ -976,7 +990,7 @@ async function boot(): Promise<void> {
   const BLACK_HOLD = 2.6;
   const BLACK_OUT = 1.2;
 
-  if (!loaded.loaded) {
+  if (!loaded.loaded && !BENCH) {
     setTimeout(() => hud.toast('Explore the shallows: scan new things and gather materials for the base', 'big'), 1500);
   } else if (save.oxygen <= 0) {
     save.oxygen = maxOxygen(save);
@@ -987,6 +1001,11 @@ async function boot(): Promise<void> {
   let zoom = 1;
   let builtDetail = preset.detail;
 
+  /** Size the post stack's pictures and pick half-float or the 8-bit fallback (from the preset and the Settings toggles). */
+  function applyPost(res = pixelRatioFor(preset, cssW, cssH)): void {
+    post.resize(cssW, cssH, res, preset.hdr && fx.hdr, preset.bloomLevels, fx.bloom && preset.bloom > 0);
+  }
+
   function rebuild(): void {
     cssW = window.innerWidth;
     cssH = window.innerHeight;
@@ -995,6 +1014,7 @@ async function boot(): Promise<void> {
     app.ticker.maxFPS = preset.maxFps;
     zoom = cssH / VIEW_H;
     litRT.resize(cssW, cssH, res);
+    applyPost(res);
     interior.resize(cssW, cssH, res);
     glowRT.resize(cssW, cssH, res * preset.glowResolution);
     blur.quality = preset.glowQuality;
@@ -1011,6 +1031,7 @@ async function boot(): Promise<void> {
     ui.refresh();
   }
 
+  let fx: FxToggles = loadFx();
   const ui = initSettingsUI({
     getChoice: () => choice,
     getPreset: () => preset,
@@ -1023,6 +1044,14 @@ async function boot(): Promise<void> {
       location.reload();
     },
     buildId: __BUILD_ID__,
+    getFx: () => fx,
+    setFx: (key, on) => {
+      fx = { ...fx, [key]: on };
+      saveFx(fx);
+      if (key === 'perf') perfOverlay.show(on);
+      else if (key === 'hdr' || key === 'bloom') applyPost();
+    },
+    fxNote: () => (post.supportsHalfFloat ? (post.halfFloat ? 'HDR picture: half-float' : 'HDR picture: off (8-bit)') : 'This device cannot render to half-float, so the picture is 8-bit (tone mapping still works, with less headroom).'),
     setChoice: (c) => {
       choice = c;
       saveChoice(c);
@@ -1042,6 +1071,8 @@ async function boot(): Promise<void> {
   rebuild();
 
   // Camera: follows the diver smoothly, looking a little ahead of where they swim.
+  /** The benchmark's own zoom, on top of the player's (never saved). */
+  let benchZoom = 1;
   let camCX = diver.x + 120;
   let camCY = diver.y + 40;
   let time = 0;
@@ -1209,6 +1240,112 @@ async function boot(): Promise<void> {
 
 
   }
+
+  // ---- Measuring (graphics session G1): the performance overlay and the ?bench route ----
+  const perfOverlay = new PerfOverlay();
+  perfOverlay.show(fx.perf);
+  const bench = new Bench({
+    enter: (i) => {
+      const sc = BENCH_SCENES[i];
+      // Leave an interior left over from the last scene.
+      if (interior.active && inside === 'base' && !sc.interior) exitBase(baseDome ?? -1);
+      benchZoom = sc.zoom;
+      if (sc.interior) {
+        const dome = layout.pieces.find((q) => q.kind === 'dome');
+        if (!dome) return;
+        enterBase(dome.id);
+        // Stand in the first press room (or any machine with a belt), where the ceiling lines run.
+        const press = layout.pieces.find((q) => q.kind === 'press' && save.lines.some((l) => l.from === q.id || l.to === q.id)) ?? layout.pieces.find((q) => q.kind === 'press');
+        const at = press && baseHooks ? baseHooks.dockSpawn(press.id) : null;
+        if (at) interior.place(at.x, at.y, 1);
+        interior.lampOn = true;
+        return;
+      }
+      const p = scenePos(sc);
+      diver.x = p.x;
+      diver.y = p.y;
+      diver.vx = diver.vy = 0;
+      diver.surfaced = false;
+      diver.lampOn = sc.lamp;
+      camCX = p.x + 60;
+      camCY = p.y + 30;
+      viewH = VIEW_H * sc.zoom;
+    },
+    info: () => `${preset.label} preset · ${app.canvas.width}x${app.canvas.height} · ${renderer.type === 1 ? 'WebGL' : 'WebGPU'} · GPU ${perf.gpuName}${perf.software ? ' (SOFTWARE: frame times are relative only)' : ''} · timer queries ${perf.hasGpuTimer ? 'yes' : 'no'} · build ${__BUILD_ID__} · ${navigator.userAgent.slice(0, 90)}`,
+    done: () => {
+      if (interior.active && inside === 'base') exitBase(baseDome ?? -1);
+      benchZoom = 1;
+    },
+  });
+  if (BENCH) {
+    perf.enable(true);
+    perf.onFrame = (f) => bench.tick(f, performance.now());
+    setTimeout(() => bench.start(performance.now()), 2500);
+  }
+  // Zone weights for the colour grade, eased so crossing a boundary never pops.
+  const zoneNow: ZoneWeights = { shallows: 1, basin: 0, forest: 0, cave: 0, shelf: 0 };
+  let zoneEased = false;
+  function drawPost(deltaMS: number): void {
+    const dt = Math.min(deltaMS / 1000, 0.1);
+    const at = save.sub?.aboard ? sub : diver;
+    const target = zoneMix(at.x, at.y);
+    const k = zoneEased ? 1 - Math.exp(-2.5 * dt) : 1;
+    zoneEased = true;
+    for (const z of ['shallows', 'basin', 'forest', 'cave', 'shelf'] as const) zoneNow[z] += (target[z] - zoneNow[z]) * k;
+    post.update({
+      time,
+      cssW,
+      cssH,
+      zone: interior.active ? null : zoneNow,
+      tone: fx.tone ? preset.toneMap : 0,
+      grade: fx.grade ? preset.grade : 0,
+      bloom: fx.bloom ? preset.bloom : 0,
+      vignette: fx.vignette ? preset.vignette : 0,
+      grain: fx.grain ? preset.grain : 0,
+      bloomThreshold: preset.bloomThreshold,
+      bloomGlowFeed: preset.bloomGlowFeed,
+    });
+    perf.pass('scene', () => renderer.render({ container: hdrRoot, target: post.sceneRT, clear: true, clearColor: '#0b2a33' }));
+    perf.pass('bloom', () => post.renderBloom());
+    perf.pass('post', () => app.render());
+  }
+  // First thing each frame: start the clock, and pin the benchmark's diver in place.
+  app.ticker.add(
+    () => {
+      perf.frameStart();
+      const sc = bench.scene;
+      if (!bench.active || !sc || sc.interior || interior.active) return;
+      const p = scenePos(sc);
+      const sway = STILL ? 0 : Math.sin(bench.elapsed(performance.now()) * 0.7) * sc.sway;
+      diver.x = p.x + sway;
+      diver.y = p.y;
+      diver.vx = diver.vy = 0;
+      diver.surfaced = false;
+      // Hold the framing too, so a slow machine's easing camera cannot differ between runs.
+      camCX = diver.x + 60;
+      camCY = diver.y + 30;
+      viewH = VIEW_H * sc.zoom;
+      save.oxygen = maxOxygen(save);
+      save.suit = 1;
+      diver.lampOn = sc.lamp;
+    },
+    undefined,
+    UPDATE_PRIORITY.HIGH,
+  );
+  // Last: Pixi's own draw of the stage is timed as a pass of its own.
+  app.ticker.remove(app.render, app);
+  app.ticker.add(
+    (ticker) => {
+      perf.markUpdate();
+      perf.width = app.canvas.width;
+      perf.height = app.canvas.height;
+      drawPost(ticker.elapsedMS);
+      perf.frameEnd(ticker.elapsedMS);
+      perfOverlay.tick(perf.last, performance.now());
+    },
+    undefined,
+    UPDATE_PRIORITY.LOW,
+  );
 
   app.ticker.add((ticker) => {
     const dt = Math.min(ticker.deltaMS / 1000, 0.05);
@@ -2331,7 +2468,7 @@ async function boot(): Promise<void> {
             ? VIEW_H_STATION
             : aboard
               ? VIEW_H_SUB * swimZoom
-              : VIEW_H * swimZoom;
+              : VIEW_H * swimZoom * benchZoom;
     viewH += (wantH - viewH) * (1 - Math.exp(-(build.active ? 10 : 4) * dt));
     zoom = cssH / viewH;
     const viewW = cssW / zoom;
@@ -2479,6 +2616,7 @@ async function boot(): Promise<void> {
       lights,
       maxLights: preset.maxLights,
       chromatic: preset.chromaticCaustics,
+      skipHiddenCaustics: preset.skipHiddenCaustics && fx.causticSkip,
       shadow:
         preset.softShadows && height < 420
           ? [diver.x, floor + 6, 70 + height * 0.25, 0.55 * Math.exp(-height / 220)]
@@ -2488,8 +2626,9 @@ async function boot(): Promise<void> {
     backdrop.update(camCX, camCY, zoom, cssW, cssH);
     snow.update(dt, time, (camCX - prevX) * zoom, (camCY - prevY) * zoom, Math.max(0.25, 1 - camCY / 1400));
 
-    renderer.render({ container: litRoot, target: litRT, clear: true, clearColor: [0, 0, 0, 0] });
-    renderer.render({ container: glowCam, target: glowRT, clear: true, clearColor: [0, 0, 0, 0] });
+    perf.lights = lighting.lightCount;
+    perf.pass('lit', () => renderer.render({ container: litRoot, target: litRT, clear: true, clearColor: [0, 0, 0, 0] }));
+    perf.pass('glow', () => renderer.render({ container: glowCam, target: glowRT, clear: true, clearColor: [0, 0, 0, 0] }));
 
     input.diverScreen = aboard ? { x: (sub.x - camX) * zoom, y: (sub.y - camY) * zoom } : { x: (diver.x - camX) * zoom, y: (diver.y - camY) * zoom };
     surfaceFx.update(dt, time, camX, camX + viewW, camY, diver.surfaced ? { x: hx } : null);
@@ -3010,6 +3149,7 @@ async function boot(): Promise<void> {
     baseHooks: () => baseHooks,
     where: () => ({ inside, peek }),
     hudReading: () => hud.reading,
+    cam: () => ({ camX, camY, camCX, camCY, viewH, zoom }),
     snap: () => {
       camCX = diver.x;
       camCY = diver.y;

@@ -81,3 +81,19 @@ void main() {
   gl_Position = vec4(aPosition.x * 2.0 - 1.0, 1.0 - aPosition.y * 2.0, 0.0, 1.0);
 }
 `;
+
+/**
+ * The same rectangle for shaders that draw into an off-screen picture (a
+ * render texture), which Pixi stores upside down compared with the screen.
+ * Since graphics session G1 the whole world is drawn into the HDR picture
+ * first, so the water and the lighting use this one.
+ */
+export const RT_VERTEX = /* glsl */ `
+in vec2 aPosition;
+out vec2 vUV;
+
+void main() {
+  vUV = aPosition;
+  gl_Position = vec4(aPosition.x * 2.0 - 1.0, aPosition.y * 2.0 - 1.0, 0.0, 1.0);
+}
+`;

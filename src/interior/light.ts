@@ -1,5 +1,5 @@
 import { Geometry, Mesh, Shader, Texture } from 'pixi.js';
-import { FULLSCREEN_VERTEX } from '../fx/shared';
+import { RT_VERTEX } from '../fx/shared';
 import type { Light } from '../fx/lighting';
 
 /**
@@ -76,7 +76,7 @@ export class InteriorLighting {
   constructor(scene: Texture) {
     const geometry = new Geometry({ attributes: { aPosition: [0, 0, 1, 0, 1, 1, 0, 1] }, indexBuffer: [0, 1, 2, 0, 2, 3] });
     this.shader = Shader.from({
-      gl: { vertex: FULLSCREEN_VERTEX, fragment, name: 'fathomlight-interior-light' },
+      gl: { vertex: RT_VERTEX, fragment, name: 'fathomlight-interior-light' },
       resources: {
         u: {
           uCam: { value: new Float32Array(2), type: 'vec2<f32>' },

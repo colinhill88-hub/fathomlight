@@ -170,13 +170,6 @@ body {
   display: none;
 }
 
-#vignette {
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  background: radial-gradient(ellipse 75% 70% at 50% 45%, transparent 55%, rgba(2, 14, 20, 0.55) 100%);
-}
-
 #controls {
   position: fixed;
   inset: 0;
@@ -2598,5 +2591,120 @@ body.on-foot #tend-btn,
 body.on-foot #dock-btn,
 body.on-foot #station-btn,
 body.on-foot #hint {
+  display: none !important;
+}
+
+/* Graphics session G1: effect toggles, the performance overlay and the benchmark panel. */
+.fx-toggles {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.fx-toggles button {
+  min-height: 44px;
+  border-radius: 10px;
+  border: 1px solid var(--ui-line);
+  background: transparent;
+  color: var(--ui-text);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.fx-toggles button[aria-pressed='true'] {
+  background: var(--ui-accent);
+  border-color: var(--ui-accent);
+  color: #1d1a12;
+}
+
+#fx-note:empty {
+  display: none;
+}
+
+#perf {
+  position: fixed;
+  top: calc(var(--safe-top) + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 30;
+  pointer-events: none;
+  padding: 6px 9px;
+  border-radius: 8px;
+  background: rgba(4, 14, 18, 0.78);
+  color: #cfe7e1;
+  font: 11px/1.45 ui-monospace, Menlo, Consolas, monospace;
+  white-space: nowrap;
+}
+
+#perf[hidden] {
+  display: none;
+}
+
+#perf b {
+  color: #f3e6b0;
+}
+
+#bench {
+  position: fixed;
+  z-index: 40;
+  left: 50%;
+  top: calc(var(--safe-top) + 10px);
+  transform: translateX(-50%);
+  max-width: calc(100vw - 24px);
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: rgba(4, 14, 18, 0.9);
+  color: #dcefe9;
+  font: 12px/1.5 ui-monospace, Menlo, Consolas, monospace;
+}
+
+#bench[hidden] {
+  display: none;
+}
+
+#bench.running {
+  pointer-events: none;
+  min-width: 260px;
+}
+
+#bench.running i {
+  display: block;
+  height: 4px;
+  margin-top: 6px;
+  border-radius: 2px;
+  background: #d8b45a;
+}
+
+#bench pre {
+  margin: 0 0 10px;
+  overflow: auto;
+  max-height: calc(100vh - 110px);
+  white-space: pre;
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+#bench .row {
+  display: flex;
+  gap: 8px;
+}
+
+#bench button {
+  min-height: 44px;
+  padding: 0 16px;
+  border-radius: 10px;
+  border: 1px solid var(--ui-line);
+  background: var(--ui-accent);
+  color: #1d1a12;
+  font-size: 14px;
+}
+
+.bench #hint,
+.bench #tags,
+.bench #toasts,
+.bench #banner,
+.bench #scan-label,
+.bench #collect-label {
   display: none !important;
 }

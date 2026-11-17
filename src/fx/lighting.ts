@@ -1,5 +1,5 @@
 import { Geometry, Mesh, Shader, Texture } from 'pixi.js';
-import { FULLSCREEN_VERTEX, GLSL_COMMON } from './shared';
+import { RT_VERTEX, GLSL_COMMON } from './shared';
 import { WORLD_H, WORLD_SPAN, WORLD_X0 } from '../world/terrain';
 
 /**
@@ -129,13 +129,19 @@ void main() {
 
     // Caustics, strongest in the shallows.
     float cK = uFlags.z * vis * shade * exp(-max(d, 0.0) / 430.0) * (1.0 - air);
-    vec3 caus;
-    if (uFlags.x > 0.5) {
-      caus = vec3(caustics(wp + vec2(1.8, 0.6), uTime), caustics(wp, uTime), caustics(wp - vec2(1.8, 0.6), uTime));
-    } else {
-      caus = vec3(caustics(wp, uTime));
+    vec3 caus = vec3(0.0);
+    // G1: the caustic net is the most expensive part of this shader (a hundred or so
+    // transcendental operations per pixel). Where it would add less than about one level
+    // of 255 (deep water, caves, shade, anywhere the sun cannot reach) it is skipped.
+    // uFlags.w turns the skip off, so it can be compared.
+    if (uFlags.w < 0.5 || cK * max(sunCol.r, max(sunCol.g, sunCol.b)) > 0.0025) {
+      if (uFlags.x > 0.5) {
+        caus = vec3(caustics(wp + vec2(1.8, 0.6), uTime), caustics(wp, uTime), caustics(wp - vec2(1.8, 0.6), uTime));
+      } else {
+        caus = vec3(caustics(wp, uTime));
+      }
+      caus *= cK * sunCol;
     }
-    caus *= cK * sunCol;
 
     vec3 col = c.rgb * (sun * (1.0 + air * 0.15) + ambient + caus + lit * 1.1);
 
@@ -191,6 +197,8 @@ export class Lighting {
     uFlags: Float32Array;
   };
   private readonly shader: Shader;
+  /** How many lights the last update sent to the shader. */
+  lightCount = 0;
 
   constructor(scene: Texture, mask: Texture) {
     const geometry = new Geometry({
@@ -198,7 +206,7 @@ export class Lighting {
       indexBuffer: [0, 1, 2, 0, 2, 3],
     });
     this.shader = Shader.from({
-      gl: { vertex: FULLSCREEN_VERTEX, fragment, name: 'fathomlight-lighting' },
+      gl: { vertex: RT_VERTEX, fragment, name: 'fathomlight-lighting' },
       resources: {
         lightUniforms: {
           uTime: { value: 0, type: 'f32' },
@@ -233,6 +241,8 @@ export class Lighting {
     lights: Light[];
     maxLights: number;
     chromatic: boolean;
+    /** G1: skip the caustics where they cannot be seen. */
+    skipHiddenCaustics: boolean;
     shadow: [number, number, number, number] | null;
   }): void {
     const u = this.u;
@@ -246,6 +256,7 @@ export class Lighting {
     u.uFlags[0] = opts.chromatic ? 1 : 0;
     u.uFlags[1] = 1.1; // distortion, in CSS pixels
     u.uFlags[2] = 0.75; // caustic strength
+    u.uFlags[3] = opts.skipHiddenCaustics ? 1 : 0;
     if (opts.shadow) u.uShadow.set(opts.shadow);
     else u.uShadow[3] = 0;
 
@@ -264,6 +275,7 @@ export class Lighting {
       u.uLightC.set([l.dirX ?? 0, l.dirY ?? 0, l.coneSoft ?? 0.1, l.haze ?? 0.1], i * 4);
     });
     u.uLightCount = visible.length;
+    this.lightCount = visible.length;
   }
 
   setScene(scene: Texture): void {

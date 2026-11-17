@@ -63,8 +63,8 @@ The game is a 2D side-view web app, so one build runs on Colin's iPhone 16 Pro, 
 
 | Preset | Device | Target | Effects |
 | --- | --- | --- | --- |
-| High | iPhone 16 Pro, iPad | Smooth at 60 frames per second | Dynamic lights, light shafts, caustics, depth fog, glow, water distortion, particles |
-| Ultra | PC with RTX 5080 | Up to 4K at 120 frames per second | Everything in High at full resolution, plus soft shadows, denser particles and more parallax layers |
+| High | iPhone 16 Pro, iPad | Smooth at 60 frames per second | Dynamic lights, light shafts, caustics, depth fog, glow, water distortion, particles, and the HDR post stack: tone mapping, per-zone colour grading, bloom, vignette and film grain (graphics session G1) |
+| Ultra | PC with RTX 5080 | Up to 4K at 120 frames per second | Everything in High at full resolution, plus soft shadows, denser particles, more parallax layers and a longer bloom chain |
 
 There is no need to support older or low-end devices. If an effect has to be cut, cut it from the phone preset before the PC one, and say so in `PROGRESS.md`.
 

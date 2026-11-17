@@ -21,7 +21,6 @@
   </head>
   <body>
     <div id="game"></div>
-    <div id="vignette"></div>
     <div id="low-o2"></div>
 
     <div id="watch-wrap">
@@ -147,6 +146,19 @@
           <button type="button" data-preset="high" role="radio">High</button>
           <button type="button" data-preset="ultra" role="radio">Ultra</button>
         </div>
+        <h2 class="gap">Graphics effects</h2>
+        <p class="note">Switch each on or off to compare. Saved on this device.</p>
+        <div class="fx-toggles" id="fx-toggles">
+          <button type="button" data-fx="hdr" aria-pressed="true">HDR picture</button>
+          <button type="button" data-fx="tone" aria-pressed="true">Tone mapping</button>
+          <button type="button" data-fx="grade" aria-pressed="true">Colour grading</button>
+          <button type="button" data-fx="bloom" aria-pressed="true">Bloom</button>
+          <button type="button" data-fx="vignette" aria-pressed="true">Vignette</button>
+          <button type="button" data-fx="grain" aria-pressed="true">Film grain</button>
+          <button type="button" data-fx="causticSkip" aria-pressed="true">Skip hidden caustics</button>
+          <button type="button" data-fx="perf" aria-pressed="false">Show performance</button>
+        </div>
+        <p id="fx-note" class="note"></p>
         <dl id="stats">
           <dt>Preset</dt><dd id="stat-preset">-</dd>
           <dt>Frame rate</dt><dd id="stat-fps">-</dd>

@@ -34,6 +34,61 @@ export interface Preset {
   glowQuality: number;
   /** Extra kelp, coral and foreground plants. 1 = normal. */
   detail: number;
+
+  // ---- Graphics session G1: the HDR post stack. Each has a Settings toggle (FxToggles). ----
+  /** Draw the world into a half-float picture (falls back to ordinary 8-bit where the device cannot). */
+  hdr: boolean;
+  /** Tone mapping: bright light rolls off softly instead of clipping flat. 0 = off, 1 = full. */
+  toneMap: number;
+  /** Colour grading per zone, 0..1. */
+  grade: number;
+  /** Bloom: how much bright things glow, how many halving steps the blur uses, and the brightness where it starts. */
+  bloom: number;
+  bloomLevels: number;
+  bloomThreshold: number;
+  /** How much of the old glow layer is fed into the bloom as well. */
+  bloomGlowFeed: number;
+  /** The edge darkening (moved from CSS into the final pass), 0..1. */
+  vignette: number;
+  /** Fine film grain, 0..1 (also dithers 8-bit output). */
+  grain: number;
+  /** Leave out caustics where they cannot be seen (deep water, caves, shade). */
+  skipHiddenCaustics: boolean;
+}
+
+/** Settings → Graphics toggles for the G1 effects, so each can be compared on and off. */
+export interface FxToggles {
+  hdr: boolean;
+  tone: boolean;
+  grade: boolean;
+  bloom: boolean;
+  vignette: boolean;
+  grain: boolean;
+  causticSkip: boolean;
+  /** The dev performance overlay. */
+  perf: boolean;
+}
+
+export const FX_DEFAULT: FxToggles = { hdr: true, tone: true, grade: true, bloom: true, vignette: true, grain: true, causticSkip: true, perf: false };
+
+const FX_KEY = 'fathomlight.fx';
+
+export function loadFx(): FxToggles {
+  try {
+    const raw = localStorage.getItem(FX_KEY);
+    if (raw) return { ...FX_DEFAULT, ...(JSON.parse(raw) as Partial<FxToggles>) };
+  } catch {
+    /* blocked or damaged: defaults */
+  }
+  return { ...FX_DEFAULT };
+}
+
+export function saveFx(fx: FxToggles): void {
+  try {
+    localStorage.setItem(FX_KEY, JSON.stringify(fx));
+  } catch {
+    /* ignore */
+  }
 }
 
 const FOUR_K = 3840 * 2160;
@@ -55,6 +110,17 @@ export const PRESETS: Record<PresetId, Preset> = {
     glowResolution: 0.25,
     glowQuality: 2,
     detail: 1,
+    // G1. High is the cheaper set: fewer bloom steps and a lighter grain. Cut from High first if the phone slows.
+    hdr: true,
+    toneMap: 1,
+    grade: 1,
+    bloom: 0.34,
+    bloomLevels: 4,
+    bloomThreshold: 1.0,
+    bloomGlowFeed: 0.22,
+    vignette: 1,
+    grain: 0.6,
+    skipHiddenCaustics: true,
   },
   ultra: {
     id: 'ultra',
@@ -70,6 +136,16 @@ export const PRESETS: Record<PresetId, Preset> = {
     glowResolution: 0.5,
     glowQuality: 4,
     detail: 1.6,
+    hdr: true,
+    toneMap: 1,
+    grade: 1,
+    bloom: 0.4,
+    bloomLevels: 6,
+    bloomThreshold: 1.0,
+    bloomGlowFeed: 0.26,
+    vignette: 1,
+    grain: 1,
+    skipHiddenCaustics: true,
   },
 };
 

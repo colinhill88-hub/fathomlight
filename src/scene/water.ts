@@ -1,5 +1,5 @@
 import { Geometry, Mesh, Shader, Texture } from 'pixi.js';
-import { FULLSCREEN_VERTEX, GLSL_COMMON } from '../fx/shared';
+import { RT_VERTEX, GLSL_COMMON } from '../fx/shared';
 import { WORLD_H, WORLD_SPAN, WORLD_X0 } from '../world/terrain';
 
 /**
@@ -94,7 +94,7 @@ export class Water {
       indexBuffer: [0, 1, 2, 0, 2, 3],
     });
     const shader = Shader.from({
-      gl: { vertex: FULLSCREEN_VERTEX, fragment, name: 'fathomlight-water' },
+      gl: { vertex: RT_VERTEX, fragment, name: 'fathomlight-water' },
       resources: {
         waterUniforms: {
           uTime: { value: 0, type: 'f32' },

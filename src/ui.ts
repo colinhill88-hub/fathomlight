@@ -1,4 +1,4 @@
-import { Preset, PresetChoice, detectPreset } from './presets';
+import { FxToggles, Preset, PresetChoice, detectPreset } from './presets';
 
 interface SettingsDeps {
   getChoice(): PresetChoice;
@@ -11,6 +11,10 @@ interface SettingsDeps {
   /** Wipe the save and start over. */
   resetProgress(): void;
   buildId: string;
+  /** Graphics session G1: the effect toggles, and a note on what the device could not do. */
+  getFx(): FxToggles;
+  setFx(key: keyof FxToggles, on: boolean): void;
+  fxNote(): string;
 }
 
 /** The gear button in the corner and its small Graphics panel. */
@@ -51,6 +55,15 @@ export function initSettingsUI(deps: SettingsDeps) {
   for (const b of presetButtons) {
     b.addEventListener('click', () => deps.setChoice(b.dataset.preset as PresetChoice));
   }
+  const fxButtons = Array.from(panel.querySelectorAll<HTMLButtonElement>('[data-fx]'));
+  const fxNote = document.getElementById('fx-note')!;
+  for (const b of fxButtons) {
+    b.addEventListener('click', () => {
+      const key = b.dataset.fx as keyof FxToggles;
+      deps.setFx(key, !deps.getFx()[key]);
+      refresh();
+    });
+  }
 
   function refresh(): void {
     const choice = deps.getChoice();
@@ -63,6 +76,9 @@ export function initSettingsUI(deps: SettingsDeps) {
     const [w, h] = deps.getPixelSize();
     statRes.textContent = `${w} × ${h}`;
     statRenderer.textContent = deps.getRendererName();
+    const fx = deps.getFx();
+    for (const b of fxButtons) b.setAttribute('aria-pressed', String(fx[b.dataset.fx as keyof FxToggles]));
+    fxNote.textContent = deps.fxNote();
   }
 
   // Frame-rate meter, averaged over half a second so the number is readable.
