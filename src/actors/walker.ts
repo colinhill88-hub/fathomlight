@@ -1,7 +1,7 @@
 import { Container, Graphics } from 'pixi.js';
 import { mulberry32 } from '../rng';
 import { C, buildDiveBag, buildHelmet, buildShoulderLamp, chromeBands, coiledHose, etching, rivets, scratches, segment } from './diver';
-import { Glance, Spring, approach, breathShape, clamp, smoothstep } from './animkit';
+import { Glance, Spring, approach, batchAll, breathShape, clamp, smoothstep } from './animkit';
 
 /**
  * The explorer on foot (after milestone 8 part 2: dry interiors with
@@ -450,6 +450,7 @@ export class Walker {
     this.lampDot.circle(0, 0, 2.2).fill({ color: 0xfff6d8 });
     this.nozzleDot.circle(0, 0, 1.8).fill({ color: 0xe6ff80, alpha: 0.8 });
     this.lens.addChild(this.lampDot, this.nozzleDot);
+    batchAll(this.view);
   }
 
   // ---- Points other code reads (each returns the same object every call) ----
@@ -1082,7 +1083,8 @@ export class Walker {
     // The face plate: lifted inside (after a moment when arriving), shut to go back out.
     this.plateDelay = Math.max(0, this.plateDelay - dt);
     const vt = this.plateDelay > 0 ? 0 : this.visorTarget;
-    this.visor += (vt - this.visor) * Math.min(1, dt * 4);
+    // It lifts at an easy pace and shuts quicker (going out, it is shut before the hold is done).
+    this.visor += (vt - this.visor) * Math.min(1, dt * (vt < this.visor ? 7 : 4));
     if (Math.abs(vt - this.visor) < 0.005) this.visor = vt;
     this.plate.rotation = -smoothstep(this.visor) * 1.5;
     this.plate.alpha = 1 - this.visor * 0.3;

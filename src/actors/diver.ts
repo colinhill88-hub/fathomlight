@@ -1,7 +1,7 @@
 import { Container, Graphics, Text } from 'pixi.js';
 import { isSolid } from '../world/terrain';
 import { mulberry32 } from '../rng';
-import { BREATH_OUT, Glance, Spring, breathShape } from './animkit';
+import { BREATH_OUT, Glance, Spring, batchAll, breathShape } from './animkit';
 
 /**
  * The explorer, drawn entirely with code. The suit takes its inspiration
@@ -730,6 +730,7 @@ export class Diver {
 
     this.lens.circle(0, 0, 2.4).fill({ color: 0xfff3d0 });
     this.lensGlow.circle(0, 0, 14).fill({ color: 0xffe9b0, alpha: 0.9 });
+    batchAll(this.view);
   }
 
   /** The middle of the helmet, in world space (for breath vapour and the surface splash). */

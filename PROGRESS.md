@@ -1,6 +1,6 @@
 # Fathomlight progress
 
-Last updated: 2026-11-17, **character animation session A deployed (the swimming diver)**. Next is **character animation session B, the walker** (prompt in `docs/prompts/animation-b.md`), then milestone 9, breeding. Before that: graphics sessions G1 to G4 are done.
+Last updated: 2026-11-17, **character animation session B deployed (the walker)**. Next is **milestone 9, breeding** (prompt in `docs/prompts/milestone-9.md`). Before that: graphics sessions G1 to G4 are done.
 
 Play link: https://colinhill88-hub.github.io/fathomlight/ (live; first successful deploy 2026-11-14)
 
@@ -1242,9 +1242,48 @@ Colin asked for a dedicated polish pass on the player character before milestone
 
 **Tested** (type check and production build pass; headless Chromium, software GL): every lab segment as frame strips (stationary, slow, fast, boost, glide and settle, restart, turn, diagonal, vertical up and down, turn while diving, boost from still), and in the real game at 844 × 390: surfaced and treading water, swimming, boost, diving and turning, with the lamp following the helmet. No console errors. **Not tested on a real iPhone.** Every number to tune is at the top of the relevant block in `animate()` and `animateLimbs()` (kick rates, amplitudes, spring speeds, breath periods).
 
+### Character animation, session B: the walker (2026-11-17)
+The on-foot explorer (`src/actors/walker.ts`, used in the Corvina and the walkable base) got the same polish as the diver in session A. Physics, controls, collisions and the rendering set-up are unchanged.
+
+**Audit (what was wrong before)**
+- **One Graphics was cleared and redrawn every frame**: about 100 shapes re-tessellated, about 0.45 ms of JavaScript a frame (profiled in the lab, below).
+- **The feet slid.** The step rhythm ran on time, not distance, so a planted foot drifted along the floor at most speeds. There was no heel or toe, no rise and fall tied to the steps, and no weight shift.
+- **Turning was an instant flip.** Stopping snapped the legs straight, and landings had no response at all. The jump was one fixed pose.
+- **It was not the diver.** It had lighter chrome, a different small helmet and face, a lamp on the helmet instead of the shoulder lamp, a simpler suit and no dive bag. The grapple line and lamp beam started from fixed points, not the animated body.
+
+**What changed**
+- **Same person:** the walker is now built from the diver's own parts (exported from `diver.ts`): the same helmet with the face inside, crest, blue-steel collar yoke, coiled hose, regulator port, twin tanks and harpoon, brass-etched charcoal suit with chrome knee guards and red ankle straps, red gloves with chrome cuffs, hip thruster, **shoulder lamp** (the beam now starts there) and **the dive bag**, which appears with the same load as underwater and swings at the hip. The helmet's front glass is a separate **face plate** that lifts up and back.
+- **Prebuilt jointed pieces** (24 Graphics drawn once); each frame only moves and turns them. Nothing is created per frame.
+- **Walking with real foot contact:** two-bone IK legs. A planted foot is fixed in the world while the body passes over it: heel strike, flat, then the heel rises over the ball while the fin blade stays flat on the floor (toe-off). The swing foot leaves at once and slows into its footfall, and the hips lower to meet it. Stride and cadence follow speed. **Full speed (270 units/s) is about 5 m/s for a person this size**, so the top end is a heavy jog with a short flight, and partial stick is a walk. There is rise and fall (vaulting over the leg when walking, sinking into it when jogging), opposing arm swing that lags slightly, a little shoulder twist, lean with speed, and the tanks, hose and bag bounce with each step.
+- **Starting:** the first strides are shorter and the arm swing, bob and lean build up. **Stopping:** the foot in the air lands where it was heading, the other comes up beside it and the body settles into a balanced, slightly staggered stance. The torso pitches with braking and settles (a soft spring). **Turning:** a quick mirror that never goes thinner than a third (like turning through a front view), with a dip and a step round to the new side.
+- **Standing:** breathing (the same breath shape as the diver's, faster after effort), a slow weight shift from foot to foot with the unweighted heel resting up a touch, glances and blinks (shared with the diver).
+- **Jump:** the feet push off the floor last (a quick crouch and push, since the physics jumps on the press), the knees tuck on the way up, then the legs reach down for the landing. **Falling:** the arms rise for a long fall. **Landing:** the knees absorb, scaled by fall speed, and the torso, arms, head and tanks follow through and settle.
+- **Grapple:** the near arm points at the hook as it flies. Reeling in, the legs trail. Hanging, both hands are on the line in front of the helmet and the legs sway as a pendulum. The line now leaves from the animated hand.
+- **Ladders:** hands and feet grip rungs (fixed in the world while they hold, a hand with the opposite foot), three rungs per move. Holding still, any hand or foot between rungs settles onto one. Stepping off the bottom, the feet step down to the floor.
+- **Working** (holding Collect at a console, rack or tank window): the near hand reaches out and works at it, with a slight lean and the head down.
+- **Hand-off with the swimming diver:** entering the Corvina or the base, the explorer arrives in a crouch (climbed in), stands up, and lifts the face plate after a moment. Holding Collect to leave (the Corvina's hatch or the base's airlock) **shuts the face plate first**, so the sealed helmet matches the diver who appears outside.
+- **Shared helpers** (`src/actors/animkit.ts`): a damped spring, breath shape, glance and blink timing, smoothstep and clamp. The diver now uses them too (same numbers, same behaviour). `batchAll()` keeps a character's pieces in one draw batch.
+
+**Animation lab:** `animlab.html?walker`. A 61-second script runs through the interior's own movement rules (`interior.ts` constants are now exported): standing, slow walk (stick 0.3), walk (0.6), full speed, stop, set off and turn, turn while walking, turn on the spot, standing jump, short hop, running jump, walking off a ledge, grapple fire, reel in and hang, swing off, ladder up, hold and down, working at a console. The tiled floor scrolls under the walker so any sliding shows against the seams. It shows gameplay scale (560 units to the screen height) on the left and 3x on the right. `?seg=N`, `?frozen` with `__lab.step(s)`, `__lab.footCheck(s)` (measures how far each heel and ball moves while it is planted, and how far any foot ends up from where the animation wanted it), `__lab.loop(n)` and `__lab.bench(n)`. `animlab.html?compare` stands the diver and walker side by side at one scale, and `&old` swaps in the walker as it was (`src/dev/walker_old.ts`, kept only for before and after measurements).
+
+**Measured** (headless Chromium, software GL)
+- **Foot contact:** the worst slide of a planted heel or ball over the whole script is **0.13 units** (before: the whole stride slid). Feet reach their targets everywhere (worst under 2 units) except the brief edge-on moment of a turn.
+- **CPU, profiled (simulate + animate + render, per frame):** walker JavaScript **0.07 to 0.09 ms, was 0.44 to 0.47 ms**. `animate()` alone is about 0.005 ms, was 0.05 ms (the old one rebuilt its drawing). The new walker uploads about 4,000 vertices a frame (one batch) against 2,600 before, because of the diver's detail. The software GL's own time per frame rose with that (1.4 to 2.5 ms, emulated GPU), which on a real GPU is trivial.
+- **Draw calls:** base interior (`?bench&scene=6&still`) **29, unchanged**. The diver's pieces are now batched too: **shallows 241 to 230, grotto 172 to 161** (these counts include every pass in this browser, so they are higher than session A's numbers).
+- Diver update unchanged at about 0.012 ms.
+
+**Tested:** type check and production build. Frame strips of every lab segment and a numeric foot-contact check, plus in-game at 844 × 390 in the Corvina (arriving, the plate lifting, walking, jumping, stopping, turning, with the beam swapping sides) and the base. Holding at the hatch shuts the plate and letting go reopens it (stepped test). No console errors. **Not tested on a real iPhone.** Strips: `docs/art/animation/b-*.jpg` (walk-slow, walk-full, stop-turn, turn-spot, jump, land, hang-climb, climb, compare, in-game-corvina, in-game-base).
+
+**Left over / to check after Colin plays**
+- **Gameplay speeds are fast for a person:** walking 270 is about 5 m/s (so full stick jogs) and climbing 210 is about 4 m/s (so the hands move three rungs at a time, briskly). The animation follows them honestly. If walking should look calmer, lower `WALK` in `interior.ts` (a gameplay change, Colin's call).
+- **Size:** the water view shows 640 units to the screen height and the interiors 560, and the diver is drawn about 1.4 times larger in world units, so on screen the diver is about 1.25 times the walker. The diver's legs are also shorter in proportion (they kick bent). Making the walker bigger needs taller doors and collision (`HEIGHT` 84).
+- Tuning numbers are at the top of `walker.ts` (proportions, rung spacing, climb stride) and in `ground()` (stride `D`, duty `beta`, lift, bob), `air()`, `hang()` and `climb()`.
+- No steam-vent flinch (a hit just throws the walker into the jump pose).
+
+
 ## Next
 
-**Next session: character animation session B, the walker** (prompt in `docs/prompts/animation-b.md`). After that: **milestone 9, breeding** (prompt in `docs/prompts/milestone-9.md`, questions in DESIGN.md), unless Colin reorders. The four graphics sessions are done; what is left of the graphics plan is tuning from Colin's testing (every effect is a toggle and a number in `src/presets.ts`) and his PC and iPhone `?bench` tables, which are still to come. Graphics ideas not done: refraction through glass, cave rock-pillar backdrops, hand-placed shine lines, more bioluminescent detail on the shelf.
+**Next session: milestone 9, breeding** (prompt in `docs/prompts/milestone-9.md`, questions in DESIGN.md), unless Colin reorders. The four graphics sessions are done; what is left of the graphics plan is tuning from Colin's testing (every effect is a toggle and a number in `src/presets.ts`) and his PC and iPhone `?bench` tables, which are still to come. Graphics ideas not done: refraction through glass, cave rock-pillar backdrops, hand-placed shine lines, more bioluminescent detail on the shelf.
 - **Left over from the walkable base:** more detail in the machine rooms (feeder, press, filter, sorter, crane), line code plates indoors, and a sound for the lines and machines. Do these alongside a later milestone if Colin asks.
 - **The harpoon:** decoration on the Crest diver for now; use its design for later tools and weapons.
 
@@ -1253,7 +1292,7 @@ Where things are (on foot):
 - its lighting: `src/interior/light.ts`;
 - the Corvina's map: `src/interior/corvina.ts`;
 - the base's rooms: `src/interior/baselevel.ts` (`buildBaseLevel` builds the map from the layout; `BaseHooks` draws each room and says what you can do in it);
-- the walker: `src/actors/walker.ts`;
+- the walker: `src/actors/walker.ts` (built from the diver's parts; shared animation helpers in `src/actors/animkit.ts`; lab: `animlab.html?walker`);
 - the hand-off: `src/main.ts` (`enterBase`, `exitBase`, `peekOut`, `backInside`, `simBase`, `interiorFrame`).
 
 ## Problems and open questions

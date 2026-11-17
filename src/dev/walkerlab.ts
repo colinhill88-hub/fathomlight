@@ -1,5 +1,8 @@
 import { Application, Container, Graphics, Point } from 'pixi.js';
 import { Walker } from '../actors/walker';
+import { WalkerOld } from './walker_old';
+
+const OLD = new URLSearchParams(location.search).has('old');
 import { Diver } from '../actors/diver';
 import { ACCEL_AIR, ACCEL_GROUND, CLIMB, GRAVITY, JUMP_V, MAX_FALL, WALK } from '../interior/interior';
 
@@ -68,7 +71,7 @@ const HANG_DROP = 8 + 84 + 22;
 
 /** A copy of the interior's movement rules on an endless flat floor (y = 0), plus a ledge, a grapple ring and a ladder. */
 class Sim {
-  readonly w = new Walker();
+  readonly w = (OLD ? new WalkerOld() : new Walker()) as Walker;
   readonly world = new Container();
   private g = new Graphics();
   mode: 'walk' | 'fly' | 'pull' | 'hang' | 'climb' = 'walk';
@@ -382,6 +385,19 @@ export async function walkerLab(app: Application, params: URLSearchParams): Prom
       }
       const r2 = (o: Record<string, number>) => Object.fromEntries(Object.entries(o).map(([k, v]) => [k, Math.round(v * 100) / 100]));
       return { worstContactSlide: worst, worstSeg, maxReachError: maxReach, slide: r2(drift), reachError: r2(reach) };
+    },
+    /** n game frames of the script: simulate, animate and render the gameplay pane (for CPU profiles). */
+    loop(n: number) {
+      const sim = panes[0].sim;
+      const t0 = performance.now();
+      for (let i = 0; i < n; i++) {
+        const s = WALK_SCRIPT[Math.floor(i / 90) % WALK_SCRIPT.length];
+        if (i % 90 === 0) sim.start(s, null);
+        sim.step(1 / 60, s);
+        sim.w.animate(1 / 60);
+        app.renderer.render({ container: panes[0].cam });
+      }
+      return (performance.now() - t0) / n;
     },
     step(sec: number) {
       app.resize();
