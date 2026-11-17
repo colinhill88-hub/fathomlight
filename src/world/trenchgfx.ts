@@ -1,0 +1,424 @@
+import { Container, Graphics, Text } from 'pixi.js';
+import { mulberry32, WORLD_SEED } from '../rng';
+import {
+  CLEFT,
+  CLEFT_FINDS,
+  FULMAR,
+  FULMAR_HATCH,
+  fulmarTop,
+  groundY,
+  shapesField,
+  TR_BUOY,
+  TR_PROBE,
+  TR_VENTS,
+  TRENCH,
+  TRENCH_Y,
+  WORLD_H,
+  WORLD_W,
+  WORLD_X0,
+} from './terrain';
+import { dab, rustStreaks, traceField, type PointLight } from './scenery';
+
+/**
+ * Milestone 10: the art of the trench, drawn with code like everything else.
+ *
+ *  - Rock walls and three ledges stepping down from the shelf's rim, with
+ *    grey sediment on the flats and pale deep-water life: sea lilies, glass
+ *    sponges, tube worms, and warm pinprick bioluminescence that grows with
+ *    depth (warm only: cyan, violet and magenta belong to the Choir).
+ *  - The rim's toppled relay buoy and the crushed deep probe on ledge A.
+ *  - The vent field: mineral chimneys with glowing cracks and shimmering
+ *    plumes of scalding water; the cleft under ledge B, sealed by a chimney.
+ *  - The drowned Fulmar deep station on the floor: a long riveted module, a
+ *    crushed listening dome, a tilted side module and a dead antenna mast.
+ *
+ * Owned by Scenery, which adds these layers to its own and forwards update().
+ */
+
+const gy = (x: number) => groundY(Math.max(WORLD_X0, Math.min(WORLD_W, x)));
+
+export class TrenchScenery {
+  readonly view = new Container();
+  readonly emissive = new Container();
+  readonly glow = new Container();
+  readonly lights: PointLight[] = [];
+  readonly scanPoints = {
+    trench: [] as { x: number; y: number }[],
+    sigbuoy: [] as { x: number; y: number }[],
+    probe: [] as { x: number; y: number }[],
+    vents: [] as { x: number; y: number }[],
+    chimney: [] as { x: number; y: number }[],
+    fulmar: [] as { x: number; y: number }[],
+  };
+  private slices: { obj: Container; x0: number; x1: number }[] = [];
+  private plumes = new Graphics();
+  private ventGlow: { core: Graphics; halo: Graphics; light: PointLight; phase: number }[] = [];
+  private plug = new Graphics();
+  private plugGlow = new Graphics();
+  private cleftOpen = new Graphics();
+  private stationLamp: { core: Graphics; halo: Graphics; light: PointLight } | null = null;
+  private hatchShut = new Graphics();
+  private hatchOpen = new Graphics();
+  private specks: { g: Graphics; x0: number; x1: number }[] = [];
+  private rand: () => number;
+
+  constructor(detail: number) {
+    this.rand = mulberry32(WORLD_SEED ^ 0x7e3c);
+    const R = (a: number, b: number) => a + this.rand() * (b - a);
+    const rock = new Container();
+    const decorL = new Container();
+    this.view.addChild(rock, this.cleftOpen, decorL);
+
+    // ---- Rock: chunks of wall and ledge, painted most densely near the open water ----
+    const CH = 700;
+    for (let x0 = TRENCH.x0 - 100; x0 < WORLD_W + 60; x0 += CH) {
+      const x1 = Math.min(WORLD_W + 60, x0 + CH);
+      const g = new Graphics();
+      const pts: number[] = [];
+      for (let x = x0 - 2; x <= x1 + 2; x += 8) pts.push(x, gy(x));
+      pts.push(x1 + 2, WORLD_H + 300, x0 - 2, WORLD_H + 300);
+      g.poly(pts).fill({ color: 0x39474b });
+      // Dabs near the surface of the rock (cliff faces too: a point is "near" if a column beside it is open lower down).
+      const top = (x: number) => Math.min(gy(x), gy(x - 140), gy(x + 140));
+      const n = Math.round(((x1 - x0) / 700) * 1100 * detail);
+      for (let i = 0; i < n; i++) {
+        const x = R(x0, x1);
+        const t = top(x);
+        const y = t + Math.pow(this.rand(), 1.4) * 320;
+        if (y < gy(x) + 3) continue;
+        const c = y - gy(x) < 40 && this.rand() < 0.4 ? 0x66787a : this.rand() < 0.5 ? 0x26333a : 0x435357;
+        dab(g, x, y, R(8, 32), R(5, 18), c, R(0.2, 0.42));
+      }
+      // Cracks down the cliff faces.
+      for (let i = 0; i < n / 30; i++) {
+        let x = R(x0, x1);
+        let y = top(x) + R(10, 200);
+        if (y < gy(x)) continue;
+        g.moveTo(x, y);
+        for (let k = 0; k < 5; k++) {
+          x += R(-9, 9);
+          y += R(8, 22);
+          g.lineTo(x, y);
+        }
+        g.stroke({ color: 0x1c262a, alpha: 0.45, width: R(0.8, 1.8) });
+      }
+      // Grey sediment on the flats, and a pale rim along the edge.
+      for (let x = x0; x < x1; x += 6) {
+        const y = gy(x);
+        const flat = Math.abs(gy(x + 6) - y) < 4;
+        if (flat) g.rect(x, y, 6.5, R(3, 8)).fill({ color: 0x6a6a60, alpha: 0.7 });
+      }
+      rock.addChild(g);
+      this.slices.push({ obj: g, x0: x0 - 60, x1: x1 + 60 });
+    }
+
+    // ---- Decor per chunk ----
+    const decor: Graphics[] = [];
+    const DC = 1000;
+    for (let x0 = TRENCH.x0 - 100; x0 < WORLD_W; x0 += DC) {
+      const d = new Graphics();
+      decorL.addChild(d);
+      decor.push(d);
+      this.slices.push({ obj: d, x0: x0 - 200, x1: x0 + DC + 200 });
+    }
+    const dg = (x: number) => decor[Math.max(0, Math.min(decor.length - 1, Math.floor((x - (TRENCH.x0 - 100)) / DC)))];
+    const flatAt = (x: number) => Math.abs(gy(x + 10) - gy(x - 10)) < 14;
+    // Sea lilies, glass sponges and tube worms on the ledges and the floor.
+    for (let i = 0; i < Math.round(110 * detail); i++) {
+      const x = R(TRENCH.x0, 32500);
+      if (!flatAt(x) || (x > FULMAR.x0 - 40 && x < FULMAR.x1 + 40)) continue;
+      const y = gy(x) + 3;
+      const g = dg(x);
+      const k = this.rand();
+      if (k < 0.35) {
+        // A sea lily: a long stalk with a crown of feathery arms.
+        const h = R(30, 70);
+        const lean = R(-10, 10);
+        g.moveTo(x, y).quadraticCurveTo(x + lean * 0.3, y - h * 0.6, x + lean, y - h).stroke({ color: 0x8a8070, width: 1.4 });
+        for (let a = 0; a < 7; a++) {
+          const ang = -Math.PI / 2 + (a - 3) * 0.38;
+          g.moveTo(x + lean, y - h).quadraticCurveTo(x + lean + Math.cos(ang) * 10, y - h + Math.sin(ang) * 14, x + lean + Math.cos(ang) * 16, y - h + Math.sin(ang) * 6 + 6).stroke({ color: 0xc8b8a0, width: 1, alpha: 0.8 });
+        }
+      } else if (k < 0.6) {
+        // A glass sponge: a pale lattice vase.
+        const h = R(20, 46);
+        const w = h * 0.38;
+        g.moveTo(x - w * 0.5, y).quadraticCurveTo(x - w, y - h * 0.6, x - w * 0.7, y - h).lineTo(x + w * 0.7, y - h).quadraticCurveTo(x + w, y - h * 0.6, x + w * 0.5, y).closePath().fill({ color: 0xc8c4b0, alpha: 0.35 });
+        for (let r = 1; r < 5; r++) g.moveTo(x - w * 0.7, y - (h * r) / 5).lineTo(x + w * 0.7, y - (h * r) / 5).stroke({ color: 0xe8e0c8, width: 0.6, alpha: 0.5 });
+        for (let c = -2; c <= 2; c++) g.moveTo(x + c * w * 0.2, y).lineTo(x + c * w * 0.3, y - h).stroke({ color: 0xe8e0c8, width: 0.6, alpha: 0.4 });
+      } else if (k < 0.85) {
+        for (let t = 0; t < 5; t++) {
+          const tx = x + R(-12, 12);
+          const th = R(8, 22);
+          g.moveTo(tx, y).lineTo(tx + R(-3, 3), y - th).stroke({ color: 0xd8d0c0, width: 2.4, cap: 'round' });
+          g.circle(tx, y - th, 2.2).fill({ color: 0xb04a3a, alpha: 0.9 });
+        }
+      } else {
+        // A pale bone or a rock with a brittle star.
+        g.ellipse(x, y - 4, R(10, 22), R(4, 7)).fill({ color: 0x4e5a5c });
+        for (let a = 0; a < 5; a++) {
+          const ang = (a / 5) * Math.PI * 2 + R(0, 1);
+          g.moveTo(x, y - 9).quadraticCurveTo(x + Math.cos(ang) * 8, y - 9 + Math.sin(ang) * 3, x + Math.cos(ang) * 15, y - 9 + Math.sin(ang) * 5).stroke({ color: 0xc8805a, width: 1.4 });
+        }
+      }
+    }
+    // Pinpricks of warm living light, more of them the deeper it goes.
+    for (let x0 = TRENCH.x0; x0 < 32500; x0 += 900) {
+      const e = new Graphics();
+      for (let i = 0; i < 40; i++) {
+        const x = x0 + R(0, 900);
+        const deep = Math.min(1, Math.max(0, (gy(x) - 1700) / 5000));
+        if (this.rand() > 0.25 + deep * 0.75) continue;
+        const y = gy(x) - R(2, 18);
+        const c = this.rand() < 0.6 ? 0xf0e890 : this.rand() < 0.5 ? 0xffc070 : 0xb8f0a0;
+        e.circle(x, y, R(0.8, 1.8)).fill({ color: c, alpha: R(0.5, 0.95) });
+      }
+      this.emissive.addChild(e);
+      this.specks.push({ g: e, x0: x0 - 100, x1: x0 + 1000 });
+    }
+    this.scanPoints.trench.push({ x: 27420, y: 2100 }, { x: 28600, y: 2900 }, { x: 31000, y: 5500 });
+
+    // ---- The rim: a toppled relay buoy ----
+    {
+      const g = dg(TR_BUOY.x);
+      const x = TR_BUOY.x;
+      const y = gy(x);
+      g.roundRect(x - 70, y - 44, 140, 40, 18).fill({ color: 0x7a3a2a });
+      g.roundRect(x - 70, y - 44, 140, 10, 8).fill({ color: 0xffffff, alpha: 0.08 });
+      for (const bx of [x - 40, x, x + 40]) g.rect(bx - 4, y - 44, 8, 40).fill({ color: 0xd8d0b8, alpha: 0.55 });
+      g.moveTo(x + 66, y - 28).lineTo(x + 170, y - 60).stroke({ color: 0x4a4440, width: 5 });
+      g.circle(x + 172, y - 61, 8).fill({ color: 0x3a3432 });
+      g.ellipse(x - 76, y - 24, 8, 16).fill({ color: 0x4a4440 });
+      rustStreaks(g, x - 60, x + 60, y - 34, 8, 14);
+      for (let c = 0; c < 10; c++) g.ellipse(x - 90 - c * 8, y - 4 + Math.sin(c) * 2, 4, 2.6).stroke({ color: 0x5a4a3e, width: 1.6 });
+      const t = new Text({ text: 'FULMAR RELAY 4', style: { fontFamily: 'monospace', fontSize: 11, fill: 0xd8d0b8, fontWeight: 'bold', letterSpacing: 2 } });
+      t.alpha = 0.5;
+      t.anchor.set(0.5);
+      t.position.set(x, y - 22);
+      this.view.addChild(t);
+      this.slices.push({ obj: t, x0: x - 600, x1: x + 600 });
+      this.scanPoints.sigbuoy.push({ x, y: y - 40 });
+    }
+
+    // ---- Ledge A: the crushed deep probe ----
+    {
+      const g = dg(TR_PROBE.x);
+      const x = TR_PROBE.x;
+      const y = gy(x);
+      // A pressure sphere in a frame, crumpled in on one side.
+      g.moveTo(x - 90, y).lineTo(x - 70, y - 120).lineTo(x + 80, y - 110).lineTo(x + 96, y).stroke({ color: 0x4a4440, width: 6 });
+      g.moveTo(x - 80, y - 60).lineTo(x + 88, y - 56).stroke({ color: 0x4a4440, width: 4 });
+      g.poly([x - 52, y - 70, x - 40, y - 108, x, y - 122, x + 38, y - 106, x + 22, y - 84, x + 50, y - 62, x + 30, y - 24, x - 8, y - 14, x - 46, y - 30]).fill({ color: 0xa88a40 });
+      g.poly([x + 22, y - 84, x + 50, y - 62, x + 30, y - 24, x + 8, y - 50]).fill({ color: 0x6a5530 });
+      g.circle(x - 14, y - 70, 18).fill({ color: 0x0c1214 });
+      g.circle(x - 14, y - 70, 18).stroke({ color: 0x5a4a30, width: 3 });
+      for (let k = 0; k < 4; k++) g.moveTo(x - 28 + k * 9, y - 82).lineTo(x - 24 + k * 9, y - 60).stroke({ color: 0x88d0d8, width: 0.6, alpha: 0.25 });
+      rustStreaks(g, x - 40, x + 40, y - 90, 10, 20);
+      const t = new Text({ text: 'FULMAR DP-2', style: { fontFamily: 'monospace', fontSize: 11, fill: 0x2a2620, fontWeight: 'bold', letterSpacing: 2 } });
+      t.alpha = 0.7;
+      t.anchor.set(0.5);
+      t.position.set(x + 4, y - 40);
+      t.rotation = -0.2;
+      this.view.addChild(t);
+      this.slices.push({ obj: t, x0: x - 600, x1: x + 600 });
+      this.scanPoints.probe.push({ x, y: y - 70 });
+    }
+
+    // ---- The vent field: mineral chimneys, glowing cracks, scalding plumes ----
+    for (const [i, v] of TR_VENTS.entries()) {
+      const g = dg(v.x);
+      const y = gy(v.x) + 4;
+      const w = 22 + (v.h % 3) * 4;
+      const pts: number[] = [];
+      for (let k = 0; k <= 10; k++) {
+        const f = k / 10;
+        pts.push(v.x - w * (1 - f * 0.55) + Math.sin(k * 2.1 + i) * 4, y - v.h * f);
+      }
+      for (let k = 10; k >= 0; k--) {
+        const f = k / 10;
+        pts.push(v.x + w * (1 - f * 0.55) + Math.sin(k * 1.7 + i) * 4, y - v.h * f);
+      }
+      g.poly(pts).fill({ color: 0x2e2a28 });
+      for (let k = 0; k < 7; k++) dab(g, v.x + R(-w * 0.6, w * 0.6), y - R(0, v.h), R(4, 10), R(4, 8), this.rand() < 0.5 ? 0x4a3e34 : 0x1e1a18, 0.6);
+      // Little side spires.
+      for (const s of [-1, 1]) g.poly([v.x + s * w * 0.8, y, v.x + s * w * 1.2, y - v.h * 0.35, v.x + s * w * 0.4, y - v.h * 0.2]).fill({ color: 0x3a322c });
+      // Glowing cracks (warm orange), drawn unlit.
+      const core = new Graphics();
+      for (let k = 0; k < 4; k++) {
+        let cx = v.x + R(-w * 0.5, w * 0.5);
+        let cyy = y - R(10, v.h - 10);
+        core.moveTo(cx, cyy);
+        for (let s = 0; s < 3; s++) {
+          cx += R(-5, 5);
+          cyy += R(-14, -4);
+          core.lineTo(cx, cyy);
+        }
+        core.stroke({ color: 0xffa040, width: 1.4 });
+      }
+      core.ellipse(v.x, y - v.h, w * 0.4, 4).fill({ color: 0xffc070 });
+      const halo = new Graphics().ellipse(v.x, y - v.h * 0.6, w * 1.6, v.h * 0.5).fill({ color: 0xff8030, alpha: 0.35 }).ellipse(v.x, y - v.h - 6, w, 14).fill({ color: 0xffa050, alpha: 0.5 });
+      this.emissive.addChild(core);
+      this.glow.addChild(halo);
+      const light: PointLight = { x: v.x, y: y - v.h - 10, radius: 260, intensity: 0.9, color: [1, 0.55, 0.25] };
+      this.lights.push(light);
+      this.ventGlow.push({ core, halo, light, phase: i * 1.7 });
+      this.scanPoints.vents.push({ x: v.x, y: y - v.h - 20 });
+    }
+    this.view.addChild(this.plumes);
+
+    // ---- The cleft: the tunnel and chamber, and the mineral chimney that seals it ----
+    {
+      const o = this.cleftOpen;
+      const fn = (x: number, y: number) => Math.max(shapesField([CLEFT.tunnel, CLEFT.room], x, y), gy(x) + 2 - y);
+      traceField(o, (x, y) => fn(x, y) - 10, 28740, 29520, 3900, 4190, 5, 0x2c3a3f, 0.7);
+      traceField(o, fn, 28740, 29520, 3900, 4190, 5, 0x10181b, 1);
+      // A crashed cargo pod from the station in the chamber: the drawings and a pattern spool are in it.
+      const r = CLEFT.room;
+      const fy = r.y + r.ry - 14;
+      o.roundRect(CLEFT_FINDS.plans.x - 40, fy - 34, 80, 34, 8).fill({ color: 0x8a7a40 });
+      o.roundRect(CLEFT_FINDS.plans.x - 40, fy - 34, 80, 8, 6).fill({ color: 0xffffff, alpha: 0.1 });
+      o.rect(CLEFT_FINDS.plans.x - 36, fy - 20, 72, 4).fill({ color: 0x7a3a2a });
+      o.roundRect(CLEFT_FINDS.spool.x - 14, fy - 22, 28, 22, 4).fill({ color: 0x4a4e50 });
+      o.circle(CLEFT_FINDS.spool.x, fy - 11, 8).stroke({ color: 0xc9a24a, width: 2 });
+      rustStreaks(o, CLEFT_FINDS.plans.x - 30, CLEFT_FINDS.plans.x + 30, fy - 26, 5, 10);
+      this.slices.push({ obj: o, x0: 28600, x1: 29700 });
+      // The chimney: knobbly mineral, hot at its seams.
+      const p = this.plug;
+      const { x0, x1, y0, y1 } = CLEFT.plug;
+      const cx = (x0 + x1) / 2;
+      p.poly([x0 - 6, y1 + 4, x0 + 4, y0 + 30, cx - 8, y0 - 16, cx + 10, y0 - 6, x1 + 2, y0 + 26, x1 + 8, y1 + 4]).fill({ color: 0x302a26 });
+      for (let k = 0; k < 14; k++) dab(p, R(x0, x1), R(y0, y1), R(6, 14), R(5, 10), this.rand() < 0.5 ? 0x4a3e34 : 0x221e1c, 0.65);
+      const pg = this.plugGlow;
+      for (let k = 0; k < 5; k++) {
+        let x = R(x0 + 8, x1 - 8);
+        let y = R(y0 + 20, y1 - 10);
+        pg.moveTo(x, y);
+        for (let s = 0; s < 3; s++) {
+          x += R(-6, 6);
+          y += R(-16, -6);
+          pg.lineTo(x, y);
+        }
+        pg.stroke({ color: 0xff9a40, width: 1.6 });
+      }
+      pg.ellipse(cx, y0 - 12, 10, 4).fill({ color: 0xffc070 });
+      this.view.addChild(p);
+      this.emissive.addChild(pg);
+      this.scanPoints.chimney.push({ x: cx, y: y0 + 40 });
+    }
+
+    // ---- The Fulmar deep station on the floor ----
+    {
+      const g = dg(FULMAR.x0 + 300);
+      const g2 = new Graphics();
+      decorL.addChild(g2);
+      this.slices.push({ obj: g2, x0: FULMAR.x0 - 600, x1: FULMAR.x1 + 600 });
+      const f = TRENCH_Y.floor + 10;
+      const pts: number[] = [];
+      for (let x = FULMAR.x0; x <= FULMAR.x1; x += 6) pts.push(x, fulmarTop(x));
+      pts.push(FULMAR.x1, f + 20, FULMAR.x0, f + 20);
+      g2.poly(pts).fill({ color: 0x4a4a46 });
+      // Hull bands, rivets and portholes.
+      for (let x = FULMAR.x0 + 50; x < FULMAR.x1 - 20; x += 90) {
+        const t = fulmarTop(x);
+        g2.rect(x, t + 4, 8, f - t - 4).fill({ color: 0x3a3a36 });
+        for (let ry = t + 16; ry < f; ry += 20) g2.circle(x + 4, ry, 1.4).fill({ color: 0x2a2a26 });
+      }
+      for (let x = FULMAR.x0 + 110; x < FULMAR.mainX1 - 60; x += 120) {
+        if (Math.abs(x - FULMAR.domeX) < 120) continue;
+        const py = fulmarTop(x) + 90;
+        g2.circle(x, py, 16).fill({ color: 0x6a665c });
+        g2.circle(x, py, 11).fill({ color: 0x081014 });
+      }
+      // The listening dome: cracked glass over a dark frame.
+      g2.ellipse(FULMAR.domeX, f - 250, 110, 12).fill({ color: 0x5a5650 });
+      for (let k = -3; k <= 3; k++) g2.moveTo(FULMAR.domeX + k * 30, f - 250).lineTo(FULMAR.domeX + k * 22, fulmarTop(FULMAR.domeX + k * 22) + 2).stroke({ color: 0x3a3632, width: 3 });
+      g2.moveTo(FULMAR.domeX - 40, f - 300).lineTo(FULMAR.domeX - 10, f - 280).lineTo(FULMAR.domeX + 20, f - 310).lineTo(FULMAR.domeX + 50, f - 286).stroke({ color: 0xa8c8c8, width: 1, alpha: 0.4 });
+      // A red band and the station's name.
+      g2.rect(FULMAR.x0 + 30, f - 140, FULMAR.mainX1 - FULMAR.x0 - 40, 10).fill({ color: 0x7a3a2a });
+      rustStreaks(g2, FULMAR.x0 + 40, FULMAR.x1 - 40, f - 200, 40, 50);
+      const t = new Text({ text: 'FULMAR DEEP STATION', style: { fontFamily: 'monospace', fontSize: 22, fill: 0xd8d0b8, fontWeight: 'bold', letterSpacing: 5 } });
+      t.alpha = 0.5;
+      t.anchor.set(0.5);
+      t.position.set(FULMAR.x0 + 380, f - 105);
+      this.view.addChild(t);
+      this.slices.push({ obj: t, x0: FULMAR.x0 - 600, x1: FULMAR.x1 + 600 });
+      // The dead antenna mast, leaning, with its cross-arms.
+      const mx = FULMAR.mainX1 - 70;
+      const mt = fulmarTop(mx);
+      g2.moveTo(mx, mt).lineTo(mx + 70, mt - 330).stroke({ color: 0x4a4440, width: 6 });
+      for (let k = 1; k < 5; k++) {
+        const ax = mx + 70 * (k / 5);
+        const ay = mt - 330 * (k / 5);
+        g2.moveTo(ax - 30, ay + 6).lineTo(ax + 30, ay - 6).stroke({ color: 0x4a4440, width: 3 });
+      }
+      // Cables slumped onto the floor.
+      g.moveTo(FULMAR.x1 - 10, f - 40).bezierCurveTo(FULMAR.x1 + 60, f - 20, FULMAR.x1 + 100, f + 6, FULMAR.x1 + 220, gy(FULMAR.x1 + 220)).stroke({ color: 0x2a2826, width: 5 });
+      g.moveTo(FULMAR.x0 + 10, f - 30).bezierCurveTo(FULMAR.x0 - 80, f - 10, FULMAR.x0 - 140, f + 4, FULMAR.x0 - 260, gy(FULMAR.x0 - 260)).stroke({ color: 0x2a2826, width: 4 });
+      // The airlock hatch on top: a wheel on a raised collar.
+      const hx = FULMAR_HATCH.x;
+      const hy = FULMAR_HATCH.y;
+      const hs = this.hatchShut;
+      hs.roundRect(hx - 40, hy - 18, 80, 20, 4).fill({ color: 0x5a5650 });
+      hs.circle(hx, hy - 24, 14).stroke({ color: 0xa8402e, width: 3 });
+      hs.moveTo(hx - 14, hy - 24).lineTo(hx + 14, hy - 24).moveTo(hx, hy - 38).lineTo(hx, hy - 10).stroke({ color: 0xa8402e, width: 2 });
+      const ho = this.hatchOpen;
+      ho.roundRect(hx - 40, hy - 18, 80, 20, 4).fill({ color: 0x5a5650 });
+      ho.roundRect(hx - 28, hy - 18, 56, 10, 3).fill({ color: 0x060a0c });
+      ho.poly([hx + 28, hy - 18, hx + 40, hy - 56, hx + 50, hy - 54, hx + 40, hy - 16]).fill({ color: 0x5a5650 });
+      ho.visible = false;
+      this.view.addChild(hs, ho);
+      // One amber emergency lamp still blinking by the hatch.
+      const lx = hx - 60;
+      const ly = hy - 12;
+      g2.rect(lx - 4, ly, 8, 12).fill({ color: 0x3a3632 });
+      const core = new Graphics().circle(lx, ly - 2, 4).fill({ color: 0xffb050 });
+      const halo = new Graphics().circle(lx, ly - 2, 22).fill({ color: 0xff9030, alpha: 0.6 });
+      this.emissive.addChild(core);
+      this.glow.addChild(halo);
+      const light: PointLight = { x: lx, y: ly - 4, radius: 300, intensity: 0.8, color: [1, 0.6, 0.3] };
+      this.lights.push(light);
+      this.stationLamp = { core, halo, light };
+      this.scanPoints.fulmar.push({ x: FULMAR.x0 + 300, y: f - 220 }, { x: hx, y: hy - 60 });
+    }
+    this.setCleft(false);
+  }
+
+  setCleft(open: boolean): void {
+    this.plug.visible = this.plugGlow.visible = !open;
+  }
+  setFulmar(open: boolean): void {
+    this.hatchShut.visible = !open;
+    this.hatchOpen.visible = open;
+  }
+
+  update(time: number, viewX0: number, viewX1: number): void {
+    for (const s of this.slices) s.obj.visible = s.x1 > viewX0 && s.x0 < viewX1;
+    for (const s of this.specks) s.g.visible = s.x1 > viewX0 && s.x0 < viewX1;
+    for (const v of this.ventGlow) {
+      const p = 0.8 + 0.2 * Math.sin(time * 1.7 + v.phase) + 0.08 * Math.sin(time * 7.3 + v.phase * 3);
+      v.core.alpha = 0.7 + 0.3 * p;
+      v.halo.alpha = 0.7 * p;
+      v.light.intensity = 0.9 * p;
+    }
+    if (this.stationLamp) {
+      const t = time % 3;
+      const on = t < 0.25 ? 1 : 0.15;
+      this.stationLamp.core.alpha = on;
+      this.stationLamp.halo.alpha = on;
+      this.stationLamp.light.intensity = 0.9 * on;
+    }
+    // Shimmering plumes over the vents.
+    const g = this.plumes.clear();
+    if (viewX1 < TR_VENTS[0].x - 400 || viewX0 > TR_VENTS[TR_VENTS.length - 1].x + 400) return;
+    for (const [i, v] of TR_VENTS.entries()) {
+      const top = gy(v.x) + 4 - v.h;
+      for (let k = 0; k < 9; k++) {
+        const f = ((time * 0.35 + k / 9 + i * 0.13) % 1);
+        const y = top - f * 360;
+        const sway = Math.sin(time * 1.3 + k * 1.9 + i) * (6 + f * 30);
+        const r = 10 + f * 40;
+        g.ellipse(v.x + sway, y, r, r * 0.6).fill({ color: 0x9a8a78, alpha: 0.13 * (1 - f) });
+      }
+    }
+  }
+}

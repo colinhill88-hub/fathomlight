@@ -127,10 +127,48 @@ export const RESEARCH: Record<BlueprintId, ResearchDef> = {
     scans: [],
     seconds: 90,
   },
+  // Milestone 10: the trench.
+  plating: {
+    id: 'plating',
+    name: 'Depth plating DP-S blueprint',
+    text: "Reads the crushed Fulmar probe's hull stress logs, with your scan of the trench: a bolted second skin of plate and vent ore that takes KS-1 to 120 m. Fitted at a Moon pool dock.",
+    finds: ['hulllogs'],
+    scans: ['trench'],
+    seconds: 110,
+  },
+  psuit2: {
+    id: 'psuit2',
+    name: 'Pressure suit PS-2 blueprint',
+    text: "The Fulmar's drawings for her own divers' suit: vent-ore rings and a forged collar, safe to 110 m. For the trench floor.",
+    finds: ['ps2plans'],
+    scans: [],
+    seconds: 150,
+  },
+  signal: {
+    id: 'signal',
+    name: 'Signal array SA-1 blueprint',
+    text: "From your scans of the trench, its vent field and the Corvina's log: a listening dish and pattern decoder, like the one the Fulmar's crew built. It reads the Choir's light patterns off spools. Unlocks a build card.",
+    finds: [],
+    scans: ['trench', 'vents', 'cvlog'],
+    seconds: 120,
+  },
+  resonator: {
+    id: 'resonator',
+    name: 'Alien resonator blueprint',
+    text: "Reads the Fulmar's resonator drawings: a ring of tuned crystal and vent ore that sings back the Choir's own patterns. The doors below answer only to it. Building it needs what lies beyond the trench (the next update).",
+    finds: ['resonplans'],
+    scans: [],
+    seconds: 160,
+  },
 };
-export const RESEARCH_ORDER: BlueprintId[] = ['light', 'gtank', 'sorter', 'relay', 'welder', 'tow', 'cutter', 'recomp', 'crane', 'sonar', 'psuit', 'revive'];
+export const RESEARCH_ORDER: BlueprintId[] = ['light', 'gtank', 'sorter', 'relay', 'welder', 'tow', 'cutter', 'recomp', 'crane', 'sonar', 'psuit', 'revive', 'plating', 'psuit2', 'signal', 'resonator'];
 /** Blueprints that unlock a base piece (build card) instead of Workshop gear. */
-export const PIECE_BLUEPRINTS: Partial<Record<BlueprintId, string>> = { gtank: 'gtank', sorter: 'sorter', recomp: 'recomp', crane: 'crane', revive: 'revive' };
+export const PIECE_BLUEPRINTS: Partial<Record<BlueprintId, string>> = { gtank: 'gtank', sorter: 'sorter', recomp: 'recomp', crane: 'crane', revive: 'revive', signal: 'signal' };
+/** Milestone 10: blueprints that are fitted elsewhere (the dock) or built later, not in the Workshop. */
+export const OTHER_BLUEPRINTS: Partial<Record<BlueprintId, string>> = {
+  plating: 'Fit it to KS-1 at a Moon pool dock (the Dock panel).',
+  resonator: 'Its build comes with the sanctum, in the next update.',
+};
 
 export interface GearDef {
   id: GearId;
@@ -201,13 +239,22 @@ export const GEAR: Record<GearId, GearDef> = {
     id: 'psuit',
     name: 'Pressure suit',
     code: 'PS-1',
-    job: 'A brass-ringed deep suit, safe far below the Kestrel suit. Nothing on the reef needs it yet: the trench will (milestone 10).',
+    job: 'A brass-ringed deep suit, safe to 60 m (the Kestrel suit: 30 m). Enough for the trench\'s upper ledges and its vent field.',
     blueprint: 'psuit',
     cost: { brass: 6, plate: 4, resin: 2 },
     seconds: 80,
   },
+  psuit2: {
+    id: 'psuit2',
+    name: 'Pressure suit',
+    code: 'PS-2',
+    job: 'The Fulmar crew\'s deep suit: vent-ore rings and a forged collar, safe to 110 m. The trench floor and the drowned station.',
+    blueprint: 'psuit2',
+    cost: { ore: 6, brass: 4, plate: 4, quartz: 2 },
+    seconds: 100,
+  },
 };
-export const GEAR_ORDER: GearId[] = ['light', 'cutter', 'tow', 'welder', 'relay', 'sonar', 'psuit'];
+export const GEAR_ORDER: GearId[] = ['light', 'cutter', 'tow', 'welder', 'relay', 'sonar', 'psuit', 'psuit2'];
 /** Gear that is a kit you can build again and again (it isn't kept in save.gear). */
 export const KIT_GEAR: GearId[] = ['relay'];
 
@@ -220,6 +267,9 @@ export const FINDS: Record<FindId, { name: string; text: string }> = {
   sonardata: { name: 'Corvina sonar logs', text: "Test logs from the Corvina's lab: a pulse sonar her crew were building." },
   suitplans: { name: 'Pressure suit drawings', text: "A waterproof roll of drawings from the Corvina's lab: a deep-water suit." },
   poolplans: { name: 'Revival pool drawings', text: "Oilcloth drawings from the wreck shelf's rusted locker: a pool that wakes dormant creatures." },
+  hulllogs: { name: 'Fulmar probe hull logs', text: "The stress recorder from the crushed deep probe on the trench's first ledge: where its hull buckled, and why." },
+  ps2plans: { name: 'PS-2 suit drawings', text: "Drawings from a Fulmar cargo pod in the cleft: her divers' deep suit." },
+  resonplans: { name: 'Resonator drawings', text: "The Fulmar crew's drawings for a device that sings the Choir's patterns back." },
 };
 
 /** The dive light (DL-1) against the shoulder lamp: reach, brightness and beam width. */

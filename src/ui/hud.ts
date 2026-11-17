@@ -13,6 +13,7 @@ import { SPECIES, SPECIES_ORDER, statusLine } from '../game/creatures';
 
 /** Small icons for each material, drawn as SVG. */
 export const MATERIAL_ICONS: Record<MaterialId, string> = {
+  ore: '<svg viewBox="0 0 24 24"><path d="M3 17l2-7 6-4 7 1 4 6-2 5z" fill="#3e3430"/><circle cx="9" cy="12" r="2.2" fill="#6a5a50"/><circle cx="15" cy="14" r="1.8" fill="#6a6058"/><path d="M8 16l3-4 4 1" stroke="#ff9a40" stroke-width="1.3" fill="none"/></svg>',
 
   scrap:
     '<svg viewBox="0 0 24 24"><path d="M3 10l6-4 11 2 2 6-7 5-11-3z" fill="#7a685a"/><path d="M3 10l6-4 11 2-1 2-10-2-5 3z" fill="#b0a8a0" opacity=".5"/><circle cx="8" cy="12" r="1.4" fill="#8a3a20"/><circle cx="15" cy="13" r="2" fill="#8a3a20" opacity=".8"/></svg>',
@@ -259,12 +260,25 @@ export class Hud {
       }</p>
       <p class="note">${save.boomOpen ? 'Survey boom gate: open. The sub can cross into the kelp forest.' : 'Survey boom gate: closed. Its winch is on the kelp forest side.'}</p>
       ${this.cavesNotes(save)}
+      ${this.trenchNotes(save)}
       <h2>Creatures</h2>
       ${this.creatureNotes(save)}
       <p class="note">Air tank upgrades found: ${save.tanks.length} / ${TOTAL_AIR_TANKS} · Dive time ${maxOxygen(save)} s</p>
       <p class="note">Echo whorls found: ${save.whorls.length}${
         save.whorls.length ? ` (${Object.values(save.fitted).reduce((a, b) => a + b, 0)} fitted)` : ''
       }. Rare; they glow in colours nothing else on the reef does.</p>`;
+  }
+
+  /** Milestone 10: the trench's gear, the cleft and the Choir's signal fragments. */
+  private trenchNotes(save: SaveData): string {
+    if (!save.scans.includes('trench') && !save.tips.includes('trench')) return '';
+    const suit = save.gear.includes('psuit2') ? 'PS-2 (110 m)' : save.gear.includes('psuit') ? 'PS-1 (60 m)' : 'the Kestrel suit (30 m)';
+    const sub = save.sub ? (save.sub.plating ? 'KS-1 with depth plating (120 m)' : 'KS-1 (45 m)') : 'no sub yet';
+    const n = save.signals.decoded.length;
+    return `<h2>The trench</h2>
+      <p class="note">Crush depth: you wear ${suit}; ${sub}.</p>
+      <p class="note">The cleft on the vent field: ${save.cleftOpen ? 'open' : 'sealed by a chimney (a grown cinder snail grazes chimneys)'}.</p>
+      <p class="note">Signal fragments: ${save.signals.found.length} of 4 spools found, ${n} decoded${n ? ' (read them above, as Artefacts)' : ''}. A Signal array reads them once your grown creatures show enough different glow patterns.</p>`;
   }
 
   /** Milestone 7 part 2: what is left to find and make from the kelp caves. */
@@ -459,6 +473,23 @@ export class Hud {
     el.classList.toggle('red', cls === 'red');
     (el.querySelector('.track i') as HTMLElement).style.width = `${pct}%`;
     el.querySelector('b')!.textContent = `${pct}%`;
+  }
+  private depthShown = '';
+  /** Milestone 10: the crush-depth chip: the rated depth, amber within 5 m of it, red past it. */
+  setDepthLimit(limitM: number | null, depthM: number, top: number): void {
+    const el = document.getElementById('depth-chip')!;
+    const state = limitM === null ? 'hide' : depthM > limitM ? 'crush' : depthM > limitM - 5 ? 'near' : 'ok';
+    const key = `${state}|${limitM}|${top}`;
+    if (key === this.depthShown) return;
+    this.depthShown = key;
+    el.classList.toggle('show', state !== 'hide');
+    el.classList.toggle('near', state === 'near');
+    el.classList.toggle('crush', state === 'crush');
+    el.style.top = `calc(var(--safe-top) + ${top}px)`;
+    if (limitM !== null) {
+      el.querySelector('span')!.textContent = state === 'crush' ? 'CRUSH' : 'MAX';
+      el.querySelector('b')!.textContent = `${limitM} m`;
+    }
   }
   /** A red flash on the suit bar when the diver is bitten. */
   suitHit(): void {

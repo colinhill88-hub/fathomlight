@@ -62,7 +62,23 @@ import {
   WORLD_W,
   WORLD_X0,
   WU_PER_METRE,
+  CRUSH,
+  crushRate,
+  TRENCH,
+  cleft,
+  CLEFT,
+  CLEFT_FINDS,
+  FULMAR_HATCH,
+  TR_BUOY,
+  TR_PROBE,
+  TR_VENTS,
+  TR_LANTERNJAWS,
+  TR_STALKERS,
+  TR_SPIDERS,
 } from './world/terrain';
+import { DeepHunters } from './actors/deep';
+import { FULMAR_MAP, FULMAR_OPTS } from './interior/fulmar';
+import { FRAGMENTS, nextFragment, signalStatus, tickSignals } from './game/signals';
 import {
   bagHasRoom,
   bagLimits,
@@ -102,7 +118,7 @@ import { RatesPanel } from './ui/rates';
 import { Factory, FARM_TRAY, FEEDER_MASH_CAP, HOPPER_CAP, machineData, PRESS_COPPER_CAP, PRESS_PLATE_CAP, PRESS_SCRAP_CAP, whorlMult, whorlsFree } from './game/factory';
 import { LinesView } from './world/linegfx';
 import { StationMode } from './ui/station';
-import { DIVE_LIGHT, GEAR, hasGear, jobOf, jobRunning, LAMP, RESEARCH, tickStations } from './game/gear';
+import { DIVE_LIGHT, GEAR, hasGear, jobOf, jobRunning, LAMP, OTHER_BLUEPRINTS, PIECE_BLUEPRINTS, RESEARCH, tickStations } from './game/gear';
 import type { BlueprintId } from './game/state';
 import { audio } from './audio/engine';
 import { SoundDirector, WorkKind, zoneMix } from './audio/director';
@@ -236,6 +252,8 @@ async function boot(): Promise<void> {
   const wildlife = new Wildlife();
   // Milestone 8: wreck lurkers in their dens on the shelf.
   const lurkers = new Lurkers(LURKER_DENS);
+  // Milestone 10: the trench's predators.
+  const hunters = new DeepHunters(TR_LANTERNJAWS, TR_STALKERS, TR_SPIDERS);
   const tankLife = new TankLife();
   // Milestone 9: a grown glowfin from the jar swims beside the diver as a light.
   const escort = new Escort();
@@ -292,6 +310,17 @@ async function boot(): Promise<void> {
     { id: 'lurker', points: () => lurkers.list.map((l) => l.head()) },
     { id: 'crab', points: () => wildlife.scanPoints('crab') },
     { id: 'shrimp', points: () => wildlife.scanPoints('shrimp') },
+    // Milestone 10: the trench.
+    { id: 'trench', points: () => scenery.trench.scanPoints.trench },
+    { id: 'sigbuoy', points: () => scenery.trench.scanPoints.sigbuoy },
+    { id: 'probe', points: () => scenery.trench.scanPoints.probe },
+    { id: 'vents', points: () => scenery.trench.scanPoints.vents },
+    { id: 'chimney', points: () => (save.cleftOpen ? [] : scenery.trench.scanPoints.chimney) },
+    { id: 'fulmar', points: () => scenery.trench.scanPoints.fulmar },
+    { id: 'snail', points: () => wildlife.scanPoints('snail') },
+    { id: 'lanternjaw', points: () => hunters.points('lanternjaw') },
+    { id: 'stalker', points: () => hunters.points('stalker') },
+    { id: 'spider', points: () => hunters.points('spider') },
   );
   const surfaceFx = new SurfaceFx();
 
@@ -374,6 +403,7 @@ async function boot(): Promise<void> {
       wildlife.view,
       escort.view,
       lurkers.view,
+      hunters.view,
       ...schools.map((s) => s.view),
       ...fish.map((f) => f.view),
       sub.view,
@@ -385,8 +415,8 @@ async function boot(): Promise<void> {
       scenery.over,
     );
     frontCam.addChild(scenery.front);
-    emissiveCam.addChild(scenery.emissive, baseView.emissive, tankLife.emissive, pickups.emissive, wildlife.emissive, escort.emissive, lurkers.emissive, sub.emissive, drone.emissive, ...fish.map((f) => f.lure), diver.lens, surfaceFx.view);
-    glowCam.addChild(scenery.glow, baseView.glow, tankLife.glow, pickups.glow, wildlife.glow, escort.glow, lurkers.glow, sub.glow, drone.glow, ...fish.map((f) => f.halo), diver.lensGlow);
+    emissiveCam.addChild(scenery.emissive, baseView.emissive, tankLife.emissive, pickups.emissive, wildlife.emissive, escort.emissive, lurkers.emissive, hunters.emissive, sub.emissive, drone.emissive, ...fish.map((f) => f.lure), diver.lens, surfaceFx.view);
+    glowCam.addChild(scenery.glow, baseView.glow, tankLife.glow, pickups.glow, wildlife.glow, escort.glow, lurkers.glow, hunters.glow, sub.glow, drone.glow, ...fish.map((f) => f.halo), diver.lensGlow);
   }
   populate();
 
@@ -398,7 +428,7 @@ async function boot(): Promise<void> {
   hdrRoot.addChild(interior.view);
   const worldLayers = [water.view, backdrop.view, zoneBackdrop.view, lighting.view, emissiveCam, glowSprite, snow.view, overlayCam];
   /** Which interior you're on foot in, if any. */
-  let inside: 'corvina' | 'base' | null = null;
+  let inside: 'corvina' | 'base' | 'fulmar' | null = null;
   /** The walkable base: the dome you came in by, and the level built from the layout. */
   let baseDome: number | null = null;
   let baseHooks: BaseHooks | null = null;
@@ -1006,6 +1036,14 @@ async function boot(): Promise<void> {
     return best ? { ...best, relay } : { ...SPAWN, dome: false, sub: false, relay: false };
   }
   let insideDome: number | null = null;
+  // ---- Milestone 10: crush depth (Colin's numbers: Kestrel suit 30 m, PS-1 60 m, PS-2 110 m; KS-1 45 m, plated 120 m) ----
+  const diverLimit = () => (hasGear(save, 'psuit2') ? CRUSH.ps2 : hasGear(save, 'psuit') ? CRUSH.ps1 : CRUSH.kestrel);
+  const subLimit = () => (save.sub?.plating ? CRUSH.plated : CRUSH.sub);
+  let crushClock = 0;
+  let crushWarnDiver = false;
+  let crushWarnSub = false;
+  /** Is the diver (or the sub) past its crush depth right now? For the banner. */
+  let crushing: 'diver' | 'sub' | null = null;
   const watch = new DiveWatch(document.getElementById('watch') as HTMLCanvasElement);
   const hintEl = document.getElementById('hint')!;
   let hintTimer = 0;
@@ -1015,8 +1053,8 @@ async function boot(): Promise<void> {
   function persist(): void {
     if (blackout > 0) return; // save once the diver is back at the buoy
     const outAt = inside === 'base' || peek ? baseOutside() : null;
-    save.x = outAt ? outAt.x : inside === 'corvina' ? CV_HATCH.x : diver.x;
-    save.y = outAt ? outAt.y : inside === 'corvina' ? CV_HATCH.y - 70 : diver.y;
+    save.x = outAt ? outAt.x : inside === 'corvina' ? CV_HATCH.x : inside === 'fulmar' ? FULMAR_HATCH.x : diver.x;
+    save.y = outAt ? outAt.y : inside === 'corvina' ? CV_HATCH.y - 70 : inside === 'fulmar' ? FULMAR_HATCH.y - 70 : diver.y;
     save.lampOn = diver.lampOn;
     if (save.sub) {
       save.sub.x = sub.x;
@@ -1214,7 +1252,12 @@ async function boot(): Promise<void> {
     for (const ev of tickStations(save, layout, dt)) {
       drone.cheer();
       if (ev.type === 'decoded') {
-        hud.toast(`${pieceCode(layout, ev.piece)} decoded the ${RESEARCH[ev.id].name.toLowerCase()}! Build it in a Workshop.`, 'big');
+        hud.toast(
+          `${pieceCode(layout, ev.piece)} decoded the ${RESEARCH[ev.id].name.toLowerCase()}! ${
+            PIECE_BLUEPRINTS[ev.id] ? 'Its build card is in build mode now.' : (OTHER_BLUEPRINTS[ev.id] ?? 'Build it in a Workshop.')
+          }`,
+          'big',
+        );
         if (!layout.pieces.some((p) => p.kind === 'workshop'))
           setTimeout(() => hud.toast('A Workshop (build card 11) builds gear from blueprints. It takes hull plating from the plate press.', 'big'), 2600);
       } else {
@@ -1222,10 +1265,24 @@ async function boot(): Promise<void> {
         hud.toast(
           ev.id === 'light'
             ? `${g.name} ${g.code} built and clipped to your suit! It replaces the shoulder lamp: much brighter and wider. The dark cave in the east cliff is open to you now.`
-            : `${g.name} ${g.code} built!`,
+            : ev.id === 'psuit'
+              ? `${g.name} ${g.code} built! You wear it from now on: rated to 60 m instead of 30. The trench's upper ledges are in reach.`
+              : ev.id === 'psuit2'
+                ? `${g.name} ${g.code} built! Rated to 110 m: the trench floor, and the drowned station, are in reach.`
+                : `${g.name} ${g.code} built!`,
           'big',
         );
       }
+      persist();
+    }
+
+    // ---- Milestone 10: the Signal array decodes pattern spools ----
+    for (const ev of tickSignals(save, layout, dt)) {
+      if (ev.type !== 'decoded') continue;
+      drone.cheer();
+      sound.find('whorl');
+      const n = FRAGMENTS.findIndex((f) => f.id === ev.id) + 1;
+      hud.toast(`The Signal array decoded fragment ${n}! Read it at the array's console, or in the scanner log.`, 'big');
       persist();
     }
 
@@ -1375,7 +1432,7 @@ async function boot(): Promise<void> {
     setTimeout(() => bench.start(performance.now()), 2500);
   }
   // Zone weights for the colour grade, eased so crossing a boundary never pops.
-  const zoneNow: ZoneWeights = { shallows: 1, basin: 0, forest: 0, cave: 0, shelf: 0 };
+  const zoneNow: ZoneWeights = { shallows: 1, basin: 0, forest: 0, cave: 0, shelf: 0, trench: 0 };
   let zoneEased = false;
   function drawPost(deltaMS: number): void {
     const dt = Math.min(deltaMS / 1000, 0.1);
@@ -1383,7 +1440,7 @@ async function boot(): Promise<void> {
     const target = zoneMix(at.x, at.y);
     const k = zoneEased ? 1 - Math.exp(-2.5 * dt) : 1;
     zoneEased = true;
-    for (const z of ['shallows', 'basin', 'forest', 'cave', 'shelf'] as const) zoneNow[z] += (target[z] - zoneNow[z]) * k;
+    for (const z of ['shallows', 'basin', 'forest', 'cave', 'shelf', 'trench'] as const) zoneNow[z] += (target[z] - zoneNow[z]) * k;
     post.update({
       time,
       cssW,
@@ -1718,6 +1775,19 @@ async function boot(): Promise<void> {
     diver.current.x += -RACE.speed * raceHere * (atRing >= 0 ? 0.1 : 1) * (0.85 + 0.15 * Math.sin(time * 0.7));
     scenery.updateRace(time, camX, camX + lastViewW);
     diver.current.y = 0;
+    // Milestone 10: scalding plumes over the vent chimneys lift and burn; so does the sealed chimney.
+    let scald = 0;
+    if (!aboard && diver.x > TR_VENTS[0].x - 80 && diver.x < TR_VENTS[TR_VENTS.length - 1].x + 80) {
+      for (const v of TR_VENTS) {
+        const top = groundY(v.x) + 4 - v.h;
+        if (Math.abs(diver.x - v.x) < 46 + (top - diver.y) * 0.08 && diver.y < top + 20 && diver.y > top - 360) {
+          scald = Math.max(scald, 1 - (top - diver.y) / 400);
+          diver.current.y = -240;
+          diver.current.x += (diver.x - v.x) * 2;
+        }
+      }
+    }
+    if (!aboard && !save.cleftOpen && Math.hypot(diver.x - CLEFT.x, diver.y - CLEFT.y) < 75) scald = Math.max(scald, 0.5);
     // Milestone 8 part 2: the Corvina's state, and the hidden passage and salvage.
     cv.hatch = save.corvina.hatch;
     cv.door = save.corvina.door;
@@ -1728,6 +1798,10 @@ async function boot(): Promise<void> {
     scenery.setLocker(save.lockerOpen);
     for (const sv of SALVAGE) if (sv.id in save.salvageTaken && save.playSeconds - save.salvageTaken[sv.id] > SALVAGE_REGROW && save.sub?.salvage !== sv.id) delete save.salvageTaken[sv.id];
     scenery.setSalvage(save.salvageTaken);
+    // Milestone 10: the trench's state.
+    cleft.open = save.cleftOpen;
+    scenery.trench.setCleft(save.cleftOpen);
+    scenery.trench.setFulmar(save.fulmar.open);
     if (diver.x > 15800 && diver.x < 17200) scenery.updateKelpCaves(time, surge);
     scenery.setKelpCaves(save.brackets, save.kelpCut);
     kelpWall.cut = save.kelpCut;
@@ -1868,6 +1942,46 @@ async function boot(): Promise<void> {
         'warn',
       );
     }
+    // ---- The trench (milestone 10): predators ----
+    for (const ev of hunters.update(dt, { x: diver.x, y: diver.y, lampOn: diver.lampOn && diver.lamp > 0.3, speed: Math.hypot(diver.vx, diver.vy) }, !aboard && blackout === 0 && !boarding, camX, camX + lastViewW, camY, camY + viewH)) {
+      if (ev.type === 'bite') {
+        save.suit = Math.max(0, save.suit - ev.damage);
+        suitCalm = 0;
+        shake = Math.min(1, shake + 0.7);
+        const L = Math.max(1, Math.hypot(diver.x - ev.x, diver.y - ev.y));
+        diver.vx = ((diver.x - ev.x) / L) * 420;
+        diver.vy = ((diver.y - ev.y) / L) * 420 - 60;
+        sound.bite();
+        hud.suitHit();
+        const who = ev.kind === 'lanternjaw' ? 'A lanternjaw snaps at you' : ev.kind === 'stalker' ? 'The pale stalker strikes' : 'The strider\'s legs close on you';
+        hud.toast(save.suit > 0 ? `${who}! Suit integrity ${Math.round(save.suit * 100)}%.` : `${who}! Your suit gives way.`, 'warn');
+      } else if (ev.type === 'warn') {
+        sound.lurkWarn(ev.x - diver.x);
+        const tip = 'hunt-' + ev.kind;
+        if (!save.tips.includes(tip)) {
+          save.tips.push(tip);
+          hud.toast(
+            ev.kind === 'lanternjaw'
+              ? 'An amber lure drifts closer: something big hangs behind it, drawn by your lamp. Switch the lamp off and back away, or pulse your sonar.'
+              : ev.kind === 'stalker'
+                ? 'The pale shape turns on you! It strikes when you stop or go dark. Keep moving with your lamp on, or pulse your sonar.'
+                : 'Long legs pick across the ledge towards your lamp: a strider. Lamp off and it loses interest; a sonar pulse sends it off.',
+            'warn',
+          );
+        }
+      } else if (ev.type === 'follow' && !save.tips.includes('hunt-follow')) {
+        save.tips.push('hunt-follow');
+        hud.toast('Something pale is following you, just at the edge of your light.', 'warn');
+      }
+    }
+    if (!aboard && diver.x > TRENCH.x0 + 200 && blackout === 0 && !save.tips.includes('trench')) {
+      save.tips.push('trench');
+      hud.toast('The trench. The shelf breaks off into the dark, ledge after ledge. Watch your depth: past your suit\'s crush depth the pressure crumples it.', 'big');
+    }
+    if (!aboard && Math.abs(diver.x - 29900) < 600 && diver.y > 3700 && blackout === 0 && !save.tips.includes('ventfield')) {
+      save.tips.push('ventfield');
+      hud.toast('The vent field: chimneys breathing scalding water. Keep out of the shimmering plumes. Little iron-shelled snails graze the crust.', 'big');
+    }
     if (!aboard && diver.x > WRECK_SHELF.x0 && blackout === 0 && !save.tips.includes('wshelf')) {
       save.tips.push('wshelf');
       hud.toast('The wreck shelf. Twilight, cold, and old wrecks half sunk in silt. Something lives under the wreckage: watch for glowing lures.', 'big');
@@ -1891,7 +2005,11 @@ async function boot(): Promise<void> {
     }
     const domeHere = blackout === 0 && !build.active && !aboard ? domeAround(diver.x, diver.y) : null;
     hud.setBanner(
-      inCave && !hasLight
+      crushing === 'diver'
+        ? `Crush depth: your suit is rated to ${diverLimit()} m. ${hasGear(save, 'psuit') ? 'A stronger pressure suit would go deeper.' : 'A pressure suit would go deeper.'} Climb!`
+        : crushing === 'sub'
+          ? `Crush depth: KS-1 is rated to ${subLimit()} m. Climb before the hull gives way!`
+          : inCave && !hasLight
         ? 'Pitch black ahead. The shoulder lamp barely dents this darkness. A proper dive light would open the way: decode the sled recorder in a Lab, then build the light in a Workshop.'
         : inCave && !lit
           ? 'Too dark to go on: switch your dive light on (Lamp).'
@@ -1977,6 +2095,58 @@ async function boot(): Promise<void> {
       if (recompHere) save.suit = Math.min(1, save.suit + dt * 0.6);
       else if (atSurface || domeAir || subAir || relayAir) save.suit = Math.min(1, save.suit + dt * 0.25);
       else if (suitCalm > 8) save.suit = Math.min(1, save.suit + dt * 0.012);
+      if (scald > 0 && !aboard) {
+        save.suit = Math.max(0, save.suit - dt * 0.09 * scald);
+        suitCalm = 0;
+        if (!save.tips.includes('scald')) {
+          save.tips.push('scald');
+          hud.toast('Scalding water! The plume lifts you and blisters the suit. Get out of it.', 'warn');
+        }
+      }
+      // ---- Milestone 10: crush depth. Past the rated depth the suit (or the sub's hull) gives way, faster the deeper. ----
+      crushing = null;
+      crushClock -= dt;
+      if (!aboard) {
+        const dM = Math.max(0, diver.y - SURFACE_Y + 6) / WU_PER_METRE;
+        const lim = diverLimit();
+        const cr = crushRate(dM, lim);
+        if (cr > 0) {
+          crushing = 'diver';
+          save.suit = Math.max(0, save.suit - cr * dt);
+          suitCalm = 0;
+          if (crushClock <= 0) {
+            crushClock = Math.max(0.3, 1.5 - cr * 10);
+            sound.creak(cr * 8);
+            hud.suitHit();
+            shake = Math.min(1, shake + 0.12);
+          }
+          if (!crushWarnDiver) {
+            crushWarnDiver = true;
+            hud.toast(`Crush depth! Your suit is rated to ${lim} m. The pressure is crumpling it: go back up.`, 'warn');
+          }
+        } else if (dM < lim - 3) crushWarnDiver = false;
+      } else if (S && S.stage === 'built' && !S.docked) {
+        const sd = Math.max(0, sub.y - SURFACE_Y) / WU_PER_METRE;
+        const sl = subLimit();
+        const sc = crushRate(sd, sl);
+        if (sc > 0) {
+          crushing = 'sub';
+          S.hull = Math.max(0, S.hull - sc * dt);
+          if (crushClock <= 0) {
+            crushClock = Math.max(0.3, 1.5 - sc * 10);
+            sound.creak(sc * 8);
+            shake = Math.min(1, shake + 0.15);
+          }
+          if (!crushWarnSub) {
+            crushWarnSub = true;
+            hud.toast(
+              S.plating ? `Crush depth! Even plated, KS-1 is rated to ${sl} m.` : `Crush depth! KS-1's hull is rated to ${sl} m: the plates are buckling. Depth plating (fitted at the dock) would take it deeper.`,
+              'warn',
+            );
+          }
+          if (S.hull <= 0) breach();
+        } else if (sd < sl - 3) crushWarnSub = false;
+      }
       if (save.oxygen <= 0 || save.suit <= 0) {
         blackoutCause = save.suit <= 0 ? 'suit' : 'air';
         // Blacking out aboard: the crew pull the diver out of the sub first.
@@ -2394,6 +2564,101 @@ async function boot(): Promise<void> {
           };
         else infoAct = 'Kelp wall: far too thick. A cutter torch would cut it.';
       }
+      // ---- Milestone 10: the trench ----
+      // The relay buoy on the rim: the first pattern spool.
+      const takeSpool = (id: string, label: string, text: string) => ({
+        key: 'spool-' + id,
+        label,
+        seconds: 1.6,
+        done: () => {
+          if (!save.signals.found.includes(id)) save.signals.found.push(id);
+          drone.cheer();
+          sound.find('bag');
+          hud.toast(text, 'big');
+        },
+      });
+      if (!save.signals.found.includes('sig1') && near({ x: TR_BUOY.x, y: groundY(TR_BUOY.x) - 40 }, 130))
+        holdAct = takeSpool(
+          'sig1',
+          "Take the pattern spool from the buoy's recorder",
+          'A pattern spool: hours of recorded light, rings and ribbons in colours nothing on the reef makes. A Signal array at the base could read it.',
+        );
+      // The crushed probe on ledge A: its hull stress logs (depth plating).
+      const gotLogs = save.finds.includes('hulllogs') || save.blueprints.includes('plating') || jobRunning(save, 'research:plating');
+      if (!gotLogs && near({ x: TR_PROBE.x, y: groundY(TR_PROBE.x) - 60 }, 130))
+        holdAct = {
+          key: 'hulllogs',
+          label: "Pull the probe's stress recorder",
+          seconds: 2,
+          done: () => {
+            save.finds.push('hulllogs');
+            drone.cheer();
+            sound.find('bag');
+            hud.toast("The probe's stress recorder: where its hull buckled, and the stronger skin its makers drew next. A Lab can decode it into depth plating for KS-1.", 'big');
+          },
+        };
+      // The sealed chimney across the cleft: a grown cinder snail grazes it away.
+      if (!save.cleftOpen && near({ x: CLEFT.x + 40, y: CLEFT.y }, 120)) {
+        if (save.jar?.species === 'snail' && save.jar.stage === 'grown')
+          holdAct = {
+            key: 'snailgraze',
+            label: 'Let the cinder snail graze the chimney',
+            seconds: 4,
+            done: () => {
+              save.cleftOpen = true;
+              cleft.open = true;
+              drone.cheer();
+              sound.find('bag');
+              hud.showReading(
+                'The chimney gives way',
+                'The snail creeps out of the jar onto the hot crust and starts to graze, its ember seams brightening. Scale by scale the young chimney thins, cracks, and slumps into gravel. Beyond it, a dark cleft runs back into the rock.\n\nThe snail climbs back into your jar, warm and pleased with itself.',
+                'The cleft is open.',
+              );
+            },
+          };
+        else
+          infoAct = save.scans.includes('chimney')
+            ? 'A hot, brittle chimney seals the cleft. Cinder snails graze these: bring a grown one in your jar.'
+            : 'A young chimney seals a cleft in the wall. Scan it.';
+      }
+      // In the cleft: a Fulmar cargo pod with the PS-2 drawings and a pattern spool.
+      if (save.cleftOpen) {
+        const fy = CLEFT.room.y + CLEFT.room.ry - 40;
+        const gotPlans = save.finds.includes('ps2plans') || save.blueprints.includes('psuit2') || jobRunning(save, 'research:psuit2');
+        if (!gotPlans && near({ x: CLEFT_FINDS.plans.x, y: fy }, 90))
+          holdAct = {
+            key: 'ps2plans',
+            label: 'Take the drawings from the cargo pod',
+            seconds: 1.8,
+            done: () => {
+              save.finds.push('ps2plans');
+              drone.cheer();
+              sound.find('bag');
+              hud.showReading(
+                'PS-2 suit drawings',
+                "A Fulmar cargo pod, fallen from a supply run and wedged in the cleft. Inside, in a sealed tube: drawings for the station's own deep suit. Vent-ore rings, a forged collar, rated to 110 m.\n\nA Lab can decode them. With it you could reach the trench floor, and the station.",
+                'Taken: decode it in a Lab.',
+              );
+            },
+          };
+        if (!save.signals.found.includes('sig2') && near({ x: CLEFT_FINDS.spool.x, y: fy }, 70))
+          holdAct = takeSpool('sig2', 'Take the pattern spool from the pod', 'A second pattern spool, labelled in grease pencil: "FULMAR · ANSWER?" A Signal array could read it.');
+      }
+      // The Fulmar's airlock hatch, on top of the station.
+      if (near({ x: FULMAR_HATCH.x, y: FULMAR_HATCH.y - 50 }, 100)) {
+        if (!save.fulmar.open)
+          holdAct = {
+            key: 'fulmarhatch',
+            label: 'Wind the airlock hatch open',
+            seconds: 2.6,
+            done: () => {
+              save.fulmar.open = true;
+              drone.cheer();
+              hud.toast("The wheel grinds round and the hatch lifts. The airlock below is still sealed against the sea: the station's insides are dry. Hold Collect to climb in.", 'big');
+            },
+          };
+        else holdAct = { key: 'fulmarenter', label: 'Climb down into the Fulmar', seconds: 0.8, done: () => enterFulmar() };
+      }
       // Planting an air relay on open seabed, away from the base and the caves.
       if (save.relayKits > 0) {
         const gyHere = groundY(Math.max(WORLD_X0, Math.min(WORLD_W, diver.x)));
@@ -2593,6 +2858,8 @@ async function boot(): Promise<void> {
         let scared = 0;
         for (const l of lurkers.list) if (Math.hypot(l.denX - diver.x, l.denY - diver.y) < 700 && l.scare()) scared++;
         if (scared) hud.toast(`The sonar pulse rolls out: ${scared === 1 ? 'a lurker shrinks' : `${scared} lurkers shrink`} back into ${scared === 1 ? 'its den' : 'their dens'}.`);
+        const deepScared = hunters.scare(diver.x, diver.y, 800);
+        if (deepScared) hud.toast(`The sonar pulse rolls out: ${deepScared === 1 ? 'the hunter' : `${deepScared} hunters`} turn away into the dark.`);
         if (!save.hiddenOpen && Math.hypot(diver.x - HIDDEN.x, diver.y - HIDDEN.y) < 700) {
           save.hiddenOpen = true;
           hidden.open = true;
@@ -2731,9 +2998,11 @@ async function boot(): Promise<void> {
       const sb = save.sub;
       if (aboard) {
         const hold = sb.modules.includes('cargo') ? `<br>cargo <b>${kg.toFixed(0)}/${lim.max}</b> kg` : '';
+        const sd = Math.max(0, sub.y - SURFACE_Y) / WU_PER_METRE;
+        const deep = sub.x > TRENCH.x0 - 900 || sd > subLimit() - 8 ? `<br>depth <b>${Math.round(sd)}/${subLimit()} m</b>` : '';
         hud.setSubChip(
-          `KS-1${sb.docked ? ' · berthed' : ''}<br>hull <b>${Math.round(sb.hull * 100)}%</b><br>air <b>${airClock(sb.air)}</b>${hold}`,
-          sb.hull < 0.35 || sb.air < 60,
+          `KS-1${sb.docked ? ' · berthed' : ''}<br>hull <b>${Math.round(sb.hull * 100)}%</b><br>air <b>${airClock(sb.air)}</b>${hold}${deep}`,
+          sb.hull < 0.35 || sb.air < 60 || sd > subLimit() - 3,
         );
       } else hud.setSubChip(sb.stage === 'built' && holdKg(sb) > 0 ? `KS-1 cargo bay<br><b>${holdKg(sb).toFixed(0)} kg</b> waiting` : null);
       const dSub = Math.hypot(sub.x - diver.x, sub.y - diver.y);
@@ -2765,7 +3034,7 @@ async function boot(): Promise<void> {
     diver.lensGlow.position.set(lp.x, lp.y);
     diver.lensGlow.alpha = diver.lamp * diver.view.alpha;
 
-    const lights: Light[] = [...(save.sub ? sub.lights : []), lampLight, ...drone.lights, ...scenery.lights, ...baseView.lights, ...pickups.lights, ...wildlife.lights, escort.light, ...lurkers.lights, ...fish.map((f) => f.light)];
+    const lights: Light[] = [...(save.sub ? sub.lights : []), lampLight, ...drone.lights, ...scenery.lights, ...baseView.lights, ...pickups.lights, ...wildlife.lights, escort.light, ...lurkers.lights, ...hunters.lights, ...fish.map((f) => f.light)];
     // G2: soft contact shadows where things meet the seabed (the diver's, the sub's, the drone's and the base's feet).
     const contacts: [number, number, number, number][] = [];
     if (fx.contact && preset.contactShadows > 0) {
@@ -2839,9 +3108,15 @@ async function boot(): Promise<void> {
 
     const depthM = Math.max(0, diver.y - SURFACE_Y + 6) / WU_PER_METRE;
     if (domeAir || subAir) diveTime = 0;
-    watch.draw(performance.now(), save.oxygen, maxO2, atSurface ? 0 : depthM, diveTime, atSurface, { kg, ...lim }, save.suit);
+    watch.draw(performance.now(), save.oxygen, maxO2, atSurface ? 0 : depthM, diveTime, atSurface, { kg, ...lim }, save.suit, aboard ? subLimit() : diverLimit());
     // The suit bar under the watch: once the wreck shelf has been reached, or whenever the suit is damaged.
-    hud.setSuit(save.suit, !aboard && (save.tips.includes('wshelf') || save.suit < 0.995));
+    const suitShown = !aboard && (save.tips.includes('wshelf') || save.suit < 0.995);
+    hud.setSuit(save.suit, suitShown);
+    // Milestone 10: the crush-depth chip, near the trench or near the limit.
+    {
+      const lim = diverLimit();
+      hud.setDepthLimit(!aboard && blackout === 0 && (diver.x > TRENCH.x0 - 900 || depthM > lim - 8) ? lim : null, depthM, suitShown ? 156 : 122);
+    }
     if (pickups.bagPos) {
       const p = pickups.bagPos;
       hud.setBagMarker((p.x - camX) * zoom, (p.y - camY) * zoom, Math.hypot(p.x - diver.x, p.y - diver.y) / WU_PER_METRE);
@@ -2851,7 +3126,7 @@ async function boot(): Promise<void> {
     {
       let work: WorkKind | null = null;
       if (holdAct && collectHeld && speed < 70)
-        work = holdAct.key === 'winch' || holdAct.key === 'relay' || holdAct.key === 'vane' ? 'winch' : holdAct.key === 'kwall' ? 'cutter' : holdAct.key.startsWith('bracket') ? 'moss' : 'recorder';
+        work = holdAct.key === 'snailgraze' ? 'creature' : holdAct.key === 'winch' || holdAct.key === 'relay' || holdAct.key === 'vane' || holdAct.key === 'fulmarhatch' ? 'winch' : holdAct.key === 'kwall' ? 'cutter' : holdAct.key.startsWith('bracket') ? 'moss' : 'recorder';
       else if (grapple?.phase === 'reel') work = 'winch';
       else if (repairing) work = 'repair';
       else if (wildlife.working && wildTarget) work = 'creature';
@@ -2952,6 +3227,34 @@ async function boot(): Promise<void> {
     backToWater();
     diver.x = CV_HATCH.x;
     diver.y = CV_HATCH.y - 70;
+    diver.vx = 0;
+    diver.vy = -60;
+    diver.surfaced = false;
+    camCX = diver.x;
+    camCY = diver.y;
+    sound.hatchCue(false);
+    persist();
+  }
+
+  // ---- Milestone 10: the Fulmar deep station, on foot ----
+  function enterFulmar(): void {
+    interior.enter(FULMAR_MAP, { breakers: save.fulmar.breakers, taken: save.fulmar.taken }, null, FULMAR_OPTS);
+    inside = 'fulmar';
+    goOnFoot();
+    sound.hatchCue(true);
+    if (!save.tips.includes('fulmarin'))
+      setTimeout(() => {
+        save.tips.push('fulmarin');
+        hud.toast("Inside the Fulmar. Dry, cold, and dark: her power is off. Somewhere aboard there must be breakers. Listen to the hull creak.", 'big');
+      }, 900);
+    persist();
+  }
+  function exitFulmar(): void {
+    interior.leave();
+    inside = null;
+    backToWater();
+    diver.x = FULMAR_HATCH.x;
+    diver.y = FULMAR_HATCH.y - 70;
     diver.vx = 0;
     diver.vy = -60;
     diver.surfaced = false;
@@ -3110,6 +3413,19 @@ async function boot(): Promise<void> {
       hud.toast(`The bloom's light sinks into the still water, and a young ${SPECIES[sp].name.toLowerCase()} stirs. It is in your specimen jar: put it in a tank.`, 'big');
       persist();
     },
+    // ---- Milestone 10: the Signal array ----
+    signalLabel: () => {
+      const latest = save.signals.decoded[save.signals.decoded.length - 1];
+      const status = signalStatus(save, layout);
+      if (latest) return { ok: true, text: `Read fragment ${save.signals.decoded.length} · ${status.replace(/^Signal array: /, '')}` };
+      return { ok: false, text: status };
+    },
+    signalRead: () => {
+      const latest = save.signals.decoded[save.signals.decoded.length - 1];
+      const e = latest ? SCAN_ENTRIES.find((x) => x.id === latest) : null;
+      if (e) hud.showReading(e.name, e.text, 'Kept in your scanner log.');
+    },
+    signalProgress: () => (nextFragment(save) && save.signals.progress > 0 ? save.signals.progress : -1),
     storedFrac: () => {
       const cap = storageCapacity(layout);
       return cap ? Math.min(1, MATERIALS_LIST.reduce((a, k) => a + save.stored[k], 0) / cap) : 0;
@@ -3199,6 +3515,7 @@ async function boot(): Promise<void> {
     const paused = hud.reading;
     // The interior reads her state straight from the save, so they never drift apart.
     if (inside === 'corvina') interior.syncState(save.corvina.breakers, save.corvina.taken ?? []);
+    if (inside === 'fulmar') interior.syncState(save.fulmar.breakers, save.fulmar.taken);
     if (inside === 'base' && baseHooks && baseHooks.level.signature !== baseSignature(layout)) {
       // A piece finished or was taken down while you were inside: rebuild the rooms around you.
       const level = buildBaseLevel(layout);
@@ -3258,8 +3575,46 @@ async function boot(): Promise<void> {
     }
     for (const e of evs) {
       if (e.type === 'exit') {
-        exitCorvina();
+        if (inside === 'fulmar') exitFulmar();
+        else exitCorvina();
         return;
+      } else if (e.type === 'breaker' && inside === 'fulmar') {
+        sound.clip();
+        const left = save.fulmar.breakers.filter((b) => !b).length;
+        hud.toast(
+          e.power
+            ? "With a groan the Fulmar's emergency power comes back: lamps along her decks, the lift, and the door to her array room."
+            : `The breaker clunks over. ${left} more somewhere aboard.`,
+          'big',
+        );
+        persist();
+      } else if (e.type === 'find' && inside === 'fulmar') {
+        sound.find('bag');
+        if (e.id === '4') {
+          if (!save.signals.found.includes('sig3')) save.signals.found.push('sig3');
+          hud.toast('A pattern spool from the comms rack, labelled "NIGHT 3,104 · BELOW". A Signal array could read it.', 'big');
+        } else if (e.id === '5') {
+          if (!save.signals.found.includes('sig4')) save.signals.found.push('sig4');
+          hud.toast('The last spool, still threaded in the array\'s reader: "LAST NIGHT · THE DOOR". A Signal array could read it.', 'big');
+        } else if (e.id === '6') {
+          if (!save.finds.includes('resonplans') && !save.blueprints.includes('resonator')) save.finds.push('resonplans');
+          hud.showReading(
+            'Resonator drawings',
+            "Pinned over the array's reader: drawings for a ring of tuned crystal and vent ore, with the Choir's patterns written round it like music. The crew's last note: \"It sings their words back. The doors below answer to nothing else.\"\n\nA Lab can decode them.",
+            'Taken: decode it in a Lab.',
+          );
+        } else if (e.id === '7') {
+          if (!save.scans.includes('fulmarlog')) save.scans.push('fulmarlog');
+          const entry = SCAN_ENTRIES.find((x) => x.id === 'fulmarlog')!;
+          hud.showReading("The Fulmar's listening log", entry.text, FIND_NOTE);
+        } else {
+          save.bag.ore += 3;
+          save.bag.brass += 2;
+          save.bag.bloom += 1;
+          hud.refreshInventory();
+          hud.toast('A supply locker: 3 vent ore, 2 brass fittings, and a glowing bloom pressed in a jar.', 'big');
+        }
+        persist();
       } else if (e.type === 'breaker') {
         sound.clip();
         hud.toast(
@@ -3299,7 +3654,8 @@ async function boot(): Promise<void> {
         }
         if (save.suit <= 0) {
           // The suit gives way: back outside, and the usual blackout takes over.
-          exitCorvina();
+          if (inside === 'fulmar') exitFulmar();
+          else exitCorvina();
           return;
         }
       } else if (e.type === 'lift') sound.clamps(true);
@@ -3314,7 +3670,7 @@ async function boot(): Promise<void> {
     hud.setSubChip(null);
     hud.setBoard(null);
     hud.setJar(jarText());
-    const soundAt = inside === 'base' ? baseOutside() : { x: CV_HATCH.x, y: CV_HATCH.y + 120 };
+    const soundAt = inside === 'base' ? baseOutside() : inside === 'fulmar' ? { x: FULMAR_HATCH.x, y: FULMAR_HATCH.y + 120 } : { x: CV_HATCH.x, y: CV_HATCH.y + 120 };
     sound.update({
       dt,
       x: soundAt.x,
@@ -3433,6 +3789,8 @@ async function boot(): Promise<void> {
     debug: () => ({ grapple, holdKey, holdProgress, label: document.getElementById('collect-label')?.textContent }),
     interior,
     enterCorvina: () => enterCorvina(),
+    enterFulmar: () => enterFulmar(),
+    hunters,
     enterBase: (id: number) => enterBase(id),
     baseHooks: () => baseHooks,
     where: () => ({ inside, peek }),

@@ -114,8 +114,22 @@ export const SPECIES: Record<SpeciesId, SpeciesDef> = {
     makesText: 'grazes the tank glass and leaves tufts of lumen moss',
     scan: 'shrimp',
   },
+  // Milestone 10: the trench (Colin: a new trench creature acts as the key there).
+  snail: {
+    id: 'snail',
+    name: 'Cinder snail',
+    youngName: 'young cinder snail',
+    eggName: 'cinder snail egg capsules',
+    home: 'the vent field in the trench',
+    plant: 'lumen',
+    company: 'same',
+    dislikes: ['crab'],
+    makes: 'ore',
+    makesText: 'grazes mineral crust off the tank rocks and sheds it, cooled, as vent ore',
+    scan: 'snail',
+  },
 };
-export const SPECIES_ORDER: SpeciesId[] = ['glowfin', 'puffcap', 'ray', 'crab', 'shrimp'];
+export const SPECIES_ORDER: SpeciesId[] = ['glowfin', 'puffcap', 'ray', 'crab', 'shrimp', 'snail'];
 
 /**
  * Pairings (milestone 7; DESIGN.md, mixed tanks). Clashes: puffcap threads
@@ -126,6 +140,7 @@ export const SPECIES_ORDER: SpeciesId[] = ['glowfin', 'puffcap', 'ray', 'crab', 
 export const CLASH_TEXT: Partial<Record<SpeciesId, (other: string) => string>> = {
   glowfin: (o) => `Stung by the ${o}'s threads`,
   puffcap: (o) => `Ribbons snipped by the ${o}`,
+  snail: (o) => `Scales picked at by the ${o}`,
 };
 /** Each cleaning lantern shrimp adds this much to a tank-mate's output (another species only)... */
 export const CLEAN_BONUS = 0.25;

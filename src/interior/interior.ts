@@ -83,6 +83,25 @@ export interface InteriorFocus {
   panelPx: number;
 }
 
+/**
+ * Milestone 10: what a hand-drawn map's letters mean, so the same system
+ * runs other wrecks than the Corvina (the Fulmar deep station). Finds are
+ * the digits 1-9 and '$'.
+ */
+export interface InteriorOptions {
+  /** Collect labels for the finds, by map letter. */
+  labels?: Record<string, string>;
+  /** A sign painted above one find (its letter), e.g. 'SURVEY LAB' over '1'. */
+  sign?: { ch: string; text: string };
+}
+const CORVINA_LABELS: Record<string, string> = {
+  '1': 'Take the sonar test logs',
+  '2': 'Take the pressure suit drawings',
+  '3': "Read the Corvina's log",
+  $: 'Open the salvage crate',
+};
+const isFind = (c: string) => c === '$' || (c >= '1' && c <= '9');
+
 export interface InteriorState {
   /** Breakers thrown, in the order they appear in the map. */
   breakers: boolean[];
@@ -180,6 +199,7 @@ export class Interior {
   private breakerG = new Graphics();
   private takenG = new Graphics();
   private shownKey = '';
+  private opts: InteriorOptions = {};
 
   constructor(private readonly renderer: Renderer) {
     this.lighting = new InteriorLighting(this.sceneRT);
@@ -245,7 +265,9 @@ export class Interior {
   // ---------------------------------------------------------------------------
 
   /** Build a level and step into it at its 'S' tile. */
-  enter(map: string[], state: InteriorState, hooks: InteriorHooks | null = null): void {
+  enter(map: string[], state: InteriorState, hooks: InteriorHooks | null = null, opts: InteriorOptions | null = null): void {
+    if (opts) this.opts = opts;
+    else if (!hooks) this.opts = { labels: CORVINA_LABELS, sign: { ch: '1', text: 'SURVEY LAB' } };
     if (this.hooks && this.hooks !== hooks) this.hooks.detach?.();
     this.hooks = hooks;
     hooks?.attach?.(this.actorLit, this.actorEm, this.actorGlow);
@@ -265,7 +287,7 @@ export class Interior {
         const y = ty * T + T / 2;
         if (c === 'o') this.anchors.push({ x, y });
         else if (c === 'v') this.vents.push({ x, y: ty * T + T, phase: ((tx * 7) % 10) / 10 * VENT_CYCLE, hitAt: -9 });
-        else if ('SBU123$'.includes(c)) this.spots.push({ ch: c, tx, ty, x, y: ty * T + T });
+        else if ('SBU'.includes(c) || isFind(c)) this.spots.push({ ch: c, tx, ty, x, y: ty * T + T });
       }
     const nb = this.spots.filter((s) => s.ch === 'B').length;
     while (this.state.breakers.length < nb) this.state.breakers.push(false);
@@ -445,7 +467,12 @@ export class Interior {
         } else if (c === 'B') {
           g.roundRect(x + 6, y + 4, T - 12, T - 8, 3).fill({ color: 0x4a4e50 });
           g.rect(x + 6, y + 4, T - 12, 5).fill({ color: 0xc9a24a });
-        } else if (c === '1' || c === '2' || c === '3') {
+        } else if (c === 'H') {
+          // Milestone 10: a ladder in a wreck: two rails and rungs.
+          g.rect(x + 8, y, 4, T + 0.5).fill({ color: 0x6a6e70 });
+          g.rect(x + T - 12, y, 4, T + 0.5).fill({ color: 0x6a6e70 });
+          for (let k = 6; k < T; k += 13) g.rect(x + 8, y + k, T - 16, 3).fill({ color: 0x8a8e90 });
+        } else if (c >= '1' && c <= '9') {
           // A desk with something on it.
           g.rect(x - 14, y + T - 18, T + 28, 6).fill({ color: 0x5a4a38 });
           g.rect(x - 10, y + T - 12, 5, 12).fill({ color: 0x3a3028 });
@@ -474,9 +501,10 @@ export class Interior {
         }
       }
     // The lab's sign.
-    const lab = this.spots.find((p) => p.ch === '1');
-    if (lab) {
-      const t = new Text({ text: 'SURVEY LAB', style: { fontFamily: 'monospace', fontSize: 14, fill: 0xd8d0b8, fontWeight: 'bold', letterSpacing: 3 } });
+    const sg = this.opts.sign;
+    const lab = sg ? this.spots.find((p) => p.ch === sg.ch) : null;
+    if (lab && sg) {
+      const t = new Text({ text: sg.text, style: { fontFamily: 'monospace', fontSize: 14, fill: 0xd8d0b8, fontWeight: 'bold', letterSpacing: 3 } });
       t.alpha = 0.6;
       t.position.set(lab.x - 40, lab.y - 4 * T);
       this.litCam.addChild(t);
@@ -625,12 +653,14 @@ export class Interior {
     }
     const tk = this.takenG.clear();
     for (const s of this.spots) {
-      if (!'123$'.includes(s.ch) || this.state.taken.includes(s.ch)) continue;
+      if (!isFind(s.ch) || this.state.taken.includes(s.ch)) continue;
       const x = s.x;
       const y = s.y - 18;
       if (s.ch === '1') tk.roundRect(x - 10, y - 10, 20, 14, 2).fill({ color: 0x3a3e40 }).roundRect(x - 7, y - 8, 14, 9, 1).fill({ color: 0x9ab070 });
       else if (s.ch === '2') tk.roundRect(x - 16, y - 6, 32, 8, 4).fill({ color: 0xd8d0b8 });
-      else if (s.ch === '3') tk.roundRect(x - 11, y - 8, 22, 10, 1).fill({ color: 0x6a3a2a });
+      else if (s.ch === '3' || s.ch === '7') tk.roundRect(x - 11, y - 8, 22, 10, 1).fill({ color: 0x6a3a2a });
+      else if (s.ch === '4' || s.ch === '5') tk.circle(x, y - 3, 7).stroke({ color: 0xc9a24a, width: 2.4 }).circle(x, y - 3, 2).fill({ color: 0x4a4e50 });
+      else if (s.ch === '6') tk.roundRect(x - 16, y - 6, 32, 8, 4).fill({ color: 0xd8d0b8 });
       else tk.rect(x - 8, y - 6, 16, 4).fill({ color: 0xa8822e });
     }
     if (!this.hooks)
@@ -719,10 +749,10 @@ export class Interior {
             },
           };
         }
-      } else if ('123$'.includes(s.ch) && !this.state.taken.includes(s.ch))
+      } else if (isFind(s.ch) && !this.state.taken.includes(s.ch))
         act = {
           key: 'f' + s.ch,
-          label: s.ch === '1' ? 'Take the sonar test logs' : s.ch === '2' ? 'Take the pressure suit drawings' : s.ch === '3' ? "Read the Corvina's log" : 'Open the salvage crate',
+          label: this.opts.labels?.[s.ch] ?? 'Take it',
           seconds: 1.2,
           done: () => {
             this.state.taken.push(s.ch);

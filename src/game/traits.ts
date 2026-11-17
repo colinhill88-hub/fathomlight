@@ -33,6 +33,7 @@ export const COLOURS: Record<SpeciesId, string[]> = {
   ray: ['Sand', 'Slate', 'Moss', 'Midnight'],
   crab: ['Rust', 'Olive', 'Brick', 'Steel blue'],
   shrimp: ['Amber', 'Ruby', 'Clearwater', 'Gilded'],
+  snail: ['Iron', 'Bronze', 'Ash', 'Ember gold'],
 };
 export const PATTERNS: Record<SpeciesId, string[]> = {
   glowfin: ['side line', 'spotted', 'banded'],
@@ -40,6 +41,7 @@ export const PATTERNS: Record<SpeciesId, string[]> = {
   ray: ['tail light', 'dappled glow', 'ring glow'],
   crab: ['eye shine', 'shell spots', 'claw tips'],
   shrimp: ['side lights', 'banded', 'tail lantern'],
+  snail: ['seam glow', 'foot lights', 'spiral glow'],
 };
 export const RARE_COLOUR = 3;
 

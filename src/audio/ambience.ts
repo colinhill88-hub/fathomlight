@@ -21,6 +21,8 @@ export interface ZoneMix {
   cave: number;
   /** Milestone 8: the wreck shelf. */
   shelf: number;
+  /** Milestone 10: the trench. */
+  trench: number;
 }
 
 interface Layer {
@@ -126,7 +128,7 @@ export class Ambience {
     const q = 1 - quiet;
     const open = mix.shallows + mix.basin;
     // Water movement: present everywhere underwater, darker as it gets deeper or enclosed.
-    const washCut = 900 - 520 * depth - 250 * mix.forest - 380 * mix.cave - 200 * mix.shelf;
+    const washCut = 900 - 520 * depth - 250 * mix.forest - 380 * mix.cave - 200 * mix.shelf - 300 * mix.trench;
     this.wash.filter.frequency.setTargetAtTime(Math.max(160, washCut), t, tc);
     this.wash.gain.gain.setTargetAtTime((surfaced ? 0.08 : 0.2 + 0.1 * depth) * q, t, tc);
     this.fizz.gain.gain.setTargetAtTime((surfaced ? 0.01 : 0.035 * mix.shallows * (1 - depth) ** 2) * q, t, tc);
@@ -143,9 +145,9 @@ export class Ambience {
       g.setTargetAtTime(level * 0.35, t + 1.8, 1.4);
     }
     // The deep hum: pitch drops a little per zone.
-    const hum = Math.min(1, 0.15 + depth) * (mix.basin * 0.8 + mix.forest * 1 + mix.cave * 0.7 + mix.shelf * 1.2) + 0.1 * depth * mix.shallows;
+    const hum = Math.min(1, 0.15 + depth) * (mix.basin * 0.8 + mix.forest * 1 + mix.cave * 0.7 + mix.shelf * 1.2 + mix.trench * 1.5) + 0.1 * depth * mix.shallows;
     this.drone.gain.gain.setTargetAtTime((surfaced ? 0 : 0.16 * hum) * q, t, 2);
-    const root = 55 * mix.shallows + 49 * mix.basin + 41.2 * mix.forest + 36.7 * mix.cave + 34.6 * mix.shelf;
+    const root = 55 * mix.shallows + 49 * mix.basin + 41.2 * mix.forest + 36.7 * mix.cave + 34.6 * mix.shelf + 27.5 * mix.trench;
     this.drone.oscs[0].frequency.setTargetAtTime(root, t, 3);
     this.drone.oscs[1].frequency.setTargetAtTime(root, t, 3);
     this.drone.oscs[2].frequency.setTargetAtTime(root * 1.498, t, 3);
@@ -186,6 +188,14 @@ export class Ambience {
         audio.tone({ freq: f, to: f * (0.7 + Math.random() * 0.2), dur: 1.6 + Math.random() * 1.5, attack: 0.5, gain: 0.05, type: 'sawtooth', bus: 'ambience', send: 0.7, pan, lp: 500 });
       } else audio.metal({ freq: 160 + Math.random() * 80, gain: 0.03, decay: 1.6, bus: 'ambience', send: 0.8, pan });
       this.nextEvent = 3 + Math.random() * 5;
+    } else if (pick(mix.trench)) {
+      // The trench: far-off hull-groans of pressure, and slow, deep pulses like something huge moving.
+      if (Math.random() < 0.5) {
+        const f = 38 + Math.random() * 18;
+        audio.tone({ freq: f, to: f * 0.75, dur: 3.5 + Math.random() * 2.5, attack: 1.4, gain: 0.07, type: 'triangle', bus: 'ambience', send: 0.8, pan, lp: 260 });
+      } else if (Math.random() < 0.5) audio.metal({ freq: 70 + Math.random() * 40, gain: 0.03, decay: 2.4, bus: 'ambience', send: 0.9, pan });
+      else for (let k = 0; k < 3; k++) audio.thump({ t: audio.now + k * 0.9, freq: 46, gain: 0.04, bus: 'ambience', send: 0.6, pan });
+      this.nextEvent = 4 + Math.random() * 6;
     } else if (pick(mix.cave)) {
       this.drip(pan);
       if (Math.random() < 0.4) this.drip(pan * 0.5, 0.25 + Math.random() * 0.4);

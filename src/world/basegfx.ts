@@ -867,6 +867,47 @@ function drawRevive(n: number): PieceArt {
   return { body, windows, windowGlow, lamp: { x: W - 30, y: 34 } };
 }
 
+/**
+ * Signal array SA-1 (milestone 10): a squat brass-and-charcoal hull with a
+ * listening dish raised on a mast, a ring of receiver rods and a decoder window.
+ */
+function drawSignal(n: number): PieceArt {
+  const W = CELL * 2;
+  const H = CELL * 2;
+  const body = new Container();
+  const g = body.addChild(new Graphics());
+  const windows = new Graphics();
+  const windowGlow = new Graphics();
+  tubeH(g, 0, 18, H - CELL / 2, 1);
+  tubeH(g, W - 18, W, H - CELL / 2, 1);
+  // The hull.
+  g.roundRect(12, H - CELL + 6, W - 24, CELL - 14, 10).fill({ color: PAL.steel });
+  g.rect(12, H - CELL + 18, W - 24, 4).fill({ color: 0xa8822e });
+  g.roundRect(30, H - CELL + 32, W - 60, 30, 6).fill({ color: PAL.steelDeep });
+  windows.roundRect(34, H - CELL + 36, W - 68, 22, 4).fill({ color: 0xffd98a, alpha: 0.7 });
+  for (let k = 0; k < 6; k++) windows.rect(40 + k * ((W - 86) / 5), H - CELL + 40, 3, 14).fill({ color: 0x1a1410, alpha: 0.6 });
+  windowGlow.roundRect(26, H - CELL + 28, W - 52, 38, 8).fill({ color: PAL.warm, alpha: 0.25 });
+  // Mast and dish.
+  const mx = W / 2;
+  g.rect(mx - 6, 40, 12, H - CELL - 30).fill({ color: PAL.chrome });
+  g.moveTo(mx - 62, 34).quadraticCurveTo(mx, 82, mx + 62, 34).lineTo(mx + 56, 30).quadraticCurveTo(mx, 70, mx - 56, 30).closePath().fill({ color: 0xa8822e });
+  g.moveTo(mx - 62, 34).quadraticCurveTo(mx, 82, mx + 62, 34).stroke({ color: PAL.chrome, width: 2 });
+  g.moveTo(mx - 40, 40).lineTo(mx, 10).lineTo(mx + 40, 40).stroke({ color: PAL.chrome, width: 1.6 });
+  g.circle(mx, 10, 5).fill({ color: PAL.steelDark });
+  windows.circle(mx, 10, 2.6).fill({ color: 0xffe0a0 });
+  // Receiver rods around the hull's roof.
+  for (let k = 0; k < 7; k++) {
+    const x = 24 + k * ((W - 48) / 6);
+    g.rect(x - 1.5, H - CELL - 18, 3, 24).fill({ color: PAL.chrome });
+    g.circle(x, H - CELL - 19, 2.6).fill({ color: 0xa8822e });
+  }
+  rivets(g, 18, H - CELL + 12, W - 18, H - CELL + 12, 14);
+  goldTraces(g, 20, H - 22, W - 40, 3);
+  body.addChild(stencil(`SA-${n}`, W / 2, H - 12, 6));
+  algaeLine(g, 12, W - 12, H - 8, 20);
+  return { body, windows, windowGlow, lamp: { x: mx, y: 8 } };
+}
+
 /** Inside of a creature tank (local): the water the creatures swim in. */
 export const TANK_INNER = { x: 16, y: 16, w: CELL * 2 - 32, h: CELL - 30 };
 /** Milestone 7 part 2: the Grand tank's water, 3 × 2 cells. */
@@ -1404,6 +1445,7 @@ export function drawPiece(kind: PieceKind, n: number, rot: number, seed: number)
   if (kind === 'hatch') return drawHatchery(n);
   if (kind === 'farm') return drawFarm(n);
   if (kind === 'revive') return drawRevive(n);
+  if (kind === 'signal') return drawSignal(n);
   if (kind === 'filter') return drawFilter(n);
   if (kind === 'feeder') return drawFeeder(n);
   if (kind === 'press') return drawPress(n);
@@ -1534,7 +1576,7 @@ export class BaseView {
       for (const w of l.whorls) this.dropWhorl(w);
       this.live.delete(id);
     }
-    const counts: Record<PieceKind, number> = { dome: 0, corridor: 0, turbine: 0, storage: 0, tank: 0, filter: 0, feeder: 0, press: 0, dock: 0, lab: 0, workshop: 0, gtank: 0, sorter: 0, recomp: 0, crane: 0, hatch: 0, farm: 0, revive: 0, shaft: 0, junction: 0, bracket: 0 };
+    const counts: Record<PieceKind, number> = { dome: 0, corridor: 0, turbine: 0, storage: 0, tank: 0, filter: 0, feeder: 0, press: 0, dock: 0, lab: 0, workshop: 0, gtank: 0, sorter: 0, recomp: 0, crane: 0, hatch: 0, farm: 0, revive: 0, shaft: 0, junction: 0, bracket: 0, signal: 0 };
     for (const p of [...layout.pieces].sort((a, b) => a.id - b.id)) {
       counts[p.kind]++;
       if (this.live.has(p.id)) continue;
