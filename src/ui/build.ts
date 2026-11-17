@@ -214,6 +214,16 @@ export class BuildMode {
   /** The build bar's category tabs, and the row of cards that scrolls beside them. */
   private tabBtns = new Map<BarTab, HTMLButtonElement>();
   private cardRow = document.createElement('div');
+  private arrowPrev!: HTMLButtonElement;
+  private arrowNext!: HTMLButtonElement;
+  /** Show the row's arrow buttons only where there are more cards to scroll to. */
+  private updateArrows(): void {
+    const r = this.cardRow;
+    const max = r.scrollWidth - r.clientWidth;
+    // The row rests a padding's width in at either end (scroll snapping), so allow for it.
+    this.arrowPrev.classList.toggle('show', max > 20 && r.scrollLeft > 20);
+    this.arrowNext.classList.toggle('show', max > 20 && r.scrollLeft < max - 20);
+  }
   private tab: BarTab = 'all';
   private removeArmed = 0;
   private reason: string | null = null;
@@ -249,7 +259,66 @@ export class BuildMode {
       this.tabBtns.set(id, t);
     }
     this.cardRow.className = 'bar-cards';
-    this.bar.append(tabs, this.cardRow);
+    // On a PC (after the terrain pass: Colin couldn't reach the cards off the right edge),
+    // the row scrolls with the mouse wheel, by dragging it, and with arrow buttons at each end.
+    const rowWrap = document.createElement('div');
+    rowWrap.className = 'bar-row';
+    const arrow = (dir: -1 | 1) => {
+      const a = document.createElement('button');
+      a.type = 'button';
+      a.className = `bar-arrow ${dir < 0 ? 'prev' : 'next'}`;
+      a.setAttribute('aria-label', dir < 0 ? 'Scroll pieces left' : 'Scroll pieces right');
+      a.textContent = dir < 0 ? '‹' : '›';
+      a.addEventListener('pointerdown', (e) => e.stopPropagation());
+      a.addEventListener('click', () => this.cardRow.scrollBy({ left: dir * Math.max(162, this.cardRow.clientWidth * 0.75), behavior: 'smooth' }));
+      return a;
+    };
+    this.arrowPrev = arrow(-1);
+    this.arrowNext = arrow(1);
+    rowWrap.append(this.arrowPrev, this.cardRow, this.arrowNext);
+    this.bar.append(tabs, rowWrap);
+    this.cardRow.addEventListener(
+      'wheel',
+      (e) => {
+        if (this.cardRow.scrollWidth <= this.cardRow.clientWidth) return;
+        e.preventDefault();
+        e.stopPropagation();
+        const unit = e.deltaMode === 1 ? 30 : 1;
+        const d = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+        this.cardRow.scrollBy({ left: d * unit });
+      },
+      { passive: false },
+    );
+    // Click-drag the row with a mouse; a drag of more than a few pixels doesn't pick a card.
+    let rowDrag: { x: number; left: number; moved: boolean } | null = null;
+    this.cardRow.addEventListener('pointerdown', (e) => {
+      if (e.pointerType !== 'mouse' || e.button !== 0) return;
+      rowDrag = { x: e.clientX, left: this.cardRow.scrollLeft, moved: false };
+    }, { capture: true });
+    window.addEventListener('pointermove', (e) => {
+      if (!rowDrag) return;
+      const dx = e.clientX - rowDrag.x;
+      if (Math.abs(dx) > 6) rowDrag.moved = true;
+      if (rowDrag.moved) {
+        this.cardRow.style.scrollSnapType = 'none';
+        this.cardRow.scrollLeft = rowDrag.left - dx;
+      }
+    });
+    window.addEventListener('pointerup', () => {
+      if (rowDrag?.moved) {
+        // Swallow the click that ends the drag.
+        const stop = (ev: Event) => {
+          ev.stopPropagation();
+          ev.preventDefault();
+        };
+        window.addEventListener('click', stop, { capture: true, once: true });
+        setTimeout(() => window.removeEventListener('click', stop, { capture: true }), 0);
+      }
+      rowDrag = null;
+      this.cardRow.style.scrollSnapType = '';
+    });
+    this.cardRow.addEventListener('scroll', () => this.updateArrows(), { passive: true });
+    window.addEventListener('resize', () => this.updateArrows());
     for (const kind of PIECE_ORDER) {
       const b = document.createElement('button');
       b.type = 'button';
@@ -1253,6 +1322,7 @@ export class BuildMode {
   }
 
   refresh(): void {
+    requestAnimationFrame(() => this.updateArrows());
     const { save, layout, factory } = this.deps;
     if (this.selected && !layout.pieces.includes(this.selected)) this.selected = layout.pieces.find((p) => p.id === this.selected!.id) ?? null;
     if (this.selectedLine !== null && !save.lines.some((l) => l.id === this.selectedLine)) this.selectedLine = null;
