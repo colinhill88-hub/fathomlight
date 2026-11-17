@@ -59,6 +59,16 @@ export interface Preset {
    * but the world's own edges (rock ridges, emissive shapes) do on a screen that is not very dense. Ultra only.
    */
   hdrMsaa: boolean;
+  // ---- Graphics session G2: light with form and shadow. Each has a Settings toggle (FxToggles). ----
+  /** How many lights cast shadows (the diver's lamp, the sub's lights), and how many steps each shadow march takes. */
+  lightShadows: number;
+  shadowSteps: number;
+  /** Relief lighting from the art's own bumps and edges: strength (0 = off) and whether it samples twice as widely. */
+  relief: number;
+  reliefWide: boolean;
+  /** Most contact shadows drawn where things meet the seabed, and how strong the base's are. */
+  contactShadows: number;
+  contactStrength: number;
   /** Leave out caustics where they cannot be seen (deep water, caves, shade). */
   skipHiddenCaustics: boolean;
 }
@@ -72,13 +82,17 @@ export interface FxToggles {
   vignette: boolean;
   grain: boolean;
   causticSkip: boolean;
+  /** G2 */
+  shadows: boolean;
+  relief: boolean;
+  contact: boolean;
   /** Smooth edges (MSAA on the world picture). Missing = the preset's own choice (Ultra on, High off). */
   edges?: boolean;
   /** The dev performance overlay. */
   perf: boolean;
 }
 
-export const FX_DEFAULT: FxToggles = { hdr: true, tone: true, grade: true, bloom: true, vignette: true, grain: true, causticSkip: true, perf: false };
+export const FX_DEFAULT: FxToggles = { hdr: true, tone: true, grade: true, bloom: true, vignette: true, grain: true, causticSkip: true, shadows: true, relief: true, contact: true, perf: false };
 
 const FX_KEY = 'fathomlight.fx';
 
@@ -132,6 +146,13 @@ export const PRESETS: Record<PresetId, Preset> = {
     grain: 0.6,
     skipHiddenCaustics: true,
     hdrMsaa: false,
+    // G2: the phone gets the lamp only, short marches, plain relief and few contact shadows.
+    lightShadows: 1,
+    shadowSteps: 10,
+    relief: 0.55,
+    reliefWide: false,
+    contactShadows: 6,
+    contactStrength: 0.4,
   },
   ultra: {
     id: 'ultra',
@@ -159,6 +180,12 @@ export const PRESETS: Record<PresetId, Preset> = {
     grain: 1,
     skipHiddenCaustics: true,
     hdrMsaa: true,
+    lightShadows: 3,
+    shadowSteps: 22,
+    relief: 0.8,
+    reliefWide: true,
+    contactShadows: 12,
+    contactStrength: 0.5,
   },
 };
 

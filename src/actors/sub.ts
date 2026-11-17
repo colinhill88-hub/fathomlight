@@ -166,7 +166,7 @@ export class Sub {
   private seam = new Graphics();
   private seamGlow = new Graphics();
   private armAngles = { upper: 2.85, fore: -2.9 };
-  private lampLight: Light = { x: 0, y: 0, radius: 520, intensity: 0, color: [1, 0.9, 0.74], coneCos: 0.88, coneSoft: 0.12, haze: 0.3 };
+  private lampLight: Light = { x: 0, y: 0, radius: 520, intensity: 0, color: [1, 0.9, 0.74], coneCos: 0.88, coneSoft: 0.12, haze: 0.3, shadow: true };
   /** The pilot in the cabin, and how far in they are (0 = empty, 1 = seated). */
   private pilot = new Graphics();
   private pilotLevel = 0;

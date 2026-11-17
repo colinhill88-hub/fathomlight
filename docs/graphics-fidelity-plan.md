@@ -151,6 +151,8 @@ Expected result: the lamp and lures stop clipping, highlights roll off softly, e
 
 ### Session G2: light with form and shadow
 
+**Built 2026-11-17** (see PROGRESS.md, "Graphics session G2"). Contact shadows are drawn from the diver, sub, drone and base pieces (not yet creatures); relief lighting is the art-derived normals described below.
+
 1. **Occupancy bake** of the world (rock, cave field, the Corvina, wrecks) next to the sky bake, plus the interior tile map as its own occupancy texture.
 2. **Shadowed lights:** the lamp, the sub's floodlights and other large lights march toward their source (Ultra), lamp only and fewer steps on High. The visible beam stops at walls, so the cone shows real shafts between pillars and around rocks.
 3. **2.5D normals** from the art (bevel from coverage, bumps from brightness): directional shading from the sun and from each light, rim light, caustics on up-facing surfaces only.

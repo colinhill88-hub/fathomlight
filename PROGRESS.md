@@ -1,6 +1,6 @@
 # Fathomlight progress
 
-Last updated: 2026-11-17, **graphics session G1 deployed (performance overlay, `?bench` benchmark route, HDR post stack)**. Next is **graphics session G2** (light with form and shadow; see Next), then milestone 9, breeding, unless Colin reorders. Colin's PC and iPhone benchmark numbers for G1 are still to come (see "Graphics session G1").
+Last updated: 2026-11-17, **graphics session G2 deployed (shadowed lamps, relief lighting, contact shadows)**, on top of G1 (performance overlay, `?bench`, HDR post stack). Next is **graphics session G3** (atmosphere and composition; see Next), then milestone 9, breeding, unless Colin reorders. Colin's PC and iPhone `?bench` numbers for G1 and G2 are still to come.
 
 Play link: https://colinhill88-hub.github.io/fathomlight/ (live; first successful deploy 2026-11-14)
 
@@ -43,6 +43,9 @@ These are defined in `src/presets.ts`. **Auto** picks High on touch devices (iPh
 | *G1:* Colour grading, vignette | per zone, vignette as before | same |
 | *G1:* Film grain | 0.6 | 1.0 |
 | *G1:* Skip hidden caustics | on | on |
+| *G2:* Lamp shadows | the diver's lamp casts; 10 march steps | the diver's lamp and the sub's lights (up to 3 lights); 22 steps |
+| *G2:* Relief lighting | 4 taps, strength 0.55 | 8 taps, strength 0.8 |
+| *G2:* Contact shadows | up to 6, base 0.4 | up to 12, base 0.5 |
 
 Every effect in the DESIGN.md High row is on in High: dynamic lights, light shafts, caustics, depth fog, glow, water distortion and particles.
 
@@ -1152,9 +1155,22 @@ Cut from High so far: the phone renders at 2× instead of its native 3×. Colin 
 2. Look at the game in the shallows, grotto, forest and shelf, and flip **Tone mapping, Colour grading, Bloom, Vignette** one at a time (Settings → Graphics effects). Say which you like and which are too strong.
 3. Tell us the grotto's frame rate on the iPhone with everything on, against his earlier mid-30s.
 
+### Graphics session G2: light with form and shadow (2026-11-17)
+- **Colin's feedback on G1:** the Settings panel would not scroll by touch (fixed straight away: `touch-action: pan-y`); "I like the look". He chose G2 next. His G1 PC and iPhone `?bench` numbers had not arrived, so the G2 cost is also unmeasured on real hardware.
+- **Lamp shadows** (`src/fx/lighting.ts`, `src/world/terrain.ts`): the world bake now also stores **where rock, steel and sand are** (the green channel of the same mask the daylight bake uses, so no extra texture). The diver's lamp and the sub's lights **march from each lit pixel towards the lamp** through that map: thick rock or hull between blocks the light, so the cone and its visible beam **stop at pillars, ceilings and the Corvina's hull** and leave real shadow behind them (see the caves and shelf pairs). A pixel's own rock counts as its surface, not as a shadow (otherwise the lit floor goes dark), and a thin skin of rock only dims. Only the first few lights cast (`lightShadows`), the rest stay as before.
+- **Relief lighting:** a surface normal worked out from the art itself (coverage plus brightness slope, 4 taps; 8 on Ultra). Each light, and the sun, now shades by the normal, so rock, hull plates and rivets pick up form; caustics fall only on surfaces that face up. Strength 0.55 (High) and 0.8 (Ultra), `relief` in `presets.ts`.
+- **Contact shadows** (generalising the diver's old Ultra-only ellipse): soft ellipses under the diver, the sub, the drone and the feet of base pieces on the seabed, up to 6 (High) or 12 (Ultra), on both presets.
+- **Interiors** (`src/interior/light.ts`): a one-pixel-per-tile steel map (`setOccupancy`) lets the helmet lamp and the nearest room lamps cast shadows through walls (so a lamp no longer lights the next room through a wall), plus the same relief lighting.
+- **Settings → Graphics effects:** new toggles **Lamp shadows, Relief lighting, Contact shadows** (with all of them off the picture matches G1).
+- **Readability:** mean brightness of the seven benchmark scenes changed by at most -2%, except the caves (-21%: the lamp no longer lights through the rock, so the black chamber is darker behind pillars; the lit parts, pickups and brackets are unchanged) and the base interior (-6%). If the caves are too dark, raise the rock softness (`uShadowCfg[1]`, 26) or lower `lightShadows`.
+- **Screenshots** before and after (Ultra, 1280 x 680, software renderer): `docs/art/fidelity/g2-before-*.jpg` and `g2-after-*.jpg`.
+- **Cloud numbers, relative only** (640 x 340 Ultra and 422 x 195 High so the software renderer can keep up; two runs each, six outdoor scenes averaged; software frame ms, not GPU time, about 20% noise): Ultra 477 ms before, 501 after (+5%); High 185 before, 190 after (+3%). Draw calls and triangles are unchanged within noise. The base interior in High was about 25% slower in software (50 to 62 ms), since its shader got a march and normals; it is a light scene, but **check indoors on the phone**.
+- **Cost to measure on real hardware:** the shadow march only runs for pixels inside a lit cone (10 taps High, 22 Ultra, jittered per pixel and per frame so it shows up as grain, not bands); relief is 4 or 8 taps for every lit pixel. The G1 overlay shows GPU ms per pass: compare the `scene` pass with Lamp shadows and Relief lighting on and off in the grotto and the black chamber.
+- **If High is more than about 10% slower than after G1 on the iPhone**, cut in this order (each a toggle and a number in `presets.ts`): Relief lighting, then `shadowSteps` (10 to 6), then Contact shadows. Nothing has been cut from High yet.
+
 ## Next
 
-**Next session: graphics session G2, light with form and shadow** (plan in `docs/graphics-fidelity-plan.md`, section 5), once Colin has looked at G1 and sent his PC and iPhone numbers: a baked occupancy map of the world, shadowed lamp and floodlights (the beam stops at walls), 2.5D normals from the art, and contact shadows. The grotto and the black chamber are its stress scenes; run the `?bench` route before and after. Then G3 (atmosphere and composition), then milestone 9, breeding (prompt in `docs/prompts/milestone-9.md`, questions in DESIGN.md), unless Colin reorders.
+**Next session: graphics session G3, atmosphere and composition** (plan in `docs/graphics-fidelity-plan.md`, section 5): zone backdrops cached to textures, depth of field on the near kelp, god rays from the surface blocked by kelp and hardware, lamp-lit marine snow, and caustic shimmer near the surface. G4 (materials and creatures) after that if Colin wants it, then milestone 9, breeding (prompt in `docs/prompts/milestone-9.md`), unless Colin reorders. Run `?bench` before and after, and ask Colin for his PC and iPhone numbers for G1, G2 and G3.
 - **Left over from the walkable base:** more detail in the machine rooms (feeder, press, filter, sorter, crane), line code plates indoors, and a sound for the lines and machines. Do these alongside a later milestone if Colin asks.
 - **The harpoon:** decoration on the Crest diver for now; use its design for later tools and weapons.
 
@@ -1167,6 +1183,8 @@ Where things are (on foot):
 - the hand-off: `src/main.ts` (`enterBase`, `exitBase`, `peekOut`, `backInside`, `simBase`, `interiorFrame`).
 
 ## Problems and open questions
+
+- **Graphics session G2, to check after Colin plays:** the caves are darker behind pillars (by design, see above); the shadow march is not yet measured on a GPU; moving things that are not in the bake (the kelp wall, the boom gate, creatures, the sub's hull) do not cast shadows; the interior's walls cast but its doors and gratings do not. Lights other than the diver's lamp and the sub's still pass through rock (moss, anemones, lures): that is deliberate for now (small radius), and the list is one flag, `shadow: true`, per light.
 
 - **Graphics session G1, to check after Colin measures:**
   - **No real GPU numbers exist yet.** The cloud has none. Colin's PC (RTX 5080) and iPhone numbers from `?bench` are the first real ones; until then the High cost review in the G1 section is a plan, not a measurement.

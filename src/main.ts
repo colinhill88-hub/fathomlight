@@ -82,7 +82,7 @@ import { Scanner } from './game/scanner';
 import { SurfaceFx } from './fx/surface';
 import { Hud } from './ui/hud';
 import { DiveWatch } from './ui/watch';
-import { BaseLayout, berthOf, cellOpen, GRID_BASE, GRID_X0, GRID_X1, isDone, isStoreKind, isTankKind, pieceCode, PIECES, pieceRect, Placed, shapeOf, SORT_BAY, STORAGE_PER_POD } from './game/base';
+import { BaseLayout, berthOf, cellOpen, GRID_BASE, GRID_X0, GRID_X1, isDone, onSeabed, isStoreKind, isTankKind, pieceCode, PIECES, pieceRect, Placed, shapeOf, SORT_BAY, STORAGE_PER_POD } from './game/base';
 import { Sub } from './actors/sub';
 import { airClock, DENT_PER_SPEED, DENT_SPEED, docks, holdKg, SUB_AIR, SUB_BUILD_TIME, SUB_COST, subDock } from './game/sub';
 import { DockMode } from './ui/dock';
@@ -344,6 +344,7 @@ async function boot(): Promise<void> {
     coneCos: 0.86,
     coneSoft: 0.14,
     haze: 0.32,
+    shadow: true,
   };
 
   function populate(): void {
@@ -1004,6 +1005,12 @@ async function boot(): Promise<void> {
   /** Size the post stack's pictures and pick half-float or the 8-bit fallback (from the preset and the Settings toggles). */
   function applyPost(res = pixelRatioFor(preset, cssW, cssH)): void {
     post.resize(cssW, cssH, res, preset.hdr && fx.hdr, preset.bloomLevels, fx.bloom && preset.bloom > 0, preset.bloomScale, fx.edges ?? preset.hdrMsaa);
+    // G2: the interiors' lighting follows the same settings (the helmet lamp and the nearest room lamps cast shadows).
+    interior.look = {
+      shadowLights: fx.shadows ? preset.lightShadows + 1 : 0,
+      shadowSteps: Math.min(32, Math.round(preset.shadowSteps * 1.3)),
+      relief: fx.relief ? preset.relief : 0,
+    };
   }
 
   function rebuild(): void {
@@ -1050,7 +1057,7 @@ async function boot(): Promise<void> {
       fx = { ...fx, [key]: on };
       saveFx(fx);
       if (key === 'perf') perfOverlay.show(on);
-      else if (key === 'hdr' || key === 'bloom' || key === 'edges') applyPost();
+      else if (key === 'hdr' || key === 'bloom' || key === 'edges' || key === 'shadows' || key === 'relief') applyPost();
     },
     fxNote: () => (post.supportsHalfFloat ? (post.halfFloat ? 'HDR picture: half-float' : 'HDR picture: off (8-bit)') : 'This device cannot render to half-float, so the picture is 8-bit: tone mapping is off (nothing to roll off) and bloom starts lower.'),
     setChoice: (c) => {
@@ -2606,8 +2613,30 @@ async function boot(): Promise<void> {
     diver.lensGlow.alpha = diver.lamp * diver.view.alpha;
 
     const lights: Light[] = [...(save.sub ? sub.lights : []), lampLight, ...drone.lights, ...scenery.lights, ...baseView.lights, ...pickups.lights, ...wildlife.lights, ...lurkers.lights, ...fish.map((f) => f.light)];
-    const floor = groundY(Math.max(WORLD_X0, Math.min(WORLD_W, diver.x)));
-    const height = floor - diver.y;
+    // G2: soft contact shadows where things meet the seabed (the diver's, the sub's, the drone's and the base's feet).
+    const contacts: [number, number, number, number][] = [];
+    if (fx.contact && preset.contactShadows > 0) {
+      const add = (x: number, y: number, r: number, strength: number) => {
+        if (Math.abs(x - (camX + viewW / 2)) < viewW / 2 + r * 1.2 && strength > 0.02) contacts.push([x, y, r, strength]);
+      };
+      const under = (x: number, y: number, r: number, k: number, fall: number, reach: number) => {
+        const f = groundY(Math.max(WORLD_X0, Math.min(WORLD_W, x)));
+        const h = f - y;
+        if (h < reach) add(x, f + 6, r + h * 0.25, k * Math.exp(-Math.max(0, h) / fall));
+      };
+      if (!aboard) under(diver.x, diver.y, 70, 0.55, 220, 420);
+      if (save.sub) under(sub.x, sub.y, 120, 0.5, 260, 500);
+      if (drone.view.alpha > 0.1) under(drone.x, drone.y, 34, 0.35, 160, 300);
+      for (const p of layout.pieces) {
+        if (!isDone(p) || !onSeabed(p.gx, p.gy)) continue;
+        const r = pieceRect(p);
+        const cx = r.x + r.w / 2;
+        add(cx, groundY(Math.max(WORLD_X0, Math.min(WORLD_W, cx))) + 4, r.w * 0.55, preset.contactStrength * 0.8);
+      }
+      const mx = camX + viewW / 2;
+      contacts.sort((a, b) => Math.abs(a[0] - mx) - Math.abs(b[0] - mx));
+      contacts.length = Math.min(contacts.length, preset.contactShadows);
+    }
     lighting.update({
       time,
       camX,
@@ -2620,10 +2649,11 @@ async function boot(): Promise<void> {
       maxLights: preset.maxLights,
       chromatic: preset.chromaticCaustics,
       skipHiddenCaustics: preset.skipHiddenCaustics && fx.causticSkip,
-      shadow:
-        preset.softShadows && height < 420
-          ? [diver.x, floor + 6, 70 + height * 0.25, 0.55 * Math.exp(-height / 220)]
-          : null,
+      contacts,
+      shadowLights: fx.shadows ? preset.lightShadows : 0,
+      shadowSteps: preset.shadowSteps,
+      relief: fx.relief ? preset.relief : 0,
+      reliefWide: preset.reliefWide,
     });
     water.update(time, camX, camY, viewW, viewH, app.canvas.width, app.canvas.height);
     backdrop.update(camCX, camCY, zoom, cssW, cssH);
