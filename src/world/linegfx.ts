@@ -26,7 +26,7 @@ const R = (a: number, b: number) => a + rand() * (b - a);
 
 const BELT = 10;
 /** Bundle colours on a belt, by what it carries: body and highlight. */
-const ITEM_COLOURS: Record<MaterialId, [number, number]> = {
+export const ITEM_COLOURS: Record<MaterialId, [number, number]> = {
   fibre: [0xc8a050, 0xf0d890],
   scrap: [0x7a685a, 0xb0a8a0],
   copper: [0x7d6048, 0x7fc39a],
