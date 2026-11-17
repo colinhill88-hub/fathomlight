@@ -211,17 +211,19 @@ export class Walker {
     // The helmet shell (back half) in neon lime, and the tall swept crest fin.
     g.moveTo(hx - 13, hy + 7).arc(hx, hy, 13.5, Math.PI * 0.72, Math.PI * 1.62).stroke({ color: C.visor, width: 4.5 });
     g.moveTo(hx - 13, hy + 7).arc(hx, hy, 13.5, Math.PI * 0.72, Math.PI * 1.62).stroke({ color: C.visorEdge, width: 1.2 });
-    g.moveTo(hx + 6, hy - 12)
-      .quadraticCurveTo(hx - 2, hy - 30, hx - 16, hy - 30)
-      .quadraticCurveTo(hx - 10, hy - 20, hx - 11, hy - 8)
+    // Swept crest fin: rises from the brow and sweeps back past the helmet, like the concept's.
+    g.moveTo(hx + 7, hy - 11)
+      .quadraticCurveTo(hx + 2, hy - 22, hx - 15, hy - 26)
+      .quadraticCurveTo(hx - 10, hy - 18, hx - 13, hy - 5)
+      .quadraticCurveTo(hx - 4, hy - 14, hx + 7, hy - 11)
       .closePath()
-      .fill({ color: C.visor, alpha: 0.85 })
+      .fill({ color: C.visor, alpha: 0.9 })
       .stroke({ color: C.visorEdge, width: 1 });
-    g.moveTo(hx + 2, hy - 15).quadraticCurveTo(hx - 4, hy - 25, hx - 12, hy - 27).stroke({ color: 0xf4ffd0, width: 1.2, alpha: 0.6 });
+    g.moveTo(hx + 3, hy - 15).quadraticCurveTo(hx - 3, hy - 21, hx - 11, hy - 23).stroke({ color: 0xf4ffd0, width: 1.2, alpha: 0.6 });
     // The chrome rebreather ring around the jaw.
     g.ellipse(hx + 6, hy + 8, 6, 4).fill({ color: C.chrome }).ellipse(hx + 7, hy + 8, 2.6, 1.8).fill({ color: C.chromeDark });
     // The face plate: lime glass hinged at the top of the helmet. It lifts up and back.
-    const ang = -this.visor * 1.7;
+    const ang = -this.visor * 1.05;
     const pts: number[] = [];
     for (let k = 0; k <= 10; k++) {
       const a = -Math.PI * 0.45 + (k / 10) * Math.PI * 0.95;
@@ -234,7 +236,7 @@ export class Walker {
       const py = pts[k + 1] + hy - hinge.y;
       rot.push(hinge.x + px * Math.cos(ang) - py * Math.sin(ang), hinge.y + px * Math.sin(ang) + py * Math.cos(ang));
     }
-    g.poly(rot).fill({ color: C.visor, alpha: 0.32 });
+    g.poly(rot).fill({ color: C.visor, alpha: 0.32 - this.visor * 0.14 });
     g.poly(rot).stroke({ color: C.visorEdge, width: 1.4, alpha: 0.9 });
     // Lamp on the helmet's side.
     g.circle(hx + 12, hy + 3, 3).fill({ color: C.chromeDark });

@@ -810,6 +810,17 @@ export class Interior {
     w.x += (tx * T + T / 2 - w.x) * Math.min(1, dt * 12);
     if (Math.abs(inp.moveX) > 0.2) w.face = inp.moveX > 0 ? 1 : -1;
     const dir = Math.abs(inp.moveY) > 0.25 ? Math.sign(inp.moveY) : 0;
+    // Step off sideways where the ladder passes a floor.
+    if (Math.abs(inp.moveX) > 0.6 && dir === 0) {
+      const fy = Math.round(w.y / T) * T;
+      const under = this.ch(Math.floor((w.x + Math.sign(inp.moveX) * T) / T), fy / T);
+      if (Math.abs(w.y - fy) < 14 && (under === '#' || under === '=')) {
+        w.y = fy;
+        this.climbing = false;
+        w.onGround = true;
+        return;
+      }
+    }
     w.vx = 0;
     w.vy = dir * CLIMB;
     const ny = w.y + w.vy * dt;

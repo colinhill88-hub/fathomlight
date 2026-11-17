@@ -104,7 +104,8 @@ export function buildBaseLevel(layout: BaseLayout): BaseLevel | null {
       } else {
         // A grating mezzanine on each upper level, and a ladder up the left side.
         for (let k = 1; k < r.h; k++) for (let tx = r.tx0 + 1; tx < r.tx0 + r.tw - 1; tx++) set(tx, r.ty0 + k * CH - 1, '=');
-        for (let ty = r.ty0 + 1; ty < r.ty0 + r.th - 1; ty++) set(r.tx0 + 2, ty, 'H');
+        // The ladder tops out at the highest mezzanine, so you step off onto it.
+        for (let ty = r.ty0 + CH - 1; ty < r.ty0 + r.th - 1; ty++) set(r.tx0 + 2, ty, 'H');
       }
     }
   }
@@ -292,7 +293,7 @@ export class BaseHooks implements InteriorHooks {
         add(b.ox + 70, b.bottom, 'info', 60);
         break;
       case 'turbine':
-        this.turbines.push({ x: b.cx + 14, y: b.floor(0) - 96, r: 84, id });
+        this.turbines.push({ x: b.ox + 140, y: b.floor(0) - 92, r: 64, id });
         add(b.cx, b.bottom, 'info', 120);
         break;
       case 'corridor':
@@ -414,7 +415,7 @@ export class BaseHooks implements InteriorHooks {
     for (const p of this.level.ports) {
       g.circle(p.x, p.y, 22).fill({ color: COL.chrome });
       g.circle(p.x, p.y, 17).fill({ color: COL.glassSea });
-      e.circle(p.x, p.y, 16).fill({ color: 0x0e3a46, alpha: 0.85 });
+      g.circle(p.x, p.y, 16).fill({ color: 0x2a7080, alpha: 0.85 });
       e.circle(p.x - 6, p.y - 6, 4).fill({ color: 0x9ae0e0, alpha: 0.25 });
     }
   }
@@ -466,8 +467,8 @@ export class BaseHooks implements InteriorHooks {
         };
         g.poly(half(rx + 8, ry + 8)).fill({ color: COL.chrome });
         g.poly(half(rx, ry)).fill({ color: COL.glassSea });
-        e.poly(half(rx, ry)).fill({ color: 0x173f2a, alpha: 0.75 });
-        e.poly(half(rx * 0.8, ry * 0.6)).fill({ color: 0x2a5a2a, alpha: 0.3 });
+        g.poly(half(rx, ry)).fill({ color: 0x3a7a3a, alpha: 0.75 });
+        g.poly(half(rx * 0.8, ry * 0.6)).fill({ color: 0x2a5a2a, alpha: 0.3 });
         for (const k of [-0.6, -0.3, 0, 0.3, 0.6]) g.rect(wx + k * rx - 2, wy - ry * Math.sqrt(1 - k * k), 4, ry * Math.sqrt(1 - k * k)).fill({ color: COL.chromeDark });
         g.rect(wx - rx - 8, wy - 4, rx * 2 + 16, 8).fill({ color: COL.chrome });
         e.moveTo(wx - rx * 0.7, wy - ry * 0.55).quadraticCurveTo(wx - rx * 0.2, wy - ry * 0.95, wx + rx * 0.3, wy - ry * 0.9).stroke({ color: 0xe8ffc0, width: 4, alpha: 0.18 });
@@ -516,7 +517,7 @@ export class BaseHooks implements InteriorHooks {
           }
           g.circle(b.cx, b.oy + 60, 26).fill({ color: COL.chrome });
           g.circle(b.cx, b.oy + 60, 20).fill({ color: COL.glassSea });
-          e.circle(b.cx, b.oy + 60, 19).fill({ color: 0x1c4a20, alpha: 0.7 });
+          g.circle(b.cx, b.oy + 60, 19).fill({ color: 0x3a7a3a, alpha: 0.7 });
           e.circle(b.cx - 6, b.oy + 54, 5).fill({ color: COL.lime, alpha: 0.35 });
         } else {
           for (let y = b.oy + 20; y < b.oy + b.oh; y += 50) g.rect(b.ox, y, b.ow, 6).fill({ color: COL.chromeDark });
@@ -529,12 +530,12 @@ export class BaseHooks implements InteriorHooks {
         g.circle(t.x, t.y, t.r + 14).fill({ color: COL.chrome });
         g.circle(t.x, t.y, t.r + 14).stroke({ color: COL.chromeDark, width: 3 });
         g.circle(t.x, t.y, t.r).fill({ color: COL.glassSea });
-        e.circle(t.x, t.y, t.r).fill({ color: 0x0e3a44, alpha: 0.85 });
+        g.circle(t.x, t.y, t.r).fill({ color: 0x2a7080, alpha: 0.85 });
         for (let i = 0; i < 12; i++) {
           const a = (i / 12) * Math.PI * 2;
           g.circle(t.x + Math.cos(a) * (t.r + 7), t.y + Math.sin(a) * (t.r + 7), 2.4).fill({ color: COL.chromeDark });
         }
-        const sx = b.ox + 70;
+        const sx = b.ox + b.ow - 12;
         g.rect(sx - 9, b.oy, 18, b.oh).fill({ color: COL.wallDark });
         e.rect(sx - 4, b.oy, 8, b.oh).fill({ color: 0xffc040, alpha: 0.9 });
         gl.rect(sx - 10, b.oy, 20, b.oh).fill({ color: 0xffb030, alpha: 0.35 });
@@ -542,7 +543,7 @@ export class BaseHooks implements InteriorHooks {
         // Lower level: the generator housing, with lime grille vents.
         g.roundRect(b.ox + 110, bot - 120, b.ow - 140, 120, 6).fill({ color: COL.wallDark });
         g.rect(b.ox + 110, bot - 120, b.ow - 140, 4).fill({ color: COL.chrome });
-        for (let i = 0; i < 6; i++) e.rect(b.ox + 124, bot - 106 + i * 14, b.ow - 168, 7).fill({ color: COL.lime, alpha: 0.55 });
+        for (let i = 0; i < 6; i++) g.rect(b.ox + 124, bot - 106 + i * 14, b.ow - 168, 7).fill({ color: COL.lime, alpha: 0.55 });
         gl.rect(b.ox + 120, bot - 110, b.ow - 160, 84).fill({ color: COL.lime, alpha: 0.2 });
         this.screens.push({ x: b.cx + 30, y: bot - 70, radius: 200, intensity: 0.5, color: [0.75, 1, 0.3], zone: id } as Light);
         break;
@@ -556,7 +557,7 @@ export class BaseHooks implements InteriorHooks {
           g.rect(b.ox + 16, sy + 5, b.ow - 32, 2).fill({ color: COL.seam });
         }
         for (const x of [b.ox + 18, b.ox + b.ow - 24]) g.rect(x, bot - 150, 6, 150).fill({ color: COL.chromeDark });
-        if (r.kind === 'sorter') addText(sign('SORTING BAYS', b.cx, b.oy + 26, 9, 0xc6f03a, 0.7));
+        if (r.kind === 'sorter') addText(sign('SORTING BAYS', b.ox + b.ow - 90, b.oy + 26, 9, 0xc6f03a, 0.7));
         break;
       }
       case 'tank':
@@ -566,10 +567,10 @@ export class BaseHooks implements InteriorHooks {
         g.roundRect(t.x - 14, t.y - 14, t.w + 28, 4, 2).fill({ color: COL.chromeHi, alpha: 0.7 });
         g.roundRect(t.x, t.y, t.w, t.h, 6).fill({ color: COL.glassSea });
         // Water and sand drawn unlit so the tank glows from inside.
-        e.roundRect(t.x, t.y, t.w, t.h, 6).fill({ color: 0x0f4652, alpha: 0.92 });
-        e.rect(t.x, t.y, t.w, 26).fill({ color: 0x4ab0b0, alpha: 0.18 });
-        e.roundRect(t.x, t.y + t.h - 24, t.w, 24, 6).fill({ color: 0x8a7a58, alpha: 0.9 });
-        for (let i = 0; i < t.w / 18; i++) e.circle(t.x + rand() * t.w, t.y + t.h - 20 + rand() * 14, 2 + rand() * 4).fill({ color: 0x6a5a42, alpha: 0.8 });
+        g.roundRect(t.x, t.y, t.w, t.h, 6).fill({ color: 0x2a8a98, alpha: 1 });
+        g.rect(t.x, t.y, t.w, 26).fill({ color: 0x4ab0b0, alpha: 0.18 });
+        g.roundRect(t.x, t.y + t.h - 24, t.w, 24, 6).fill({ color: 0xb09a6e, alpha: 0.9 });
+        for (let i = 0; i < t.w / 18; i++) g.circle(t.x + rand() * t.w, t.y + t.h - 20 + rand() * 14, 2 + rand() * 4).fill({ color: 0x6a5a42, alpha: 0.8 });
         // Vertical frame bars every few metres.
         for (let x = t.x + 160; x < t.x + t.w - 40; x += 160) g.rect(x - 4, t.y - 14, 8, t.h + 28).fill({ color: COL.chromeDark });
         gl.roundRect(t.x + 20, t.y + 20, t.w - 40, t.h - 40, 30).fill({ color: 0x1a8080, alpha: 0.12 });
@@ -694,9 +695,9 @@ export class BaseHooks implements InteriorHooks {
       const id = r.piece.id;
       if (r.kind === 'dome' && on) {
         const cx2 = b.ox + b.ow - 120;
-        de.rect(cx2 - 42, bot - 62, 38, 24).fill({ color: 0x9ad040, alpha: 0.55 + 0.1 * Math.sin(time * 3) });
-        de.rect(cx2 + 4, bot - 62, 38, 24).fill({ color: 0xc6f03a, alpha: 0.45 });
-        for (let k = 0; k < 4; k++) de.rect(cx2 - 38, bot - 58 + k * 5, 10 + ((time * 20 + k * 7) % 24), 2).fill({ color: 0x0c1418, alpha: 0.6 });
+        d.rect(cx2 - 42, bot - 62, 38, 24).fill({ color: 0x9ad040, alpha: 0.55 + 0.1 * Math.sin(time * 3) });
+        d.rect(cx2 + 4, bot - 62, 38, 24).fill({ color: 0xc6f03a, alpha: 0.45 });
+        for (let k = 0; k < 4; k++) d.rect(cx2 - 38, bot - 58 + k * 5, 10 + ((time * 20 + k * 7) % 24), 2).fill({ color: 0x0c1418, alpha: 0.6 });
         const px = b.ox + b.ow - 90;
         const f0 = b.floor(0);
         for (let i = 0; i < 5; i++) de.rect(px - 36 + i * 16, f0 - 90 + Math.sin(time * 2 + i) * 4, 10, 30).fill({ color: COL.lime, alpha: 0.18 });
@@ -714,14 +715,14 @@ export class BaseHooks implements InteriorHooks {
         this.drawTank(r, d, de, time, on);
       } else if (r.kind === 'filter' && on) {
         for (const x of [b.ox + 50, b.ox + b.ow - 90]) {
-          de.roundRect(x, bot - 146, 40, 138, 6).fill({ color: 0x5a8a1e, alpha: 0.6 });
+          d.roundRect(x, bot - 146, 40, 138, 6).fill({ color: 0x5a8a1e, alpha: 0.6 });
           for (let i = 0; i < 6; i++) de.circle(x + 8 + ((i * 13) % 26), bot - 12 - ((time * 60 + i * 23) % 130), 2.4).fill({ color: 0xe0ff90, alpha: 0.7 });
         }
         de.circle(b.cx, bot - 40, 6).fill({ color: COL.lime, alpha: 0.8 });
       } else if (r.kind === 'feeder') {
         const lv = c.feederLevels(id);
         const vh = 134;
-        de.roundRect(b.ox + 88, bot - 8 - vh * lv.mash, b.ow - 126, vh * lv.mash, 6).fill({ color: 0x6a8a2a, alpha: 0.85 });
+        d.roundRect(b.ox + 88, bot - 8 - vh * lv.mash, b.ow - 126, vh * lv.mash, 6).fill({ color: 0x6a8a2a, alpha: 0.85 });
         const f0 = b.floor(0);
         d.rect(b.ox + 100, f0 - 46 - 90 * lv.hopper, b.ow - 150, 90 * lv.hopper).fill({ color: 0xc9a24a, alpha: 0.85 });
         if (lv.run && on) de.circle(b.ox + b.ow - 50, bot - 170, 4).fill({ color: COL.lime });
@@ -738,7 +739,7 @@ export class BaseHooks implements InteriorHooks {
         const busy = c.stationBusy(id);
         for (let i = 0; i < 5; i++) de.ellipse(b.cx, bot - 70 - i * 12, 50 - i * 8, 6).stroke({ color: COL.lime, width: 1.5, alpha: busy ? 0.6 : 0.25 });
         for (const x of [b.ox + 20, b.ox + b.ow - 80]) {
-          de.rect(x, b.oy + 50, 60, 40).fill({ color: 0x5a8a1e, alpha: 0.5 });
+          d.rect(x, b.oy + 50, 60, 40).fill({ color: 0x5a8a1e, alpha: 0.5 });
           if (busy) de.rect(x + 4, b.oy + 54 + ((time * 30) % 32), 52, 3).fill({ color: COL.lime, alpha: 0.8 });
         }
       } else if (r.kind === 'workshop') {
@@ -756,7 +757,7 @@ export class BaseHooks implements InteriorHooks {
         if (busy && Math.sin(time * 17) > 0.2) de.circle(tx, ty + 4, 5).fill({ color: 0xfff0b0 });
       } else if (r.kind === 'recomp' && on) {
         const cx = b.ox + b.ow * 0.62;
-        de.circle(cx, (b.oy + bot) / 2, 28).fill({ color: 0x8ac030, alpha: 0.35 + 0.1 * Math.sin(time * 2) });
+        d.circle(cx, (b.oy + bot) / 2, 28).fill({ color: 0x8ac030, alpha: 0.35 + 0.1 * Math.sin(time * 2) });
       } else if (r.kind === 'crane') {
         const f0 = b.floor(0);
         const sway = Math.sin(time * 0.8) * 6;
@@ -781,7 +782,7 @@ export class BaseHooks implements InteriorHooks {
         const sway = Math.sin(time * 1.2 + k) * 8;
         const hgt = pl === 'kelp' ? t.h * 0.7 : pl === 'coral' ? 50 : 70;
         const color = pl === 'kelp' ? 0x6a8a3a : pl === 'coral' ? 0xd87060 : pl === 'fan' ? 0xc89040 : 0x7aa050;
-        de.moveTo(px - 20 + k * 10, base)
+        d.moveTo(px - 20 + k * 10, base)
           .quadraticCurveTo(px - 20 + k * 10 + sway, base - hgt * 0.5, px - 20 + k * 10 + sway * 1.5, base - hgt * (0.6 + 0.08 * k))
           .stroke({ color, width: pl === 'kelp' ? 5 : 4, alpha: 0.85 });
       }
@@ -814,7 +815,7 @@ export class BaseHooks implements InteriorHooks {
         de.circle(x + dir * s * 0.5, y - s * 0.1, 3 * sz + 1).fill({ color: look.glow });
         de.moveTo(x - dir * s * 0.6, y).lineTo(x + dir * s * 0.3, y).stroke({ color: look.glow, width: 1.5, alpha: 0.7 });
       } else if (look.kind === 'puff') {
-        de.circle(x, y, s * 0.7).fill({ color: look.body, alpha: 0.6 });
+        d.circle(x, y, s * 0.7).fill({ color: look.body, alpha: 0.6 });
         for (let k = 0; k < 6; k++) de.moveTo(x - s * 0.5 + k * s * 0.2, y + s * 0.5).lineTo(x - s * 0.5 + k * s * 0.2 + Math.sin(time * 3 + k) * 4, y + s * 1.4).stroke({ color: look.glow, width: 1.2, alpha: 0.6 });
       } else if (look.kind === 'ray') {
         const flap = Math.sin(time * 3 + seed) * s * 0.25;

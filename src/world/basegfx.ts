@@ -49,24 +49,34 @@ export interface PieceReadings {
  *  - overlay: build mode only (grid, ghost piece, open collar markers)
  */
 
+/**
+ * After the Corvina on foot, Colin's new base kit (docs/art/kit2): charcoal
+ * hull, chrome joints and flanges, neon lime glass, a gold power line and one
+ * red lamp. No yellow plate, no hazard stripes. The old names are kept so
+ * every piece picks up the new look: "yellow" is now the darker hull panel.
+ */
 const PAL = {
-  steel: 0x5b6467,
-  steelLight: 0x8a9496,
-  steelDark: 0x3b4448,
-  steelDeep: 0x262d30,
-  yellow: 0xb8923f,
-  yellowDark: 0x7f6430,
-  rust: 0xa8402e,
-  rustDark: 0x6e2a1f,
-  streak: 0x8a3a20,
+  steel: 0x2c3236,
+  steelLight: 0xb8c4ca,
+  steelDark: 0x1b1f22,
+  steelDeep: 0x0f1214,
+  yellow: 0x383f44,
+  yellowDark: 0x24292c,
+  // Red is kept for the one status lamp; old red trim becomes dark chrome.
+  rust: 0x4a545a,
+  rustDark: 0x2a3034,
+  streak: 0x0c0e10,
   algae: 0x5e7a3c,
   algaeLight: 0x8aa154,
-  glass: 0x86b3ae,
-  brass: 0xa88a4a,
+  glass: 0xc6f03a,
+  brass: 0xa4b0b7,
   sand: 0xb7a47a,
-  warm: 0xffd9a0,
-  lampOn: 0xb8e07a,
-  lampOff: 0xff5a3a,
+  warm: 0xe4ffa8,
+  lampOn: 0xc6f03a,
+  lampOff: 0xff4a3a,
+  chrome: 0xa4b0b7,
+  chromeHi: 0xe6eef2,
+  gold: 0xc9a13a,
 };
 
 /** Tube diameter of corridors and collar stubs. */
@@ -124,7 +134,7 @@ function algaeLine(g: Graphics, x0: number, x1: number, y: number, n: number): v
 function stencil(text: string, x: number, y: number, size = 7, rot = 0): Text {
   const t = new Text({
     text,
-    style: { fontFamily: 'Courier New, monospace', fontSize: size, fontWeight: 'bold', fill: 0x221e16, letterSpacing: 0.5 },
+    style: { fontFamily: 'Courier New, monospace', fontSize: size, fontWeight: 'bold', fill: 0xc8d0d4, letterSpacing: 0.5 },
     resolution: 6,
   });
   t.anchor.set(0.5);
@@ -167,25 +177,44 @@ function tubeV(g: Graphics, y0: number, y1: number, cx: number, ribs: number): v
 function porthole(g: Graphics, x: number, y: number, r: number): void {
   g.circle(x, y, r + 4).fill({ color: PAL.brass });
   g.circle(x, y, r + 4).stroke({ color: 0x5a4a2a, width: 1 });
-  g.circle(x, y, r).fill({ color: 0x1c2a2e });
+  g.circle(x, y, r).fill({ color: 0x1a2a14 });
   g.circle(x - r * 0.3, y - r * 0.35, r * 0.35).fill({ color: 0xffffff, alpha: 0.25 });
   for (let i = 0; i < 6; i++) {
     const a = (i / 6) * Math.PI * 2;
-    g.circle(x + Math.cos(a) * (r + 2), y + Math.sin(a) * (r + 2), 0.9).fill({ color: 0x3a3020 });
+    g.circle(x + Math.cos(a) * (r + 2), y + Math.sin(a) * (r + 2), 0.9).fill({ color: 0x3a4248 });
   }
 }
 
 /** Weathered paint band with faded hazard stripes. */
+/** A dark panel band with gold circuit traces (replaces the old yellow hazard band). */
 function hazardBand(g: Graphics, x: number, y: number, w: number, h: number): void {
-  g.rect(x, y, w, h).fill({ color: PAL.yellow });
-  for (let sx = x - h; sx < x + w; sx += 12) {
-    const a = Math.max(x, sx);
-    const b = Math.min(x + w, sx + 6);
-    if (b <= a) continue;
-    g.poly([a, y + h, Math.min(x + w, a + h), y, Math.min(x + w, b + h), y, b, y + h]).fill({ color: 0x2a2418, alpha: 0.55 });
+  g.rect(x, y, w, h).fill({ color: PAL.yellowDark });
+  goldTraces(g, x + 4, y + h / 2, w - 8, Math.max(3, h * 0.45));
+  g.rect(x, y, w, 1).fill({ color: PAL.chrome, alpha: 0.35 });
+}
+
+/** Gold power lines etched across a panel: right-angled runs with round nodes. */
+function goldTraces(g: Graphics, x0: number, cy: number, w: number, amp: number): void {
+  let x = x0;
+  let y = cy;
+  g.moveTo(x, y);
+  while (x < x0 + w - 10) {
+    x = Math.min(x0 + w, x + R(10, 26));
+    g.lineTo(x, y);
+    y = cy + (rand() < 0.5 ? -amp : amp) * R(0.3, 1);
+    g.lineTo(x + 4, y);
+    x += 4;
   }
-  g.rect(x, y, w, 1.5).fill({ color: 0xffffff, alpha: 0.18 });
-  for (let i = 0; i < w / 10; i++) dab(g, R(x, x + w), R(y, y + h), R(2, 6), R(1, 2.5), PAL.steelDark, 0.5);
+  g.stroke({ color: PAL.gold, width: 1, alpha: 0.85 });
+  for (let i = 0; i < w / 40; i++) g.circle(R(x0, x0 + w), cy + R(-amp, amp), 1.2).fill({ color: PAL.gold });
+}
+
+/** A chrome flange ring round a tube end (the concept's thick chrome collars). */
+function flangeV(g: Graphics, x: number, cy: number, h: number, w = 10): void {
+  g.roundRect(x - w / 2, cy - h / 2, w, h, 3).fill({ color: PAL.chrome });
+  g.roundRect(x - w / 2 + 1.5, cy - h / 2 + 2, 2.5, h - 4, 1).fill({ color: PAL.chromeHi, alpha: 0.8 });
+  g.roundRect(x + w / 2 - 3, cy - h / 2 + 2, 2, h - 4, 1).fill({ color: PAL.steelDark, alpha: 0.6 });
+  for (let k = 0; k < 4; k++) g.circle(x, cy - h / 2 + 8 + (k * (h - 16)) / 3, 1.2).fill({ color: PAL.steelDark });
 }
 
 // ---------------------------------------------------------------------------
@@ -274,7 +303,7 @@ function drawDome(n: number): PieceArt {
   windowGlow.circle(cx, drumTop - 66, 16).fill({ color: 0xfff1d0, alpha: 0.7 });
 
   // Glass: a faint tint over the interior, then the steel frame.
-  g.poly(domePts).fill({ color: PAL.glass, alpha: 0.22 });
+  g.poly(domePts).fill({ color: PAL.glass, alpha: 0.42 });
   const meridian = (k: number) => {
     const pts: number[] = [];
     for (let i = 0; i <= 24; i++) {
@@ -318,18 +347,37 @@ function drawDome(n: number): PieceArt {
   g.roundRect(8, drumTop - 6, W - 16, drumBot - drumTop + 6, 10).fill({ color: PAL.steel });
   g.roundRect(8, drumTop - 6, W - 16, 10, 5).fill({ color: PAL.steelDark });
   g.rect(12, drumTop + 6, W - 24, 6).fill({ color: 0xffffff, alpha: 0.12 });
-  hazardBand(g, 8, drumTop + 18, W - 16, 10);
+  goldTraces(g, 16, drumTop + 26, W / 2 - 50, 8);
+  goldTraces(g, W / 2 + 34, drumTop + 26, W / 2 - 50, 8);
+  goldTraces(g, 16, drumBot - 30, W - 32, 6);
+  // A chrome rim flange where the glass meets the drum.
+  g.roundRect(4, drumTop - 10, W - 8, 10, 4).fill({ color: PAL.chrome });
+  g.roundRect(4, drumTop - 10, W - 8, 3, 2).fill({ color: PAL.chromeHi, alpha: 0.8 });
+  // The airlock: a round chrome hatch on the front of the drum.
+  const ax = cx;
+  const ay = drumBot - 44;
+  g.circle(ax, ay, 26).fill({ color: PAL.chrome });
+  g.circle(ax, ay, 26).stroke({ color: PAL.steelDark, width: 2 });
+  g.circle(ax, ay, 19).fill({ color: PAL.steelDeep });
+  for (let i = 0; i < 8; i++) {
+    const a = (i / 8) * Math.PI * 2;
+    g.circle(ax + Math.cos(a) * 22.5, ay + Math.sin(a) * 22.5, 1.3).fill({ color: PAL.steelDark });
+  }
+  g.moveTo(ax - 12, ay).lineTo(ax + 12, ay).moveTo(ax, ay - 12).lineTo(ax, ay + 12).stroke({ color: PAL.chrome, width: 3 });
+  g.circle(ax, ay, 4.5).fill({ color: PAL.chrome });
+  windows.circle(ax, ay, 21).stroke({ color: PAL.glass, width: 2, alpha: 0.8 });
+  windowGlow.circle(ax, ay, 26).stroke({ color: PAL.glass, width: 6, alpha: 0.35 });
   g.rect(8, drumBot - 20, W - 16, 20).fill({ color: PAL.steelDeep, alpha: 0.4 });
   // Panel seams.
   for (const sx of [56, 112, 168]) g.rect(sx - 1, drumTop + 4, 2, drumBot - drumTop - 4).fill({ color: PAL.steelDark, alpha: 0.8 });
   rivets(g, 16, drumTop + 1, W - 16, drumTop + 1, 18);
   rivets(g, 16, drumBot - 5, W - 16, drumBot - 5, 18);
-  for (const px of [32, 84, 140, 192]) porthole(g, px, drumTop + 50, 8);
-  for (const px of [32, 84, 140, 192]) {
+  for (const px of [32, 192]) porthole(g, px, drumTop + 50, 8);
+  for (const px of [32, 192]) {
     windows.circle(px, drumTop + 50, 7).fill({ color: PAL.warm, alpha: 0.85 });
     windowGlow.circle(px, drumTop + 50, 14).fill({ color: PAL.warm, alpha: 0.5 });
   }
-  body.addChild(stencil(`KESTREL  HAB-0${n}`, cx, drumTop + 34, 7));
+  body.addChild(stencil(`HAB-0${n}`, cx, drumTop + 14, 7));
   streaks(g, 14, W - 14, drumTop + 30, 14, 22);
   streaks(g, 14, W - 14, drumBot - 8, 10, 10);
   scratches(g, 12, drumTop + 8, W - 12, drumBot - 6, 22);
@@ -362,36 +410,55 @@ function drawDome(n: number): PieceArt {
 }
 
 function drawCorridor(n: number, rot: number): PieceArt {
+  // Colin's corridor board: a charcoal drum with gold circuit lines, thick chrome
+  // flanges at both ends, a lime porthole in a chrome ring, one red lamp, and a
+  // coiled conduit along the top.
   const body = new Container();
   const g = body.addChild(new Graphics());
   const windows = new Graphics();
   const windowGlow = new Graphics();
   const c = CELL / 2;
-  if (rot % 2 === 0) {
-    tubeH(g, 0, CELL, c, 4);
-    g.rect(0, c - 6, CELL, 8).fill({ color: PAL.yellow, alpha: 0.85 });
-    g.rect(0, c - 6, CELL, 1.5).fill({ color: 0xffffff, alpha: 0.15 });
-    porthole(g, c, c + 12, 7);
-    windows.circle(c, c + 12, 6).fill({ color: PAL.warm, alpha: 0.8 });
-    windowGlow.circle(c, c + 12, 13).fill({ color: PAL.warm, alpha: 0.45 });
-    body.addChild(stencil(`C-${String(n).padStart(2, '0')}`, c + 30, c - 14, 6));
-    streaks(g, 4, CELL - 4, c + 2, 8, 18);
-    scratches(g, 2, c - 28, CELL - 2, c + 28, 8);
-    algaeLine(g, 0, CELL, c + TUBE / 2, 14);
-  } else {
-    tubeV(g, 0, CELL, c, 4);
-    g.rect(c - 6, 0, 8, CELL).fill({ color: PAL.yellow, alpha: 0.85 });
-    porthole(g, c + 12, c, 7);
-    windows.circle(c + 12, c, 6).fill({ color: PAL.warm, alpha: 0.8 });
-    windowGlow.circle(c + 12, c, 13).fill({ color: PAL.warm, alpha: 0.45 });
-    body.addChild(stencil(`C-${String(n).padStart(2, '0')}`, c - 14, c + 30, 6, -Math.PI / 2));
-    streaks(g, c - 26, c + 26, 8, 6, 30);
-    algaeLine(g, c - 28, c + 28, CELL - 4, 8);
+  const L = CELL;
+  const D = TUBE + 6;
+  const h = new Graphics();
+  // Drawn running left-right, then turned for a vertical corridor.
+  h.roundRect(4, c - D / 2, L - 8, D, 10).fill({ color: PAL.steel });
+  h.roundRect(4, c - D / 2 + 4, L - 8, 8, 4).fill({ color: 0xffffff, alpha: 0.08 });
+  h.roundRect(4, c + D / 2 - 18, L - 8, 18, 6).fill({ color: PAL.steelDeep, alpha: 0.5 });
+  goldTraces(h, 16, c - 14, L - 32, 6);
+  goldTraces(h, 16, c + 16, L - 32, 5);
+  // Coiled conduit along the top, between the flanges.
+  h.rect(16, c - D / 2 - 6, L - 32, 6).fill({ color: PAL.steelDark });
+  for (let x = 17; x < L - 16; x += 3) h.rect(x, c - D / 2 - 6, 1.6, 6).fill({ color: PAL.chrome, alpha: 0.75 });
+  // Chrome end flanges.
+  flangeV(h, 9, c, D + 14, 12);
+  flangeV(h, L - 9, c, D + 14, 12);
+  // Porthole in a thick chrome ring.
+  h.circle(c, c, 17).fill({ color: PAL.chrome });
+  h.circle(c, c, 17).stroke({ color: PAL.steelDark, width: 1.5 });
+  h.circle(c - 4, c - 5, 5).fill({ color: PAL.chromeHi, alpha: 0.4 });
+  h.circle(c, c, 12).fill({ color: 0x4a6a14 });
+  h.circle(c - 3, c - 4, 4).fill({ color: 0xe8ffb0, alpha: 0.4 });
+  h.rect(c - 32, c - 3, 3, 9).fill({ color: PAL.chromeHi, alpha: 0.7 });
+  scratches(h, 8, c - D / 2, L - 16, c + D / 2, 6);
+  if (rot % 2 === 1) {
+    h.pivot.set(c, c);
+    h.rotation = Math.PI / 2;
+    h.position.set(c, c);
   }
-  return { body, windows, windowGlow, lamp: rot % 2 === 0 ? { x: c - 30, y: c - 16 } : { x: c - 16, y: c - 30 } };
+  body.addChild(h);
+  windows.circle(c, c, 11).fill({ color: PAL.glass, alpha: 0.85 });
+  windowGlow.circle(c, c, 22).fill({ color: PAL.glass, alpha: 0.45 });
+  const lamp = rot % 2 === 0 ? { x: L - 26, y: c - 22 } : { x: c + 22, y: L - 26 };
+  body.addChild(stencil(`C-${String(n).padStart(2, '0')}`, rot % 2 === 0 ? c + 28 : c - 22, rot % 2 === 0 ? c + 26 : c + 30, 6, rot % 2 === 0 ? 0 : -Math.PI / 2));
+  void g;
+  return { body, windows, windowGlow, lamp };
 }
 
 function drawTurbine(n: number): PieceArt {
+  // Colin's turbine board: a tall charcoal column with lime grille vents top and
+  // bottom, a glowing gold spine carrying the current, side clamps, and the
+  // impeller turning inside a thick chrome ring in the middle.
   const W = CELL;
   const H = CELL * 2;
   const body = new Container();
@@ -399,44 +466,44 @@ function drawTurbine(n: number): PieceArt {
   const windows = new Graphics();
   const windowGlow = new Graphics();
   const cx = W / 2;
-  const hubY = CELL / 2;
-  const houseTop = H - 100;
-  const houseBot = H - 10;
-
-  // Collar stubs through the machine house.
+  const hubY = H / 2 - 6;
+  // Collar stubs through the base of the column.
   tubeH(g, 0, 16, H - CELL / 2, 1);
   tubeH(g, W - 16, W, H - CELL / 2, 1);
-  // Mast.
-  g.rect(cx - 7, hubY, 14, houseTop - hubY + 4).fill({ color: PAL.steel });
-  g.rect(cx - 7, hubY, 4, houseTop - hubY + 4).fill({ color: 0xffffff, alpha: 0.12 });
-  g.rect(cx + 3, hubY, 4, houseTop - hubY + 4).fill({ color: PAL.steelDeep, alpha: 0.5 });
-  rivets(g, cx, hubY + 60, cx, houseTop - 4, 5);
-  streaks(g, cx - 6, cx + 6, hubY + 60, 3, 30);
-  // Copper power cable spiralling down the mast.
-  g.moveTo(cx + 7, hubY + 54);
-  for (let y = hubY + 54; y < houseTop; y += 6) g.lineTo(cx + (Math.sin(y * 0.25) > 0 ? 8 : 6), y);
-  g.stroke({ color: 0xb06a3a, width: 2.2 });
-  // Duct ring around the rotor.
-  g.circle(cx, hubY, 50).stroke({ color: PAL.steelDark, width: 8 });
-  g.circle(cx, hubY, 50).stroke({ color: PAL.yellow, width: 3, alpha: 0.75 });
-  g.circle(cx, hubY, 54).stroke({ color: PAL.steelDeep, width: 1.2, alpha: 0.6 });
-  for (let i = 0; i < 12; i++) {
-    const a = (i / 12) * Math.PI * 2;
-    g.circle(cx + Math.cos(a) * 50, hubY + Math.sin(a) * 50, 1.3).fill({ color: 0x2f373a });
+  // Side clamps.
+  for (const sx of [10, W - 26]) {
+    g.roundRect(sx, hubY - 34, 16, 68, 4).fill({ color: PAL.steelDark });
+    for (let k = 0; k < 4; k++) g.rect(sx + 2, hubY - 28 + k * 16, 12, 3).fill({ color: PAL.chrome, alpha: 0.7 });
   }
-  // Duct struts.
-  for (const a of [Math.PI * 0.5, Math.PI * 0.17, Math.PI * 0.83]) {
-    g.moveTo(cx + Math.cos(a) * 14, hubY + Math.sin(a) * 14)
-      .lineTo(cx + Math.cos(a) * 48, hubY + Math.sin(a) * 48)
-      .stroke({ color: PAL.steelDark, width: 3 });
+  // The column.
+  g.roundRect(22, 6, W - 44, H - 14, 8).fill({ color: PAL.steel });
+  g.roundRect(22, 6, W - 44, 10, 5).fill({ color: PAL.steelDark });
+  g.rect(26, 16, 6, H - 30).fill({ color: 0xffffff, alpha: 0.06 });
+  goldTraces(g, 28, 60, W - 56, 8);
+  goldTraces(g, 28, H - 60, W - 56, 8);
+  // Lime grille vents, top and bottom (they glow with power).
+  const vents = [
+    { y: 20, h: 30 },
+    { y: H - 52, h: 30 },
+  ];
+  for (const v of vents) {
+    g.roundRect(30, v.y, W - 60, v.h, 3).fill({ color: PAL.steelDeep });
+    for (let k = 0; k < 5; k++) {
+      g.rect(33, v.y + 3 + k * 5.6, W - 66, 3).fill({ color: 0x4a6a14 });
+      windows.rect(33, v.y + 3 + k * 5.6, W - 66, 3).fill({ color: PAL.glass, alpha: 0.8 });
+    }
+    windowGlow.rect(30, v.y, W - 60, v.h).fill({ color: PAL.glass, alpha: 0.35 });
   }
-  algaeLine(g, cx - 40, cx + 40, hubY + 50, 10);
-  for (let i = 0; i < 10; i++) {
-    const a = R(Math.PI * 0.1, Math.PI * 0.9);
-    g.circle(cx + Math.cos(a) * 52, hubY + Math.sin(a) * 52, R(1, 2.4)).fill({ color: PAL.algae, alpha: 0.8 });
-  }
-
-  // Rotor: three blades face-on, spinning in the current.
+  // The gold spine.
+  g.rect(cx - 3, 52, 6, H - 106).fill({ color: 0xb08020 });
+  windows.rect(cx - 2, 52, 4, H - 106).fill({ color: 0xffc040, alpha: 0.9 });
+  windowGlow.rect(cx - 6, 52, 12, H - 106).fill({ color: 0xffb030, alpha: 0.4 });
+  // Chrome ring round the impeller.
+  g.circle(cx, hubY, 36).fill({ color: PAL.steelDeep });
+  g.circle(cx, hubY, 36).stroke({ color: PAL.chrome, width: 8 });
+  g.circle(cx, hubY, 40).stroke({ color: PAL.steelDark, width: 1.2 });
+  g.circle(cx - 10, hubY - 12, 34).stroke({ color: PAL.chromeHi, width: 1.5, alpha: 0.4 });
+  // Impeller: three dark chrome blades.
   const rotor = new Container();
   const rg = rotor.addChild(new Graphics());
   for (let i = 0; i < 3; i++) {
@@ -444,39 +511,18 @@ function drawTurbine(n: number): PieceArt {
     const ca = Math.cos(a);
     const sa = Math.sin(a);
     const P = (u: number, v: number): [number, number] => [ca * u - sa * v, sa * u + ca * v];
-    const pts = [P(8, -5), P(26, -9), P(44, -5), P(46, 0), P(42, 4), P(20, 6), P(8, 5)].flat();
-    rg.poly(pts).fill({ color: PAL.yellow });
-    rg.poly([P(8, 1), P(44, 0), P(42, 4), P(20, 6), P(8, 5)].flat()).fill({ color: PAL.yellowDark, alpha: 0.6 });
-    rg.poly([P(38, -6), P(44, -5), P(46, 0), P(42, 4), P(38, 4)].flat()).fill({ color: PAL.rust, alpha: 0.85 });
-    const [ux, uy] = P(24, -4);
-    rg.circle(ux, uy, 2).fill({ color: PAL.streak, alpha: 0.5 });
+    rg.poly([P(6, -4), P(18, -12), P(30, -6), P(31, 2), P(8, 5)].flat()).fill({ color: 0x5a646a });
+    rg.poly([P(8, 1), P(31, 2), P(8, 5)].flat()).fill({ color: 0x3a4248 });
   }
-  rg.circle(0, 0, 11).fill({ color: PAL.steel });
-  rg.circle(0, 0, 11).stroke({ color: PAL.steelDark, width: 2 });
-  rg.circle(-3, -3, 4).fill({ color: 0xffffff, alpha: 0.2 });
-  rg.circle(0, 0, 3).fill({ color: PAL.steelDeep });
+  rg.circle(0, 0, 8).fill({ color: PAL.chrome });
+  rg.circle(-2, -2, 3).fill({ color: PAL.chromeHi, alpha: 0.7 });
+  rg.circle(0, 0, 2.5).fill({ color: PAL.steelDeep });
   rotor.position.set(cx, hubY);
   body.addChild(rotor);
-
-  // Machine house.
-  g.roundRect(12, houseTop, W - 24, houseBot - houseTop, 6).fill({ color: PAL.yellow });
-  g.roundRect(12, houseTop, W - 24, 7, 3).fill({ color: 0xffffff, alpha: 0.16 });
-  g.rect(12, houseBot - 18, W - 24, 18).fill({ color: PAL.yellowDark, alpha: 0.65 });
-  for (let i = 0; i < 7; i++) g.rect(20 + i * 5, houseTop + 14, 2.5, 34).fill({ color: PAL.steelDeep, alpha: 0.55 });
-  g.roundRect(60, houseTop + 14, 30, 22, 2).fill({ color: PAL.steelDark });
-  g.rect(63, houseTop + 17, 24, 6).fill({ color: 0x1c2226 });
-  rivets(g, 18, houseTop + 4, W - 18, houseTop + 4, 8);
-  rivets(g, 18, houseBot - 5, W - 18, houseBot - 5, 8);
-  for (let i = 0; i < 26; i++) dab(g, R(14, W - 14), R(houseTop + 4, houseBot - 4), R(2, 7), R(1, 3), PAL.steelDark, 0.45);
-  body.addChild(stencil(`CT-${n}`, 75, houseTop + 52, 7));
-  body.addChild(stencil('▲ CURRENT', 52, houseTop + 66, 5));
-  streaks(g, 16, W - 16, houseTop + 8, 10, 26);
-  scratches(g, 14, houseTop + 4, W - 14, houseBot - 4, 12);
-  algaeLine(g, 12, W - 12, houseBot, 18);
-  windows.rect(63, houseTop + 17, 24, 6).fill({ color: 0xd8f0a0, alpha: 0.75 });
-  windowGlow.rect(60, houseTop + 13, 30, 14).fill({ color: 0xd8f0a0, alpha: 0.3 });
-
-  return { body, rotor, windows, windowGlow, lamp: { x: 76, y: houseTop - 2 } };
+  body.addChild(stencil(`CT-${n}`, cx, H - 66, 6));
+  scratches(g, 24, 10, W - 26, H - 10, 10);
+  algaeLine(g, 22, W - 22, H - 8, 10);
+  return { body, rotor, windows, windowGlow, lamp: { x: W - 30, y: 14 } };
 }
 
 function drawStorage(n: number): PieceArt {
