@@ -209,9 +209,19 @@ export class Music {
     } else if (this.restFor > 15) this.left = Math.min(this.left, 2 + Math.random() * 3);
   }
 
+  private epoch = 0;
   update(dt: number): void {
     if (!this.ready || !audio.running) return;
     const now = audio.now;
+    if (this.epoch !== audio.epoch) {
+      // A fresh audio context (its clock starts again at 0): forget voices and times from the old one.
+      this.epoch = audio.epoch;
+      this.pads = [];
+      this.playing = false;
+      this.left = 2;
+      this.chordAt = 0;
+      this.noteAt = 0;
+    }
     const P = PROFILES[this.zone];
     this.left -= dt;
     if (!this.playing) {

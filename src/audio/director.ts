@@ -235,7 +235,12 @@ export class SoundDirector {
     return { g: clamp01(1 - d / range) ** 2, pan: Math.max(-0.85, Math.min(0.85, (x - f.x) / 700)) };
   }
 
+  private epoch = 0;
   update(f: AudioFrame): void {
+    if (this.epoch !== audio.epoch) {
+      this.epoch = audio.epoch;
+      this.toastAt = {};
+    }
     const p = this.prev;
     const dt = f.dt;
     // Zone mix, eased so moving between zones crossfades.

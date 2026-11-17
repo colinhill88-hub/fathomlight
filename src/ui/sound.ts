@@ -42,7 +42,13 @@ export function initSoundUI(): { refresh(): void } {
     mute.textContent = s.muted ? 'Sound muted (tap to unmute)' : 'Mute';
     silent.setAttribute('aria-pressed', String(s.ignoreSilent));
     silent.textContent = s.ignoreSilent ? 'Plays with the silent switch on' : 'Silent switch mutes the game';
-    note.textContent = !audio.ctx ? 'Sound starts with your first tap or key press.' : audio.running ? '' : 'Sound is paused: tap anywhere to resume.';
+    note.textContent = !audio.ctx
+      ? 'Sound starts with your first tap or key press.'
+      : audio.running
+        ? s.ignoreSilent || !AudioEngine.hasSilentSwitchChoice
+          ? ''
+          : 'No sound? The ring/silent switch mutes the game: switch it off, or tap the button above.'
+        : `Sound is paused (${audio.ctx.state}): tap anywhere to resume.`;
   }
   refresh();
   return { refresh };

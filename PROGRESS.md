@@ -1506,6 +1506,14 @@ Colin's feedback first (after the walker and the interior art pass): the animati
 - **The Signal array:** blocked at 0 words; decoded fragment 1 in 150 s with 2 words; asked for 4 words for fragment 2; stopped without power.
 - **Not tested on a real iPhone or Colin's PC.**
 
+### After milestone 10: sound lost on the iPhone
+- **Colin:** the audio had gone on his phone.
+- **Two weak spots fixed in `src/audio/engine.ts`:**
+  - **A missed "visible again".** A home-screen app on iOS does not always fire `visibilitychange` when it comes back. The engine kept a stale "hidden" flag, which held the master fader at zero and made it ignore taps. Now `pageshow` and `focus` count as coming back, and every tap re-reads `document.hidden`.
+  - **A broken audio context.** After a call, Siri or another app's audio, iOS can leave the context interrupted so that `resume()` never takes. If a resume asked for on one tap hasn't worked by the next tap, the engine closes the old context and builds a fresh one, inside that tap. Music, ambience and effects rebuild with it (`epoch`; the music and the cue timers reset their clocks).
+- **Settings, Sound** now names the state when sound is paused. When it's running on an iPhone, it reminds you that the ring/silent switch mutes the game unless "Plays with the silent switch on" is chosen.
+- **Tested** in headless Chromium: a context forced into the stuck state came back with sound on the next key press, and a stale hidden flag cleared on the next tap. Not tested on the iPhone itself.
+
 ## Next
 
 **Next session: milestone 11, contact** (prompt in `docs/prompts/milestone-11.md`): the alien resonator (its blueprint is decoded from the Fulmar's drawings; the Workshop build and its materials are still to decide), the sanctum and the ending. The fourth signal fragment points the way: down and east, past the trench floor, to a door that hears only its own song. Also to decide then: the Signal array's "maps zones" job, and the late-game power sources (DESIGN.md, power as a mechanic). The graphics plan is done apart from tuning from Colin's testing and his `?bench` tables (now with a trench scene, 7).
