@@ -1,6 +1,6 @@
 # Fathomlight progress
 
-Last updated: 2026-11-17, **character animation session B and the base interior art pass deployed**. Next is **milestone 9, breeding** (prompt in `docs/prompts/milestone-9.md`). Before that: graphics sessions G1 to G4 are done.
+Last updated: 2026-11-17, **milestone 9 (breeding) deployed**, with Colin's two creature fixes (the same creatures indoors, and tending without leaving the base). Next is **milestone 10, the deep** (prompt in `docs/prompts/milestone-10.md`).
 
 Play link: https://colinhill88-hub.github.io/fathomlight/ (live; first successful deploy 2026-11-14)
 
@@ -1307,9 +1307,62 @@ The on-foot explorer (`src/actors/walker.ts`, used in the Corvina and the walkab
 - No steam-vent flinch (a hit just throws the walker into the jump pose).
 
 
+### Milestone 9: breeding (2026-11-17)
+Colin's feedback first (after the walker and the interior art pass): the animation and room detail are liked. Two changes asked for, both done before breeding:
+
+**1. The same creatures indoors as outside.** The tank rooms used to draw pixel blobs. Now they show the very same creatures (`Critter`, from `src/actors/critters.ts`) and plants as the tanks outside, swimming by the same rules, at 1.45 times the outside size (`TANK_SCALE` in `src/interior/baselevel.ts`). `TankLife` (`src/world/tanklife.ts`) now takes options (where the water is, a scale, plant clumps), and the base's rooms run their own copy of it. Indoors you see the plants you planted as several clumps along the sand, swaying gently; flakes sink and get eaten after a feed, the water clouds and algae creeps up the glass as it gets dirty, and bubbles rise after a scrub. Sick creatures go pale and sink, eggs sit on the sand. The single tank's window is taller (it now reaches the railing).
+- **How it works:** the interior has a new pair of hooks, `attach` and `detach`, which put real actors into its lit, emissive and glow layers (between the room art and the walker), and a `tick` that moves them every frame.
+
+**2. Tending stays indoors.** Hold Collect at a tank window and tap Tend: the care panel opens on the right, the camera eases in on the tank (`Interior.focus`), and the walker waits at the glass. Picking a creature rings it in the tank. Feed, clean, plant, To jar and Release work as before, with their effects in the indoor tank. ✕ or Esc closes the panel and the camera goes back to the walker. The panel's header now uses the painted stencil code (TANK 2, GT-1), so it matches the room's sign (it used to count tanks west to east, so the numbers disagreed).
+
+**Milestone 9, Colin's choices** (asked before building): pairs in a tank breed, with a Hatchery; colour and glow pattern as traits, with a rare "radiant" glow that matters in play; the Kelp farm grows fibre or plant cuttings; a grown glowfin escort plus one more creature key; and a small Revival pool now; one egg about every 6 minutes per pair.
+
+**Inherited traits** (`src/game/traits.ts`)
+- **Colour:** four per species. The first three appear in the wild (55%, 30%, 15%); the fourth is rare and only ever appears by mutation. Glowfin: coral, tide blue, kelp gold, rare moonpale (full palettes). The others are a tint over the drawing: puffcap peach, rose, lemon, rare sea-glass; ray sand, slate, moss, rare midnight; crab rust, olive, brick, rare steel blue; shrimp amber, ruby, clearwater, rare gilded. Glow stays warm in every colour (cyan, violet and magenta stay the Choir's).
+- **Glow pattern:** three per species, the arrangement of the glowing marks (glowfin side line, spotted, banded; puffcap polka dots, rim lights, starburst; ray tail light, dappled glow, ring glow; crab eye shine, shell spots, claw tips; shrimp side lights, banded, tail lantern). Young glowfins now show a faint pattern too.
+- **Radiant:** a wider, brighter halo and a soft aura. A radiant creature makes 25% more (`RADIANT_MAKE`), and a radiant glowfin's escort light reaches 60% further (`RADIANT_LIGHT`).
+- **Inheritance:** colour and pattern each come from one parent or the other; 8% chance of a mutation for each (`MUTATION`), which is the only way to the rare colour. Radiant: 4% with no radiant parent, 35% with one, 75% with two (`RADIANT_ODDS`). Each egg is one generation after its parents.
+- Wild creatures show their traits too, and the one you catch keeps them in the jar and the tank. Creatures from older saves get wild traits fixed by their id (so their colours may differ from before).
+- The care panel shows them under the name ("Moonpale, banded · radiant · 3rd generation, bred at the base"), rare ones in gold, and the radiant bonus in the output line.
+
+**Breeding and the Hatchery** (`HX-1`, 2 × 1, `resin 4, quartz 3, moss 2, copper 2`, 36 s; no blueprint)
+- Two **happy, grown** creatures of one species in a tank are a breeding pair (`pairsIn`). While the base has a finished, **powered** Hatchery with room, each pair lays an egg about every **6 minutes** (`BREED_SECONDS`), straight into the Hatchery. Its traits come from two of the happy grown ones.
+- A Hatchery holds **4** eggs and young (`HATCH_CAP`; more Hatcheries hold more). Eggs hatch there in 90 s. The young wait in their cradle (they don't get hungry) until you place them.
+- **Indoors:** four glass cradles under heat lamps, with the real eggs and young in them (the young circle slowly under the bells), and a console. Hold Collect at the console: the Hatchery panel opens (in the care panel's frame, the camera on the cradles) with each egg or young, its traits, and a button per tank (full tanks greyed out) or To jar.
+- The care panel says how breeding is going for each grown creature: needs a mate, needs a Hatchery, no power, the Hatchery is full, or the next egg in about N minutes.
+- Toasts when an egg is laid (with its traits) and when one hatches.
+- **New egg drawings:** a dapple ray egg case (a leathery pouch with tendrils), a puffcap polyp (stalked buds), and amber and coral clutches for crabs and shrimp.
+
+**The Kelp farm** (`KF-1`, 2 × 1, `fibre 4, resin 3, quartz 2, copper 2`, 32 s; no blueprint; Echo whorls fit)
+- **Fibre:** with power it grows one kelp fibre every 150 s (`FARM_SECONDS`, faster with whorls) into its own tray of 4 (`FARM_TRAY`). A full tray pauses it. Up to 2 conveyors out: a conveyor straight into an **auto feeder** closes the feeding loop with no puffcaps needed, or into storage. Or take the tray by hand indoors.
+- **Cuttings:** switch it (Collect at the CROP console indoors; it cycles through kelp fibre and every tank plant you have scanned) to grow cuttings of a plant: one every 200 s, up to 3 of each kind kept ready (`CUTTING_SECONDS`, `CUTTING_CAP`). Planting a tank uses a cutting instead of materials (the planter buttons show "cutting (2 ready)").
+- **Indoors:** two tiers of planter troughs under lime grow lamps, with the real crop growing taller as the next harvest nears and swaying in the pumped water, a CROP console with a progress bar, and the TRAY hatch with fibre bundles stacked in it.
+- Rules: the top of `src/game/factory.ts` and the farm block in `Factory.tick`.
+
+**Creatures as keys**
+- **A grown glowfin lights a passage the dive light cannot** (`src/actors/escort.ts`). Take a grown glowfin out of a tank (To jar). Outside, it swims at your shoulder as a warm light (radius 340, ×1.6 when radiant). In the **kelp caves**, a new passage drops from the floor of the **junction** (the chamber with the air pocket) into **lightless water**: without a glowfin the dive light shrinks to almost nothing and you can't swim more than a little way in (the banner says why). With one, the darkness thins and its light shows the way down to a **hidden grotto** with: a **puffcap polyp** and a **dapple ray egg case** (the first wild eggs of either), three **glowing blooms**, and an **Echo whorl**. New cave shapes `KC.glowPassage` and `KC.glowGrotto` in `src/world/terrain.ts`; the lightless haze is `buildLightless` in `scenery.ts`.
+- **A grown tinker crab picks a lock.** In the wreck shelf's **hidden room** (behind the silt slump the sonar pulse reveals) there is now a rusted **strongbox** whose padlock is seized and too small for the cutter. With a grown tinker crab in the jar, hold Collect: the crab picks it, and inside are the **Revival pool drawings** (a data find for the Lab). This is the "side area of the wreck shelf" DESIGN.md asked for.
+
+**The Revival pool** (`RP-1`, 2 × 1, `brass 4, quartz 4, moss 3, plate 2`, 44 s; blueprint from the strongbox, decoded in a Lab in 90 s)
+- A new material, the **glowing bloom** (0.3 kg; "grows only where no lamp has ever shone"). For now the blooms grow in the hidden grotto (they regrow like other materials); the deep zones will have more.
+- Indoors: a warm, still pool in a brass rim under a glass hood. Hold Collect: one bloom wakes one dormant creature (the save already counted them since milestone 4). It comes back **young**, with wild traits, into your specimen jar (the jar must be empty).
+
+**Also**
+- Build cards for the three pieces, with icons; their drawings outside (`drawHatchery`, `drawFarm`, `drawRevive` in `basegfx.ts`); their stencil codes HX-, KF-, RP-.
+- Moving a grown glowfin or tinker crab into the jar says what it can do.
+
+**Tested** (headless Chromium at 844 × 390; the cloud has no GPU): type check and production build, no console errors; every new room and both indoor-tank views captured (`docs/art/milestone9/`); the Hatchery panel; a scripted breeding run (no Hatchery: no eggs in 400 s; with one: an egg after 360 s with a parent's colour, hatching 90 s later); the lightless gate (blocked without a glowfin, open with one) and the strongbox prompt. **Not tested on a real iPhone or Colin's PC.**
+
+**Left over / to check after Colin plays**
+- Numbers: `BREED_SECONDS` 360, `HATCH_CAP` 4, `MUTATION` 0.08, `RADIANT_ODDS`, `RADIANT_MAKE` 1.25, `RADIANT_LIGHT` 1.6 (`traits.ts`, `creatures.ts`); farm 150 s / 200 s / tray 4 / 3 cuttings (`factory.ts`); escort radius 340 (`escort.ts`); `TANK_SCALE` 1.45; the three pieces' costs in `PIECES`.
+- Whether the indoor tank creatures read well on the phone at 1.45× (and whether the Grand tank, whose window spans two floors, wants them bigger).
+- A grown glowfin in the jar is out with you, so it isn't in a tank making quartz. If a blackout makes it "swim home", it is lost like any jar creature: consider sending it back to its tank instead.
+- Wild glowfin, puffcap and ray colours in the world changed slightly (their traits now pick their look).
+- **Mixed tanks (Colin's long-term goal):** breeding pairs are counted per species in a tank, so a mixed tank of two pairs breeds both. Tank upgrades and new partner species are still to plan.
+
 ## Next
 
-**Next session: milestone 9, breeding** (prompt in `docs/prompts/milestone-9.md`, questions in DESIGN.md), unless Colin reorders. The four graphics sessions are done; what is left of the graphics plan is tuning from Colin's testing (every effect is a toggle and a number in `src/presets.ts`) and his PC and iPhone `?bench` tables, which are still to come. Graphics ideas not done: refraction through glass, cave rock-pillar backdrops, hand-placed shine lines, more bioluminescent detail on the shelf.
+**Next session: milestone 10, the deep** (prompt in `docs/prompts/milestone-10.md`): pressure suit tiers, sub depth plating, the trench zone and the Signal array story fragments. Milestone 9 left the glowing bloom and the Revival pool ready for the deep zones (more blooms there), and the creature keys are a pattern to reuse (a creature that opens something in the trench). The four graphics sessions are done; what is left of the graphics plan is tuning from Colin's testing (every effect is a toggle and a number in `src/presets.ts`) and his PC and iPhone `?bench` tables, which are still to come. Graphics ideas not done: refraction through glass, cave rock-pillar backdrops, hand-placed shine lines, more bioluminescent detail on the shelf.
 - **Left over from the walkable base:** line code plates indoors, and a sound for the lines and machines (the machine-room detail was done in the interior art pass). Do these alongside a later milestone if Colin asks.
 - **The harpoon:** decoration on the Crest diver for now; use its design for later tools and weapons.
 
@@ -1319,7 +1372,8 @@ Where things are (on foot):
 - the Corvina's map: `src/interior/corvina.ts`;
 - the base's rooms: `src/interior/baselevel.ts` (`buildBaseLevel` builds the map from the layout; `BaseHooks` draws each room and says what you can do in it);
 - the walker: `src/actors/walker.ts` (built from the diver's parts; shared animation helpers in `src/actors/animkit.ts`; lab: `animlab.html?walker`);
-- the hand-off: `src/main.ts` (`enterBase`, `exitBase`, `peekOut`, `backInside`, `simBase`, `interiorFrame`).
+- the hand-off: `src/main.ts` (`enterBase`, `exitBase`, `peekOut`, `backInside`, `simBase`, `interiorFrame`);
+- milestone 9: traits `src/game/traits.ts`, breeding in `src/game/creatures.ts` (bottom), the Hatchery panel `src/ui/hatch.ts`, the glowfin escort `src/actors/escort.ts`, indoor tanks via `TankLife` in `BaseHooks` (`attach`, `tick`, `tankFocus`, `roomFocus`).
 
 ## Problems and open questions
 

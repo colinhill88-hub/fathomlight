@@ -97,6 +97,15 @@ export class Wildlife {
       this.eggLights.set(`eggs-${i}`, l);
       this.lights.push(l);
     }
+    // Milestone 9: in the hidden grotto past the lightless passage, a puffcap polyp and a
+    // dapple ray egg case (the first wild eggs of either), each with a faint light.
+    for (const [id, sp, x] of [['polyp-0', 'puffcap', 16170], ['raycase-0', 'ray', 16520]] as const) {
+      const y = floorAt(x, 1600) - 2;
+      add({ id, species: sp, stage: 'egg', collectible: true, homeX: x, homeY: y, range: 0, size: 1.6 });
+      const l: PointLight = { x, y: y - 12, radius: 90, intensity: 0.45, color: [1, 0.9, 0.6] };
+      this.eggLights.set(id, l);
+      this.lights.push(l);
+    }
     // Puffcaps over the drop-off.
     add({ id: 'puff-adult-0', species: 'puffcap', stage: 'grown', collectible: false, homeX: 5180, homeY: 360, range: 110, size: 1.7 });
     add({ id: 'puff-adult-1', species: 'puffcap', stage: 'grown', collectible: false, homeX: 5460, homeY: 470, range: 120, size: 1.5 });

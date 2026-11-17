@@ -239,7 +239,14 @@ export class CareMode {
     }
     save.creatures = save.creatures.filter((x) => x.id !== c.id);
     save.jar = { species: c.species, stage: c.stage, keep: c };
-    this.deps.toast(`${SPECIES[c.species].name} moved into the specimen jar. Swim to another tank to put it in.`, 'big');
+    // Milestone 9: grown glowfins and tinker crabs are keys out in the world.
+    const key =
+      c.stage === 'grown' && c.species === 'glowfin'
+        ? ' Outside, it swims beside you as a light: it can lead you through lightless water where the dive light dies.'
+        : c.stage === 'grown' && c.species === 'crab'
+          ? ' Its fine claws can pick locks too small and rusted for the cutter.'
+          : ' Put it in another tank from inside the base.';
+    this.deps.toast(`${SPECIES[c.species].name} moved into the specimen jar.${key}`, 'big');
     this.afterRemove();
   }
 

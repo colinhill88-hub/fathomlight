@@ -34,6 +34,8 @@ import {
   caveFloor,
   inShape,
   inKelpCaves,
+  inLightless,
+  LIGHTLESS_EDGE,
   KC,
   KC_FINDS,
   KELP_WALL,
@@ -91,6 +93,7 @@ import { BaseView, BuildOverlay, storageCapacity } from './world/basegfx';
 import { BuildMode } from './ui/build';
 import { Wildlife } from './world/wildlife';
 import { TankLife } from './world/tanklife';
+import { Escort } from './actors/escort';
 import { CareMode } from './ui/care';
 import { creaturesIn, newCreature, payCost, PLANT_ORDER, PLANTS, SPECIES, SPECIES_ORDER, tankCapacity, tankNumber, tickCare } from './game/creatures';
 import { HatchPanel } from './ui/hatch';
@@ -234,6 +237,9 @@ async function boot(): Promise<void> {
   // Milestone 8: wreck lurkers in their dens on the shelf.
   const lurkers = new Lurkers(LURKER_DENS);
   const tankLife = new TankLife();
+  // Milestone 9: a grown glowfin from the jar swims beside the diver as a light.
+  const escort = new Escort();
+  let llSafe = { x: 0, y: 0 };
   const schools = [
     new School(22, { x0: 1850, x1: 3500, y0: 200, y1: 380 }),
     new School(16, { x0: 6950, x1: 8250, y0: 300, y1: 450 }),
@@ -366,6 +372,7 @@ async function boot(): Promise<void> {
       linesView.view,
       pickups.view,
       wildlife.view,
+      escort.view,
       lurkers.view,
       ...schools.map((s) => s.view),
       ...fish.map((f) => f.view),
@@ -378,8 +385,8 @@ async function boot(): Promise<void> {
       scenery.over,
     );
     frontCam.addChild(scenery.front);
-    emissiveCam.addChild(scenery.emissive, baseView.emissive, tankLife.emissive, pickups.emissive, wildlife.emissive, lurkers.emissive, sub.emissive, drone.emissive, ...fish.map((f) => f.lure), diver.lens, surfaceFx.view);
-    glowCam.addChild(scenery.glow, baseView.glow, tankLife.glow, pickups.glow, wildlife.glow, lurkers.glow, sub.glow, drone.glow, ...fish.map((f) => f.halo), diver.lensGlow);
+    emissiveCam.addChild(scenery.emissive, baseView.emissive, tankLife.emissive, pickups.emissive, wildlife.emissive, escort.emissive, lurkers.emissive, sub.emissive, drone.emissive, ...fish.map((f) => f.lure), diver.lens, surfaceFx.view);
+    glowCam.addChild(scenery.glow, baseView.glow, tankLife.glow, pickups.glow, wildlife.glow, escort.glow, lurkers.glow, sub.glow, drone.glow, ...fish.map((f) => f.halo), diver.lensGlow);
   }
   populate();
 
@@ -1703,6 +1710,7 @@ async function boot(): Promise<void> {
     hidden.open = save.hiddenOpen;
     scenery.setCorvina(save.corvina);
     scenery.setHidden(save.hiddenOpen);
+    scenery.setLocker(save.lockerOpen);
     for (const sv of SALVAGE) if (sv.id in save.salvageTaken && save.playSeconds - save.salvageTaken[sv.id] > SALVAGE_REGROW && save.sub?.salvage !== sv.id) delete save.salvageTaken[sv.id];
     scenery.setSalvage(save.salvageTaken);
     if (diver.x > 15800 && diver.x < 17200) scenery.updateKelpCaves(time, surge);
@@ -1791,6 +1799,33 @@ async function boot(): Promise<void> {
       !aboard && (inShape(KC.dark, diver.x, diver.y) || inShape(KC.exit, diver.x, diver.y) || (diver.x > 17480 && inShape(KC.downPassage, diver.x, diver.y)));
     const blackLimit = litN >= BRACKETS.length ? Infinity : litMaxX + 330;
     const atBlackEdge = inBlack && diver.x > blackLimit - 50;
+    // ---- Milestone 9: the lightless passage. Only a grown glowfin's light gets through it. ----
+    escort.sync(save.jar, diver.x, diver.y);
+    escort.update(dt, time, diver.x, diver.y, diver.facing, !aboard && blackout === 0);
+    if (escort.active && !save.tips.includes('escort')) {
+      save.tips.push('escort');
+      hud.toast('The grown glowfin slips out of the jar and swims at your shoulder, lighting the water around you. Its light reaches where no lamp can.', 'big');
+    }
+    const inLL = !aboard && inLightless(diver.x, diver.y);
+    const llLit = escort.reach > 60;
+    const llDeep = inLL && Math.hypot(diver.x - LIGHTLESS_EDGE.x, diver.y - LIGHTLESS_EDGE.y) > 50;
+    if (llDeep && !llLit && blackout === 0) {
+      diver.x = llSafe.x;
+      diver.y = llSafe.y;
+      diver.vx *= -0.2;
+      diver.vy *= -0.2;
+    } else llSafe = { x: diver.x, y: diver.y };
+    const atLightless = inLL && !llLit;
+    if (inLL && blackout === 0 && !save.tips.includes('lightless')) {
+      save.tips.push('lightless');
+      hud.toast(
+        llLit
+          ? 'Lightless water: not even the dive light gets into it. But the glowfin\'s glow does. Stay close to it.'
+          : 'Lightless water: your dive light dies a hand\'s width out, and the dark is total. Something that makes its own light might show the way. A grown glowfin, perhaps?',
+        'big',
+      );
+    }
+    scenery.setLightless(llLit ? 0.3 : 1);
     if (inBlack && diver.x > blackLimit) {
       diver.x = blackLimit;
       if (diver.vx > 0) diver.vx = 0;
@@ -1853,6 +1888,8 @@ async function boot(): Promise<void> {
             ? surge > 0.4
               ? 'Cold surge! Too strong to swim against: wait it out in a pocket in the roof.'
               : 'A lull: swim on to the next pocket before the surge comes back.'
+            : atLightless
+              ? 'Lightless water. Your dive light dies a hand\'s width out. A grown glowfin carried in your jar would light the way (take one out of a tank).'
             : atBlackEdge
               ? `Black water. Your light dies in the silt a few metres out. Set lumen moss on the brackets to light a way through (${litN} of ${BRACKETS.length} lit).`
             : domeHere && !isDone(domeHere)
@@ -2219,6 +2256,28 @@ async function boot(): Promise<void> {
             hud.toast(`Inside the locker: 3 brass fittings and an Echo whorl (${save.whorls.length}), glowing in colours nothing else on the reef does.`, 'big');
           },
         };
+      // Milestone 9: the rusted strongbox in the hidden room. A grown tinker crab picks its lock.
+      if (save.hiddenOpen && !save.lockerOpen && near({ x: Scenery.LOCKER.x, y: Scenery.LOCKER.y - 24 }, 80)) {
+        if (save.jar?.species === 'crab' && save.jar.stage === 'grown')
+          holdAct = {
+            key: 'crablock',
+            label: 'Let the tinker crab pick the lock',
+            seconds: 2.6,
+            done: () => {
+              save.lockerOpen = true;
+              if (!save.finds.includes('poolplans') && !save.blueprints.includes('revive')) save.finds.push('poolplans');
+              scenery.setLocker(true);
+              drone.cheer();
+              sound.find('bag');
+              hud.showReading(
+                'Revival pool drawings',
+                'The crab clambers onto the padlock, works its fine claws into the keyhole, and with a crunch of rust the shackle drops. Inside, wrapped in oilcloth: drawings for a warm, still pool where a dormant creature can be woken by the light of a glowing bloom.\n\nA Lab can decode them. Glowing blooms grow only where no lamp has ever shone.',
+                'Taken: decode it in a Lab. The crab climbs back into the jar.',
+              );
+            },
+          };
+        else infoAct = 'A rusted strongbox. Its padlock is seized solid and far too small for the cutter: something with fine claws could pick it. A grown tinker crab, carried in your jar?';
+      }
       // The flow vane's winch, on the far side of the race.
       const vw = Scenery.vaneWinchPoint();
       if (!save.vane && Math.hypot(diver.x - vw.x, diver.y - vw.y) < 110)
@@ -2671,7 +2730,7 @@ async function boot(): Promise<void> {
     // Milestone 7: the dive light DL-1 replaces the shoulder lamp: further, brighter and wider.
     const lampSpec = hasGear(save, 'light') ? DIVE_LIGHT : LAMP;
     // Black water swallows the light, except near a lit bracket.
-    lampLight.radius = lampSpec.radius * (inBlack && nearLit > 260 ? 0.32 : 1);
+    lampLight.radius = lampSpec.radius * (inBlack && nearLit > 260 ? 0.32 : 1) * (inLightless(diver.x, diver.y) && !aboard ? 0.15 : 1);
     lampLight.coneCos = lampSpec.coneCos;
     lampLight.intensity = aboard ? 0 : lampSpec.intensity * diver.lamp * diver.view.alpha;
     scenery.caveDark.alpha = hasGear(save, 'light') && diver.lamp > 0.5 && !aboard ? 0.15 : 1;
@@ -2686,7 +2745,7 @@ async function boot(): Promise<void> {
     diver.lensGlow.position.set(lp.x, lp.y);
     diver.lensGlow.alpha = diver.lamp * diver.view.alpha;
 
-    const lights: Light[] = [...(save.sub ? sub.lights : []), lampLight, ...drone.lights, ...scenery.lights, ...baseView.lights, ...pickups.lights, ...wildlife.lights, ...lurkers.lights, ...fish.map((f) => f.light)];
+    const lights: Light[] = [...(save.sub ? sub.lights : []), lampLight, ...drone.lights, ...scenery.lights, ...baseView.lights, ...pickups.lights, ...wildlife.lights, escort.light, ...lurkers.lights, ...fish.map((f) => f.light)];
     // G2: soft contact shadows where things meet the seabed (the diver's, the sub's, the drone's and the base's feet).
     const contacts: [number, number, number, number][] = [];
     if (fx.contact && preset.contactShadows > 0) {
