@@ -28,6 +28,39 @@ const GRAPPLE_FLY = 0.15;
 const GRAPPLE_PULL = 760;
 const VENT_CYCLE = 3.2;
 const VENT_BURST = 1.0;
+/** Climbing speed on a ladder (the base on foot). */
+const CLIMB = 210;
+/** The lighting shader adds up at most this many lights; the nearest win. */
+const MAX_LIGHTS = 16;
+
+/** Something to hold Collect at (or tap, for the grapple). */
+export interface InteriorAct {
+  key: string;
+  label: string;
+  seconds: number;
+  done: () => void;
+}
+
+/**
+ * A level's own rules and art, for interiors built by code rather than from
+ * a hand-drawn map with letters (the walkable base). The Corvina uses none.
+ */
+export interface InteriorHooks {
+  /** Where the walker steps in. */
+  spawn: { x: number; y: number };
+  /** 'base': clean charcoal hull rooms over black water, not a rusting wreck. */
+  style: 'base';
+  /** Things to do where the walker stands: an action, a line of information, or nothing. */
+  act(x: number, y: number): InteriorAct | string | null;
+  /** Extra art over the tiles, drawn once: lit, unlit (emissive) and glow layers, and signs. */
+  decorate(g: Graphics, e: Graphics, gl: Graphics, addLamp: (x: number, y: number, zone: number) => void, addText: (t: Text) => void, phase: 'back' | 'front'): void;
+  /** Moving art, every frame. */
+  animate(d: Graphics, de: Graphics, time: number): void;
+  /** Is a room (lamp zone) powered? */
+  powered(zone: number): boolean;
+  /** Extra lights (screens, glowing tanks). */
+  lights(): Light[];
+}
 
 export interface InteriorState {
   /** Breakers thrown, in the order they appear in the map. */
@@ -89,7 +122,10 @@ export class Interior {
   private static_ = new Graphics();
   private emissiveStatic = new Graphics();
   private glowStatic = new Graphics();
-  private lamps: { light: Light; core: Graphics; halo: Graphics }[] = [];
+  private lamps: { light: Light; core: Graphics; halo: Graphics; zone: number }[] = [];
+  private hooks: InteriorHooks | null = null;
+  private climbing = false;
+  private texts: Text[] = [];
   private emergency: Light[] = [];
   private headLamp: Light = { x: 0, y: 0, radius: 620, intensity: 1.6, color: [1, 0.95, 0.8], dirX: 1, dirY: 0, coneCos: 0.82, coneSoft: 0.14, haze: 0.12 };
   private spots: Spot[] = [];
@@ -152,7 +188,14 @@ export class Interior {
   /** Solid for everything (steel, crates, a shut powered door). */
   private solidTile(tx: number, ty: number): boolean {
     const c = this.ch(tx, ty);
-    return c === '#' || c === 'c' || (c === 'D' && !this.power);
+    return c === '#' || c === 'c' || c === 'X' || c === 'P' || (c === 'D' && !this.power);
+  }
+  /** A ladder tile ('H'). Its top tile holds you up like a grating. */
+  private ladder(tx: number, ty: number): boolean {
+    return this.ch(tx, ty) === 'H';
+  }
+  private ladderTop(tx: number, ty: number): boolean {
+    return this.ladder(tx, ty) && !this.ladder(tx, ty - 1);
   }
   private rectHits(x0: number, y0: number, x1: number, y1: number): boolean {
     for (let ty = Math.floor(y0 / T); ty <= Math.floor((y1 - 0.01) / T); ty++)
@@ -172,7 +215,9 @@ export class Interior {
   // ---------------------------------------------------------------------------
 
   /** Build a level and step into it at its 'S' tile. */
-  enter(map: string[], state: InteriorState): void {
+  enter(map: string[], state: InteriorState, hooks: InteriorHooks | null = null): void {
+    this.hooks = hooks;
+    this.climbing = false;
     this.map = map;
     this.W = map[0].length;
     this.H = map.length;
@@ -192,7 +237,7 @@ export class Interior {
     const nb = this.spots.filter((s) => s.ch === 'B').length;
     while (this.state.breakers.length < nb) this.state.breakers.push(false);
     this.buildStatic();
-    const s = this.spots.find((p) => p.ch === 'S')!;
+    const s = hooks ? hooks.spawn : this.spots.find((p) => p.ch === 'S')!;
     const w = this.walker;
     w.x = s.x;
     w.y = s.y;
@@ -207,6 +252,37 @@ export class Interior {
     this.active = true;
     this.view.visible = true;
     this.shownKey = '';
+  }
+
+  /**
+   * Rebuild the level around the walker without moving them (the base
+   * changed while you were inside: a piece finished, power came or went).
+   */
+  reload(map: string[], hooks: InteriorHooks): void {
+    const w = this.walker;
+    const keep = { x: w.x, y: w.y, vx: w.vx, vy: w.vy, face: w.face, visor: w.visor, cam: { ...this.cam }, safe: { ...this.lastSafe } };
+    this.enter(map, this.state, hooks);
+    Object.assign(w, { x: keep.x, y: keep.y, vx: keep.vx, vy: keep.vy, face: keep.face, visor: keep.visor });
+    this.cam = keep.cam;
+    this.lastSafe = keep.safe;
+  }
+  /** Is there room to stand here (no hull in the way)? */
+  standable(x: number, y: number): boolean {
+    return !this.rectHits(x - HALF_W, y - HEIGHT, x + HALF_W, y - 1);
+  }
+  /** Put the walker somewhere (coming back in from a panel). */
+  place(x: number, y: number, face: number): void {
+    const w = this.walker;
+    w.x = x;
+    w.y = y;
+    w.vx = w.vy = 0;
+    w.face = face;
+    w.visor = w.visorTarget = 1;
+    this.lastSafe = { x, y };
+    this.climbing = false;
+    this.grapple = null;
+    this.cam.x = x - 400;
+    this.cam.y = y - 400;
   }
 
   /** Point at the save's own state lists (they're changed in place). */
@@ -240,6 +316,14 @@ export class Interior {
     const R = (a: number, b: number) => a + rand() * (b - a);
     const PW = this.W * T;
     const PH = this.H * T;
+    for (const t of this.texts) t.destroy();
+    this.texts = [];
+    const base = this.hooks?.style === 'base';
+    if (base) {
+      this.buildBaseStatic(g, e, gl, rand);
+      this.shownKey = '';
+      return;
+    }
     // Back wall: riveted plates, ribs, pipes and a few portholes onto the black water.
     g.rect(0, 0, PW, PH).fill({ color: 0x23292b });
     for (let y = 0; y < PH; y += 120)
@@ -339,7 +423,7 @@ export class Interior {
         const halo = new Graphics().ellipse(x, y + 10, 40, 16).fill({ color: 0xffd890 });
         this.emissiveCam.addChild(core);
         this.glowCam.addChild(halo);
-        this.lamps.push({ light: { x, y: y + 24, radius: 300, intensity: 0, color: [1, 0.9, 0.72], haze: 0.04 }, core, halo });
+        this.lamps.push({ light: { x, y: y + 24, radius: 300, intensity: 0, color: [1, 0.9, 0.72], haze: 0.04 }, core, halo, zone: 0 });
         if ((tx / 7) % 3 === 0) {
           e.circle(x + 18, y, 2.2).fill({ color: 0xd8492e });
           this.emergency.push({ x: x + 18, y: y + 10, radius: 220, intensity: 0.6, color: [1, 0.32, 0.22] });
@@ -352,12 +436,97 @@ export class Interior {
       t.alpha = 0.6;
       t.position.set(lab.x - 40, lab.y - 4 * T);
       this.litCam.addChild(t);
+      this.texts.push(t);
     }
     this.shownKey = '';
   }
   private solidTileStatic(tx: number, ty: number): boolean {
     const c = this.ch(tx, ty);
     return c === '#' || c === 'c';
+  }
+
+  /**
+   * The walkable base (after the Corvina on foot): charcoal hull rooms with
+   * chrome trim and gold power lines, hanging in black water. The rooms'
+   * own art comes from the level's hooks.
+   */
+  private buildBaseStatic(g: Graphics, e: Graphics, gl: Graphics, rand: () => number): void {
+    const PW = this.W * T;
+    const PH = this.H * T;
+    // Black water outside the hull, with drifting specks and faint light from above.
+    g.rect(0, 0, PW, PH).fill({ color: 0x06141a });
+    for (let y = 0; y < PH; y += 80) g.rect(0, y, PW, 80).fill({ color: 0x0b2630, alpha: 0.5 * Math.max(0, 1 - y / PH) });
+    for (let i = 0; i < (PW * PH) / 14000; i++) g.circle(rand() * PW, rand() * PH, 0.6 + rand() * 1.4).fill({ color: 0x9ec8c8, alpha: 0.08 + rand() * 0.12 });
+    const addLamp = (x: number, y: number, zone: number) => {
+      g.roundRect(x - 16, y - 4, 32, 8, 3).fill({ color: 0x2a2f33 });
+      g.rect(x - 16, y - 4, 32, 2).fill({ color: 0x9aa6ad });
+      const core = new Graphics().roundRect(x - 13, y + 1, 26, 3, 1.5).fill({ color: 0xf4ffd8 });
+      const halo = new Graphics().ellipse(x, y + 10, 46, 16).fill({ color: 0xe8f0c0 });
+      this.emissiveCam.addChild(core);
+      this.glowCam.addChild(halo);
+      this.lamps.push({ light: { x, y: y + 30, radius: 330, intensity: 0, color: [0.95, 0.97, 0.86], haze: 0.03 }, core, halo, zone });
+    };
+    const addText = (t: Text) => {
+      this.litCam.addChildAt(t, 1);
+      this.texts.push(t);
+    };
+    this.hooks!.decorate(g, e, gl, addLamp, addText, 'back');
+    const hull = (tx: number, ty: number) => {
+      const c = this.ch(tx, ty);
+      return c === '#' || c === 'P';
+    };
+    for (let ty = 0; ty < this.H; ty++)
+      for (let tx = 0; tx < this.W; tx++) {
+        const c = this.map[ty][tx];
+        const x = tx * T;
+        const y = ty * T;
+        if (c === '#') {
+          g.rect(x, y, T + 0.5, T + 0.5).fill({ color: 0x2a2f33 });
+          const open = (dx: number, dy: number) => {
+            const n = this.ch(tx + dx, ty + dy);
+            return n !== '#' && n !== 'X' && n !== 'P';
+          };
+          // Outer skin facing the water: darker, with a chrome seam.
+          const outside = (dx: number, dy: number) => this.ch(tx + dx, ty + dy) === 'X';
+          if (outside(0, -1)) g.rect(x, y, T + 0.5, 4).fill({ color: 0x9aa6ad });
+          if (outside(0, 1)) g.rect(x, y + T - 4, T + 0.5, 4).fill({ color: 0x14181b });
+          if (outside(-1, 0)) g.rect(x, y, 3, T + 0.5).fill({ color: 0x9aa6ad, alpha: 0.7 });
+          if (outside(1, 0)) g.rect(x + T - 3, y, 3, T + 0.5).fill({ color: 0x14181b });
+          // Floors: a chrome-capped deck with a gold power line just under it.
+          if (open(0, -1)) {
+            g.rect(x, y, T + 0.5, 7).fill({ color: 0x8e9aa2 });
+            g.rect(x, y, T + 0.5, 2).fill({ color: 0xdfe7ec, alpha: 0.7 });
+            g.rect(x, y + 7, T + 0.5, 2).fill({ color: 0x15191c });
+            e.rect(x, y + 13, T + 0.5, 1.6).fill({ color: 0xc9a13a, alpha: 0.75 });
+            for (let k = 5; k < T; k += 10) g.rect(x + k, y + 2.5, 5, 2).fill({ color: 0x2a2f33, alpha: 0.8 });
+          }
+          // Ceilings and walls facing a room: a dark lip.
+          if (open(0, 1)) g.rect(x, y + T - 5, T + 0.5, 5).fill({ color: 0x14181b });
+          if (open(1, 0)) g.rect(x + T - 4, y, 4, T + 0.5).fill({ color: 0x1b1f22 });
+          if (open(-1, 0)) g.rect(x, y, 4, T + 0.5).fill({ color: 0x3a4146 });
+          if (rand() < 0.08) g.rect(x + 6 + rand() * 24, y + 14, 8, 1).fill({ color: 0x3e464b });
+        } else if (c === 'P') {
+          // The moon pool: dark water in the dock's lower deck.
+          g.rect(x, y, T + 0.5, T + 0.5).fill({ color: 0x0a2c34 });
+          if (!hull(tx, ty - 1) && this.ch(tx, ty - 1) !== 'P') e.rect(x, y, T + 0.5, 3).fill({ color: 0x3aa0a8, alpha: 0.5 });
+        } else if (c === '=') {
+          g.rect(x, y, T + 0.5, 7).fill({ color: 0x7c878e });
+          for (let k = 3; k < T; k += 8) g.rect(x + k, y + 2, 4, 3).fill({ color: 0x15191c });
+          g.rect(x, y + 7, T + 0.5, 2).fill({ color: 0x15191c });
+          if (tx % 3 === 0) g.moveTo(x + 4, y + 9).lineTo(x + 4, y + 22).stroke({ color: 0x3a4146, width: 2 });
+        }
+        if (c === 'H') this.drawLadder(g, x, y);
+      }
+    this.hooks!.decorate(g, e, gl, addLamp, addText, 'front');
+  }
+
+  private drawLadder(g: Graphics, x: number, y: number): void {
+    g.rect(x + 7, y, 4, T + 0.5).fill({ color: 0xaeb9c0 });
+    g.rect(x + T - 11, y, 4, T + 0.5).fill({ color: 0x8e9aa2 });
+    for (const k of [8, 28]) {
+      g.rect(x + 9, y + k, T - 18, 3).fill({ color: 0xc8d2d8 });
+      g.rect(x + 9, y + k + 3, T - 18, 1).fill({ color: 0x15191c, alpha: 0.6 });
+    }
   }
 
   /** Doors, breakers and taken things, redrawn only when they change. */
@@ -397,10 +566,11 @@ export class Interior {
       else if (s.ch === '3') tk.roundRect(x - 11, y - 8, 22, 10, 1).fill({ color: 0x6a3a2a });
       else tk.rect(x - 8, y - 6, 16, 4).fill({ color: 0xa8822e });
     }
-    for (const l of this.lamps) {
-      l.core.visible = l.halo.visible = p;
-      l.light.intensity = p ? 1.0 : 0;
-    }
+    if (!this.hooks)
+      for (const l of this.lamps) {
+        l.core.visible = l.halo.visible = p;
+        l.light.intensity = p ? 1.0 : 0;
+      }
   }
 
   // ---------------------------------------------------------------------------
@@ -425,7 +595,7 @@ export class Interior {
 
     // ---- Grapple target: the best anchor in range with a clear line, ahead and above first ----
     this.grappleTarget = -1;
-    if (!this.grapple) {
+    if (!this.grapple && !this.climbing) {
       const hx = w.x;
       const hy = w.y - 60;
       let best = Infinity;
@@ -444,6 +614,11 @@ export class Interior {
     // ---- Things to hold Collect at ----
     let act: { key: string; label: string; seconds: number; done: () => void } | null = null;
     let info = '';
+    if (this.hooks) {
+      const r = this.hooks.act(w.x, w.y);
+      if (typeof r === 'string') info = r;
+      else if (r) act = r;
+    }
     const near = (s: Spot, r = 50) => Math.abs(w.x - s.x) < r && Math.abs(w.y - s.y) < 70;
     let bi = 0;
     for (const s of this.spots) {
@@ -522,6 +697,7 @@ export class Interior {
 
     // ---- Movement ----
     if (this.grapple) this.updateGrapple(dt, inp, jumpPressed);
+    else if (this.climbing) this.updateClimb(dt, inp, jumpPressed, ev);
     else this.updateWalk(dt, inp, jumpPressed, ev);
 
     // ---- Hazards ----
@@ -590,7 +766,7 @@ export class Interior {
       const hitSolid = this.rectHits(w.x - HALF_W, w.y - 1, w.x + HALF_W, w.y);
       let hitGrate = false;
       if (this.dropTimer <= 0 && prevY <= ty * T + 1)
-        for (let tx = Math.floor((w.x - HALF_W) / T); tx <= Math.floor((w.x + HALF_W - 0.01) / T); tx++) if (this.ch(tx, ty) === '=') hitGrate = true;
+        for (let tx = Math.floor((w.x - HALF_W) / T); tx <= Math.floor((w.x + HALF_W - 0.01) / T); tx++) if (this.ch(tx, ty) === '=' || this.ladderTop(tx, ty)) hitGrate = true;
       if (hitSolid || hitGrate) {
         w.y = ty * T;
         if (this.fallFrom && w.y - this.fallFrom > 260) ev.push({ type: 'land', hard: w.y - this.fallFrom > 420 });
@@ -606,9 +782,88 @@ export class Interior {
       this.fallFrom = 0;
       // Remember solid footing away from the bilge and vents, to come back to after a fall.
       const below = this.ch(Math.floor(w.x / T), Math.floor((w.y + 4) / T));
-      if ((below === '#' || below === 'c' || below === '=') && !this.vents.some((v) => Math.abs(v.x - w.x) < 60)) this.lastSafe = { x: w.x, y: w.y };
+      if ((below === '#' || below === 'c' || below === '=' || below === 'H') && !this.vents.some((v) => Math.abs(v.x - w.x) < 60)) this.lastSafe = { x: w.x, y: w.y };
     }
     w.pose = !w.onGround ? (w.vy < 0 ? 'jump' : 'fall') : Math.abs(w.vx) > 20 ? 'walk' : 'stand';
+    // Ladders: push up on one to climb it, or down while standing on its top.
+    const ltx = Math.floor(w.x / T);
+    const lc = ltx * T + T / 2;
+    if (Math.abs(w.x - lc) < 16) {
+      const onBody = this.ladder(ltx, Math.floor((w.y - 10) / T)) || this.ladder(ltx, Math.floor((w.y - 50) / T));
+      const footTy = Math.floor((w.y + 2) / T);
+      if (inp.moveY < -0.5 && onBody) this.climbing = true;
+      else if (inp.moveY > 0.5 && w.onGround && this.ladderTop(ltx, footTy) && Math.abs(inp.moveX) < 0.5) {
+        this.climbing = true;
+        w.y += 6;
+      }
+      if (this.climbing) {
+        w.x = lc;
+        w.vx = w.vy = 0;
+        w.onGround = false;
+      }
+    }
+  }
+
+  private updateClimb(dt: number, inp: InteriorInput, jumpPressed: boolean, ev: InteriorEvent[]): void {
+    const w = this.walker;
+    const tx = Math.floor(w.x / T);
+    w.x += (tx * T + T / 2 - w.x) * Math.min(1, dt * 12);
+    if (Math.abs(inp.moveX) > 0.2) w.face = inp.moveX > 0 ? 1 : -1;
+    const dir = Math.abs(inp.moveY) > 0.25 ? Math.sign(inp.moveY) : 0;
+    // Step off sideways where the ladder passes a floor.
+    if (Math.abs(inp.moveX) > 0.6 && dir === 0) {
+      const fy = Math.round(w.y / T) * T;
+      const under = this.ch(Math.floor((w.x + Math.sign(inp.moveX) * T) / T), fy / T);
+      if (Math.abs(w.y - fy) < 14 && (under === '#' || under === '=')) {
+        w.y = fy;
+        this.climbing = false;
+        w.onGround = true;
+        return;
+      }
+    }
+    w.vx = 0;
+    w.vy = dir * CLIMB;
+    const ny = w.y + w.vy * dt;
+    w.pose = 'climb';
+    w.climbPhase += (w.vy * dt) / 26;
+    if (jumpPressed) {
+      // Hop off sideways.
+      this.climbing = false;
+      w.vy = -380;
+      w.vx = (Math.abs(inp.moveX) > 0.2 ? Math.sign(inp.moveX) : w.face) * 240;
+      this.fallFrom = w.y;
+      ev.push({ type: 'jump' });
+      return;
+    }
+    if (dir < 0) {
+      // Up: stop under a ceiling; step off the top onto the floor above.
+      if (this.rectHits(w.x - HALF_W, ny - HEIGHT, w.x + HALF_W, ny - HEIGHT + 1)) return;
+      const topTy = Math.floor((w.y - 1) / T);
+      if (this.ladderTop(tx, topTy) && ny <= topTy * T) {
+        w.y = topTy * T;
+        this.climbing = false;
+        w.onGround = true;
+        w.pose = 'stand';
+        return;
+      }
+      w.y = ny;
+    } else if (dir > 0) {
+      // Down: land on the floor at the bottom.
+      if (this.rectHits(w.x - HALF_W, ny - 1, w.x + HALF_W, ny)) {
+        w.y = Math.floor(ny / T) * T;
+        this.climbing = false;
+        w.onGround = true;
+        w.pose = 'stand';
+        return;
+      }
+      w.y = ny;
+    }
+    // Climbed off the bottom of the ladder into open air: let go.
+    if (!this.ladder(tx, Math.floor((w.y - 10) / T)) && !this.ladder(tx, Math.floor((w.y - 50) / T))) {
+      this.climbing = false;
+      this.fallFrom = w.y;
+    }
+    w.onGround = false;
   }
 
   private onGrating(): boolean {
@@ -668,7 +923,8 @@ export class Interior {
     const zoom = this.cssH / viewH;
     const viewW = this.cssW / zoom;
     const lx = w.x + w.face * 120 + w.vx * 0.2 - viewW / 2;
-    const ly = w.y - 60 - viewH / 2;
+    // In the base the floor sits low on screen (rooms are what you look at, not the water below).
+    const ly = this.hooks ? w.y - viewH * 0.7 : w.y - 60 - viewH / 2;
     const k = 1 - Math.exp(-5 * dt);
     this.cam.x += (lx - this.cam.x) * k;
     this.cam.y += (ly - this.cam.y) * k;
@@ -703,7 +959,10 @@ export class Interior {
       const k2 = this.grapple.phase === 'fly' ? Math.min(1, this.grapple.t / GRAPPLE_FLY) : 1;
       o.moveTo(hand.x, hand.y).lineTo(hand.x + (a.x - hand.x) * k2, hand.y + (a.y - hand.y) * k2).stroke({ color: 0xd8c890, width: 2 });
     }
-    void de;
+    if (this.hooks) {
+      de.clear();
+      this.hooks.animate(d, de, this.time);
+    }
     // Lights: lamps (with power), the emergency lamps, and the helmet lamp's beam.
     const head = w.head();
     this.headLamp.x = head.x + w.face * 10;
@@ -711,7 +970,20 @@ export class Interior {
     this.headLamp.dirX = w.face * 0.97;
     this.headLamp.dirY = 0.24;
     this.headLamp.intensity = this.lampOn ? 1.6 : 0;
-    const lights: Light[] = [this.headLamp, ...this.lamps.map((l) => l.light), ...(this.power ? [] : this.emergency)];
+    if (this.hooks)
+      for (const l of this.lamps) {
+        const on = this.hooks.powered(l.zone);
+        l.core.visible = l.halo.visible = on;
+        l.light.intensity = on ? 1.05 : 0;
+      }
+    // The nearest lights win (the shader adds up at most MAX_LIGHTS).
+    const cx = this.cam.x + viewW / 2;
+    const cy = this.cam.y + viewH / 2;
+    const pool = [...this.lamps.map((l) => l.light), ...(this.hooks ? this.hooks.lights() : this.power ? [] : this.emergency)].filter(
+      (l) => l.intensity > 0 && Math.abs(l.x - cx) < viewW / 2 + l.radius && Math.abs(l.y - cy) < viewH / 2 + l.radius,
+    );
+    pool.sort((a, b) => Math.hypot(a.x - cx, a.y - cy) - Math.hypot(b.x - cx, b.y - cy));
+    const lights: Light[] = [this.headLamp, ...pool.slice(0, MAX_LIGHTS - 1)];
     this.lighting.update({
       time: this.time,
       camX: this.cam.x,
@@ -720,7 +992,7 @@ export class Interior {
       viewH,
       cssW: this.cssW,
       cssH: this.cssH,
-      ambient: this.power ? [0.46, 0.44, 0.42] : [0.16, 0.17, 0.2],
+      ambient: this.hooks ? [0.3, 0.32, 0.34] : this.power ? [0.46, 0.44, 0.42] : [0.16, 0.17, 0.2],
       lights,
     });
     this.renderer.render({ container: this.litRoot, target: this.sceneRT, clear: true, clearColor: [0, 0, 0, 0] });
@@ -728,7 +1000,7 @@ export class Interior {
   }
 
   /** For tests and the sound: where the walker is. */
-  get pos(): { x: number; y: number; onGround: boolean } {
-    return { x: this.walker.x, y: this.walker.y, onGround: this.walker.onGround };
+  get pos(): { x: number; y: number; onGround: boolean; climbing: boolean } {
+    return { x: this.walker.x, y: this.walker.y, onGround: this.walker.onGround, climbing: this.climbing };
   }
 }

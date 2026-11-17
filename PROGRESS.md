@@ -1,6 +1,6 @@
 # Fathomlight progress
 
-Last updated: 2026-11-16, **the Corvina on foot deployed (dry interiors, the walking explorer, a three-deck dungeon)**. Next is **the walkable base** (see Next).
+Last updated: 2026-11-17, **the walkable base, part 1 deployed (the base indoors, built from your layout; the new base kit and Crest diver look)**. Next is **the walkable base, part 2** (see Next).
 
 Play link: https://colinhill88-hub.github.io/fathomlight/ (live; first successful deploy 2026-11-14)
 
@@ -982,23 +982,84 @@ Cut from High so far: the phone renders at 2× instead of its native 3×. Colin 
   - Screenshots: the dark decks lit by the helmet lamp, the hold, the lit lab.
   - The tests found and fixed: the lift ping-pong (Collect must now be released between actions), too dark and too small a view (zoomed in, brighter ambient before power), and the interior's state drifting from the save.
 
+### The walkable base, part 1 (after the Corvina on foot)
+- **Colin's feedback:** new concept art for the base pieces and the diver (saved in `docs/art/kit2/`). Nothing was flagged about walking, jumping, the grapple or the Corvina's decks, so those are unchanged.
+- **Colin's choices (all suggested):**
+  - in through the dome's airlock (the moon pool comes in part 2);
+  - build from the build view: outside as before, or from the **base planner** console in the dome (no new indoor build controls);
+  - side joins are doorways, up/down joins are ladders (a lift only for shafts taller than 3 cells; none needed yet);
+  - **pieces keep their grid size outside**, but each cell is **8 × 6 tiles indoors** (320 × 240 units);
+  - conveyors and pipes along the ceilings (part 2);
+  - outside, the base is closed hulls in the new style: **you no longer swim "into" pieces**; everything is used indoors;
+  - creature tanks are seen through big windows from inside, and Tend opens at the window;
+  - **the base keeps running while you're inside** (drone, Labs, Workshops, cranes, factory lines, creatures);
+  - everything stays drawn by code, to match Colin's renders. The **harpoon is decoration for now**; keep its design in mind for later tools and weapons.
+- **The base indoors** (`src/interior/baselevel.ts`): the rooms are built automatically from the finished pieces on the grid, so they always match the layout.
+  - Joined side collars become **doorways** through both walls, with chrome flanges. Joined up/down collars become **ladder shafts** through floor and ceiling.
+  - Pieces two cells tall (dome, turbine, feeder, crane, Grand tank) have a **grating mezzanine** and a ladder up the left side. The dock has a catwalk over the **moon pool**.
+  - A **frame** still being welded isn't a room yet: its doorway is a sealed hatch with a red lamp. When it finishes while you're inside, the rooms rebuild around you.
+  - Open collars on the outside show as round windows onto the water.
+  - Each room's lamps light only while that piece has power. Unpowered rooms are dark.
+- **What each room does** (hold Collect at the spot):
+  - **dome:** airlock (go out), base planner (build view), bunk and galley console. The glass dome is the upper level's window. You wake here after a blackout.
+  - **storage / sorting pod:** unload what you carry. Crates on the racks and a gauge show how full storage is.
+  - **creature tank / Grand tank:** a window wall with the creatures, plants and bubbles. Put the jar's creature in, take the output tray, or Tend (opens the care panel).
+  - **Lab / Workshop:** opens their panel. The Lab's hologram and the Workshop's arm work while a job runs.
+  - **Moon pool dock:** dock controls. Docking and the sub itself are still outside.
+  - **recompression room:** seal the chamber to mend the suit to 100% and fill the air.
+  - **turbine, filter, feeder, press, crane:** a status line (power, levels, plates, salvage waiting). The turbine's impeller turns in a round window; the press's ram strokes while it runs.
+  - Panels (care, Lab/Workshop, dock, build) open by showing the base from outside for a moment; closing the panel puts you back where you stood.
+- **Ladders** (reusable in any interior, map letter `H`): push up or down at a ladder to climb; jump hops off sideways; push left or right where it passes a floor to step off. The top of a ladder holds you up like a grating.
+- **Inside the base** the air is dry and refills your tank, and the suit mends at 25%/s.
+- **Outside:** hold Collect at the round hatch on the front of a dome's drum: "Go in through the airlock". Storage, tanks, Labs, Workshops and the recompression room no longer do anything from outside. The dock's outside button stays (for the sub).
+- **The new base kit outside** (`src/world/basegfx.ts`, the `PAL` palette, `goldTraces`, `flangeV`):
+  - charcoal hull, chrome flanges and joints, lime glass, gold power lines and one red lamp, with no yellow plate or hazard stripes;
+  - the **dome** has lime glass, a chrome rim and a round airlock hatch on the drum;
+  - the **corridor** is a charcoal drum with thick chrome end flanges, a lime porthole and a coiled conduit;
+  - the **turbine** is a tall column with lime grille vents, a glowing gold spine and the impeller in a chrome ring;
+  - the other pieces pick up the new palette.
+- **The Crest diver look** (`src/actors/diver.ts`, `src/actors/walker.ts`), swimming and on foot:
+  - charcoal suit and sleeves with gold circuit lines;
+  - neon lime crest helmet, chrome collar and hose rebreather;
+  - twin oxygen tanks with lime bands, and a harpoon clipped along them;
+  - a white **hip thruster** rig with a lime nozzle that throws a **lime plume while boosting**;
+  - red gloves and short red-tipped fins.
+- **Also changed:** the interior lighting now keeps only the nearest 16 lights (it used to drop lights at random past 16). The camera sits lower in the base, so you see the rooms rather than the water under them.
+- **Tested** (scripted in headless Chromium, which runs at about 3 fps there, so every step waits for its result; no console errors):
+  - a 13-piece test base built its rooms correctly: doorways, a ladder shaft from storage up through a vertical corridor into a sorting pod, mezzanines, and a sealed door to a Grand tank frame;
+  - climbing the dome's ladder onto its mezzanine; walking from the dome through a corridor and the turbine into storage;
+  - unloading 3 scrap into storage, and climbing the shaft to the upper floor;
+  - Tend at the tank window opened the care panel outside, and closing it put the walker back in the tank room;
+  - the airlock put the diver outside the dome;
+  - screenshots of the dome, sorting pod, tank room, the outside of the base and the boosting diver.
+  - The tests found and fixed: the dome ladder running past its mezzanine (you couldn't step off), and glowing fills (tank water, dome glass) drawing over the explorer.
+
 ## Next
 
-**Next session: the walkable base** (Colin, after the Corvina on foot), before milestone 9. Prompt in `docs/prompts/base-on-foot.md`.
-- **Colin's choices so far:** everything goes indoors, factory machines included. Pieces become larger and more detailed, and their layout must make sense to walk through. **Save compatibility doesn't matter:** he'll playtest from scratch, so old bases can simply be reset.
-- **Reuse:** the on-foot system (`src/interior/`: tile maps, walker, gratings, grapple, interior lighting).
-- **Ask Colin before building:**
-  - how the base is entered (the dome's airlock? the moon pool?) and whether you still build from outside (the zoomed-out build view) or from inside;
-  - how rooms connect (doors, ladders, lifts between floors) and how big a piece is in tiles;
-  - how conveyors and pipes run indoors (along walls and ceilings?);
-  - what happens to the outside look of the base;
-  - whether creature tanks are viewed from inside (big windows);
-  - the phone controls for building indoors.
-- **After that,** milestone 9, breeding (prompt in `docs/prompts/milestone-9.md`, questions in DESIGN.md).
+**Next session: the walkable base, part 2** (prompt in `docs/prompts/base-on-foot-part-2.md`). Then milestone 9, breeding (prompt in `docs/prompts/milestone-9.md`, questions in DESIGN.md).
+- **Part 2 (agreed with Colin):**
+  - every machine room more detailed and usable indoors: feeder, press, filter, sorter and crane controls, and whorls fitted from inside;
+  - conveyors and feed pipes run along the ceilings of the rooms they pass through, with items moving on them;
+  - the moon pool as a second way in (surface into the dock from the sub);
+  - a lift for any shaft taller than 3 cells.
+- **Colin's notes to keep in mind:** the harpoon on the Crest diver is decoration for now; use its design for later tools and weapons.
 
-Where things are (on foot): the interior system in `src/interior/interior.ts` (physics constants at the top), its lighting in `src/interior/light.ts`, the Corvina's map in `src/interior/corvina.ts` (edit the ASCII map to change the level), the walker in `src/actors/walker.ts`, and the hand-off in `src/main.ts` (`enterCorvina`, `exitCorvina`, `interiorFrame`).
+Where things are (on foot):
+- the interior system: `src/interior/interior.ts` (physics constants at the top; ladders; hooks for generated levels);
+- its lighting: `src/interior/light.ts`;
+- the Corvina's map: `src/interior/corvina.ts`;
+- the base's rooms: `src/interior/baselevel.ts` (`buildBaseLevel` builds the map from the layout; `BaseHooks` draws each room and says what you can do in it);
+- the walker: `src/actors/walker.ts`;
+- the hand-off: `src/main.ts` (`enterBase`, `exitBase`, `peekOut`, `backInside`, `simBase`, `interiorFrame`).
 
 ## Problems and open questions
+
+- **The walkable base, part 1, to check after Colin plays:**
+  - room size (8 × 6 tiles a cell, `CW`/`CH` in `src/interior/baselevel.ts`) and climbing speed (210, `CLIMB` in `src/interior/interior.ts`);
+  - whether panels opening "outside for a moment" (care, Lab/Workshop, dock, build) feels right, or should open over the room instead;
+  - a base with **no finished dome has no way in**, so storage and tanks can't be used until one is built. The dome is the first build card;
+  - old saves load, but bases built before may make odd room layouts (Colin said save compatibility doesn't matter; reset progress in Settings to start clean);
+  - frame rate on the phone in a big base. Rooms redraw their moving parts (creatures, screens, rams) every frame; if it stutters, only draw rooms near the camera.
 
 - **On-foot numbers to tune after Colin plays** (top of `src/interior/interior.ts`):
   - walk 270, jump 660 (about 2.4 tiles high), gravity 1900, coyote 0.1 s, jump buffer 0.13 s;

@@ -27,10 +27,10 @@ const C = {
   suitShade: 0x1a1d1d,
   suitLight: 0x4a504d,
   etch: 0xb39a4e, // brass etched lines
-  sleeve: 0x8b918f,
-  sleeveShade: 0x5f6563,
-  red: 0xa8402e, // rust red gloves and belt
-  redShade: 0x6e2a1f,
+  sleeve: 0x2e3234, // charcoal sleeves (Colin's Crest diver boards, docs/art/kit2)
+  sleeveShade: 0x1c1f20,
+  red: 0xb3302a, // red gloves and fin tips
+  redShade: 0x6e1c18,
   rust: 0x8a3a20,
   chrome: 0x6d7f9a, // blue-steel chrome
   chromeDark: 0x2c3647,
@@ -40,7 +40,7 @@ const C = {
   steelLight: 0xaab4b5,
   rubber: 0x232524,
   rubberEdge: 0x3d4140,
-  visor: 0xb6e23a, // tinted lime glass
+  visor: 0xc6f03a, // neon lime glass
   visorEdge: 0x6f8f16,
   skin: 0x9a7058,
 };
@@ -63,16 +63,6 @@ function scratches(g: Graphics, x0: number, y0: number, w: number, h: number, n:
     g.moveTo(x, y)
       .lineTo(x + Math.cos(a) * l, y + Math.sin(a) * l)
       .stroke({ color: 0xffffff, alpha: alpha * (0.7 + rand() * 0.6), width: 0.6 });
-  }
-}
-
-function rustStreaks(g: Graphics, x0: number, y0: number, w: number, n: number, len: number): void {
-  for (let i = 0; i < n; i++) {
-    const x = x0 + rand() * w;
-    const l = len * (0.5 + rand());
-    g.moveTo(x, y0)
-      .quadraticCurveTo(x + (rand() - 0.5) * 2, y0 + l * 0.5, x + (rand() - 0.5) * 3, y0 + l)
-      .stroke({ color: C.rust, alpha: 0.3 + rand() * 0.25, width: 0.7 + rand() * 0.8 });
   }
 }
 
@@ -149,17 +139,20 @@ function buildLeg(far: boolean): Leg {
   fin.x = 22;
   const fg = new Graphics();
   fg.roundRect(-5, -6, 12, 12, 4).fill({ color: C.rubber });
+  // Short fins with red tips (the concept's "short fins").
   fg.moveTo(2, -6)
-    .lineTo(44, -9)
-    .quadraticCurveTo(50, -1, 46, 6)
+    .lineTo(32, -8)
+    .quadraticCurveTo(37, -1, 34, 5.5)
     .lineTo(4, 5)
     .closePath()
     .fill({ color: C.rubber });
-  fg.moveTo(44, -9).quadraticCurveTo(50, -1, 46, 6).stroke({ color: C.rubberEdge, width: 2.2, alpha: 0.9 });
+  fg.moveTo(24, -7.5).lineTo(32, -8).quadraticCurveTo(37, -1, 34, 5.5).lineTo(24, 5.2).closePath().fill({ color: C.red });
+  fg.moveTo(32, -8).quadraticCurveTo(37, -1, 34, 5.5).stroke({ color: C.redShade, width: 1.6, alpha: 0.9 });
   for (const y of [-4, 0, 3.5])
     fg.moveTo(8, y * 0.7)
-      .lineTo(42, y * 1.25)
+      .lineTo(23, y * 1.1)
       .stroke({ color: 0x3e4140, width: 1, alpha: 0.7 });
+  fg.moveTo(10, -2).lineTo(20, -2.4).stroke({ color: C.visor, width: 1, alpha: 0.7 });
   fg.tint = tint;
   fg.scale.set(0.88, 1);
   fin.addChild(fg);
@@ -195,46 +188,31 @@ function buildTorso(): Container {
   const c = new Container();
   const g = new Graphics();
 
-  // Raised chrome cowl: the back unit's metal rises up behind the helmet
-  // and curves forward over it, protecting the hose connection.
-  g.moveTo(-10, -28)
-    .bezierCurveTo(4, -38, 18, -51, 34, -51)
-    .bezierCurveTo(44, -52, 50, -47, 50, -42)
-    .quadraticCurveTo(44, -40, 42, -34)
-    .lineTo(40, -24)
-    .lineTo(-10, -24)
-    .closePath()
-    .fill({ color: C.chrome })
-    .stroke({ color: C.chromeDark, width: 1.2 });
-  g.moveTo(0, -33).bezierCurveTo(12, -42, 24, -48, 38, -48.5).stroke({ color: C.chromeHi, width: 2.6, alpha: 0.75, cap: 'round' });
-  g.moveTo(41, -33).quadraticCurveTo(44, -42, 49, -44).stroke({ color: C.chromeMid, width: 2.2, alpha: 0.9, cap: 'round' });
-  // A round port through the cowl, ribs, and the hose coupling at the top.
-  g.circle(12, -31.5, 3.6).fill({ color: C.chromeMid }).stroke({ color: C.chromeDark, width: 1 });
-  g.circle(12, -31.5, 1.7).fill({ color: 0x0f1418 });
-  for (let k = 0; k < 3; k++) g.moveTo(31 + k * 3.2, -44).lineTo(31 + k * 3.2, -31).stroke({ color: C.chromeDark, width: 1.2, alpha: 0.7 });
-  g.roundRect(41, -45, 9, 7, 2).fill({ color: C.chromeMid }).stroke({ color: C.chromeDark, width: 1 });
-  rivets(g, [[37, -28], [22, -42], [26, -30]], 0.9);
-  scratches(g, 0, -48, 44, 18, 6, 0.3);
-  rustStreaks(g, 14, -33, 22, 2, 5);
-
-  // Back unit: a compact chrome rebreather with two round ports.
-  chromeBands(g, -28, -32, 62, 19, 9.5);
-  // A bolted access hatch at the rear and a vent grille towards the front.
-  g.roundRect(-23, -27, 14, 9, 2).fill({ color: C.chromeMid }).stroke({ color: C.chromeDark, width: 1 });
-  rivets(g, [[-21, -25], [-11, -25], [-21, -20], [-11, -20]], 0.75);
-  for (let i = 0; i < 5; i++) g.roundRect(8 + i * 4, -28, 2, 10, 1).fill({ color: C.chromeDark, alpha: 0.85 });
-  rivets(g, [[-24, -18], [-1, -27], [26, -18]], 0.9);
-  scratches(g, -24, -29, 54, 14, 8, 0.3);
-  rustStreaks(g, -20, -16, 44, 3, 5);
+  // Twin oxygen tanks along the back (Colin's Crest diver): dark chrome with lime
+  // bands, valves and chrome caps towards the head.
+  for (const [y, shade] of [[-38, C.steelDark], [-27, C.chromeDark]] as const) {
+    g.roundRect(-30, y, 62, 12, 6).fill({ color: shade });
+    g.roundRect(-27, y + 2, 56, 3, 1.5).fill({ color: 0x8e9aa2, alpha: 0.55 });
+    g.rect(2, y + 1, 4, 10).fill({ color: C.visor, alpha: 0.9 });
+    g.rect(-14, y + 1, 2, 10).fill({ color: C.visor, alpha: 0.6 });
+    g.rect(32, y + 3, 6, 6).fill({ color: C.steelLight });
+    g.rect(37, y + 1.5, 3, 9).fill({ color: C.chromeDark });
+    scratches(g, -28, y + 1, 56, 9, 3, 0.25);
+  }
+  // A harpoon clipped along the tanks: white stock, chrome barrel and spear.
+  g.moveTo(-40, -43).lineTo(44, -46).stroke({ color: C.chromeDark, width: 1.6 });
+  g.poly([44, -46, 37, -48.5, 37.5, -43.5]).fill({ color: C.chromeHi });
+  g.roundRect(-30, -47, 30, 6, 3).fill({ color: 0xd8dde0 });
+  g.rect(-12, -41, 3, 6).fill({ color: 0xd8dde0 });
+  g.moveTo(-28, -45).lineTo(-2, -45).stroke({ color: 0x8e979c, width: 1 });
 
   // Suit body: charcoal with brass etching.
   g.roundRect(-34, -15, 74, 30, 13).fill({ color: C.suit });
   g.roundRect(-32, 3, 70, 11, 6).fill({ color: C.suitShade, alpha: 0.75 });
   g.roundRect(-30, -13, 66, 5, 3).fill({ color: C.suitLight, alpha: 0.5 });
   etching(g, -26, -11, 44, 20, 9);
-  // Rust-red belt with a chrome buckle.
-  g.rect(-28, -15, 7, 30).fill({ color: C.red });
-  g.rect(-28, 4, 7, 11).fill({ color: C.redShade, alpha: 0.6 });
+  // Belt with a chrome buckle.
+  g.rect(-28, -15, 7, 30).fill({ color: C.suitShade });
   chromeBands(g, -36, -5, 9, 12, 3);
   // Harness strap from the back unit.
   g.rect(14, -15, 5, 30).fill({ color: C.chromeDark, alpha: 0.85 });
@@ -539,6 +517,9 @@ export class Diver {
   private heave = 0;
   private diveCooldown = 0;
   private diveBag = buildDiveBag();
+  /** Hip thruster rig: a white housing with a lime nozzle, and the plume while boosting. */
+  private thruster = new Graphics();
+  private plume = new Graphics();
   private visorFog!: Container;
   private visorDrops!: Container;
 
@@ -569,9 +550,20 @@ export class Diver {
       helmet,
       buildShoulderLamp(),
       this.nearLeg.thigh,
+      this.plume,
+      this.thruster,
       this.nearArm.upper,
     );
     this.diveBag.position.set(-8, 15);
+    {
+      const t = this.thruster;
+      t.roundRect(-30, 8, 24, 12, 5).fill({ color: 0xd8dde0 });
+      t.roundRect(-28, 9, 20, 3, 1.5).fill({ color: 0xffffff, alpha: 0.6 });
+      t.rect(-19, 8, 2, 12).fill({ color: 0x8e979c });
+      t.roundRect(-36, 9.5, 8, 9, 2).fill({ color: C.chromeDark });
+      t.circle(-36, 14, 4).fill({ color: C.visor, alpha: 0.9 });
+      t.rect(-12, 10, 10, 3).fill({ color: C.chromeDark });
+    }
     this.diveBag.visible = false;
     this.body.position.set(0, 0);
     this.view.addChild(this.body);
@@ -765,6 +757,14 @@ export class Diver {
     // A heavy bag makes the diver kick harder for the same speed.
     this.kick += dt * (2.2 + s * 6.5 + boost * 5 + Math.min(1.6, this.load) * 1.6 * Math.min(1, s * 3));
     this.diveBag.visible = this.load > 0.005;
+    // Hip jets: a lime plume while boosting, fading out after.
+    const jet = Math.min(1, this.boostTime / 0.3);
+    const pl = this.plume.clear();
+    if (jet > 0.02) {
+      const len = 26 + 18 * jet + Math.sin(this.time * 40) * 3;
+      pl.poly([-38, 10, -38 - len, 14, -38, 18]).fill({ color: C.visor, alpha: 0.55 * jet });
+      pl.poly([-38, 12, -38 - len * 0.6, 14, -38, 16]).fill({ color: 0xf4ffd0, alpha: 0.8 * jet });
+    }
     const fill = Math.min(1.6, this.load);
     this.diveBag.scale.set(0.55 + 0.32 * fill, 0.5 + 0.45 * fill);
     this.diveBag.rotation = -this.pitch * 0.6 + Math.sin(this.kick * 0.5) * 0.06;
