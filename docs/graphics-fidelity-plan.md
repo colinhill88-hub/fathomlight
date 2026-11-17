@@ -1,6 +1,6 @@
 # Fathomlight: graphics fidelity audit and plan
 
-2026-11-17. Audit and planning only: no code was changed in this session. **Waiting for Colin's approval before any session below starts.**
+2026-11-17. Audit and planning only: no code was changed in this session. **Approved by Colin on 2026-11-17.** G1 runs next (prompt: `docs/prompts/graphics-g1.md`); G2–G4 follow as he approves each.
 
 Goal: a more polished underwater science-fiction look (sophisticated lighting, rich painterly environments, detailed weathered hardware, convincing atmosphere) on the existing PixiJS 8.23 / WebGL 2 / custom GLSL renderer. No Three.js, no engine rewrite, no WebGPU, no paid assets or new dependencies, procedural art stays the default, iPhone and iPad keep working, and gameplay stays readable.
 
@@ -139,7 +139,7 @@ Four sessions, each independently playable and testable, each touching rendering
 ### Session G1: measure, then HDR and the post stack
 
 1. **Dev performance overlay** (Settings → "Show performance", off by default): CPU update and render ms, GPU ms per pass (timer queries where supported), draw calls, light count, resolution.
-2. **Benchmark route** (`?bench` in the URL): fixed scenes, about 8 s each: shallows at the buoy, basin with a seeded big base, grotto with the lamp on, kelp forest, kelp caves black chamber, wreck shelf by the Corvina, and the base interior. It prints a table Colin can copy.
+2. **Benchmark route** (`?bench` in the URL): fixed scenes, about 8 s each: shallows at the buoy, basin with a seeded big base, grotto with the lamp on, kelp forest, kelp caves black chamber, wreck shelf by the Corvina, and the base interior with its ceiling lines. It prints a table Colin can copy.
 3. **Baseline numbers** recorded in PROGRESS.md (Colin's PC and iPhone).
 4. **Cheap wins:** caustics early-out where invisible; canvas MSAA off once the final pass is a full-screen quad.
 5. **HDR target and post pass:** lighting and emissives write to a half-float target (with an RGBA8 fallback if the iPhone cannot render to half-float; checked on the device), then filmic tone mapping, per-zone grading (shallows warm and clear, basin cool, forest green and dim, shelf grey-teal, caves near black), threshold bloom with a mip chain (the `glowCam` layer feeds it, so existing glows keep their look), vignette in the shader (the CSS one removed), grain. Interiors get the same post pass.
@@ -187,4 +187,4 @@ Expected result: hardware reads as heavy, weathered metal and glass, close to th
 | G3 | Deeper, layered scenes with zone character; light shafts cut by kelp; snow sparkling in the lamp | Low | Low (DOF and some layers Ultra only) | Backdrop clutter; kept faint and fogged |
 | G4 | Metal, brass and glass that look like materials; livelier creatures | Low | Low | Touches drawing code in several files; done after the look is approved |
 
-Order relative to gameplay milestones is Colin's call. The suggestion is to run G1 before the walkable base part 2 (so the benchmark exists before the base gets bigger and busier), then decide on G2–G4.
+Order: the walkable base part 2 was finished in a parallel session, so G1 runs next, before milestone 9. Colin decides G2–G4 and their order against gameplay milestones after seeing each result.

@@ -1,6 +1,6 @@
 # Fathomlight progress
 
-Last updated: 2026-11-17, **the walkable base, part 1 deployed (the base indoors, built from your layout; the new base kit and Crest diver look)**. Next is **the walkable base, part 2** (see Next).
+Last updated: 2026-11-17, **the walkable base, part 2 deployed (conveyors and pipes along the ceilings, the moon pool entry, lifts, whorl fitting from inside)**. Next is **graphics session G1** (see Next; plan in `docs/graphics-fidelity-plan.md`), then milestone 9, breeding.
 
 Play link: https://colinhill88-hub.github.io/fathomlight/ (live; first successful deploy 2026-11-14)
 
@@ -1034,22 +1034,35 @@ Cut from High so far: the phone renders at 2× instead of its native 3×. Colin 
   - screenshots of the dome, sorting pod, tank room, the outside of the base and the boosting diver.
   - The tests found and fixed: the dome ladder running past its mezzanine (you couldn't step off), and glowing fills (tank water, dome glass) drawing over the explorer.
 
+### The walkable base, part 2 (after part 1)
+- **Colin's feedback:** none given before part 2, so part 1 is unchanged. The choices from part 1 stand (ceiling lines, moon pool as a second way in, lifts for tall shafts, base keeps running).
+- **Conveyors and feed pipes along the ceilings** (`routeLine`, `drawRoutes` in `src/interior/baselevel.ts`):
+  - Each line runs from its machine's port up to the ceiling, along the ceilings of every room between the two machines, through the walls at doorways, up and down the ladder shafts, and drops into the other machine. The route follows the pieces joined end to end (the shortest chain of rooms).
+  - Belts are a dark belt on a chrome cradle; pipes are copper with chrome clamps. A chrome junction box with a gold (out) or lime (in) arrow marks each end.
+  - **Items move on them:** bundles of material on belts in the material's colour, soft lime pulses in pipes, only while the line is carrying something (the same flow numbers as outside). Lines take up to four lanes under the ceiling so crossing lines can be told apart.
+  - Outside, lines are drawn as before.
+- **The moon pool as a second way in:**
+  - Berthed in a finished, powered dock in a base that has a dome: **Exit (V)** now climbs you up into the dock room's catwalk instead of out into the water.
+  - In the dock room, hold Collect at the left of the pool: **"Climb down into KS-1"** boards the sub and puts you back in the water in it.
+  - The docked sub is drawn in the pool, under the catwalk.
+  - Without a dome (or without power), Exit still climbs out into the water as before.
+- **Lifts:** a shaft taller than 3 cells in total (for example storage, sorting pod, two corridors and another sorting pod) gets a lift pad at each end (two tiles right of the ladder). Hold Collect: "Take the lift up / down". The ladder still works.
+- **Fitting whorls from inside:** once an Echo whorl has been found, tanks, Grand tanks, feeders and presses show "Fit Echo whorls to CODE (n free)" at the right-hand end of their room. It opens the build view with that machine already selected.
+- **Tested** (scripted in headless Chromium at about 3 fps; no console errors): a 13-piece base with three lines (a belt from storage to the press across the whole base, a pipe from the feeder up a shaft to the tank, a belt between two stacked rooms) routed and drew; the lift carried the walker between floors (y 1280 to 320); boarding from the dock left the interior with the sub aboard; Exit from the docked sub came up into the base; the whorl console appeared at the press. Screenshots of the press room's ceiling lines, the feeder's pipe and the dock.
+- **Not done yet from the original part 2 list:** each machine room is not much more detailed than in part 1; the ceiling lines add the most. A line's code plate (CB-1, FL-2) is not drawn indoors.
+
 ### Graphics fidelity audit (planning only, 2026-11-17)
 - **Colin asked for** a graphics fidelity initiative: a more polished, premium look without changing the art direction, the renderer or gameplay. This session was an audit and plan only; **no code changed**.
 - **The plan is in `docs/graphics-fidelity-plan.md`**: how the renderer works today (draw order, passes, shaders), what is missing (no HDR or tone mapping, bloom only on opted-in objects, lights that pass through rock, flat-lit surfaces, generic backdrops, unlit particles), the performance picture, ten upgrades ranked by visual impact, and four sessions (G1 measure + HDR post stack; G2 light with form and shadow; G3 atmosphere and composition; G4 materials and creatures, optional).
 - **Baseline screenshots** (Ultra, cloud software renderer, 1280 × 680): `docs/art/fidelity/before-*.png` (shallows, grotto with lamp, kelp forest, wreck shelf).
 - **No frame times were measured**: the cloud browser has no GPU. Session G1 builds a performance overlay and a fixed benchmark route so Colin can measure his PC (RTX 5080, about 106 fps at 2560 × 1360 on Ultra today) and iPhone before and after each session.
-- **Waiting for Colin's approval** of the plan, and his choice of where it goes relative to the walkable base part 2.
+- **Colin approved the plan** and chose to run session G1 next, before milestone 9 (the walkable base part 2 was finished in a parallel session). The G1 prompt is in `docs/prompts/graphics-g1.md`.
 
 ## Next
 
-**Proposed first: graphics session G1** (if Colin approves `docs/graphics-fidelity-plan.md`; he decides the order). **Otherwise next: the walkable base, part 2** (prompt in `docs/prompts/base-on-foot-part-2.md`). Then milestone 9, breeding (prompt in `docs/prompts/milestone-9.md`, questions in DESIGN.md).
-- **Part 2 (agreed with Colin):**
-  - every machine room more detailed and usable indoors: feeder, press, filter, sorter and crane controls, and whorls fitted from inside;
-  - conveyors and feed pipes run along the ceilings of the rooms they pass through, with items moving on them;
-  - the moon pool as a second way in (surface into the dock from the sub);
-  - a lift for any shaft taller than 3 cells.
-- **Colin's notes to keep in mind:** the harpoon on the Crest diver is decoration for now; use its design for later tools and weapons.
+**Next session: graphics session G1** (prompt in `docs/prompts/graphics-g1.md`; plan in `docs/graphics-fidelity-plan.md`): a performance overlay and benchmark route, baseline numbers, the caustics early-out, and the HDR post stack (tone mapping, zone grading, bloom, vignette, grain). Then G2 and G3 as Colin approves, then **milestone 9, breeding** (prompt in `docs/prompts/milestone-9.md`, questions in DESIGN.md), unless Colin reorders.
+- **Left over from the walkable base:** more detail in the machine rooms (feeder, press, filter, sorter, crane), line code plates indoors, and a sound for the lines and machines. Do these alongside a later milestone if Colin asks.
+- **The harpoon:** decoration on the Crest diver for now; use its design for later tools and weapons.
 
 Where things are (on foot):
 - the interior system: `src/interior/interior.ts` (physics constants at the top; ladders; hooks for generated levels);
@@ -1061,6 +1074,10 @@ Where things are (on foot):
 
 ## Problems and open questions
 
+- **The walkable base, part 2, to check after Colin plays:**
+  - the ceiling lines when a base is big: lines crossing or overlapping (four lanes, `% 4` in `BaseHooks`' constructor), and long routes through many rooms;
+  - the lift only appears for shafts of 4+ cells; if the ladder feels slow at 3, lower the limit in `buildBaseLevel` (`cells <= 3`);
+  - Exit (V) in a docked sub now goes up into the base (only when a dome exists and the dock is powered).
 - **The walkable base, part 1, to check after Colin plays:**
   - room size (8 × 6 tiles a cell, `CW`/`CH` in `src/interior/baselevel.ts`) and climbing speed (210, `CLIMB` in `src/interior/interior.ts`);
   - whether panels opening "outside for a moment" (care, Lab/Workshop, dock, build) feels right, or should open over the room instead;

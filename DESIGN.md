@@ -72,7 +72,7 @@ There is no need to support older or low-end devices. If an effect has to be cut
 
 - **Interiors are separate dry spaces.** You enter through a hatch or airlock and the game switches to the interior (like stepping into a Zelda dungeon), so an interior can be far bigger than the hull looks from outside. Built from tile maps (`src/interior/`), so new interiors are quick to author.
 - **The explorer walks and jumps** indoors: gravity, platforms, one-way gratings, hazards. **The grapple is a hookshot** to anchor rings on higher ledges. The helmet's face plate lifts with a short animation in dry air.
-- **The Corvina** was the first (her insides as a multi-deck dungeon). **The base is walkable** (part 1 built; part 2 adds machine controls, ceiling conveyors and the moon pool entry) (Colin's choice: everything indoors, machines included), with larger, more detailed pieces whose layout must make sense to walk through. Save compatibility does not matter for that rework: Colin will playtest from scratch.
+- **The Corvina** was the first (her insides as a multi-deck dungeon). **The base is walkable** (parts 1 and 2 built: rooms from the layout, ceiling conveyors and pipes with moving items, the moon pool as a second entry, lifts for tall shafts, whorls fitted from inside) (Colin's choice: everything indoors, machines included), with larger, more detailed pieces whose layout must make sense to walk through. Save compatibility does not matter for that rework: Colin will playtest from scratch.
 - **Logs and documents** open in a reading panel that stays until closed, and stay in the scanner log.
 
 ## Game systems
