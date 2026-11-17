@@ -90,7 +90,7 @@ import { TankLife } from './world/tanklife';
 import { CareMode } from './ui/care';
 import { creaturesIn, newCreature, SPECIES, tankCapacity, tankNumber, tickCare } from './game/creatures';
 import { RatesPanel } from './ui/rates';
-import { Factory, FEEDER_MASH_CAP, HOPPER_CAP, machineData, PRESS_COPPER_CAP, PRESS_PLATE_CAP, PRESS_SCRAP_CAP, whorlMult } from './game/factory';
+import { Factory, FEEDER_MASH_CAP, HOPPER_CAP, machineData, PRESS_COPPER_CAP, PRESS_PLATE_CAP, PRESS_SCRAP_CAP, whorlMult, whorlsFree } from './game/factory';
 import { LinesView } from './world/linegfx';
 import { StationMode } from './ui/station';
 import { DIVE_LIGHT, GEAR, hasGear, jobOf, jobRunning, LAMP, RESEARCH, tickStations } from './game/gear';
@@ -374,7 +374,7 @@ async function boot(): Promise<void> {
   let baseDome: number | null = null;
   let baseHooks: BaseHooks | null = null;
   /** A console inside the base has opened its panel out in the world for a moment. */
-  let peek: { kind: 'care' | 'station' | 'dock' | 'build'; id: number | null; x: number; y: number; face: number; opened: boolean } | null = null;
+  let peek: { kind: 'care' | 'station' | 'dock' | 'build'; id: number | null; select: number | null; x: number; y: number; face: number; opened: boolean } | null = null;
   /** Where a dome's airlock is from outside: the round hatch on the front of its drum. */
   function airlockOutside(p: Placed): { x: number; y: number } {
     const r = pieceRect(p);
@@ -1241,6 +1241,12 @@ async function boot(): Promise<void> {
       } else {
         build.setAvailable(true);
         build.open();
+        // Fitting whorls: the machine you stood at is already selected.
+        const sel = peek.select !== null ? layout.pieces.find((q) => q.id === peek!.select) : null;
+        if (sel) {
+          build.selected = sel;
+          build.refresh();
+        }
       }
     } else if (peek && !build.active && !care.active && !dockUI.active && !station.active) {
       backInside();
@@ -1299,8 +1305,17 @@ async function boot(): Promise<void> {
     // ---- The submersible (milestone 6) ----
     const S = save.sub;
     if (S && inControl && s.board) {
-      if (S.aboard) leaveSub(false);
-      else if (nearSub) {
+      if (S.aboard) {
+        // Berthed in a finished dock inside a base with a dome: the moon pool leads up into the base.
+        const dk = S.docked ? layout.pieces.find((p) => p.id === S.dock && p.kind === 'dock' && isDone(p)) : null;
+        const dm = dk ? layout.pieces.find((p) => p.kind === 'dome' && isDone(p)) : null;
+        if (dk && dm && layout.powered.has(dk.id)) {
+          leaveSub(true);
+          enterBase(dm.id, false, dk.id);
+          return;
+        }
+        leaveSub(false);
+      } else if (nearSub) {
         // After milestone 7b (Colin): the diver swims to the hatch on top of the dome and climbs in.
         if (S.hull > 0) {
           boarding = { t: 0, x0: diver.x, y0: diver.y };
@@ -2624,6 +2639,29 @@ async function boot(): Promise<void> {
     deposit: (id) => depositJar(id),
     trayCount: (id) => MATERIALS_LIST.reduce((a, k) => a + (save.tankData[String(id)]?.out?.[k] ?? 0), 0),
     takeTray: (id) => takeTray(id),
+    lines: () => save.lines,
+    flow: (id) => {
+      const f = factory.flows.get(id);
+      return f ? { rate: f.rate, item: f.item } : null;
+    },
+    subDocked: (id) => !!save.sub && save.sub.stage === 'built' && save.sub.docked && save.sub.dock === id,
+    boardSub: () => {
+      if (!save.sub || save.sub.hull <= 0) {
+        hud.toast('The hull is breached. Repair it at the dock panel before taking it out.', 'warn');
+        return;
+      }
+      interior.leave();
+      inside = null;
+      backToWater();
+      boardSub(false);
+      persist();
+    },
+    tune: (id) => peekOut('build', null, id),
+    whorlsFree: () => whorlsFree(save),
+    lift: (x, y) => {
+      interior.place(x, y, interior.walker.face);
+      sound.clamps(true);
+    },
     tend: (id) => peekOut('care', id),
     station: (id) => peekOut('station', id),
     dock: (id) => peekOut('dock', id),
@@ -2672,12 +2710,14 @@ async function boot(): Promise<void> {
       return cap ? Math.min(1, MATERIALS_LIST.reduce((a, k) => a + save.stored[k], 0) / cap) : 0;
     },
   };
-  function enterBase(domeId: number, waking = false): void {
+  function enterBase(domeId: number, waking = false, viaDock: number | null = null): void {
     const level = buildBaseLevel(layout);
     if (!level) return;
     baseDome = domeId;
     baseHooks = new BaseHooks(level, baseCtx, domeId);
     interior.enter(level.map, { breakers: [], taken: [] }, baseHooks);
+    const dsp = viaDock !== null ? baseHooks.dockSpawn(viaDock) : null;
+    if (dsp) interior.place(dsp.x, dsp.y, -1);
     inside = 'base';
     goOnFoot();
     if (!waking) sound.hatchCue(true);
@@ -2711,13 +2751,13 @@ async function boot(): Promise<void> {
     persist();
   }
   /** Open a panel out in the world (the console's view), then come back in where you stood. */
-  function peekOut(kind: 'care' | 'station' | 'dock' | 'build', id: number | null): void {
+  function peekOut(kind: 'care' | 'station' | 'dock' | 'build', id: number | null, select: number | null = null): void {
     const w = interior.walker;
-    peek = { kind, id, x: w.x, y: w.y, face: w.face, opened: false };
+    peek = { kind, id, select, x: w.x, y: w.y, face: w.face, opened: false };
     interior.leave();
     inside = null;
     backToWater();
-    const p = layout.pieces.find((q) => q.id === (id ?? baseDome));
+    const p = layout.pieces.find((q) => q.id === (id ?? select ?? baseDome));
     if (p) {
       const r = pieceRect(p);
       diver.x = r.x + r.w / 2;

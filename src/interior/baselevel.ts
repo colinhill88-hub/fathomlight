@@ -2,7 +2,8 @@ import { Graphics, Text } from 'pixi.js';
 import type { Light } from '../fx/lighting';
 import { T, type InteriorAct, type InteriorHooks } from './interior';
 import { BaseLayout, collarsOf, isDone, PieceKind, PIECES, pieceCode, Placed, shapeOf } from '../game/base';
-import type { SaveData, SpeciesId } from '../game/state';
+import type { MaterialId, SaveData, SavedLine, SpeciesId } from '../game/state';
+import { ITEM_COLOURS, pointAlong } from '../world/linegfx';
 import { creaturesIn } from '../game/creatures';
 import { mulberry32, WORLD_SEED } from '../rng';
 
@@ -50,6 +51,8 @@ export interface BaseLevel {
   /** Open collars on the outside of the base: drawn as portholes onto the water. */
   ports: { x: number; y: number }[];
   airlocks: { id: number; x: number; y: number }[];
+  /** Lift pads at both ends of a shaft taller than 3 cells (part 2). */
+  lifts: { x: number; y: number; toX: number; toY: number; up: boolean }[];
   /** Changes when the rooms change (a piece finished, added or removed). */
   signature: string;
 }
@@ -137,10 +140,51 @@ export function buildBaseLevel(layout: BaseLayout): BaseLevel | null {
       }
     }
   }
+  // Shafts taller than 3 cells get a lift at each end (the ladder is slow over a long climb).
+  const lifts: BaseLevel['lifts'] = [];
+  const roomOf = (id: number) => rooms.find((q) => q.piece.id === id)!;
+  const upOf = (p: Placed) => {
+    for (const c of collarsOf(p)) {
+      if (c.dir !== 'U') continue;
+      const o = layout.collarPartner(c);
+      if (o && isDone(o)) return { o, c };
+    }
+    return null;
+  };
+  const hasBelow = (p: Placed) => collarsOf(p).some((c) => c.dir === 'D' && !!layout.collarPartner(c) && isDone(layout.collarPartner(c)!));
+  for (const p of done) {
+    if (hasBelow(p)) continue;
+    const first = upOf(p);
+    if (!first) continue;
+    let cells = shapeOf(p).h;
+    let top = p;
+    let n = first;
+    const seen = new Set([p.id]);
+    for (;;) {
+      if (seen.has(n.o.id)) break;
+      seen.add(n.o.id);
+      cells += shapeOf(n.o).h;
+      top = n.o;
+      const nx = upOf(n.o);
+      if (!nx) break;
+      n = nx;
+    }
+    if (cells <= 3) continue;
+    const rb = roomOf(p.id);
+    const rt = roomOf(top.id);
+    const lxB = rb.tx0 + (first.c.gx - p.gx) * CW + CW / 2;
+    const lxT = rt.tx0 + (first.c.gx - top.gx) * CW + CW / 2;
+    const yB = (rb.ty0 + rb.th - 1) * T;
+    const yT = (rt.ty0 + rt.th - 1) * T;
+    const xB = (lxB + 2) * T + T / 2;
+    const xT = (lxT + 2) * T + T / 2;
+    lifts.push({ x: xB, y: yB, toX: xT, toY: yT, up: true });
+    lifts.push({ x: xT, y: yT, toX: xB, toY: yB, up: false });
+  }
   const airlocks = rooms
     .filter((r) => r.kind === 'dome')
     .map((r) => ({ id: r.piece.id, x: (r.tx0 + r.tw / 2) * T, y: (r.ty0 + r.th - 1) * T }));
-  return { map: m.map((l) => l.join('')), rooms, doors, hatches, ports, airlocks, signature: baseSignature(layout) };
+  return { map: m.map((l) => l.join('')), rooms, doors, hatches, ports, airlocks, lifts, signature: baseSignature(layout) };
 }
 
 // ---------------------------------------------------------------------------
@@ -164,6 +208,17 @@ export interface BaseCtx {
   build(): void;
   exit(domeId: number): void;
   recompress(): void;
+  /** Conveyors and feed pipes, and the live flow on each (part 2). */
+  lines(): SavedLine[];
+  flow(id: number): { rate: number; item: MaterialId | null } | null;
+  /** Ride a lift: put the walker at the other end. */
+  lift(x: number, y: number): void;
+  /** The moon pool: is the sub berthed in this dock, and climbing down into it. */
+  subDocked(dockId: number): boolean;
+  boardSub(): void;
+  /** Fit Echo whorls: opens the build view with this machine selected. */
+  tune(id: number): void;
+  whorlsFree(): number;
   /** A one-line status for a machine. */
   status(p: Placed): string;
   /** Live machine readings for the art. */
@@ -226,8 +281,10 @@ interface Spot {
   x: number;
   y: number;
   r: number;
-  what: 'airlock' | 'planner' | 'unload' | 'tank' | 'station' | 'dock' | 'recomp' | 'info' | 'sealed';
+  what: 'airlock' | 'planner' | 'unload' | 'tank' | 'station' | 'dock' | 'recomp' | 'info' | 'sealed' | 'lift' | 'board' | 'tune';
   other?: Placed;
+  to?: { x: number; y: number };
+  up?: boolean;
 }
 
 export class BaseHooks implements InteriorHooks {
@@ -237,6 +294,8 @@ export class BaseHooks implements InteriorHooks {
   private screens: Light[] = [];
   private tanks: { room: Room; x: number; y: number; w: number; h: number }[] = [];
   private turbines: { x: number; y: number; r: number; id: number }[] = [];
+  /** Conveyors and feed pipes, routed through the rooms' ceilings (part 2). */
+  private routes: { id: number; kind: 'belt' | 'pipe'; tier: number; pts: [number, number][]; len: number }[] = [];
 
   constructor(
     readonly level: BaseLevel,
@@ -246,6 +305,110 @@ export class BaseHooks implements InteriorHooks {
     const a = level.airlocks.find((q) => q.id === domeId) ?? level.airlocks[0];
     this.spawn = { x: a.x, y: a.y };
     for (const r of level.rooms) this.planRoom(r);
+    for (const l of level.lifts) this.spots.push({ room: level.rooms[0], x: l.x, y: l.y, r: 40, what: 'lift', to: { x: l.toX, y: l.toY }, up: l.up });
+    ctx.lines().forEach((l, i) => {
+      const pts = this.routeLine(l, i % 4);
+      if (!pts || pts.length < 2) return;
+      let len = 0;
+      for (let k = 1; k < pts.length; k++) len += Math.hypot(pts[k][0] - pts[k - 1][0], pts[k][1] - pts[k - 1][1]);
+      this.routes.push({ id: l.id, kind: l.kind, tier: l.tier ?? 1, pts, len });
+    });
+  }
+
+  /** Where to step in when climbing up out of the sub into a dock. */
+  dockSpawn(dockId: number): { x: number; y: number } | null {
+    const r = this.level.rooms.find((q) => q.piece.id === dockId);
+    if (!r) return null;
+    const b = this.box(r);
+    return { x: b.cx + 130, y: b.floor(0) };
+  }
+
+  /** The ceiling height of one level of a room (0 = the top level), plus a lane offset. */
+  private laneY(r: Room, k: number, lane: number): number {
+    return (k === 0 ? r.ty0 + 1 : r.ty0 + k * CH) * T + 24 + lane * 9;
+  }
+  private levelOf(r: Room, gy: number): number {
+    return r.piece.gy + r.h - 1 - gy;
+  }
+  /** Where a line meets a machine, indoors: its port, scaled up from the outside art. */
+  private portX(r: Room, kind: 'belt' | 'pipe', dir: 'in' | 'out'): number {
+    const cx = (r.tx0 + r.tw / 2) * T;
+    const k = (CW * T) / 112;
+    if (r.kind === 'tank' || r.kind === 'gtank') return cx + (kind === 'pipe' ? 28 : -28) * k;
+    if (r.kind === 'press') return cx + (dir === 'in' ? -62 : 62) * k;
+    return cx + (kind === 'belt' ? -22 : 22) * k;
+  }
+  /** Pieces joined end to end, from one to another (through doorways and shafts). */
+  private piecePath(from: number, to: number): Placed[] | null {
+    const layout = this.ctx.layout;
+    const byId = new Map(layout.pieces.map((p) => [p.id, p]));
+    const prev = new Map<number, number>([[from, -1]]);
+    const queue = [from];
+    while (queue.length) {
+      const id = queue.shift()!;
+      if (id === to) break;
+      for (const n of layout.links.get(id) ?? []) {
+        const q = byId.get(n);
+        if (!q || !isDone(q) || prev.has(n)) continue;
+        prev.set(n, id);
+        queue.push(n);
+      }
+    }
+    if (!prev.has(to)) return null;
+    const out: Placed[] = [];
+    for (let id = to; id !== -1; id = prev.get(id)!) out.push(byId.get(id)!);
+    return out.reverse();
+  }
+  /**
+   * A line's route indoors: out of its machine, up to the ceiling, along the
+   * ceilings of every room between (through the walls at doorways, up and
+   * down the shafts), and into the other machine.
+   */
+  private routeLine(l: SavedLine, lane: number): [number, number][] | null {
+    const path = this.piecePath(l.from, l.to);
+    if (!path) return null;
+    const rooms = path.map((p) => this.level.rooms.find((r) => r.piece.id === p.id)!);
+    if (rooms.some((r) => !r)) return null;
+    const pts: [number, number][] = [];
+    const push = (x: number, y: number) => {
+      const t = pts[pts.length - 1];
+      if (!t || t[0] !== x || t[1] !== y) pts.push([x, y]);
+    };
+    const wallX = (r: Room) => (r.tx0 + 1) * T + 10;
+    let k = 0;
+    const goLevel = (r: Room, to: number) => {
+      if (k === to) return;
+      push(wallX(r), this.laneY(r, k, lane));
+      push(wallX(r), this.laneY(r, to, lane));
+      k = to;
+    };
+    push(this.portX(rooms[0], l.kind, 'out'), this.laneY(rooms[0], 0, lane));
+    for (let i = 0; i + 1 < path.length; i++) {
+      const P = path[i];
+      const Q = path[i + 1];
+      const rP = rooms[i];
+      const rQ = rooms[i + 1];
+      const c = collarsOf(P).find((q) => this.ctx.layout.collarPartner(q)?.id === Q.id);
+      if (!c) return null;
+      const kP = this.levelOf(rP, c.gy);
+      const kQ = this.levelOf(rQ, c.dir === 'U' ? c.gy + 1 : c.dir === 'D' ? c.gy - 1 : c.gy);
+      goLevel(rP, kP);
+      const tx = rP.tx0 + (c.gx - P.gx) * CW;
+      if (c.dir === 'L' || c.dir === 'R') {
+        const xb = c.dir === 'R' ? (tx + CW) * T : tx * T;
+        push(xb, this.laneY(rP, kP, lane));
+        push(xb, this.laneY(rQ, kQ, lane));
+      } else {
+        const sx = (tx + CW / 2) * T + T - 7;
+        push(sx, this.laneY(rP, kP, lane));
+        push(sx, this.laneY(rQ, kQ, lane));
+      }
+      k = kQ;
+    }
+    const last = rooms[rooms.length - 1];
+    goLevel(last, 0);
+    push(this.portX(last, l.kind, 'in'), this.laneY(last, 0, lane));
+    return pts;
   }
 
   /** A room's open area and floor heights, in units. */
@@ -286,7 +449,8 @@ export class BaseHooks implements InteriorHooks {
         add(b.cx, b.bottom, 'station', 110);
         break;
       case 'dock':
-        add(b.cx, b.floor(0), 'dock', 120);
+        add(b.cx, b.floor(0), 'dock', 80);
+        if (this.ctx.subDocked(id)) add(b.cx - 150, b.floor(0), 'board', 70);
         break;
       case 'recomp':
         add(b.ox + b.ow * 0.62, b.bottom, 'recomp', 70);
@@ -301,6 +465,8 @@ export class BaseHooks implements InteriorHooks {
       default:
         add(b.cx, b.bottom, 'info', 130);
     }
+    // Fit Echo whorls (opens the build view with this machine selected), once any have been found.
+    if (PIECES[r.kind].whorls && this.ctx.save.whorls.length > 0) add(b.ox + b.ow - 56, r.kind === 'feeder' || r.kind === 'press' ? b.bottom : b.bottom, 'tune', 40);
     for (const d of this.level.doors)
       if (d.sealed && d.tx >= r.tx0 && d.tx < r.tx0 + r.tw && d.floorTy >= r.ty0 && d.floorTy < r.ty0 + r.th)
         this.spots.push({ room: r, x: (d.dir === 'L' ? d.tx + 1 : d.tx) * T, y: d.floorTy * T, r: 60, what: 'sealed', other: d.other });
@@ -366,6 +532,21 @@ export class BaseHooks implements InteriorHooks {
       case 'recomp':
         if (!on) return `${code}: no power`;
         return { key: 'recomp', label: 'Seal the chamber: mend the suit', seconds: 1.6, done: () => c.recompress() };
+      case 'lift': {
+        const to = best.to!;
+        return {
+          key: 'lift' + (best.up ? 'u' : 'd'),
+          label: best.up ? 'Take the lift up' : 'Take the lift down',
+          seconds: 0.5,
+          done: () => c.lift(to.x, to.y),
+        };
+      }
+      case 'board':
+        return { key: 'board', label: 'Climb down into KS-1', seconds: 1, done: () => c.boardSub() };
+      case 'tune': {
+        const free = c.whorlsFree();
+        return { key: 'tune', label: `Fit Echo whorls to ${code} (${free} free)`, seconds: 0.4, done: () => c.tune(p.id) };
+      }
       case 'sealed':
         return `Sealed hatch: ${PIECES[best.other!.kind].name.toLowerCase()} beyond is still a frame`;
       default:
@@ -411,12 +592,71 @@ export class BaseHooks implements InteriorHooks {
       g.rect(x - 2, y + 16, T + 4, 4).fill({ color: COL.gold, alpha: 0.8 });
       e.circle(x + T / 2, y + 6, 2.5).fill({ color: COL.red });
     }
+    this.drawRoutes(g, e);
+    for (const l of this.level.lifts) {
+      g.roundRect(l.x - 30, l.y - 8, 60, 8, 3).fill({ color: COL.chrome });
+      g.rect(l.x - 30, l.y - 8, 60, 2).fill({ color: COL.chromeHi, alpha: 0.8 });
+      g.roundRect(l.x - 22, l.y - 112, 44, 104, 6).fill({ color: COL.wallDark, alpha: 0.85 });
+      g.roundRect(l.x - 22, l.y - 112, 44, 104, 6).stroke({ color: COL.chromeDark, width: 2 });
+      g.rect(l.x - 22, l.y - 112, 44, 5).fill({ color: COL.chrome });
+      const dir = l.up ? -1 : 1;
+      for (let k = 0; k < 3; k++) {
+        const cy = l.y - 62 + dir * (k * 14 - 14);
+        e.moveTo(l.x - 10, cy - dir * 6).lineTo(l.x, cy + dir * 6).lineTo(l.x + 10, cy - dir * 6).stroke({ color: COL.lime, width: 2.5, alpha: 0.5 + 0.15 * k });
+      }
+      e.rect(l.x + 16, l.y - 108, 3, 3).fill({ color: COL.red });
+    }
     // Open collars on the outside: a round window onto the water.
     for (const p of this.level.ports) {
       g.circle(p.x, p.y, 22).fill({ color: COL.chrome });
       g.circle(p.x, p.y, 17).fill({ color: COL.glassSea });
       g.circle(p.x, p.y, 16).fill({ color: 0x2a7080, alpha: 0.85 });
       e.circle(p.x - 6, p.y - 6, 4).fill({ color: 0x9ae0e0, alpha: 0.25 });
+    }
+  }
+
+  /** Conveyors and feed pipes along the ceilings, with a junction box where they meet a machine. */
+  private drawRoutes(g: Graphics, e: Graphics): void {
+    for (const r of this.routes) {
+      const belt = r.kind === 'belt';
+      const w = belt ? 9 : 6;
+      for (let i = 1; i < r.pts.length; i++) {
+        const [ax, ay] = r.pts[i - 1];
+        const [bx, by] = r.pts[i];
+        const x0 = Math.min(ax, bx);
+        const y0 = Math.min(ay, by);
+        const horiz = Math.abs(by - ay) < 0.5;
+        const len = horiz ? Math.abs(bx - ax) : Math.abs(by - ay);
+        if (belt) {
+          // A dark belt on a chrome cradle.
+          if (horiz) {
+            g.rect(x0, ay - w / 2 - 2, len, w + 4).fill({ color: COL.chromeDark });
+            g.rect(x0, ay - w / 2, len, w).fill({ color: 0x15191b });
+            g.rect(x0, ay - w / 2, len, 1.5).fill({ color: 0x40484d });
+            for (let x = x0 + 6; x < x0 + len - 3; x += 16) g.circle(x, ay + w / 2 + 2.5, 1.8).fill({ color: COL.chrome });
+          } else {
+            g.rect(ax - w / 2 - 2, y0, w + 4, len).fill({ color: COL.chromeDark });
+            g.rect(ax - w / 2, y0, w, len).fill({ color: 0x15191b });
+            for (let y = y0 + 6; y < y0 + len - 3; y += 16) g.circle(ax + w / 2 + 2.5, y, 1.8).fill({ color: COL.chrome });
+          }
+        } else if (horiz) {
+          g.rect(x0, ay - w / 2, len, w).fill({ color: 0xb06a3a });
+          g.rect(x0, ay - w / 2, len, 1.6).fill({ color: 0xf0b078, alpha: 0.8 });
+          for (let x = x0 + 14; x < x0 + len - 4; x += 60) g.rect(x, ay - w / 2 - 2, 4, w + 4).fill({ color: COL.chrome });
+        } else {
+          g.rect(ax - w / 2, y0, w, len).fill({ color: 0xb06a3a });
+          g.rect(ax - w / 2, y0, 1.6, len).fill({ color: 0xf0b078, alpha: 0.8 });
+          for (let y = y0 + 14; y < y0 + len - 4; y += 60) g.rect(ax - w / 2 - 2, y, w + 4, 4).fill({ color: COL.chrome });
+        }
+        if (i > 1) g.circle(ax, ay, w / 2 + 2).fill({ color: COL.chrome });
+      }
+      // Drops into the machines at each end.
+      for (const [px, py, out] of [[r.pts[0][0], r.pts[0][1], true], [r.pts[r.pts.length - 1][0], r.pts[r.pts.length - 1][1], false]] as const) {
+        g.rect(px - 3, py, 6, 34).fill({ color: belt ? COL.chromeDark : 0x8a5028 });
+        g.roundRect(px - 11, py + 30, 22, 12, 3).fill({ color: COL.chrome });
+        g.rect(px - 11, py + 30, 22, 2.5).fill({ color: COL.chromeHi, alpha: 0.7 });
+        e.moveTo(px - 5, py + 33).lineTo(px, py + 39).lineTo(px + 5, py + 33).stroke({ color: out ? COL.gold : COL.lime, width: 1.6, alpha: 0.9 });
+      }
     }
   }
 
@@ -674,6 +914,26 @@ export class BaseHooks implements InteriorHooks {
 
   animate(d: Graphics, de: Graphics, time: number): void {
     const c = this.ctx;
+    // Things riding the lines: bundles of material on belts (their colour), soft pulses in pipes.
+    for (const r of this.routes) {
+      const fl = c.flow(r.id);
+      if (!fl || fl.rate <= 0.02) continue;
+      if (r.kind === 'belt') {
+        const [col, hi] = ITEM_COLOURS[fl.item ?? 'fibre'];
+        const off = (time * (r.tier > 1 ? 44 : 24) * 2.2) % 28;
+        for (let dd = off; dd < r.len - 6; dd += 28) {
+          const [x, y] = pointAlong(r.pts, dd);
+          d.roundRect(x - 4.5, y - 7, 9, 6, 2).fill({ color: col });
+          d.rect(x - 4, y - 6.5, 8, 1.4).fill({ color: hi, alpha: 0.7 });
+        }
+      } else {
+        const off = (time * (r.tier > 1 ? 70 : 40) * 2) % 60;
+        for (let dd = off; dd < r.len; dd += 60) {
+          const [x, y] = pointAlong(r.pts, dd);
+          de.circle(x, y, 3.4).fill({ color: 0xd8e6a0, alpha: 0.75 });
+        }
+      }
+    }
     // Turbines: the impeller turns, slower without anything to power.
     for (const t of this.turbines) {
       const a0 = time * 1.6;
@@ -693,6 +953,18 @@ export class BaseHooks implements InteriorHooks {
       const b = this.box(r);
       const bot = b.bottom;
       const id = r.piece.id;
+      if (r.kind === 'dock' && c.subDocked(id)) {
+        // KS-1 berthed in the pool: charcoal hull, lime dome, a lamp on the nose.
+        const sy = bot - 30;
+        const sx = b.cx;
+        d.roundRect(sx - 100, sy - 36, 200, 44, 18).fill({ color: 0x2c3236 });
+        d.roundRect(sx - 100, sy - 36, 200, 10, 5).fill({ color: 0x4a545a });
+        d.rect(sx - 70, sy - 14, 140, 2).fill({ color: COL.gold });
+        d.poly([sx - 40, sy - 36, sx - 26, sy - 62, sx + 26, sy - 62, sx + 40, sy - 36]).fill({ color: 0x4a6a14 });
+        d.poly([sx - 30, sy - 36, sx - 20, sy - 56, sx + 6, sy - 56, sx + 2, sy - 36]).fill({ color: COL.lime, alpha: 0.6 });
+        de.circle(sx + 96, sy - 16, 4).fill({ color: 0xfff0b0 });
+        de.circle(sx - 94, sy - 12, 3).fill({ color: COL.red });
+      }
       if (r.kind === 'dome' && on) {
         const cx2 = b.ox + b.ow - 120;
         d.rect(cx2 - 42, bot - 62, 38, 24).fill({ color: 0x9ad040, alpha: 0.55 + 0.1 * Math.sin(time * 3) });
