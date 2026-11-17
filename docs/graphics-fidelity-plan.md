@@ -163,6 +163,8 @@ Expected result: the biggest change in the dark zones: rocks and hardware get vo
 
 ### Session G3: atmosphere and composition
 
+**Built 2026-11-17** (see PROGRESS.md, "Graphics session G3" for what shipped and what was left out).
+
 1. **Zone backdrops:** per-zone mid-ground silhouettes drawn by code and cached to textures, with in-layer fog gradients; the forest gets distant kelp ranks, the shelf distant hulks and masts, the basin arches and boulders, the caves rock pillars.
 2. **Depth of field** on the near foreground kelp (Ultra; High keeps it sharp or uses a cheaper blur).
 3. **God rays** from the surface, blocked by kelp, hardware and the diver (¼ res).
@@ -173,6 +175,8 @@ Expected result: the biggest change in the dark zones: rocks and hardware get vo
 Expected result: the scenes get depth and mood; the kelp forest and shelf look like places rather than strips. Expected cost: low; mostly cached textures and low-resolution passes.
 
 ### Session G4 (optional, after Colin sees G1–G3): materials and life
+
+**Built 2026-11-17** (see PROGRESS.md, "Graphics session G4" for what shipped and what was left out).
 
 1. **Painterly grain and grime** anchored to the world (so it never swims), stronger on hardware than on water.
 2. **Shine layer** for chrome, brass and glass (a few lines per drawing in `basegfx.ts`, `diver.ts`, `walker.ts`, `sub.ts`, `drone.ts`), lit by the G2 normals: highlights travel across flanges as the lamp moves.

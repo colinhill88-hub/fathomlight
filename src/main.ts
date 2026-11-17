@@ -2,7 +2,7 @@ import { Application, BlurFilter, Container, RenderTexture, Sprite, Texture, UPD
 import { perf, PerfOverlay } from './dev/perf';
 import { PostStack, ZoneWeights } from './fx/post';
 import { Bench, BENCH, BENCH_SCENES, STILL, scenePos, seedBenchSave } from './dev/bench';
-import { FxToggles, loadChoice, loadFx, pixelRatioFor, Preset, PresetChoice, resolveChoice, saveChoice, saveFx } from './presets';
+import { FxToggles, loadChoice, loadFx, pixelRatioFor, renderBoost, Preset, PresetChoice, resolveChoice, saveChoice, saveFx } from './presets';
 import { Water } from './scene/water';
 import { Backdrop } from './scene/backdrop';
 import { MarineSnow, SnowLight } from './scene/particles';
@@ -1044,6 +1044,7 @@ async function boot(): Promise<void> {
   }
 
   let fx: FxToggles = loadFx();
+  renderBoost.v = fx.supersample ? preset.supersample : 1;
   const ui = initSettingsUI({
     getChoice: () => choice,
     getPreset: () => preset,
@@ -1062,7 +1063,10 @@ async function boot(): Promise<void> {
       fx = { ...fx, [key]: on };
       saveFx(fx);
       if (key === 'perf') perfOverlay.show(on);
-      else if (key === 'litSnow') snow.build(renderer, preset.particleDensity, cssW, cssH, on ? preset.bokeh : 0);
+      else if (key === 'supersample') {
+        renderBoost.v = on ? preset.supersample : 1;
+        rebuild();
+      } else if (key === 'litSnow') snow.build(renderer, preset.particleDensity, cssW, cssH, on ? preset.bokeh : 0);
       else if (key === 'hdr' || key === 'bloom' || key === 'edges' || key === 'shadows' || key === 'relief') applyPost();
     },
     fxNote: () => (post.supportsHalfFloat ? (post.halfFloat ? 'HDR picture: half-float' : 'HDR picture: off (8-bit)') : 'This device cannot render to half-float, so the picture is 8-bit: tone mapping is off (nothing to roll off) and bloom starts lower.'),
@@ -1070,6 +1074,7 @@ async function boot(): Promise<void> {
       choice = c;
       saveChoice(c);
       preset = resolveChoice(c);
+      renderBoost.v = fx.supersample ? preset.supersample : 1;
       rebuild();
     },
   });
@@ -2618,6 +2623,12 @@ async function boot(): Promise<void> {
     lampLight.coneCos = lampSpec.coneCos;
     lampLight.intensity = aboard ? 0 : lampSpec.intensity * diver.lamp * diver.view.alpha;
     scenery.caveDark.alpha = hasGear(save, 'light') && diver.lamp > 0.5 && !aboard ? 0.15 : 1;
+    wildlife.eyeShine(
+      { x: lp.x, y: lp.y, dirX: lp.dirX, dirY: lp.dirY, radius: lampLight.radius, coneCos: lampLight.coneCos ?? 0.86, on: lampLight.intensity > 0.1 },
+      fx.eyes ? preset.eyeShine : 0,
+      time,
+    );
+    baseView.glassStreak = fx.glass ? preset.glassStreak : 0;
     diver.lens.position.set(lp.x, lp.y);
     diver.lens.alpha = (0.25 + 0.75 * diver.lamp) * diver.view.alpha;
     diver.lensGlow.position.set(lp.x, lp.y);
@@ -2665,6 +2676,8 @@ async function boot(): Promise<void> {
       shadowSteps: preset.shadowSteps,
       relief: fx.relief ? preset.relief : 0,
       reliefWide: preset.reliefWide,
+      grime: fx.grime ? preset.grime : 0,
+      sheen: fx.sheen ? preset.sheen : 0,
     });
     water.update(time, camX, camY, viewW, viewH, app.canvas.width, app.canvas.height);
     backdrop.update(camCX, camCY, zoom, cssW, cssH);

@@ -1,6 +1,6 @@
 # Fathomlight progress
 
-Last updated: 2026-11-17, **graphics session G3 deployed (zone backdrops, god rays, lit snow, depth of field, surface shimmer)**, on top of G1 (performance overlay, `?bench`, HDR post stack) and G2 (lamp shadows, relief lighting, contact shadows). Next is **graphics session G4** (materials and life), then milestone 9, breeding, unless Colin reorders.
+Last updated: 2026-11-17, **graphics session G4 deployed (materials and life)**, the last of the four planned graphics sessions (G1 measure and HDR post stack, G2 lamp shadows and relief, G3 atmosphere, G4 materials). Next is **milestone 9, breeding**, unless Colin wants a graphics tuning pass first after testing G3 and G4.
 
 Play link: https://colinhill88-hub.github.io/fathomlight/ (live; first successful deploy 2026-11-14)
 
@@ -48,6 +48,11 @@ These are defined in `src/presets.ts`. **Auto** picks High on touch devices (iPh
 | *G3:* Lit snow and bokeh | lamp strength 0.9, 5 soft near specks | 1.3, 12 specks |
 | *G3:* Depth of field (near kelp) | off | 2.4 px blur |
 | *G3:* Surface shimmer | 0.6 | 1.0 |
+| *G4:* Grime and grain | strength 0.35 | 0.55 |
+| *G4:* Metal sheen | 0.6 | 1.0 |
+| *G4:* Dome glass streak | 0.7 | 1.0 |
+| *G4:* Eye-shine | 1.0 | 1.0 |
+| *G4:* Render scale (Settings switch, off by default) | 1.25x | 1.5x |
 | *G2:* Lamp shadows | the diver's lamp casts; 10 march steps | the diver's lamp and the sub's lights (up to 3 lights); 22 steps |
 | *G2:* Relief lighting | 4 taps, strength 0.55 | 8 taps, strength 0.8 |
 | *G2:* Contact shadows | up to 6, base 0.4 | up to 12, base 0.5 |
@@ -1187,9 +1192,23 @@ Cut from High so far: the phone renders at 2× instead of its native 3×. Colin 
 - **Not done from the G3 plan:** the kelp caves' rock-pillar backdrop, and forward scattering in the lamp beam as its own effect (the lit snow gives the sparkle).
 - **If High slows more than about 10% on the iPhone**, cut in this order: God rays, Lit snow, Zone backdrops (each a toggle and a number in `presets.ts`). Nothing has been cut yet.
 
+### Graphics session G4: materials and life (2026-11-17)
+- **Colin asked for G4 straight after G3** so he can test both in the morning. G3 was deployed first, then this.
+- **Grime and grain** (`src/fx/lighting.ts`): painterly mottling, vertical streaks and a fine grain **anchored to world positions**, so they never swim with the camera. Greyish bright pixels are treated as hardware and get several times more than rock and water (a simple colour test, not a per-object mask).
+- **Metal sheen:** chrome, brass and bright steel catch the diver's lamp and the sub's lights with a highlight worked out from the G2 relief normals, so it travels across a flange as the lamp moves. It needs Relief lighting on.
+- **Dome glass streak** (`src/world/basegfx.ts`): a pale slanted band slides slowly across each dome habitat's glass (clipped to the dome), a pass every twenty seconds or so.
+- **Eye-shine** (`src/world/wildlife.ts`): creatures inside the lamp's beam get a warm glint at the head (warm only, never the Choir's colours), stronger when close and squarely lit, and strongest on the wary kelp-forest species (crabs and shrimp).
+- **Render scale** (Settings, off by default): supersampling (1.5x on Ultra, 1.25x on High) for a sharper picture at a GPU cost; capped by the 4K backbuffer limit.
+- **Settings → Graphics effects:** Grime and grain, Metal sheen, Glass streak, Eye-shine, Render scale.
+- **Not done from the G4 plan, honestly:** refraction of what is behind dome and tank glass (only the moving streak, and only on domes, not the creature tanks); sheen is a shader effect, not hand-placed shine lines in the drawing files, so it only touches bright grey surfaces; no new fin flutter (the wreck lurker already undulates; other creatures were left alone); no extra bioluminescent detail toward the shelf.
+- **Readability:** mean brightness of the seven benchmark scenes changed by 0 to -5% (grime darkens a little). Screenshots before and after (Ultra, 960 x 510, software renderer): `docs/art/fidelity/g4-before-*.jpg` and `g4-after-*.jpg`. The first version of the grime looked like woven cloth on the rock; it was cut to about 40% and its fine grain reduced.
+- **Cloud numbers, relative only** (640 x 340 Ultra, 422 x 195 High, two runs, six outdoor scenes, software frame ms, about 20% noise): Ultra 621 before and 645 after (+4%); High 248 before and 249 after (0%).
+- **If High slows on the iPhone**, cut in this order: Metal sheen, Grime and grain, Eye-shine. Render scale is off by default.
+- **Tested:** type check and build pass; every Settings toggle (all effects of G1 to G4, including Render scale) flipped on and off with no console errors; before and after screenshots of the seven scenes.
+
 ## Next
 
-**Next session: graphics session G3, atmosphere and composition** (plan in `docs/graphics-fidelity-plan.md`, section 5): zone backdrops cached to textures, depth of field on the near kelp, god rays from the surface blocked by kelp and hardware, lamp-lit marine snow, and caustic shimmer near the surface. G4 (materials and creatures) after that if Colin wants it, then milestone 9, breeding (prompt in `docs/prompts/milestone-9.md`), unless Colin reorders. Run `?bench` before and after, and ask Colin for his PC and iPhone numbers for G1, G2 and G3.
+**Next session: milestone 9, breeding** (prompt in `docs/prompts/milestone-9.md`, questions in DESIGN.md), unless Colin reorders. The four graphics sessions are done; what is left of the graphics plan is tuning from Colin's testing (every effect is a toggle and a number in `src/presets.ts`) and his PC and iPhone `?bench` tables, which are still to come. Graphics ideas not done: refraction through glass, cave rock-pillar backdrops, hand-placed shine lines, more bioluminescent detail on the shelf.
 - **Left over from the walkable base:** more detail in the machine rooms (feeder, press, filter, sorter, crane), line code plates indoors, and a sound for the lines and machines. Do these alongside a later milestone if Colin asks.
 - **The harpoon:** decoration on the Crest diver for now; use its design for later tools and weapons.
 

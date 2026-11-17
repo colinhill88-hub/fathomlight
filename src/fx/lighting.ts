@@ -42,6 +42,7 @@ uniform vec4 uLightB[${MAX_LIGHTS}];
 uniform vec4 uLightC[${MAX_LIGHTS}];
 uniform float uShadowCount;  // the first this many lights cast shadows (G2)
 uniform vec4 uShadowCfg;     // march steps, rock softness (world units), relief strength, 1 = wide relief taps
+uniform vec4 uMat;           // G4: grime strength, metal sheen strength
 uniform float uContactCount;
 uniform vec4 uContact[${MAX_CONTACTS}]; // x, y, radius, strength: soft ellipses where things meet the seabed
 uniform vec4 uFlags;
@@ -137,6 +138,22 @@ void main() {
 
   // Dynamic lights. A is position, radius, intensity; B colour and cone
   // width; C beam direction, cone softness and how much it lights the water.
+  // G4: material. Greyish, bright pixels read as hardware (chrome, brass, hull plates); rock and water are colourful.
+  float mx = 0.0;
+  float hard = 0.0;
+  if (c.a > 0.003) {
+    vec3 sc = c.rgb / max(c.a, 0.01);
+    mx = max(sc.r, max(sc.g, sc.b));
+    float sat = (mx - min(sc.r, min(sc.g, sc.b))) / max(mx, 0.01);
+    hard = smoothstep(0.6, 0.15, sat) * smoothstep(0.08, 0.3, mx);
+    // Painterly grime and grain anchored to the world, so it never swims with the camera.
+    if (uMat.x > 0.0) {
+      float n = noise(wp * 0.045) * 0.6 + noise(wp * 0.19) * 0.3 + noise(vec2(wp.x * 0.21, wp.y * 0.013)) * 0.5;
+      float fine = hash(floor(wp * 0.8)) - 0.5;
+      c.rgb *= 1.0 - uMat.x * (0.03 + 0.3 * hard) * n + fine * uMat.x * (0.01 + 0.07 * hard);
+    }
+  }
+  vec3 specAcc = vec3(0.0);
   vec3 lit = vec3(0.0);
   vec3 haze = vec3(0.0);
   for (int i = 0; i < ${MAX_LIGHTS}; i++) {
@@ -165,6 +182,12 @@ void main() {
     }
     lit += l * shaped;
     haze += l * C.w;
+    // G4: chrome and brass catch the lamp, and the highlight travels across a flange as the lamp moves.
+    if (float(i) < uShadowCount && uMat.y > 0.0 && uShadowCfg.z > 0.0 && c.a > 0.003) {
+      vec3 L3 = normalize(vec3(-to / max(dist, 1.0), 0.7));
+      float sp = pow(max(dot(nrm, normalize(L3 + vec3(0.0, 0.0, 1.0))), 0.0), 26.0);
+      specAcc += l * sp * hard * smoothstep(0.35, 0.8, mx) * uMat.y * 1.8;
+    }
   }
 
   vec3 outRgb = vec3(0.0);
@@ -201,7 +224,7 @@ void main() {
       caus *= cK * sunCol * mix(1.0, smoothstep(-0.15, 0.45, -nrm.y), uShadowCfg.z);
     }
 
-    vec3 col = c.rgb * (sun * (1.0 + air * 0.15) + ambient + caus + lit * 1.1);
+    vec3 col = c.rgb * (sun * (1.0 + air * 0.15) + ambient + caus + lit * 1.1) + specAcc * c.a;
 
     // Depth fog pulls distant-looking colour towards the water. Our own
     // lights cut through it.
@@ -254,6 +277,7 @@ export class Lighting {
     uLightB: Float32Array;
     uLightC: Float32Array;
     uShadowCount: number;
+    uMat: Float32Array;
     uShadowCfg: Float32Array;
     uContactCount: number;
     uContact: Float32Array;
@@ -283,6 +307,7 @@ export class Lighting {
           uLightB: { value: new Float32Array(4 * MAX_LIGHTS), type: 'vec4<f32>', size: MAX_LIGHTS },
           uLightC: { value: new Float32Array(4 * MAX_LIGHTS), type: 'vec4<f32>', size: MAX_LIGHTS },
           uShadowCount: { value: 0, type: 'f32' },
+          uMat: { value: new Float32Array(4), type: 'vec4<f32>' },
           uShadowCfg: { value: new Float32Array([12, 28, 0, 0]), type: 'vec4<f32>' },
           uContactCount: { value: 0, type: 'f32' },
           uContact: { value: new Float32Array(4 * MAX_CONTACTS), type: 'vec4<f32>', size: MAX_CONTACTS },
@@ -316,6 +341,9 @@ export class Lighting {
     shadowSteps: number;
     relief: number;
     reliefWide: boolean;
+    /** G4: grime and grain strength, and the metal sheen strength (0 = off). */
+    grime: number;
+    sheen: number;
   }): void {
     const u = this.u;
     u.uTime = opts.time;
@@ -329,6 +357,8 @@ export class Lighting {
     u.uFlags[1] = 1.1; // distortion, in CSS pixels
     u.uFlags[2] = 0.75; // caustic strength
     u.uFlags[3] = opts.skipHiddenCaustics ? 1 : 0;
+    u.uMat[0] = opts.grime;
+    u.uMat[1] = opts.sheen;
     u.uShadowCfg[0] = opts.shadowSteps;
     u.uShadowCfg[1] = 26;
     u.uShadowCfg[2] = opts.relief;

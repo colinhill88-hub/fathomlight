@@ -67,6 +67,9 @@ export class Wildlife {
   readonly lights: PointLight[] = [];
   private all: Wild[] = [];
   private ring = new Graphics();
+  /** G4: eye-shine, drawn unlit and with a soft halo. */
+  private eyes = new Graphics();
+  private eyeHalo = new Graphics();
   /** The collectible creature in reach, if any. */
   target: { id: string; species: SpeciesId; stage: 'egg' | 'young'; x: number; y: number } | null = null;
   /** 0..1 progress coaxing the target into the jar. */
@@ -117,7 +120,36 @@ export class Wildlife {
       w.y = w.stage === 'egg' ? w.homeY : w.homeY + R(-20, 20);
       w.retarget = R(0, 3);
     }
-    this.emissive.addChild(this.ring);
+    this.emissive.addChild(this.ring, this.eyes);
+    this.glow.addChild(this.eyeHalo);
+  }
+
+  /**
+   * G4: eyes catch the lamp. Creatures inside the beam get a warm glint at the head (warm only: the
+   * Choir's colours are never used), stronger the closer and the more squarely they are lit. Predators
+   * and the wary kelp-forest species glint hardest; the shallows' gentle ones barely.
+   */
+  eyeShine(lamp: { x: number; y: number; dirX: number; dirY: number; radius: number; coneCos: number; on: boolean }, strength: number, time: number): void {
+    const g = this.eyes.clear();
+    const h = this.eyeHalo.clear();
+    if (!lamp.on || strength <= 0) return;
+    for (const w of this.all) {
+      if (!w.present || w.stage === 'egg') continue;
+      const hx = w.x + w.critter.face * w.size * 7;
+      const hy = w.y - w.size * 1.5;
+      const dx = hx - lamp.x;
+      const dy = hy - lamp.y;
+      const d = Math.hypot(dx, dy);
+      if (d > lamp.radius || d < 8) continue;
+      const along = (dx * lamp.dirX + dy * lamp.dirY) / d;
+      const k = Math.max(0, Math.min(1, (along - lamp.coneCos) / 0.08)) * (1 - d / lamp.radius);
+      if (k <= 0.02) continue;
+      const wary = w.species === 'crab' || w.species === 'shrimp' ? 1 : 0.55;
+      const a = Math.min(1, k * 1.6) * wary * strength * (0.85 + 0.15 * Math.sin(time * 5 + hx));
+      const r = 1.6 + w.size * 0.9;
+      g.circle(hx, hy, r).fill({ color: 0xffe2a0, alpha: a });
+      h.circle(hx, hy, r * 3.2).fill({ color: 0xffc860, alpha: a * 0.5 });
+    }
   }
 
   /** Points for the scanner: wild puffcaps and rays (eggs count as glowfins). */
