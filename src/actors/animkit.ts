@@ -59,6 +59,9 @@ export const BREATH_OUT = 0.4;
 export class Glance {
   /** Head angle wanted by the current glance (radians, negative = up). */
   target = 0;
+  /** A rare, slow turn of the head to one side (-1..1), for standing still. */
+  turn = 0;
+  private turnTimer = 9;
   private timer: number;
   private blinkTimer: number;
   constructor(
@@ -74,6 +77,11 @@ export class Glance {
       const r = this.rand();
       this.target = r < 0.35 ? -0.1 - this.rand() * 0.06 : r < 0.6 ? 0.06 + this.rand() * 0.05 : 0;
       this.timer = 2.2 + this.rand() * 4;
+    }
+    this.turnTimer -= dt;
+    if (this.turnTimer <= 0) {
+      this.turn = this.turn !== 0 ? 0 : (this.rand() < 0.5 ? -1 : 1) * (0.5 + this.rand() * 0.5);
+      this.turnTimer = this.turn !== 0 ? 1.6 + this.rand() * 1.4 : 8 + this.rand() * 6;
     }
     this.blinkTimer -= dt;
     if (this.blinkTimer <= 0) this.blinkTimer = 2.5 + this.rand() * 4.5;

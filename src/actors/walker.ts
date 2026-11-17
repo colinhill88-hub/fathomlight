@@ -1,6 +1,6 @@
 import { Container, Graphics } from 'pixi.js';
 import { mulberry32 } from '../rng';
-import { C, buildDiveBag, buildHelmet, buildShoulderLamp, chromeBands, coiledHose, etching, rivets, scratches, segment } from './diver';
+import { C, accentBand, buildDiveBag, buildHelmet, buildShoulderLamp, chromeBands, coiledHose, etching, rimEdge, rivets, scratches, segment } from './diver';
 import { Glance, Spring, approach, batchAll, breathShape, clamp, smoothstep } from './animkit';
 
 /**
@@ -166,6 +166,7 @@ function buildLeg(far: boolean): Leg {
   const thigh = new Container();
   const tg = segment(THIGH, 12, C.suit, C.suitShade);
   etching(tg, 2, -4.5, 13, 9, 2, rand);
+  accentBand(tg, 5, -6, 2.6, 12);
   // Chrome knee guard, as on the diver.
   chromeBands(tg, THIGH - 5, -6.5, 9, 13, 3);
   rivets(tg, [[THIGH - 0.5, -3.5], [THIGH - 0.5, 3.5]], 0.8);
@@ -220,6 +221,7 @@ function buildArm(far: boolean): Arm {
   ug.circle(0, 0, 5.2).fill({ color: C.chrome }); // shoulder joint ring
   ug.circle(-0.8, -1.3, 2.2).fill({ color: C.chromeHi, alpha: 0.6 });
   ug.circle(0, 0, 5.2).stroke({ color: C.chromeDark, width: 1 });
+  accentBand(ug, 8.5, -4.5, 2.4, 9);
   scratches(ug, 4, -3.5, 10, 7, 2, 0.22, rand);
   ug.tint = tint;
   upper.addChild(ug);
@@ -243,6 +245,9 @@ function buildTorso(): Graphics {
   g.roundRect(-11, -33, 6, 36, 3).fill({ color: C.suitShade, alpha: 0.75 }); // the back, away from the light
   g.roundRect(7, -32, 4, 30, 2).fill({ color: C.suitLight, alpha: 0.45 });
   etching(g, -6, -30, 15, 22, 6, rand);
+  accentBand(g, -11.5, -19, 24, 2.4);
+  rimEdge(g, -6, -35.2, 8, -35.2, 0.5);
+  rimEdge(g, 12.3, -30, 12.3, -6, 0.55);
   // Harness strap round the chest, and the belt with a chrome buckle.
   g.rect(-11.5, -25, 24, 3.6).fill({ color: C.chromeDark, alpha: 0.85 });
   g.rect(-11.5, -3, 24, 5).fill({ color: C.suitShade });
@@ -286,6 +291,8 @@ function buildPack(): Graphics {
   // Twin oxygen tanks (the diver's): dark chrome, lime bands, valves and caps on top.
   for (const [tx, shade] of [[-16, C.steelDark], [-10.5, C.chromeDark]] as const) {
     g.roundRect(tx, -19, 9.5, 36, 4.75).fill({ color: shade });
+    g.roundRect(tx, -19, 9.5, 36, 4.75).stroke({ color: C.steelLight, width: 0.7, alpha: 0.5 });
+    g.rect(tx + 1.3, -22.4, 6.8, 1.2).fill({ color: C.chromeHi, alpha: 0.85 });
     g.roundRect(tx + 1.8, -17, 2.2, 32, 1.1).fill({ color: 0x8e9aa2, alpha: 0.55 });
     g.rect(tx, -3, 9.5, 3).fill({ color: C.visor, alpha: 0.9 });
     g.rect(tx, 7, 9.5, 1.4).fill({ color: C.visor, alpha: 0.6 });
@@ -859,11 +866,12 @@ export class Walker {
         this.idleSide = -this.idleSide;
         this.idleTimer = 3.5 + rand() * 4;
       }
-      this.idleShift = approach(this.idleShift, this.idleSide * 1.1, 1.5, dt);
+      this.idleShift = approach(this.idleShift, this.idleSide * 1.6, 1.5, dt);
       hipX = stepping >= 0 ? clamp(this.feet[1 - stepping].ax * 0.4, -3, 3) : this.idleShift * (1 - this.working);
       hipY += stepping >= 0 ? 0.8 : Math.abs(this.idleShift) * 0.3;
       lean = 0.025 + this.working * 0.07;
-      look = this.glance.target + this.working * 0.12;
+      // A rare slow head turn (only when nothing is going on): the head tips and slides a touch.
+      look = this.glance.target + this.working * 0.12 + this.glance.turn * 0.07 * (1 - this.working);
     }
     o.hipY = hipY;
     o.hipX = hipX;
@@ -1061,10 +1069,11 @@ export class Walker {
     const L = this.lean.x;
     const tp = (tx: number, ty: number, o: Container) => o.position.set(px + tx * c - ty * s, py + tx * s + ty * c);
     // Breathing: the chest rises a little.
-    const chest = this.heave * 0.6;
+    // Standing still the breath is easier to see; walking keeps the old, smaller lift.
+    const chest = this.heave * (0.6 + 0.5 * (1 - this.walkAmt) * (this.mode === 'ground' ? 1 : 0));
     this.torso.position.set(px, py);
     this.torso.rotation = L;
-    this.torso.scale.set(1, 1 + this.heave * 0.015);
+    this.torso.scale.set(1, 1 + this.heave * (0.015 + 0.01 * (1 - this.walkAmt) * (this.mode === 'ground' ? 1 : 0)));
     // The tanks bob on their straps with each step and landing, and tip back when speeding up.
     this.packS.step(0, 15, 0.35, dt, -hipA * 0.05);
     this.packS.clamp(-2.5, 2.5);

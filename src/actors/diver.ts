@@ -25,11 +25,11 @@ import { BREATH_OUT, Glance, Spring, batchAll, breathShape } from './animkit';
 
 /** The suit's colours, shared with the walker (the same person on foot). */
 export const C = {
-  suit: 0x2c302f, // charcoal
+  suit: 0x3a4144, // charcoal, lifted a little so it parts from the base's 0x2f363b walls
   suitShade: 0x1a1d1d,
   suitLight: 0x4a504d,
   etch: 0xb39a4e, // brass etched lines
-  sleeve: 0x2e3234, // charcoal sleeves (Colin's Crest diver boards, docs/art/kit2)
+  sleeve: 0x394044, // charcoal sleeves (Colin's Crest diver boards, docs/art/kit2)
   sleeveShade: 0x1c1f20,
   red: 0xb3302a, // red gloves and fin tips
   redShade: 0x6e1c18,
@@ -45,7 +45,21 @@ export const C = {
   visor: 0xc6f03a, // neon lime glass
   visorEdge: 0x6f8f16,
   skin: 0x9a7058,
+  accent: 0xe0a02a, // amber trim bands (thin, never hazard stripes)
+  accentShade: 0x8a5e14,
+  rim: 0x6fe8e0, // cool cyan rim light, painted on the edges that face the light
 };
+
+/** A thin amber trim band (x, y, w, h) with a darker lower edge. */
+export function accentBand(g: Graphics, x: number, y: number, w: number, h: number): void {
+  g.rect(x, y, w, h).fill({ color: C.accent, alpha: 0.92 });
+  g.rect(x, y + h * 0.65, w, h * 0.35).fill({ color: C.accentShade, alpha: 0.7 });
+}
+
+/** A one-pixel painted rim light along an edge. */
+export function rimEdge(g: Graphics, x0: number, y0: number, x1: number, y1: number, alpha = 0.5): void {
+  g.moveTo(x0, y0).lineTo(x1, y1).stroke({ color: C.rim, alpha, width: 1, cap: 'round' });
+}
 
 const rand = mulberry32(0xd1e5);
 const rngDefault = rand;
@@ -103,7 +117,7 @@ export function segment(len: number, thick: number, color: number, shade: number
   });
   g.moveTo(0, -thick * 0.3)
     .lineTo(len, -thick * 0.3)
-    .stroke({ color: 0xffffff, alpha: 0.12, width: 1 });
+    .stroke({ color: C.rim, alpha: 0.5, width: 1, cap: 'round' });
   return g;
 }
 
@@ -129,6 +143,7 @@ function buildLeg(far: boolean): Leg {
   const thigh = new Container();
   const tg = segment(24, 13, C.suit, C.suitShade);
   etching(tg, 2, -5, 16, 10, 3);
+  accentBand(tg, 5, -6.5, 3, 13);
   // Chrome knee guard.
   chromeBands(tg, 19, -6.5, 9, 13, 3);
   rivets(tg, [[23.5, -3.5], [23.5, 3.5]], 0.9);
@@ -186,6 +201,7 @@ function buildArm(far: boolean): Arm {
   ug.circle(0, 0, 6).fill({ color: C.chrome }); // shoulder joint ring
   ug.circle(-1, -1.5, 2.5).fill({ color: C.chromeHi, alpha: 0.6 });
   ug.circle(0, 0, 6).stroke({ color: C.chromeDark, width: 1 });
+  accentBand(ug, 9, -5, 2.6, 10);
   scratches(ug, 4, -4, 14, 8, 2);
   ug.tint = tint;
   upper.addChild(ug);
@@ -211,6 +227,8 @@ function buildTorso(): Container {
   // bands, valves and chrome caps towards the head.
   for (const [y, shade] of [[-38, C.steelDark], [-27, C.chromeDark]] as const) {
     g.roundRect(-30, y, 62, 12, 6).fill({ color: shade });
+    g.roundRect(-30, y, 62, 12, 6).stroke({ color: C.steelLight, width: 0.8, alpha: 0.5 });
+    g.rect(30, y + 1, 2, 10).fill({ color: C.chromeHi, alpha: 0.8 });
     g.roundRect(-27, y + 2, 56, 3, 1.5).fill({ color: 0x8e9aa2, alpha: 0.55 });
     g.rect(2, y + 1, 4, 10).fill({ color: C.visor, alpha: 0.9 });
     g.rect(-14, y + 1, 2, 10).fill({ color: C.visor, alpha: 0.6 });
@@ -230,6 +248,9 @@ function buildTorso(): Container {
   g.roundRect(-32, 3, 70, 11, 6).fill({ color: C.suitShade, alpha: 0.75 });
   g.roundRect(-30, -13, 66, 5, 3).fill({ color: C.suitLight, alpha: 0.5 });
   etching(g, -26, -11, 44, 20, 9);
+  accentBand(g, -12, -15, 4, 30);
+  accentBand(g, 22, -15, 2.6, 30);
+  rimEdge(g, -26, -14.5, 28, -14.5, 0.55);
   // Belt with a chrome buckle.
   g.rect(-28, -15, 7, 30).fill({ color: C.suitShade });
   chromeBands(g, -36, -5, 9, 12, 3);
