@@ -459,11 +459,24 @@ async function boot(): Promise<void> {
     toast: (t, k) => hud.toast(t, k),
     refreshInventory: () => hud.refreshInventory(),
     persist: () => persist(),
-    fedFx: (id) => tankLife.feed(id),
-    scrubFx: (id) => tankLife.scrub(id),
-    changed: () => tankLife.sync(save, layout),
+    // Milestone 9: tending happens indoors too, so effects go to both views of the tank.
+    fedFx: (id) => {
+      tankLife.feed(id);
+      baseHooks?.tankLife.feed(id);
+    },
+    scrubFx: (id) => {
+      tankLife.scrub(id);
+      baseHooks?.tankLife.scrub(id);
+    },
+    changed: () => {
+      tankLife.sync(save, layout);
+      baseHooks?.syncTanks();
+    },
     released: (c) => wildlife.release(c.species, c.stage, save),
-    highlight: (id) => (tankLife.highlight = id),
+    highlight: (id) => {
+      tankLife.highlight = id;
+      if (baseHooks) baseHooks.tankLife.highlight = id;
+    },
   });
   /** Give materials back: into storage while there is room, the rest carried. */
   function refund(cost: Partial<Record<keyof typeof save.bag, number>>): void {
@@ -2874,7 +2887,12 @@ async function boot(): Promise<void> {
       interior.place(x, y, interior.walker.face);
       sound.clamps(true);
     },
-    tend: (id) => peekOut('care', id),
+    // Milestone 9 (Colin): tending stays indoors. The camera eases in on the tank
+    // room's window and the care panel opens beside it.
+    tend: (id) => {
+      care.setAvailable(id);
+      care.open(id);
+    },
     station: (id) => peekOut('station', id),
     dock: (id) => peekOut('dock', id),
     build: () => peekOut('build', null),
@@ -3019,7 +3037,21 @@ async function boot(): Promise<void> {
     }
     // The same dive bag as in the water, swinging at the hip.
     interior.walker.load = bagLoad(save);
-    const evs: InteriorEvent[] = interior.update(dt, { moveX: s.moveX, moveY: s.moveY, jump: s.jumpHeld, collect: s.collect, lamp: s.lamp }, paused);
+    // Tending a tank indoors: the walker waits at the window while the panel is open.
+    if (inside === 'base' && care.active && care.tankId !== null && baseHooks) {
+      const f = baseHooks.tankFocus(care.tankId);
+      interior.focus = f ? { ...f, panelPx: Math.min(360, cssW * 0.44) + 24 } : null;
+    } else {
+      interior.focus = null;
+      if (care.available !== null && !care.active) care.setAvailable(null);
+    }
+    care.update(dt);
+    const frozen = care.active;
+    const evs: InteriorEvent[] = interior.update(
+      dt,
+      frozen ? { moveX: 0, moveY: 0, jump: false, collect: false, lamp: false } : { moveX: s.moveX, moveY: s.moveY, jump: s.jumpHeld, collect: s.collect, lamp: s.lamp },
+      paused,
+    );
     const maxO2 = maxOxygen(save);
     if (!paused) {
       save.playSeconds += dt;
@@ -3094,8 +3126,8 @@ async function boot(): Promise<void> {
       else if (e.type === 'jump') sound.step(true);
       else if (e.type === 'land') sound.step(false, e.hard);
     }
-    hud.setCollect(interior.label, interior.progress);
-    hud.setBanner(interior.banner);
+    hud.setCollect(frozen ? null : interior.label, frozen ? 0 : interior.progress);
+    hud.setBanner(frozen ? '' : interior.banner);
     watch.draw(performance.now(), save.oxygen, maxO2, 0, 0, true, { kg: bagWeight(save.bag), ...bagLimits(save) }, save.suit);
     hud.setSuit(save.suit, true);
     hud.setSubChip(null);
@@ -3111,7 +3143,7 @@ async function boot(): Promise<void> {
       aboard: false,
       inDome: true,
       blackout: 0,
-      panel: paused ? 'read' : '',
+      panel: paused ? 'read' : care.active ? 'care' : '',
       speed: Math.abs(interior.walker.vx),
       boosting: false,
       lampOn: interior.lampOn,

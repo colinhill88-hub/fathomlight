@@ -62,6 +62,25 @@ export interface InteriorHooks {
   powered(zone: number): boolean;
   /** Extra lights (screens, glowing tanks). */
   lights(): Light[];
+  /**
+   * Milestone 9: real actors (the creatures in the tanks), added to the lit,
+   * emissive and glow layers when the level is entered, and taken away
+   * again (detach) when it is left or rebuilt.
+   */
+  attach?(lit: Container, emissive: Container, glow: Container): void;
+  detach?(): void;
+  /** Move the actors, every frame (x0..x1: the camera's view in level units). */
+  tick?(dt: number, time: number, x0: number, x1: number): void;
+}
+
+/** Milestone 9: the camera holds on something (a tank being tended), beside a panel on the right. */
+export interface InteriorFocus {
+  x: number;
+  y: number;
+  /** View height to frame it, in level units. */
+  h: number;
+  /** Width of the panel on the right, in CSS px: the focus is centred in what is left. */
+  panelPx: number;
 }
 
 export interface InteriorState {
@@ -136,6 +155,12 @@ export class Interior {
   private time = 0;
   private cam = { x: 0, y: 0 };
   private viewH = 560;
+  private viewNow = 560;
+  /** Milestone 9: hold the camera on something while a panel is open (tending a tank). */
+  focus: InteriorFocus | null = null;
+  private actorLit = new Container();
+  private actorEm = new Container();
+  private actorGlow = new Container();
   private cssW = 1;
   private cssH = 1;
   private coyote = 0;
@@ -162,9 +187,9 @@ export class Interior {
     this.glowSprite.blendMode = 'add';
     this.glowSprite.filters = [new BlurFilter({ strength: 10, quality: 3 })];
     this.litRoot.addChild(this.litCam);
-    this.litCam.addChild(this.static_, this.doorG, this.breakerG, this.takenG, this.dynamic, this.walker.view);
-    this.emissiveCam.addChild(this.emissiveStatic, this.dynEmissive, this.walker.lens, this.overlay);
-    this.glowCam.addChild(this.glowStatic);
+    this.litCam.addChild(this.static_, this.doorG, this.breakerG, this.takenG, this.dynamic, this.actorLit, this.walker.view);
+    this.emissiveCam.addChild(this.emissiveStatic, this.dynEmissive, this.actorEm, this.walker.lens, this.overlay);
+    this.glowCam.addChild(this.glowStatic, this.actorGlow);
     this.view.addChild(this.lighting.view, this.emissiveCam, this.glowSprite);
     this.view.visible = false;
   }
@@ -221,7 +246,10 @@ export class Interior {
 
   /** Build a level and step into it at its 'S' tile. */
   enter(map: string[], state: InteriorState, hooks: InteriorHooks | null = null): void {
+    if (this.hooks && this.hooks !== hooks) this.hooks.detach?.();
     this.hooks = hooks;
+    hooks?.attach?.(this.actorLit, this.actorEm, this.actorGlow);
+    this.focus = null;
     this.climbing = false;
     this.map = map;
     this.W = map[0].length;
@@ -305,6 +333,9 @@ export class Interior {
   }
 
   leave(): void {
+    this.hooks?.detach?.();
+    this.hooks = null;
+    this.focus = null;
     this.active = false;
     this.view.visible = false;
     this.label = null;
@@ -962,13 +993,20 @@ export class Interior {
     const w = this.walker;
     w.animate(dt);
     // Camera: follow with a little look-ahead, clamped to the level.
-    const viewH = this.viewH;
+    const f = this.focus;
+    // Milestone 9: tending a tank, the camera eases in on it (beside the care panel).
+    this.viewNow += ((f ? f.h : this.viewH) - this.viewNow) * (1 - Math.exp(-4 * dt));
+    const viewH = this.viewNow;
     const zoom = this.cssH / viewH;
     const viewW = this.cssW / zoom;
-    const lx = w.x + w.face * 120 + w.vx * 0.2 - viewW / 2;
+    let lx = w.x + w.face * 120 + w.vx * 0.2 - viewW / 2;
     // In the base the floor sits low on screen (rooms are what you look at, not the water below).
-    const ly = this.hooks ? w.y - viewH * 0.7 : w.y - 60 - viewH / 2;
-    const k = 1 - Math.exp(-5 * dt);
+    let ly = this.hooks ? w.y - viewH * 0.7 : w.y - 60 - viewH / 2;
+    if (f) {
+      lx = f.x - viewW / 2 + f.panelPx / zoom / 2;
+      ly = f.y - viewH / 2;
+    }
+    const k = 1 - Math.exp(-(f ? 3.5 : 5) * dt);
     this.cam.x += (lx - this.cam.x) * k;
     this.cam.y += (ly - this.cam.y) * k;
     this.cam.x = Math.max(0, Math.min(this.W * T - viewW, this.cam.x));
@@ -1005,6 +1043,7 @@ export class Interior {
     if (this.hooks) {
       de.clear();
       this.hooks.animate(d, de, this.time);
+      this.hooks.tick?.(dt, this.time, this.cam.x, this.cam.x + viewW);
     }
     // Lights: lamps (with power), the emergency lamps, and the helmet lamp's beam.
     // The beam starts at the shoulder lamp (the same lamp as the diver's).

@@ -1,4 +1,4 @@
-import { BaseLayout } from '../game/base';
+import { BaseLayout, pieceCode } from '../game/base';
 import {
   CLEAN_AMOUNT,
   comfortTarget,
@@ -146,6 +146,12 @@ export class CareMode {
     document.body.classList.remove('caring');
     this.btn.setAttribute('aria-pressed', 'false');
     this.deps.persist();
+  }
+
+  /** The tank's painted stencil code (TANK 2, GT-1), as on its room's sign. */
+  private code(): string {
+    const p = this.deps.layout.pieces.find((q) => q.id === this.tankId);
+    return p ? pieceCode(this.deps.layout, p) : `Tank ${tankNumber(this.deps.layout, this.tankId!)}`;
   }
 
   private here(): CreatureData[] {
@@ -320,7 +326,7 @@ export class CareMode {
     const plants = grand ? `${planter(1)}</div><div class="plants"><span>Planter 2:</span>${planter(2)}` : planter(1);
     const armed = Date.now() - this.releaseArmed < 3000;
     const html = `
-      <div class="care-head"><b>Tank ${tankNumber(layout, this.tankId)}</b><span>${list.length}/${tankCapacity(layout, this.tankId)} · ${powered ? 'powered' : 'no power'}</span>
+      <div class="care-head"><b>${this.code()}</b><span>${list.length}/${tankCapacity(layout, this.tankId)} · ${powered ? 'powered' : 'no power'}</span>
         <button type="button" class="x" data-act="close" aria-label="Close">✕</button></div>
       ${list.length ? `<div class="tabs">${tabs}</div>` : ''}
       ${c ? `<h3>${c.stage === 'egg' ? SPECIES[c.species].eggName.replace(/^./, (m) => m.toUpperCase()) : SPECIES[c.species].name}</h3>` : ''}

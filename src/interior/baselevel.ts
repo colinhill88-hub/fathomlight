@@ -1,11 +1,11 @@
-import { Graphics, Text } from 'pixi.js';
+import { Container, Graphics, Text } from 'pixi.js';
 import { DC, bolts, ceilingBeam, flangeRect, floorGrime, hazard, pipeRun, pipeUp, rivet, skirting, wallPanels } from './detail';
 import type { Light } from '../fx/lighting';
 import { T, type InteriorAct, type InteriorHooks } from './interior';
 import { BaseLayout, collarsOf, isDone, PieceKind, PIECES, pieceCode, Placed, shapeOf } from '../game/base';
-import type { MaterialId, SaveData, SavedLine, SpeciesId } from '../game/state';
+import type { MaterialId, SaveData, SavedLine } from '../game/state';
 import { ITEM_COLOURS, pointAlong } from '../world/linegfx';
-import { creaturesIn } from '../game/creatures';
+import { TankLife } from '../world/tanklife';
 import { mulberry32, WORLD_SEED } from '../rng';
 
 /**
@@ -28,6 +28,8 @@ import { mulberry32, WORLD_SEED } from '../rng';
 
 export const CW = 8;
 export const CH = 6;
+/** Milestone 9: creatures and plants in the indoor tanks are drawn this much bigger than outside. */
+export const TANK_SCALE = 1.45;
 
 export interface Room {
   piece: Placed;
@@ -246,14 +248,6 @@ const COL = {
   sand: 0xb7a47a,
 };
 
-const SPECIES_LOOK: Record<SpeciesId, { body: number; glow: number; kind: 'fish' | 'puff' | 'ray' | 'crab' | 'shrimp' }> = {
-  glowfin: { body: 0x3a4a3a, glow: 0xe8d860, kind: 'fish' },
-  puffcap: { body: 0xd8cdb8, glow: 0xf0e0a0, kind: 'puff' },
-  ray: { body: 0x7a6a50, glow: 0xe0c070, kind: 'ray' },
-  crab: { body: 0xa8402e, glow: 0xffb060, kind: 'crab' },
-  shrimp: { body: 0xc04a36, glow: 0xfff0a0, kind: 'shrimp' },
-} as Record<SpeciesId, { body: number; glow: number; kind: 'fish' | 'puff' | 'ray' | 'crab' | 'shrimp' }>;
-
 function sign(text: string, x: number, y: number, size = 13, color = 0xd8dde0, alpha = 0.7): Text {
   const t = new Text({ text, style: { fontFamily: 'Courier New, monospace', fontSize: size, fill: color, fontWeight: 'bold', letterSpacing: 2 }, resolution: 3 });
   t.anchor.set(0.5);
@@ -295,6 +289,12 @@ export class BaseHooks implements InteriorHooks {
   private screens: Light[] = [];
   private tanks: { room: Room; x: number; y: number; w: number; h: number }[] = [];
   private turbines: { x: number; y: number; r: number; id: number }[] = [];
+  /**
+   * Milestone 9 (Colin, after the interior art pass): the tanks indoors show
+   * the very same creatures and plants as the tanks outside, swimming the
+   * same way, drawn bigger for the room's window.
+   */
+  readonly tankLife: TankLife;
   /** Conveyors and feed pipes, routed through the rooms' ceilings (part 2). */
   private routes: { id: number; kind: 'belt' | 'pipe'; tier: number; pts: [number, number][]; len: number }[] = [];
 
@@ -306,6 +306,15 @@ export class BaseHooks implements InteriorHooks {
     const a = level.airlocks.find((q) => q.id === domeId) ?? level.airlocks[0];
     this.spawn = { x: a.x, y: a.y };
     for (const r of level.rooms) this.planRoom(r);
+    this.tankLife = new TankLife({
+      boxOf: (p) => {
+        const t = this.tanks.find((q) => q.room.piece.id === p.id);
+        return t ? { x: t.x + 8, y: t.y + 10, w: t.w - 16, h: t.h - 16 } : null;
+      },
+      scale: TANK_SCALE,
+      clumps: true,
+      glass: false,
+    });
     for (const l of level.lifts) this.spots.push({ room: level.rooms[0], x: l.x, y: l.y, r: 40, what: 'lift', to: { x: l.toX, y: l.toY }, up: l.up });
     ctx.lines().forEach((l, i) => {
       const pts = this.routeLine(l, i % 4);
@@ -314,6 +323,39 @@ export class BaseHooks implements InteriorHooks {
       for (let k = 1; k < pts.length; k++) len += Math.hypot(pts[k][0] - pts[k - 1][0], pts[k][1] - pts[k - 1][1]);
       this.routes.push({ id: l.id, kind: l.kind, tier: l.tier ?? 1, pts, len });
     });
+  }
+
+  attach(lit: Container, emissive: Container, glow: Container): void {
+    lit.addChild(this.tankLife.view);
+    emissive.addChild(this.tankLife.emissive);
+    glow.addChild(this.tankLife.glow);
+    this.tankLife.sync(this.ctx.save, this.ctx.layout);
+  }
+  private detached = false;
+  detach(): void {
+    if (this.detached) return;
+    this.detached = true;
+    this.tankLife.destroy();
+  }
+  private syncClock = 0;
+  tick(dt: number, time: number, x0: number, x1: number): void {
+    if (this.detached) return;
+    this.syncClock -= dt;
+    if (this.syncClock <= 0) {
+      this.syncClock = 0.4;
+      this.tankLife.sync(this.ctx.save, this.ctx.layout);
+    }
+    this.tankLife.update(dt, time, this.ctx.save, x0, x1);
+  }
+  /** Re-read the tanks now (a creature was added, moved or a plant planted). */
+  syncTanks(): void {
+    if (!this.detached) this.tankLife.sync(this.ctx.save, this.ctx.layout);
+  }
+  /** Milestone 9: where the camera frames a tank while it is tended indoors. */
+  tankFocus(id: number): { x: number; y: number; h: number } | null {
+    const t = this.tanks.find((q) => q.room.piece.id === id);
+    if (!t) return null;
+    return { x: t.x + t.w / 2, y: t.y + t.h / 2 + 20, h: Math.max(320, t.h + 150) };
   }
 
   /** Where to step in when climbing up out of the sub into a dock. */
@@ -439,7 +481,7 @@ export class BaseHooks implements InteriorHooks {
       case 'tank':
       case 'gtank': {
         const top = b.oy + 14;
-        const bot = b.bottom - 44;
+        const bot = b.bottom - 22;
         this.tanks.push({ room: r, x: b.ox + 30, y: top, w: b.ow - 60, h: bot - top });
         add(b.cx, b.bottom, 'tank', b.ow / 2 - 20);
         if (r.h > 1) add(b.cx, b.floor(0), 'tank', b.ow / 2 - 60);
@@ -1162,64 +1204,9 @@ export class BaseHooks implements InteriorHooks {
 
   private drawTank(r: Room, d: Graphics, de: Graphics, time: number, on: boolean): void {
     const t = this.tanks.find((q) => q.room === r)!;
-    const save = this.ctx.save;
-    const td = save.tankData[String(r.piece.id)];
-    // Plants growing from the sand.
-    const plants = [td?.plant, td?.plant2].filter(Boolean) as string[];
-    plants.forEach((pl, i) => {
-      const px = t.x + t.w * (0.25 + i * 0.5);
-      const base = t.y + t.h - 18;
-      for (let k = 0; k < 5; k++) {
-        const sway = Math.sin(time * 1.2 + k) * 8;
-        const hgt = pl === 'kelp' ? t.h * 0.7 : pl === 'coral' ? 50 : 70;
-        const color = pl === 'kelp' ? 0x6a8a3a : pl === 'coral' ? 0xd87060 : pl === 'fan' ? 0xc89040 : 0x7aa050;
-        d.moveTo(px - 20 + k * 10, base)
-          .quadraticCurveTo(px - 20 + k * 10 + sway, base - hgt * 0.5, px - 20 + k * 10 + sway * 1.5, base - hgt * (0.6 + 0.08 * k))
-          .stroke({ color, width: pl === 'kelp' ? 5 : 4, alpha: 0.85 });
-      }
-    });
+    void d;
     // Bubbles from the filter inlet, when powered.
     if (on) for (let i = 0; i < 8; i++) de.circle(t.x + t.w - 30 + Math.sin(time * 2 + i) * 4, t.y + t.h - 20 - ((time * 50 + i * 37) % (t.h - 30)), 2 + (i % 3)).fill({ color: 0xc8ffff, alpha: 0.35 });
-    // The creatures.
-    const list = creaturesIn(save, r.piece.id);
-    list.forEach((cr, i) => {
-      const look = SPECIES_LOOK[cr.species] ?? SPECIES_LOOK.glowfin;
-      const sz = cr.stage === 'grown' ? 1 : cr.stage === 'young' ? 0.6 : 0.4;
-      const seed = cr.id * 7.31;
-      if (cr.stage === 'egg') {
-        const ex = t.x + 40 + ((i * 97) % Math.max(1, t.w - 80));
-        for (let k = 0; k < 5; k++) de.circle(ex + (k % 3) * 7, t.y + t.h - 26 - Math.floor(k / 3) * 6, 4).fill({ color: look.glow, alpha: 0.7 });
-        return;
-      }
-      const span = t.w - 80;
-      const ph = time * (0.12 + (seed % 1) * 0.08) + seed;
-      const u = (Math.sin(ph) + 1) / 2;
-      const dir = Math.cos(ph) >= 0 ? 1 : -1;
-      let x = t.x + 40 + u * span;
-      let y = t.y + 40 + ((Math.sin(seed) + 1) / 2) * (t.h - 110) + Math.sin(time * 1.3 + seed) * 10;
-      if (look.kind === 'crab') y = t.y + t.h - 30;
-      if (look.kind === 'shrimp') x = t.x + 40 + ((seed * 31) % span);
-      const s = 22 * sz;
-      if (look.kind === 'fish') {
-        d.ellipse(x, y, s, s * 0.4).fill({ color: look.body });
-        d.poly([x - dir * s, y, x - dir * s * 1.6, y - s * 0.4, x - dir * s * 1.6, y + s * 0.4]).fill({ color: look.body });
-        de.circle(x + dir * s * 0.5, y - s * 0.1, 3 * sz + 1).fill({ color: look.glow });
-        de.moveTo(x - dir * s * 0.6, y).lineTo(x + dir * s * 0.3, y).stroke({ color: look.glow, width: 1.5, alpha: 0.7 });
-      } else if (look.kind === 'puff') {
-        d.circle(x, y, s * 0.7).fill({ color: look.body, alpha: 0.6 });
-        for (let k = 0; k < 6; k++) de.moveTo(x - s * 0.5 + k * s * 0.2, y + s * 0.5).lineTo(x - s * 0.5 + k * s * 0.2 + Math.sin(time * 3 + k) * 4, y + s * 1.4).stroke({ color: look.glow, width: 1.2, alpha: 0.6 });
-      } else if (look.kind === 'ray') {
-        const flap = Math.sin(time * 3 + seed) * s * 0.25;
-        d.poly([x + dir * s, y, x, y - s * 0.5 - flap, x - dir * s, y, x, y + s * 0.5 + flap]).fill({ color: look.body });
-        for (let k = 0; k < 4; k++) de.circle(x + (k - 1.5) * s * 0.3, y + ((k % 2) - 0.5) * s * 0.3, 2).fill({ color: look.glow, alpha: 0.7 });
-      } else if (look.kind === 'crab') {
-        d.ellipse(x, y, s * 0.6, s * 0.35).fill({ color: look.body });
-        for (let k = -2; k <= 2; k++) d.moveTo(x + k * s * 0.2, y + s * 0.2).lineTo(x + k * s * 0.35, y + s * 0.55).stroke({ color: look.body, width: 2 });
-        de.circle(x + s * 0.3, y - s * 0.3, 1.8).fill({ color: look.glow });
-      } else {
-        d.ellipse(x, y, s * 0.5, s * 0.18).fill({ color: look.body });
-        de.circle(x + dir * s * 0.55, y - s * 0.2, 3).fill({ color: look.glow });
-      }
-    });
+
   }
 }
