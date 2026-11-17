@@ -100,6 +100,7 @@ import { SoundDirector, WorkKind } from './audio/director';
 import { Lurkers } from './actors/lurker';
 import { Interior, InteriorEvent } from './interior/interior';
 import { CORVINA_MAP } from './interior/corvina';
+import { BaseCtx, BaseHooks, baseSignature, buildBaseLevel } from './interior/baselevel';
 import { SCAN_ENTRIES } from './game/scanner';
 import { initSoundUI } from './ui/sound';
 
@@ -367,6 +368,23 @@ async function boot(): Promise<void> {
   const interior = new Interior(renderer);
   app.stage.addChild(interior.view);
   const worldLayers = [water.view, backdrop.view, lighting.view, emissiveCam, glowSprite, snow.view, overlayCam];
+  /** Which interior you're on foot in, if any. */
+  let inside: 'corvina' | 'base' | null = null;
+  /** The walkable base: the dome you came in by, and the level built from the layout. */
+  let baseDome: number | null = null;
+  let baseHooks: BaseHooks | null = null;
+  /** A console inside the base has opened its panel out in the world for a moment. */
+  let peek: { kind: 'care' | 'station' | 'dock' | 'build'; id: number | null; x: number; y: number; face: number; opened: boolean } | null = null;
+  /** Where a dome's airlock is from outside: the round hatch on the front of its drum. */
+  function airlockOutside(p: Placed): { x: number; y: number } {
+    const r = pieceRect(p);
+    return { x: r.x + r.w / 2, y: r.y + r.h - 46 };
+  }
+  /** Outside the dome you went in by (or the first dome). */
+  function baseOutside(): { x: number; y: number } {
+    const p = layout.pieces.find((q) => q.id === baseDome) ?? layout.pieces.find((q) => q.kind === 'dome');
+    return p ? airlockOutside(p) : { x: diver.x, y: diver.y };
+  }
 
   const input = new Input(host);
   const hud = new Hud(() => save);
@@ -904,9 +922,9 @@ async function boot(): Promise<void> {
     let best: { x: number; y: number; dome: boolean; sub: boolean; d: number } | null = null;
     const domes = layout.pieces.filter((p) => p.kind === 'dome' && layout.powered.has(p.id));
     if (domes.length) {
-      const r = pieceRect(domes[0]);
-      const x = r.x + r.w / 2;
-      const y = r.y + r.h - 150;
+      const a = airlockOutside(domes[0]);
+      const x = a.x;
+      const y = a.y;
       best = { x, y, dome: true, sub: false, d: Math.hypot(x - fromX, y - fromY) };
     }
     const S = save.sub;
@@ -934,8 +952,9 @@ async function boot(): Promise<void> {
   let saveTimer = 0;
   function persist(): void {
     if (blackout > 0) return; // save once the diver is back at the buoy
-    save.x = interior.active ? CV_HATCH.x : diver.x;
-    save.y = interior.active ? CV_HATCH.y - 70 : diver.y;
+    const outAt = inside === 'base' || peek ? baseOutside() : null;
+    save.x = outAt ? outAt.x : inside === 'corvina' ? CV_HATCH.x : diver.x;
+    save.y = outAt ? outAt.y : inside === 'corvina' ? CV_HATCH.y - 70 : diver.y;
     save.lampOn = diver.lampOn;
     if (save.sub) {
       save.sub.x = sub.x;
@@ -1027,6 +1046,170 @@ async function boot(): Promise<void> {
   let camCY = diver.y + 40;
   let time = 0;
 
+  /**
+   * The base's own clock: the build drone, Labs and Workshops, salvage cranes,
+   * the factory lines and creature care. Runs outside, and inside the base on
+   * foot (Colin: the base keeps working while you're in it).
+   */
+  function simBase(dt: number, at: { x: number; y: number; face: number; speed: number; repairing: boolean; aboard: boolean }): void {
+    // ---- The build drone ----
+    const subFrame = save.sub && save.sub.stage === 'frame' ? save.sub : null;
+    const subJob = subFrame
+      ? {
+          rect: { x: sub.x - 130, y: sub.y - 80, w: 260, h: 130 },
+          get progress() {
+            return subFrame.progress ?? 0;
+          },
+          set progress(v: number) {
+            subFrame.progress = v;
+          },
+          buildTime: SUB_BUILD_TIME,
+        }
+      : null;
+    for (const ev of drone.update(dt, time, {
+      diverX: at.x,
+      diverY: at.y,
+      diverFace: at.face,
+      diverSpeed: at.speed,
+      repairing: at.repairing,
+      layout,
+      rate: droneWeldRate(save),
+      extra: subJob,
+      gap: at.aboard ? { x: 165, y: 86 } : undefined,
+    })) {
+      if (ev.type === 'subDone' && save.sub) {
+        save.sub.stage = 'built';
+        delete save.sub.progress;
+        save.sub.docked = true;
+        drone.cheer();
+        hud.toast(
+          `Submersible KS-1 is finished! Swim up to it and tap Board${input.state.lastDevice === 'touch' ? '' : ' (V)'}. Fit modules from the Dock panel.`,
+          'big',
+        );
+        persist();
+        continue;
+      }
+      if (ev.type === 'repaired') {
+        for (const k of MATERIALS_LIST) {
+          let need = DRONE_REPAIR_COST[k] ?? 0;
+          const fromBag = Math.min(need, save.bag[k]);
+          save.bag[k] -= fromBag;
+          need -= fromBag;
+          save.stored[k] -= need;
+        }
+        save.drone = 'active';
+        hud.refreshInventory();
+        hud.toast('Build drone KD-1 repaired! It follows you now, and welds whatever you build at the Kestrel site.', 'big');
+        persist();
+      } else if (ev.type === 'finished') {
+        layout.set(layout.pieces);
+        baseView.sync(layout);
+        const p = ev.piece;
+        const powered = layout.powered.has(p.id);
+        hud.toast(
+          `Finished: ${PIECES[p.kind].name}${p.kind !== 'turbine' && !powered ? ' (no power yet: join it to a current turbine)' : ''}`,
+          'big',
+        );
+        if (build.active) build.refresh();
+        persist();
+      }
+    }
+    if (build.active && (drone.welding || build.selected || build.selectedLine !== null) && Math.floor(time * 2) !== Math.floor((time - dt) * 2)) build.refresh();
+
+    hud.setJar(jarText());
+
+    // ---- Labs and Workshops (milestone 7) ----
+    for (const ev of tickStations(save, layout, dt)) {
+      drone.cheer();
+      if (ev.type === 'decoded') {
+        hud.toast(`${pieceCode(layout, ev.piece)} decoded the ${RESEARCH[ev.id].name.toLowerCase()}! Build it in a Workshop.`, 'big');
+        if (!layout.pieces.some((p) => p.kind === 'workshop'))
+          setTimeout(() => hud.toast('A Workshop (build card 11) builds gear from blueprints. It takes hull plating from the plate press.', 'big'), 2600);
+      } else {
+        const g = GEAR[ev.id];
+        hud.toast(
+          ev.id === 'light'
+            ? `${g.name} ${g.code} built and clipped to your suit! It replaces the shoulder lamp: much brighter and wider. The dark cave in the east cliff is open to you now.`
+            : `${g.name} ${g.code} built!`,
+          'big',
+        );
+      }
+      persist();
+    }
+
+    // ---- Salvage cranes (milestone 8 part 2): one piece a minute per crane, into storage ----
+    {
+      const cranes = layout.pieces.filter((p) => p.kind === 'crane' && isDone(p) && layout.powered.has(p.id)).length;
+      if (cranes && save.craneQueue > 0) {
+        save.craneProgress = Math.min(1, save.craneProgress + (dt * cranes) / 60);
+        // It waits, holding the piece, until storage has room for everything it makes.
+        const roomFor = storageRoom('scrap') >= 4 && storageRoom('brass') >= 2 && storageRoom('plate') >= 1;
+        if (save.craneProgress >= 1 && !roomFor && !save.tips.includes('cranefull')) {
+          save.tips.push('cranefull');
+          hud.toast('The salvage crane is waiting: storage needs room for 4 scrap, 2 brass and 1 plating.', 'warn');
+        }
+        if (save.craneProgress >= 1 && roomFor) {
+          save.craneProgress = 0;
+          save.craneQueue--;
+          const out: [keyof typeof save.stored, number][] = [
+            ['scrap', 4],
+            ['brass', 2],
+            ['plate', 1],
+          ];
+          let lost = 0;
+          for (const [k, n] of out) {
+            const into = Math.min(n, storageRoom(k));
+            save.stored[k] += into;
+            lost += n - into;
+          }
+          void lost;
+          hud.toast('The salvage crane broke down a piece: +4 scrap, +2 brass, +1 hull plating', 'big');
+          hud.refreshInventory();
+          persist();
+        }
+      } else if (!save.craneQueue) save.craneProgress = 0;
+    }
+    // The salvage hanging from the sub's claw.
+    {
+      const sv = save.sub?.salvage ? SALVAGE.findIndex((x) => x.id === save.sub!.salvage) : -1;
+      scenery.setCarried(sv >= 0 && save.sub ? sub.clawPoint() : null, sv);
+    }
+
+    // ---- Factory (milestone 5): conveyors, the auto feeder and feed pipes ----
+    factory.tick(save, layout, dt, storageRoom);
+
+    // ---- Creature care: needs run on play time ----
+    for (const ev of tickCare(save, layout, dt)) {
+      const name = SPECIES[ev.c.species].name;
+      const where = `tank ${tankNumber(layout, ev.c.tank)}`;
+      if (ev.type === 'hatched') hud.toast(`The ${name.toLowerCase()} eggs hatched in ${where}! The fry need feeding.`, 'big');
+      else if (ev.type === 'grown') hud.toast(`The ${name.toLowerCase()} in ${where} is fully grown, and glows brighter`, 'big');
+      else if (ev.type === 'sick') hud.toast(`The ${name.toLowerCase()} in ${where} is sick (${ev.why}). Tend it soon.`, 'warn');
+      else if (ev.type === 'better') hud.toast(`The ${name.toLowerCase()} in ${where} is feeling better`);
+      else if (ev.type === 'dormant')
+        hud.toast(`The ${name.toLowerCase()} in ${where} went dormant. Its remains are kept in storage until a Revival pool is found.`, 'warn');
+      else if (ev.type === 'made') {
+        const belt = save.lines.some((l) => l.kind === 'belt' && l.from === ev.c.tank);
+        hud.toast(`+1 ${MATERIALS[ev.kind].name} from the ${name.toLowerCase()} (${belt ? 'on the conveyor' : `in ${where}'s output tray`})`);
+        if (!belt && !save.tips.includes('tray')) {
+          save.tips.push('tray');
+          setTimeout(
+            () =>
+              hud.toast(
+                "What creatures make now waits in their tank's output tray (4 items). Stop by the tank and tap Collect to take it, or run a conveyor from the tank to a storage pod or a machine.",
+                'big',
+              ),
+            2400,
+          );
+        }
+      }
+      if (ev.type !== 'made' && ev.type !== 'better') tankLife.sync(save, layout);
+      persist();
+    }
+
+
+  }
+
   app.ticker.add((ticker) => {
     const dt = Math.min(ticker.deltaMS / 1000, 0.05);
     time += dt;
@@ -1042,7 +1225,30 @@ async function boot(): Promise<void> {
     build.pollPad(dt);
     if (!build.active && rates.open) rates.close();
     rates.update(dt);
-    const tankHere = blackout === 0 && !build.active && !dockUI.active && !diver.surfaced && !aboardNow ? tankAround(diver.x, diver.y) : null;
+    // The walkable base: tanks, Labs and Workshops are used from inside now. A console
+    // inside opens their panel out here for a moment (peek), and closing it goes back in.
+    if (peek && !peek.opened) {
+      peek.opened = true;
+      if (peek.kind === 'care' && peek.id !== null) {
+        care.setAvailable(peek.id);
+        care.open(peek.id);
+      } else if (peek.kind === 'station' && peek.id !== null) {
+        station.setAvailable(peek.id);
+        station.open(peek.id);
+      } else if (peek.kind === 'dock' && peek.id !== null) {
+        dockUI.setAvailable(peek.id);
+        dockUI.open(peek.id);
+      } else {
+        build.setAvailable(true);
+        build.open();
+      }
+    } else if (peek && !build.active && !care.active && !dockUI.active && !station.active) {
+      backInside();
+      return;
+    }
+    void tankAround;
+    void stationAround;
+    const tankHere = null as Placed | null;
     care.setAvailable(tankHere?.id ?? (care.active ? care.tankId : null));
     care.update(dt);
     // Milestone 6: the Dock button at a finished Moon pool dock (or berthed in one).
@@ -1056,7 +1262,7 @@ async function boot(): Promise<void> {
     dockUI.update(dt);
     // Milestone 7: the Lab / Workshop button beside a finished one.
     const stationHere =
-      blackout === 0 && !build.active && !care.active && !dockUI.active && !aboardNow && !diver.surfaced ? stationAround(diver.x, diver.y) : null;
+      null as Placed | null;
     station.setAvailable(stationHere?.id ?? (station.active ? station.pieceId : null));
     station.update(dt);
     if (stationHere && !save.tips.includes('station-' + stationHere.kind) && blackout === 0) {
@@ -1246,8 +1452,8 @@ async function boot(): Promise<void> {
       hud.toast('KS-1: press V to climb in (RB on a gamepad)', 'big');
     }
     wasNearSub = nearSub;
-    diver.view.visible = !aboard;
-    diver.lens.visible = diver.lensGlow.visible = !aboard;
+    diver.view.visible = !aboard && !peek;
+    diver.lens.visible = diver.lensGlow.visible = !aboard && !peek;
 
     // ---- The kelp caves (milestone 7 part 2): the cold surge in the squeeze ----
     kcTime += dt;
@@ -1276,7 +1482,7 @@ async function boot(): Promise<void> {
 
     // The dive bag's weight slows the diver (no sinking through a dome's floor).
     diver.load = bagLoad(save);
-    diver.noSink = insideDome !== null;
+    diver.noSink = false;
     if (boarding) {
       // Climbing into the sub: swim to the hatch, then down through it.
       boarding.t += dt;
@@ -1433,20 +1639,14 @@ async function boot(): Promise<void> {
     const maxO2 = maxOxygen(save);
     save.playSeconds += dt;
     // Inside a dome habitat with power: station air, like breathing at the surface.
-    const dome = blackout === 0 && !aboard ? domeAround(diver.x, diver.y) : null;
-    const domeAir = !!dome && layout.powered.has(dome.id);
+    // The dome is closed now (the walkable base): its air is inside, through the airlock.
+    const dome = null as Placed | null;
+    const domeAir = false;
     // Milestone 7 part 2: trapped air in the kelp caves' roofs, and planted air relays.
     const pocketAir = blackout === 0 && !aboard && AIR_POCKETS.some((a) => inShape(a.shape, hx, hy) && hy < a.waterY);
     const relayAir = blackout === 0 && !aboard && save.relays.some((r) => Math.hypot(diver.x - r.x, diver.y - (r.y - 50)) < 140);
     // Milestone 8 part 2: inside a finished, powered recompression room.
-    const recompHere =
-      blackout === 0 && !aboard
-        ? layout.pieces.find((p) => {
-            if (p.kind !== 'recomp' || !isDone(p) || !layout.powered.has(p.id)) return false;
-            const r = pieceRect(p);
-            return diver.x > r.x && diver.x < r.x + r.w && diver.y > r.y && diver.y < r.y + r.h;
-          }) ?? null
-        : null;
+    const recompHere = null as Placed | null;
     if (recompHere && !save.tips.includes('recomp')) {
       save.tips.push('recomp');
       hud.toast('Recompression room: the pressure eases, and the chamber mends your suit and refills your air.', 'big');
@@ -1541,6 +1741,7 @@ async function boot(): Promise<void> {
         diver.x = home.x;
         diver.y = home.y;
         if (home.sub) boardSub(true);
+        const homeDome = home.dome ? layout.pieces.find((p) => p.kind === 'dome' && layout.powered.has(p.id)) : null;
         drone.teleport(home.x, home.y, layout);
         diver.vx = diver.vy = 0;
         diver.surfaced = false;
@@ -1561,6 +1762,12 @@ async function boot(): Promise<void> {
           : `${why}. The crew pulled you back to ${where}.${jarMsg}`;
         blackout = BLACK_IN + 0.0001;
         writeSave(Object.assign(save, { x: diver.x, y: diver.y }));
+        // "You wake here after a blackout": inside the dome, by its airlock.
+        if (homeDome) {
+          hud.setBlackout(1, blackoutMsg);
+          enterBase(homeDome.id, true);
+          return;
+        }
       }
       hud.setBlackout(dark, respawned ? blackoutMsg : '');
       if (blackout >= BLACK_IN + BLACK_HOLD + BLACK_OUT) {
@@ -1589,7 +1796,7 @@ async function boot(): Promise<void> {
       const hasTank = layout.pieces.some((p) => isTankKind(p.kind));
       hud.toast(
         `${name.replace(/^./, (m) => m.toUpperCase())} in the specimen jar! ${
-          hasTank ? 'Stop by a creature tank at the base and tap Collect to put it in.' : 'Build a creature tank at the Kestrel site to keep it.'
+          hasTank ? 'Take it into the base (through the dome airlock) and put it in a creature tank from inside.' : 'Build a creature tank at the Kestrel site to keep it.'
         }`,
         'big',
       );
@@ -1736,6 +1943,18 @@ async function boot(): Promise<void> {
         infoAct = 'Anchor ring: a grapple line (Workshop) could hook it';
       // Milestone 8 part 2: the Corvina.
       const near = (p: { x: number; y: number }, r = 100) => Math.hypot(diver.x - p.x, diver.y - p.y) < r;
+      // The walkable base: in through a dome's airlock.
+      for (const p of layout.pieces) {
+        if (p.kind !== 'dome' || !near(airlockOutside(p), 95)) continue;
+        if (!isDone(p)) infoAct = 'Dome habitat: still a frame. The drone has to finish it before the airlock works.';
+        else
+          holdAct = {
+            key: 'enterbase' + p.id,
+            label: 'Go in through the airlock',
+            seconds: 0.6,
+            done: () => enterBase(p.id),
+          };
+      }
       if (!save.corvina.hatch && near({ x: CV_HATCH.x, y: CV_HATCH.y - 30 }, 90)) {
         if (hasGear(save, 'cutter'))
           holdAct = {
@@ -1971,7 +2190,7 @@ async function boot(): Promise<void> {
     if (!otherTarget && blackout === 0 && inControl && !diver.surfaced) {
       const trayN = tankHere ? MATERIALS_LIST.reduce((a, k) => a + (save.tankData[String(tankHere.id)]?.out?.[k] ?? 0), 0) : 0;
       const carried = MATERIALS_LIST.reduce((a, k) => a + save.bag[k], 0);
-      const pod = carried ? podNear() : null;
+      const pod = carried && false ? podNear() : null;
       if (tankHere && save.jar) {
         const id = tankHere.id;
         const sp = SPECIES[save.jar.species];
@@ -1988,7 +2207,7 @@ async function boot(): Promise<void> {
         };
       }
     }
-    if (baseAct && !save.tips.includes('baseact')) {
+    if (baseAct && !save.tips.includes('baseact') && false) {
       save.tips.push('baseact');
       hud.toast(
         input.state.lastDevice === 'touch'
@@ -2040,161 +2259,7 @@ async function boot(): Promise<void> {
     }
     loadState = ls;
 
-    // ---- The build drone ----
-    const subFrame = save.sub && save.sub.stage === 'frame' ? save.sub : null;
-    const subJob = subFrame
-      ? {
-          rect: { x: sub.x - 130, y: sub.y - 80, w: 260, h: 130 },
-          get progress() {
-            return subFrame.progress ?? 0;
-          },
-          set progress(v: number) {
-            subFrame.progress = v;
-          },
-          buildTime: SUB_BUILD_TIME,
-        }
-      : null;
-    for (const ev of drone.update(dt, time, {
-      diverX: diver.x,
-      diverY: diver.y,
-      diverFace: aboard ? sub.face : diver.facing,
-      diverSpeed: speed,
-      repairing,
-      layout,
-      rate: droneWeldRate(save),
-      extra: subJob,
-      gap: aboard ? { x: 165, y: 86 } : undefined,
-    })) {
-      if (ev.type === 'subDone' && save.sub) {
-        save.sub.stage = 'built';
-        delete save.sub.progress;
-        save.sub.docked = true;
-        drone.cheer();
-        hud.toast(
-          `Submersible KS-1 is finished! Swim up to it and tap Board${input.state.lastDevice === 'touch' ? '' : ' (V)'}. Fit modules from the Dock panel.`,
-          'big',
-        );
-        persist();
-        continue;
-      }
-      if (ev.type === 'repaired') {
-        for (const k of MATERIALS_LIST) {
-          let need = DRONE_REPAIR_COST[k] ?? 0;
-          const fromBag = Math.min(need, save.bag[k]);
-          save.bag[k] -= fromBag;
-          need -= fromBag;
-          save.stored[k] -= need;
-        }
-        save.drone = 'active';
-        hud.refreshInventory();
-        hud.toast('Build drone KD-1 repaired! It follows you now, and welds whatever you build at the Kestrel site.', 'big');
-        persist();
-      } else if (ev.type === 'finished') {
-        layout.set(layout.pieces);
-        baseView.sync(layout);
-        const p = ev.piece;
-        const powered = layout.powered.has(p.id);
-        hud.toast(
-          `Finished: ${PIECES[p.kind].name}${p.kind !== 'turbine' && !powered ? ' (no power yet: join it to a current turbine)' : ''}`,
-          'big',
-        );
-        if (build.active) build.refresh();
-        persist();
-      }
-    }
-    if (build.active && (drone.welding || build.selected || build.selectedLine !== null) && Math.floor(time * 2) !== Math.floor((time - dt) * 2)) build.refresh();
-
-    hud.setJar(jarText());
-
-    // ---- Labs and Workshops (milestone 7) ----
-    for (const ev of tickStations(save, layout, dt)) {
-      drone.cheer();
-      if (ev.type === 'decoded') {
-        hud.toast(`${pieceCode(layout, ev.piece)} decoded the ${RESEARCH[ev.id].name.toLowerCase()}! Build it in a Workshop.`, 'big');
-        if (!layout.pieces.some((p) => p.kind === 'workshop'))
-          setTimeout(() => hud.toast('A Workshop (build card 11) builds gear from blueprints. It takes hull plating from the plate press.', 'big'), 2600);
-      } else {
-        const g = GEAR[ev.id];
-        hud.toast(
-          ev.id === 'light'
-            ? `${g.name} ${g.code} built and clipped to your suit! It replaces the shoulder lamp: much brighter and wider. The dark cave in the east cliff is open to you now.`
-            : `${g.name} ${g.code} built!`,
-          'big',
-        );
-      }
-      persist();
-    }
-
-    // ---- Salvage cranes (milestone 8 part 2): one piece a minute per crane, into storage ----
-    {
-      const cranes = layout.pieces.filter((p) => p.kind === 'crane' && isDone(p) && layout.powered.has(p.id)).length;
-      if (cranes && save.craneQueue > 0) {
-        save.craneProgress = Math.min(1, save.craneProgress + (dt * cranes) / 60);
-        // It waits, holding the piece, until storage has room for everything it makes.
-        const roomFor = storageRoom('scrap') >= 4 && storageRoom('brass') >= 2 && storageRoom('plate') >= 1;
-        if (save.craneProgress >= 1 && !roomFor && !save.tips.includes('cranefull')) {
-          save.tips.push('cranefull');
-          hud.toast('The salvage crane is waiting: storage needs room for 4 scrap, 2 brass and 1 plating.', 'warn');
-        }
-        if (save.craneProgress >= 1 && roomFor) {
-          save.craneProgress = 0;
-          save.craneQueue--;
-          const out: [keyof typeof save.stored, number][] = [
-            ['scrap', 4],
-            ['brass', 2],
-            ['plate', 1],
-          ];
-          let lost = 0;
-          for (const [k, n] of out) {
-            const into = Math.min(n, storageRoom(k));
-            save.stored[k] += into;
-            lost += n - into;
-          }
-          void lost;
-          hud.toast('The salvage crane broke down a piece: +4 scrap, +2 brass, +1 hull plating', 'big');
-          hud.refreshInventory();
-          persist();
-        }
-      } else if (!save.craneQueue) save.craneProgress = 0;
-    }
-    // The salvage hanging from the sub's claw.
-    {
-      const sv = save.sub?.salvage ? SALVAGE.findIndex((x) => x.id === save.sub!.salvage) : -1;
-      scenery.setCarried(sv >= 0 && save.sub ? sub.clawPoint() : null, sv);
-    }
-
-    // ---- Factory (milestone 5): conveyors, the auto feeder and feed pipes ----
-    factory.tick(save, layout, dt, storageRoom);
-
-    // ---- Creature care: needs run on play time ----
-    for (const ev of tickCare(save, layout, dt)) {
-      const name = SPECIES[ev.c.species].name;
-      const where = `tank ${tankNumber(layout, ev.c.tank)}`;
-      if (ev.type === 'hatched') hud.toast(`The ${name.toLowerCase()} eggs hatched in ${where}! The fry need feeding.`, 'big');
-      else if (ev.type === 'grown') hud.toast(`The ${name.toLowerCase()} in ${where} is fully grown, and glows brighter`, 'big');
-      else if (ev.type === 'sick') hud.toast(`The ${name.toLowerCase()} in ${where} is sick (${ev.why}). Tend it soon.`, 'warn');
-      else if (ev.type === 'better') hud.toast(`The ${name.toLowerCase()} in ${where} is feeling better`);
-      else if (ev.type === 'dormant')
-        hud.toast(`The ${name.toLowerCase()} in ${where} went dormant. Its remains are kept in storage until a Revival pool is found.`, 'warn');
-      else if (ev.type === 'made') {
-        const belt = save.lines.some((l) => l.kind === 'belt' && l.from === ev.c.tank);
-        hud.toast(`+1 ${MATERIALS[ev.kind].name} from the ${name.toLowerCase()} (${belt ? 'on the conveyor' : `in ${where}'s output tray`})`);
-        if (!belt && !save.tips.includes('tray')) {
-          save.tips.push('tray');
-          setTimeout(
-            () =>
-              hud.toast(
-                "What creatures make now waits in their tank's output tray (4 items). Stop by the tank and tap Collect to take it, or run a conveyor from the tank to a storage pod or a machine.",
-                'big',
-              ),
-            2400,
-          );
-        }
-      }
-      if (ev.type !== 'made' && ev.type !== 'better') tankLife.sync(save, layout);
-      persist();
-    }
-
+    simBase(dt, { x: diver.x, y: diver.y, face: aboard ? sub.face : diver.facing, speed, repairing, aboard });
 
     // ---- Scanner ----
     const done = new Set(save.scans);
@@ -2487,9 +2552,8 @@ async function boot(): Promise<void> {
   });
 
   // ---- Dry interiors on foot (after milestone 8 part 2) ----
-  function enterCorvina(): void {
-    save.corvina.taken ??= [];
-    interior.enter(CORVINA_MAP, { breakers: save.corvina.breakers, taken: save.corvina.taken });
+  /** Hide the world and its buttons while on foot. */
+  function goOnFoot(): void {
     for (const l of worldLayers) l.visible = false;
     build.setAvailable(false);
     care.setAvailable(null);
@@ -2502,6 +2566,16 @@ async function boot(): Promise<void> {
     hud.setSubMarker(null, 0, 0);
     hud.setLowOxygen(0);
     document.body.classList.add('on-foot');
+  }
+  function backToWater(): void {
+    for (const l of worldLayers) l.visible = true;
+    document.body.classList.remove('on-foot');
+  }
+  function enterCorvina(): void {
+    save.corvina.taken ??= [];
+    interior.enter(CORVINA_MAP, { breakers: save.corvina.breakers, taken: save.corvina.taken });
+    inside = 'corvina';
+    goOnFoot();
     sound.hatchCue(true);
     if (!save.tips.includes('onfoot'))
       setTimeout(() => {
@@ -2517,8 +2591,8 @@ async function boot(): Promise<void> {
   }
   function exitCorvina(): void {
     interior.leave();
-    for (const l of worldLayers) l.visible = true;
-    document.body.classList.remove('on-foot');
+    inside = null;
+    backToWater();
     diver.x = CV_HATCH.x;
     diver.y = CV_HATCH.y - 70;
     diver.vx = 0;
@@ -2529,6 +2603,149 @@ async function boot(): Promise<void> {
     sound.hatchCue(false);
     persist();
   }
+
+  // ---- The walkable base (after the Corvina on foot) ----
+  const baseCtx: BaseCtx = {
+    save,
+    layout,
+    carried: () => MATERIALS_LIST.reduce((a, k) => a + save.bag[k], 0),
+    storageText: () => {
+      const n = MATERIALS_LIST.reduce((a, k) => a + save.stored[k], 0);
+      return `Storage: ${n} of ${storageCapacity(layout)} · nothing carried`;
+    },
+    unload: (id) => unloadAtPod({ powered: layout.powered.has(id), frame: false }),
+    jarLabel: (id) => {
+      const j = save.jar;
+      if (!j) return null;
+      const sp = SPECIES[j.species];
+      const what = j.stage === 'egg' ? sp.eggName : j.stage === 'young' ? sp.youngName : sp.name.toLowerCase();
+      return creaturesIn(save, id).length >= tankCapacity(layout, id) ? `Tank ${tankNumber(layout, id)} is full` : `Put ${what} in tank ${tankNumber(layout, id)}`;
+    },
+    deposit: (id) => depositJar(id),
+    trayCount: (id) => MATERIALS_LIST.reduce((a, k) => a + (save.tankData[String(id)]?.out?.[k] ?? 0), 0),
+    takeTray: (id) => takeTray(id),
+    tend: (id) => peekOut('care', id),
+    station: (id) => peekOut('station', id),
+    dock: (id) => peekOut('dock', id),
+    build: () => peekOut('build', null),
+    exit: (id) => exitBase(id),
+    recompress: () => {
+      save.suit = 1;
+      save.oxygen = maxOxygen(save);
+      suitCalm = 99;
+      sound.clamps(true);
+      hud.toast('The chamber seals and the pressure eases: suit integrity 100%, air full.', 'big');
+      persist();
+    },
+    status: (p) => {
+      const code = pieceCode(layout, p);
+      if (!layout.powered.has(p.id)) return `${code}: no power. Join it to a current turbine.`;
+      switch (p.kind) {
+        case 'turbine': {
+          let n = 0;
+          for (const q of layout.pieces) if (q.kind !== 'turbine' && layout.powered.has(q.id)) n++;
+          return `${code}: turning in the reef current · ${n} piece${n === 1 ? '' : 's'} powered`;
+        }
+        case 'feeder': {
+          const f = readings.feeder(p.id);
+          return `${code}: hopper ${Math.round(f.hopper * 100)}% · mash ${Math.round(f.mash * 100)}%${f.run ? ' · pressing' : ''}`;
+        }
+        case 'press': {
+          const r = readings.press(p.id);
+          return `${code}: ${r.run ? 'pressing' : 'waiting for scrap and copper'} · ${r.plates} plate${r.plates === 1 ? '' : 's'} on the rack`;
+        }
+        case 'filter':
+          return `${code}: pumping clean water to the tanks joined to it`;
+        case 'crane':
+          return `${code}: ${save.craneQueue ? `${save.craneQueue} salvage waiting` : 'idle. Lower salvage onto it from the sub, outside.'}`;
+        case 'recomp':
+          return `${code}: pressure chamber ready`;
+        default:
+          return `${code}: ${PIECES[p.kind].name}`;
+      }
+    },
+    pressing: (id) => factory.pressState.get(id) === 'running',
+    feederLevels: (id) => readings.feeder(id),
+    stationBusy: (id) => readings.station(id),
+    storedFrac: () => {
+      const cap = storageCapacity(layout);
+      return cap ? Math.min(1, MATERIALS_LIST.reduce((a, k) => a + save.stored[k], 0) / cap) : 0;
+    },
+  };
+  function enterBase(domeId: number, waking = false): void {
+    const level = buildBaseLevel(layout);
+    if (!level) return;
+    baseDome = domeId;
+    baseHooks = new BaseHooks(level, baseCtx, domeId);
+    interior.enter(level.map, { breakers: [], taken: [] }, baseHooks);
+    inside = 'base';
+    goOnFoot();
+    if (!waking) sound.hatchCue(true);
+    if (!save.tips.includes('basefoot'))
+      setTimeout(() => {
+        save.tips.push('basefoot');
+        hud.toast(
+          input.state.lastDevice === 'touch'
+            ? 'Inside the base: dry air, and everything is used from in here. Walk with the stick, push up or down at a ladder to climb, and hold Collect at a console, a storage rack or a tank window.'
+            : 'Inside the base: dry air, and everything is used from in here. A/D walk, W/S climb ladders, and hold C at a console, a storage rack or a tank window.',
+          'big',
+        );
+      }, 900);
+    else if (!waking) hud.toast('Dome habitat: dry air · progress saved');
+    persist();
+  }
+  function exitBase(domeId: number): void {
+    interior.leave();
+    inside = null;
+    backToWater();
+    const p = layout.pieces.find((q) => q.id === domeId);
+    const a = p ? airlockOutside(p) : baseOutside();
+    diver.x = a.x;
+    diver.y = a.y + 10;
+    diver.vx = 0;
+    diver.vy = 30;
+    diver.surfaced = false;
+    camCX = diver.x;
+    camCY = diver.y;
+    sound.hatchCue(false);
+    persist();
+  }
+  /** Open a panel out in the world (the console's view), then come back in where you stood. */
+  function peekOut(kind: 'care' | 'station' | 'dock' | 'build', id: number | null): void {
+    const w = interior.walker;
+    peek = { kind, id, x: w.x, y: w.y, face: w.face, opened: false };
+    interior.leave();
+    inside = null;
+    backToWater();
+    const p = layout.pieces.find((q) => q.id === (id ?? baseDome));
+    if (p) {
+      const r = pieceRect(p);
+      diver.x = r.x + r.w / 2;
+      diver.y = r.y + r.h / 2;
+    }
+    diver.vx = diver.vy = 0;
+    camCX = diver.x;
+    camCY = diver.y;
+  }
+  function backInside(): void {
+    const pk = peek!;
+    peek = null;
+    const level = buildBaseLevel(layout);
+    if (!level) {
+      // No dome left to stand in: back outside, by the base.
+      const a = baseOutside();
+      diver.x = a.x;
+      diver.y = a.y;
+      return;
+    }
+    if (!level.airlocks.some((a) => a.id === baseDome)) baseDome = level.airlocks[0].id;
+    baseHooks = new BaseHooks(level, baseCtx, baseDome);
+    interior.enter(level.map, { breakers: [], taken: [] }, baseHooks);
+    if (interior.standable(pk.x, pk.y)) interior.place(pk.x, pk.y, pk.face);
+    inside = 'base';
+    goOnFoot();
+    persist();
+  }
   const FIND_NOTE = 'Kept in your scanner log.';
   function interiorFrame(dt: number, deltaMS: number): void {
     input.suspended = false;
@@ -2536,7 +2753,18 @@ async function boot(): Promise<void> {
     const s = input.state;
     const paused = hud.reading;
     // The interior reads her state straight from the save, so they never drift apart.
-    interior.syncState(save.corvina.breakers, save.corvina.taken ?? []);
+    if (inside === 'corvina') interior.syncState(save.corvina.breakers, save.corvina.taken ?? []);
+    if (inside === 'base' && baseHooks && baseHooks.level.signature !== baseSignature(layout)) {
+      // A piece finished or was taken down while you were inside: rebuild the rooms around you.
+      const level = buildBaseLevel(layout);
+      if (!level) {
+        exitBase(baseDome ?? -1);
+        return;
+      }
+      baseHooks = new BaseHooks(level, baseCtx, baseDome);
+      interior.reload(level.map, baseHooks);
+      if (!interior.standable(interior.walker.x, interior.walker.y)) interior.place(baseHooks.spawn.x, baseHooks.spawn.y, 1);
+    }
     const evs: InteriorEvent[] = interior.update(dt, { moveX: s.moveX, moveY: s.moveY, jump: s.jumpHeld, collect: s.collect, lamp: s.lamp }, paused);
     const maxO2 = maxOxygen(save);
     if (!paused) {
@@ -2544,7 +2772,22 @@ async function boot(): Promise<void> {
       // Old, dry air in a sealed ship: breathable. The suit slowly mends between knocks.
       save.oxygen = Math.min(maxO2, save.oxygen + (maxO2 / 3) * dt);
       suitCalm += dt;
-      if (suitCalm > 8) save.suit = Math.min(1, save.suit + dt * 0.012);
+      if (inside === 'base') save.suit = Math.min(1, save.suit + dt * 0.25);
+      else if (suitCalm > 8) save.suit = Math.min(1, save.suit + dt * 0.012);
+      if (inside === 'base') {
+        const o = baseOutside();
+        simBase(dt, { x: o.x, y: o.y, face: 1, speed: 0, repairing: false, aboard: false });
+      }
+    }
+    // Waking up in the dome after a blackout: the screen fades back in here.
+    if (blackout > 0) {
+      blackout += dt;
+      const dark = blackout < BLACK_IN + BLACK_HOLD ? 1 : Math.max(0, 1 - (blackout - BLACK_IN - BLACK_HOLD) / BLACK_OUT);
+      hud.setBlackout(dark, blackoutMsg);
+      if (blackout >= BLACK_IN + BLACK_HOLD + BLACK_OUT) {
+        blackout = 0;
+        hud.setBlackout(0, '');
+      }
     }
     for (const e of evs) {
       if (e.type === 'exit') {
@@ -2604,10 +2847,11 @@ async function boot(): Promise<void> {
     hud.setSubChip(null);
     hud.setBoard(null);
     hud.setJar(jarText());
+    const soundAt = inside === 'base' ? baseOutside() : { x: CV_HATCH.x, y: CV_HATCH.y + 120 };
     sound.update({
       dt,
-      x: CV_HATCH.x,
-      y: CV_HATCH.y + 120,
+      x: soundAt.x,
+      y: soundAt.y,
       depthM: 20,
       surfaced: false,
       aboard: false,
@@ -2620,7 +2864,7 @@ async function boot(): Promise<void> {
       lowAir: 0,
       freeAir: true,
       work: interior.progress > 0 ? 'winch' : null,
-      workX: CV_HATCH.x,
+      workX: soundAt.x,
       scanning: null,
       drone: { x: 0, y: 0, welding: false },
       presses: [],
@@ -2722,6 +2966,9 @@ async function boot(): Promise<void> {
     debug: () => ({ grapple, holdKey, holdProgress, label: document.getElementById('collect-label')?.textContent }),
     interior,
     enterCorvina: () => enterCorvina(),
+    enterBase: (id: number) => enterBase(id),
+    baseHooks: () => baseHooks,
+    where: () => ({ inside, peek }),
     hudReading: () => hud.reading,
     snap: () => {
       camCX = diver.x;
