@@ -28,6 +28,8 @@ export const MATERIAL_ICONS: Record<MaterialId, string> = {
     '<svg viewBox="0 0 24 24"><path d="M12 3c3 5 6 8 6 12a6 6 0 0 1-12 0c0-4 3-7 6-12z" fill="#b8782a"/><path d="M12 6c1.8 3.4 3.6 5.6 3.6 8.6" stroke="#f0c070" stroke-width="1.4" fill="none" opacity=".8"/><ellipse cx="10" cy="15" rx="1.8" ry="2.4" fill="#ffe0a0" opacity=".55"/></svg>',
   brass:
     '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8" fill="#a8822e"/><circle cx="12" cy="12" r="5" fill="#2c3a3f"/><circle cx="12" cy="12" r="4" fill="#5d7f7a" opacity=".6"/><circle cx="12" cy="4.5" r="1.2" fill="#e8c870"/><circle cx="19.5" cy="12" r="1.2" fill="#e8c870"/><circle cx="12" cy="19.5" r="1.2" fill="#e8c870"/><circle cx="4.5" cy="12" r="1.2" fill="#e8c870"/><path d="M6 8a8 8 0 0 1 6-4" stroke="#7fa88a" stroke-width="1.5" fill="none"/></svg>',
+  bloom:
+    '<svg viewBox="0 0 24 24"><path d="M12 22c-1-4 0-7 0-9" stroke="#6a7a4a" stroke-width="1.6" fill="none"/><g fill="#fff8e8"><ellipse cx="12" cy="6" rx="3" ry="3.6"/><ellipse cx="7" cy="9.5" rx="3.6" ry="2.8"/><ellipse cx="17" cy="9.5" rx="3.6" ry="2.8"/><ellipse cx="9" cy="13" rx="3" ry="2.4"/><ellipse cx="15" cy="13" rx="3" ry="2.4"/></g><circle cx="12" cy="10" r="2.6" fill="#ffe060"/></svg>',
   moss:
     '<svg viewBox="0 0 24 24"><ellipse cx="12" cy="17" rx="9" ry="4" fill="#4a5a34"/><circle cx="7" cy="14" r="3" fill="#8aa84a"/><circle cx="12" cy="12.5" r="3.6" fill="#a8c860"/><circle cx="17" cy="14" r="3" fill="#8aa84a"/><circle cx="9" cy="12" r="1" fill="#f0f8b0"/><circle cx="14" cy="11" r="1.1" fill="#f0f8b0"/><circle cx="17.5" cy="13" r=".8" fill="#f0f8b0"/></svg>',
 };
@@ -65,7 +67,7 @@ export class Hud {
     for (const id of MATERIAL_ORDER) {
       const el = document.createElement('div');
       // Hull plating (made at the base) and the kelp forest materials: their chips hide until there is some.
-      el.className = id === 'plate' || id === 'resin' || id === 'moss' || id === 'brass' ? 'chip optional' : 'chip';
+      el.className = id === 'plate' || id === 'resin' || id === 'moss' || id === 'brass' || id === 'bloom' ? 'chip optional' : 'chip';
       el.title = MATERIALS[id].name;
       el.innerHTML = `${MATERIAL_ICONS[id]}<span></span><small></small>`;
       this.chips.appendChild(el);
@@ -207,6 +209,9 @@ export class Hud {
       ['sorter', 'Sorting pod'],
       ['recomp', 'Recompression room'],
       ['crane', 'Salvage crane'],
+      ['hatch', 'Hatchery'],
+      ['farm', 'Kelp farm'],
+      ['revive', 'Revival pool'],
     ];
     const base = save.pieces.length
       ? [

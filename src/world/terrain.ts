@@ -105,7 +105,20 @@ export const KC = {
   dark: ell(18080, 1650, 560, 215),
   exit: cap(18600, 1700, 62, 18830, 1690, 66),
   cache: ell(18960, 1640, 175, 125),
+  /**
+   * Milestone 9: a passage down from the junction's floor into lightless
+   * water (no lamp gets through it, not even the dive light: only a grown
+   * glowfin swimming with you), and the hidden grotto at its end.
+   */
+  glowPassage: cap(16990, 1415, 50, 16700, 1600, 46),
+  glowGrotto: ell(16420, 1665, 250, 132),
 };
+/** Where the lightless water starts: the diver can go this far in without a glowfin's light. */
+export const LIGHTLESS_EDGE = { x: 16935, y: 1450 };
+/** Is this point in the lightless passage or the hidden grotto? */
+export function inLightless(x: number, y: number): boolean {
+  return x < 17060 && x > 16100 && y > 1380 && (inShape(KC.glowPassage, x, y) || inShape(KC.glowGrotto, x, y));
+}
 export const KC_PILLARS = [ell(17800, 1600, 55, 120), ell(18100, 1722, 66, 108), ell(18360, 1590, 50, 125)];
 /** Where trapped air fills the roof of a chamber: the diver breathes above waterY. */
 export const AIR_POCKETS = [
@@ -135,6 +148,8 @@ const CAVE_SHAPES: CaveShape[] = [
   KC.dark,
   KC.exit,
   KC.cache,
+  KC.glowPassage,
+  KC.glowGrotto,
 ];
 export const KC_BOUNDS = { x0: 14740, x1: 19150 };
 

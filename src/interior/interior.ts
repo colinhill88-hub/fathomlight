@@ -2,6 +2,7 @@ import { perf } from '../dev/perf';
 import { BlurFilter, Container, Graphics, RenderTexture, Renderer, Sprite, Text } from 'pixi.js';
 import type { Light } from '../fx/lighting';
 import { Walker } from '../actors/walker';
+import { deckTread, lampFixture, rivet } from './detail';
 import { InteriorLighting } from './light';
 import { mulberry32, WORLD_SEED } from '../rng';
 
@@ -14,12 +15,12 @@ import { mulberry32, WORLD_SEED } from '../rng';
  */
 
 export const T = 40;
-const GRAVITY = 1900;
-const MAX_FALL = 950;
-const WALK = 270;
-const ACCEL_GROUND = 2200;
-const ACCEL_AIR = 1200;
-const JUMP_V = 660;
+export const GRAVITY = 1900;
+export const MAX_FALL = 950;
+export const WALK = 270;
+export const ACCEL_GROUND = 2200;
+export const ACCEL_AIR = 1200;
+export const JUMP_V = 660;
 const COYOTE = 0.1;
 const BUFFER = 0.13;
 const HALF_W = 13;
@@ -30,7 +31,7 @@ const GRAPPLE_PULL = 760;
 const VENT_CYCLE = 3.2;
 const VENT_BURST = 1.0;
 /** Climbing speed on a ladder (the base on foot). */
-const CLIMB = 210;
+export const CLIMB = 210;
 /** The lighting shader adds up at most this many lights; the nearest win. */
 const MAX_LIGHTS = 16;
 
@@ -61,6 +62,25 @@ export interface InteriorHooks {
   powered(zone: number): boolean;
   /** Extra lights (screens, glowing tanks). */
   lights(): Light[];
+  /**
+   * Milestone 9: real actors (the creatures in the tanks), added to the lit,
+   * emissive and glow layers when the level is entered, and taken away
+   * again (detach) when it is left or rebuilt.
+   */
+  attach?(lit: Container, emissive: Container, glow: Container): void;
+  detach?(): void;
+  /** Move the actors, every frame (x0..x1: the camera's view in level units). */
+  tick?(dt: number, time: number, x0: number, x1: number): void;
+}
+
+/** Milestone 9: the camera holds on something (a tank being tended), beside a panel on the right. */
+export interface InteriorFocus {
+  x: number;
+  y: number;
+  /** View height to frame it, in level units. */
+  h: number;
+  /** Width of the panel on the right, in CSS px: the focus is centred in what is left. */
+  panelPx: number;
 }
 
 export interface InteriorState {
@@ -135,6 +155,12 @@ export class Interior {
   private time = 0;
   private cam = { x: 0, y: 0 };
   private viewH = 560;
+  private viewNow = 560;
+  /** Milestone 9: hold the camera on something while a panel is open (tending a tank). */
+  focus: InteriorFocus | null = null;
+  private actorLit = new Container();
+  private actorEm = new Container();
+  private actorGlow = new Container();
   private cssW = 1;
   private cssH = 1;
   private coyote = 0;
@@ -161,9 +187,9 @@ export class Interior {
     this.glowSprite.blendMode = 'add';
     this.glowSprite.filters = [new BlurFilter({ strength: 10, quality: 3 })];
     this.litRoot.addChild(this.litCam);
-    this.litCam.addChild(this.static_, this.doorG, this.breakerG, this.takenG, this.dynamic, this.walker.view);
-    this.emissiveCam.addChild(this.emissiveStatic, this.dynEmissive, this.walker.lens, this.overlay);
-    this.glowCam.addChild(this.glowStatic);
+    this.litCam.addChild(this.static_, this.doorG, this.breakerG, this.takenG, this.dynamic, this.actorLit, this.walker.view);
+    this.emissiveCam.addChild(this.emissiveStatic, this.dynEmissive, this.actorEm, this.walker.lens, this.overlay);
+    this.glowCam.addChild(this.glowStatic, this.actorGlow);
     this.view.addChild(this.lighting.view, this.emissiveCam, this.glowSprite);
     this.view.visible = false;
   }
@@ -220,7 +246,10 @@ export class Interior {
 
   /** Build a level and step into it at its 'S' tile. */
   enter(map: string[], state: InteriorState, hooks: InteriorHooks | null = null): void {
+    if (this.hooks && this.hooks !== hooks) this.hooks.detach?.();
     this.hooks = hooks;
+    hooks?.attach?.(this.actorLit, this.actorEm, this.actorGlow);
+    this.focus = null;
     this.climbing = false;
     this.map = map;
     this.W = map[0].length;
@@ -250,6 +279,10 @@ export class Interior {
     w.visor = 0;
     w.visorTarget = 1;
     w.face = 1;
+    w.onGround = true;
+    w.pose = 'stand';
+    // Just in through the hatch or the airlock: stand up from a crouch, then lift the face plate.
+    w.arrive(9);
     this.lastSafe = { x: w.x, y: w.y };
     this.cam.x = w.x - 400;
     this.cam.y = w.y - 400;
@@ -283,6 +316,9 @@ export class Interior {
     w.vx = w.vy = 0;
     w.face = face;
     w.visor = w.visorTarget = 1;
+    w.onGround = true;
+    w.pose = 'stand';
+    w.arrive();
     this.lastSafe = { x, y };
     this.climbing = false;
     this.grapple = null;
@@ -297,6 +333,9 @@ export class Interior {
   }
 
   leave(): void {
+    this.hooks?.detach?.();
+    this.hooks = null;
+    this.focus = null;
     this.active = false;
     this.view.visible = false;
     this.label = null;
@@ -462,11 +501,26 @@ export class Interior {
     g.rect(0, 0, PW, PH).fill({ color: 0x06141a });
     for (let y = 0; y < PH; y += 80) g.rect(0, y, PW, 80).fill({ color: 0x0b2630, alpha: 0.5 * Math.max(0, 1 - y / PH) });
     for (let i = 0; i < (PW * PH) / 14000; i++) g.circle(rand() * PW, rand() * PH, 0.6 + rand() * 1.4).fill({ color: 0x9ec8c8, alpha: 0.08 + rand() * 0.12 });
+    // Far off in the black water: the basin's rock floor and the base's own legs, barely there.
+    {
+      let x = 0;
+      const ridge: number[] = [0, PH];
+      while (x <= PW) {
+        ridge.push(x, PH - 70 - rand() * 90);
+        x += 60 + rand() * 80;
+      }
+      ridge.push(PW, PH);
+      g.poly(ridge).fill({ color: 0x0a1c22, alpha: 0.9 });
+      for (let lx = 200 + rand() * 300; lx < PW; lx += 500 + rand() * 400) {
+        g.rect(lx - 7, PH * 0.45, 14, PH * 0.55).fill({ color: 0x0b2028, alpha: 0.85 });
+        for (let y = PH * 0.5; y < PH; y += 90) g.moveTo(lx - 7, y).lineTo(lx + 7, y + 45).stroke({ color: 0x0e2a33, width: 2, alpha: 0.8 });
+      }
+    }
     const addLamp = (x: number, y: number, zone: number) => {
-      g.roundRect(x - 16, y - 4, 32, 8, 3).fill({ color: 0x2a2f33 });
-      g.rect(x - 16, y - 4, 32, 2).fill({ color: 0x9aa6ad });
-      const core = new Graphics().roundRect(x - 13, y + 1, 26, 3, 1.5).fill({ color: 0xf4ffd8 });
-      const halo = new Graphics().ellipse(x, y + 10, 46, 16).fill({ color: 0xe8f0c0 });
+      lampFixture(g, x, y);
+      const core = new Graphics().roundRect(x - 14, y + 2, 28, 3, 1.5).fill({ color: 0xf4ffd8 });
+      // The halo sits on the lamp itself (it used to hang below it, like a smudge in mid-air).
+      const halo = new Graphics().ellipse(x, y + 4, 30, 8).fill({ color: 0xe8f0c0 });
       this.emissiveCam.addChild(core);
       this.glowCam.addChild(halo);
       this.lamps.push({ light: { x, y: y + 30, radius: 330, intensity: 0, color: [0.95, 0.97, 0.86], haze: 0.03 }, core, halo, zone });
@@ -503,10 +557,18 @@ export class Interior {
             g.rect(x, y, T + 0.5, 2).fill({ color: 0xdfe7ec, alpha: 0.7 });
             g.rect(x, y + 7, T + 0.5, 2).fill({ color: 0x15191c });
             e.rect(x, y + 13, T + 0.5, 1.6).fill({ color: 0xc9a13a, alpha: 0.75 });
-            for (let k = 5; k < T; k += 10) g.rect(x + k, y + 2.5, 5, 2).fill({ color: 0x2a2f33, alpha: 0.8 });
+            deckTread(g, x, T + 0.5, y + 1.5);
+            // Under the deck: the plate's edge and its bolts.
+            g.rect(x, y + 16, T + 0.5, 1).fill({ color: 0x3e464b });
+            if (tx % 2 === 0) rivet(g, x + 20, y + 24, 1.1);
           }
-          // Ceilings and walls facing a room: a dark lip.
-          if (open(0, 1)) g.rect(x, y + T - 5, T + 0.5, 5).fill({ color: 0x14181b });
+          // Ceilings and walls facing a room: a dark lip with a bolted strip.
+          if (open(0, 1)) {
+            g.rect(x, y + T - 5, T + 0.5, 5).fill({ color: 0x14181b });
+            g.rect(x, y + T - 9, T + 0.5, 4).fill({ color: 0x353d42 });
+            rivet(g, x + 10, y + T - 7, 1);
+            rivet(g, x + 30, y + T - 7, 1);
+          }
           if (open(1, 0)) g.rect(x + T - 4, y, 4, T + 0.5).fill({ color: 0x1b1f22 });
           if (open(-1, 0)) g.rect(x, y, 4, T + 0.5).fill({ color: 0x3a4146 });
           if (rand() < 0.08) g.rect(x + 6 + rand() * 24, y + 14, 8, 1).fill({ color: 0x3e464b });
@@ -698,9 +760,15 @@ export class Interior {
     } else this.progress = 0;
     if (!inp.collect) this.needRelease = false;
     this.holdKey = act?.key ?? '';
+    // Holding Collect: going out shuts the face plate first; anything else, the near hand works at it.
+    const leaving = act?.key === 'exit' || act?.key === 'airlock';
+    const holding = !!act && act.key !== 'grapple' && inp.collect && w.onGround && this.progress > 0;
+    w.visorTarget = holding && leaving ? 0 : 1;
+    w.working += ((holding && !leaving ? 1 : 0) - w.working) * Math.min(1, dt * 10);
     this.label = act ? act.label : info || null;
 
     // ---- Movement ----
+    if (!this.grapple) w.hangTo = null;
     if (this.grapple) this.updateGrapple(dt, inp, jumpPressed);
     else if (this.climbing) this.updateClimb(dt, inp, jumpPressed, ev);
     else this.updateWalk(dt, inp, jumpPressed, ev);
@@ -915,6 +983,7 @@ export class Interior {
     }
     w.onGround = false;
     w.pose = g.phase === 'fly' ? 'jump' : 'hang';
+    w.hangTo = this.grapple ? a : null;
     if (!this.grapple) this.fallFrom = w.y;
   }
 
@@ -924,13 +993,20 @@ export class Interior {
     const w = this.walker;
     w.animate(dt);
     // Camera: follow with a little look-ahead, clamped to the level.
-    const viewH = this.viewH;
+    const f = this.focus;
+    // Milestone 9: tending a tank, the camera eases in on it (beside the care panel).
+    this.viewNow += ((f ? f.h : this.viewH) - this.viewNow) * (1 - Math.exp(-4 * dt));
+    const viewH = this.viewNow;
     const zoom = this.cssH / viewH;
     const viewW = this.cssW / zoom;
-    const lx = w.x + w.face * 120 + w.vx * 0.2 - viewW / 2;
+    let lx = w.x + w.face * 120 + w.vx * 0.2 - viewW / 2;
     // In the base the floor sits low on screen (rooms are what you look at, not the water below).
-    const ly = this.hooks ? w.y - viewH * 0.7 : w.y - 60 - viewH / 2;
-    const k = 1 - Math.exp(-5 * dt);
+    let ly = this.hooks ? w.y - viewH * 0.7 : w.y - 60 - viewH / 2;
+    if (f) {
+      lx = f.x - viewW / 2 + f.panelPx / zoom / 2;
+      ly = f.y - viewH / 2;
+    }
+    const k = 1 - Math.exp(-(f ? 3.5 : 5) * dt);
     this.cam.x += (lx - this.cam.x) * k;
     this.cam.y += (ly - this.cam.y) * k;
     this.cam.x = Math.max(0, Math.min(this.W * T - viewW, this.cam.x));
@@ -960,18 +1036,21 @@ export class Interior {
     }
     if (this.grapple) {
       const a = this.anchors[this.grapple.to];
-      const hand = { x: w.x + w.face * 4, y: w.y - HEIGHT - 18 };
+      const hand = w.hand();
       const k2 = this.grapple.phase === 'fly' ? Math.min(1, this.grapple.t / GRAPPLE_FLY) : 1;
       o.moveTo(hand.x, hand.y).lineTo(hand.x + (a.x - hand.x) * k2, hand.y + (a.y - hand.y) * k2).stroke({ color: 0xd8c890, width: 2 });
     }
     if (this.hooks) {
       de.clear();
       this.hooks.animate(d, de, this.time);
+      this.hooks.tick?.(dt, this.time, this.cam.x, this.cam.x + viewW);
     }
     // Lights: lamps (with power), the emergency lamps, and the helmet lamp's beam.
-    const head = w.head();
-    this.headLamp.x = head.x + w.face * 10;
-    this.headLamp.y = head.y;
+    // The beam starts at the shoulder lamp (the same lamp as the diver's).
+    w.lampOn = this.lampOn;
+    const lamp = w.lampPoint();
+    this.headLamp.x = lamp.x;
+    this.headLamp.y = lamp.y;
     this.headLamp.dirX = w.face * 0.97;
     this.headLamp.dirY = 0.24;
     this.headLamp.intensity = this.lampOn ? 1.6 : 0;

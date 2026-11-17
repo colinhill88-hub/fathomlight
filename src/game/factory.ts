@@ -158,6 +158,15 @@ export function trayCount(td: TankData | undefined): number {
   return td?.out ? MATERIAL_ORDER.reduce((a, k) => a + (td.out![k] ?? 0), 0) : 0;
 }
 
+// ---- Milestone 9: the Kelp farm ----
+/** Seconds of growing per kelp fibre (before Echo whorls). */
+export const FARM_SECONDS = 150;
+/** Kelp fibre its tray holds; a full tray pauses it. */
+export const FARM_TRAY = 4;
+/** Seconds per plant cutting, and how many of each kind the base keeps ready. */
+export const CUTTING_SECONDS = 200;
+export const CUTTING_CAP = 3;
+
 // ---- Echo whorls ----
 export const WHORLS_PER_PIECE = 2;
 
@@ -235,6 +244,7 @@ export function upgradeCost(kind: LineKind, cells: number, tier: number): Partia
 function sends(kind: PieceKind): MaterialId[] | null {
   if (kind === 'storage' || kind === 'sorter' || kind === 'tank' || kind === 'gtank') return null;
   if (kind === 'press') return ['plate'];
+  if (kind === 'farm') return ['fibre'];
   return [];
 }
 /** Solid materials a piece takes in from a conveyor (null: anything). */
@@ -350,6 +360,7 @@ export class Factory {
       if (isStoreKind(p.kind)) return save.stored[k] > 0;
       if (isTankKind(p.kind)) return (save.tankData[String(p.id)]?.out?.[k] ?? 0) > 0;
       if (p.kind === 'press') return k === 'plate' && (machineData(save, p.id).plate ?? 0) > 0;
+      if (p.kind === 'farm') return k === 'fibre' && machineData(save, p.id).fibre > 0;
       return false;
     };
     /** How full the target is of k (0..1), or null if it has no room or no use for it. */
@@ -370,6 +381,7 @@ export class Factory {
         o[k] = (o[k] ?? 0) - 1;
         if (!o[k]) delete o[k];
       } else if (p.kind === 'press') machineData(save, p.id).plate!--;
+      else if (p.kind === 'farm') machineData(save, p.id).fibre--;
     };
     const give = (p: Placed, k: MaterialId) => {
       if (isStoreKind(p.kind)) save.stored[k]++;
@@ -412,6 +424,29 @@ export class Factory {
         // Pick again for the next item this tick (rare: only on long ticks).
         const k: MaterialId = pick;
         pick = has(src, k) && want(dst, k) !== null ? k : null;
+      }
+    }
+
+    // ---- Milestone 9: Kelp farms grow fibre into their tray, or plant cuttings ----
+    for (const f of layout.pieces) {
+      if (f.kind !== 'farm' || !on(f)) continue;
+      const m = machineData(save, f.id);
+      const grow = m.grow ?? 'fibre';
+      const rate = whorlMult(save, f.id) * dt;
+      if (grow === 'fibre') {
+        if (m.fibre >= FARM_TRAY) continue;
+        m.press += rate / FARM_SECONDS;
+        if (m.press >= 1) {
+          m.press = 0;
+          m.fibre++;
+        }
+      } else {
+        if ((save.cuttings[grow] ?? 0) >= CUTTING_CAP) continue;
+        m.press += rate / CUTTING_SECONDS;
+        if (m.press >= 1) {
+          m.press = 0;
+          save.cuttings[grow] = (save.cuttings[grow] ?? 0) + 1;
+        }
       }
     }
 

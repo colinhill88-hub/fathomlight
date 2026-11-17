@@ -1173,6 +1173,61 @@ body.caring #build-btn {
   font-size: 19px;
 }
 
+/* Milestone 9: inherited traits under a creature's name; rare ones in gold. */
+#care-panel .traits {
+  margin: 0 0 4px;
+  color: #cfe0e8;
+  font-size: 12px;
+}
+#care-panel .traits small {
+  opacity: 0.7;
+}
+#care-panel .traits.rare {
+  color: #ffd870;
+}
+/* The Hatchery's list (it shares the care panel). */
+#care-panel .nest {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 8px 0;
+}
+#care-panel .nest .egg {
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--ui-line);
+}
+#care-panel .nest .egg b {
+  display: block;
+}
+#care-panel .nest .egg .row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
+#care-panel .nest .egg .row button {
+  min-height: 34px;
+  padding: 4px 10px;
+  border-radius: 10px;
+  border: 1px solid var(--ui-line);
+  background: rgba(255, 255, 255, 0.07);
+  font-size: 12px;
+  font-weight: 600;
+}
+#care-panel .nest .egg .row button:disabled {
+  opacity: 0.35;
+}
+#care-panel .nest .egg .traits {
+  display: block;
+  font-size: 12px;
+  color: #cfe0e8;
+}
+#care-panel .nest .egg .traits.rare {
+  color: #ffd870;
+}
+
 #care-panel .status {
   margin: 2px 0 8px;
   color: #e8c86a;

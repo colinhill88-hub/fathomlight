@@ -1,4 +1,4 @@
-import { BaseLayout } from '../game/base';
+import { BaseLayout, pieceCode } from '../game/base';
 import {
   CLEAN_AMOUNT,
   comfortTarget,
@@ -14,7 +14,9 @@ import {
   tankDataFor,
   tankNumber,
   tankCapacity,
+  breedNote,
 } from '../game/creatures';
+import { genText, isRare, traitsOf, traitText } from '../game/traits';
 import { CreatureData, MATERIALS, SaveData } from '../game/state';
 import { TRAY_CAP, trayCount, TROUGH_CAP, whorlMult } from '../game/factory';
 import { MATERIAL_ORDER, TankData } from '../game/state';
@@ -66,7 +68,7 @@ function makeLine(save: SaveData, layout: BaseLayout, c: CreatureData): string {
   const r = makeRate(save, layout, c);
   if (r.perMin <= 0) return 'Makes nothing while unhappy.';
   const sp = SPECIES[c.species];
-  const parts = [r.shoal > 0 ? `+${Math.round(r.shoal * 100)}% shoal` : '', r.clean > 0 ? `+${Math.round(r.clean * 100)}% cleaned` : '', r.reef > 0 ? `+${Math.round(r.reef * 100)}% reef` : '', r.whorl > 1 ? `×${r.whorl} whorl` : '']
+  const parts = [r.radiant > 1 ? `+${Math.round((r.radiant - 1) * 100)}% radiant` : '', r.shoal > 0 ? `+${Math.round(r.shoal * 100)}% shoal` : '', r.clean > 0 ? `+${Math.round(r.clean * 100)}% cleaned` : '', r.reef > 0 ? `+${Math.round(r.reef * 100)}% reef` : '', r.whorl > 1 ? `×${r.whorl} whorl` : '']
     .filter(Boolean)
     .join(', ');
   return `Makes ${r.perMin.toFixed(2)} ${sp.makes === 'fibre' ? 'kelp fibre' : sp.makes}/min${parts ? ` (${parts})` : ''}. Happy tank-mates and other thriving tanks raise it.`;
@@ -148,6 +150,12 @@ export class CareMode {
     this.deps.persist();
   }
 
+  /** The tank's painted stencil code (TANK 2, GT-1), as on its room's sign. */
+  private code(): string {
+    const p = this.deps.layout.pieces.find((q) => q.id === this.tankId);
+    return p ? pieceCode(this.deps.layout, p) : `Tank ${tankNumber(this.deps.layout, this.tankId!)}`;
+  }
+
   private here(): CreatureData[] {
     return this.tankId === null ? [] : creaturesIn(this.deps.save, this.tankId);
   }
@@ -204,9 +212,12 @@ export class CareMode {
       this.deps.toast(`Scan ${p.name.toLowerCase()} on the reef first, to know how to grow it`, 'warn');
       return;
     }
-    if (!payCost(save, p.cost)) {
+    // Milestone 9: a cutting from a Kelp farm plants it for free.
+    const cut = (save.cuttings[id] ?? 0) > 0;
+    if (cut) save.cuttings[id] = (save.cuttings[id] ?? 0) - 1;
+    else if (!payCost(save, p.cost)) {
       const [k, n] = Object.entries(p.cost)[0] as [keyof typeof MATERIALS, number];
-      this.deps.toast(`Planting ${p.name.toLowerCase()} needs ${n} ${MATERIALS[k].name.toLowerCase()}`, 'warn');
+      this.deps.toast(`Planting ${p.name.toLowerCase()} needs ${n} ${MATERIALS[k].name.toLowerCase()} (or a cutting from a Kelp farm)`, 'warn');
       return;
     }
     if (slot === 1) td.plant = id;
@@ -228,7 +239,14 @@ export class CareMode {
     }
     save.creatures = save.creatures.filter((x) => x.id !== c.id);
     save.jar = { species: c.species, stage: c.stage, keep: c };
-    this.deps.toast(`${SPECIES[c.species].name} moved into the specimen jar. Swim to another tank to put it in.`, 'big');
+    // Milestone 9: grown glowfins and tinker crabs are keys out in the world.
+    const key =
+      c.stage === 'grown' && c.species === 'glowfin'
+        ? ' Outside, it swims beside you as a light: it can lead you through lightless water where the dive light dies.'
+        : c.stage === 'grown' && c.species === 'crab'
+          ? ' Its fine claws can pick locks too small and rusted for the cutter.'
+          : ' Put it in another tank from inside the base.';
+    this.deps.toast(`${SPECIES[c.species].name} moved into the specimen jar.${key}`, 'big');
     this.afterRemove();
   }
 
@@ -298,7 +316,7 @@ export class CareMode {
         ${bar('Fed', c.fed, 'fed')}
         ${bar('Comfort', c.comfort, 'comfort')}
         ${bar('Water quality', td.water, 'water')}
-        <ul class="notes">${ct.notes.map((n) => `<li class="${n.good ? 'good' : 'bad'}">${n.good ? '✓' : '✗'} ${n.text}</li>`).join('')}<li class="${
+        <ul class="notes">${[...ct.notes, ...[breedNote(save, layout, c)].filter((n) => !!n)].map((n) => `<li class="${n!.good ? 'good' : 'bad'}">${n!.good ? '✓' : '✗'} ${n!.text}</li>`).join('')}<li class="${
           filtered ? 'good' : 'bad'
         }">${filtered ? '✓ Filter pump keeps the water clean' : '✗ No filter pump: the water slowly gets dirty'}</li>${
           piped ? `<li class="good">✓ Feed pipe: ${Math.round(td.mash ?? 0)}/${TROUGH_CAP} L of mash in the trough</li>` : ''
@@ -313,17 +331,17 @@ export class CareMode {
         const cur = slot === 1 ? td.plant : td.plant2;
         return `<button type="button" data-act="${slot === 1 ? 'plant' : 'plant2'}" data-id="${p}" class="plant${cur === p ? ' on' : ''}${known ? '' : ' locked'}">${
           known ? PLANTS[p].name : 'Unknown plant'
-        }<small>${cur === p ? 'growing' : `${n} ${MATERIALS[k].name.toLowerCase()}`}</small></button>`;
+        }<small>${cur === p ? 'growing' : (save.cuttings[p] ?? 0) > 0 ? `cutting (${save.cuttings[p]} ready)` : `${n} ${MATERIALS[k].name.toLowerCase()}`}</small></button>`;
       }).join('');
     // Milestone 7 part 2: a Grand tank has a second planter, so two species can both have their favourite.
     const grand = layout.pieces.find((q) => q.id === this.tankId)?.kind === 'gtank';
     const plants = grand ? `${planter(1)}</div><div class="plants"><span>Planter 2:</span>${planter(2)}` : planter(1);
     const armed = Date.now() - this.releaseArmed < 3000;
     const html = `
-      <div class="care-head"><b>Tank ${tankNumber(layout, this.tankId)}</b><span>${list.length}/${tankCapacity(layout, this.tankId)} · ${powered ? 'powered' : 'no power'}</span>
+      <div class="care-head"><b>${this.code()}</b><span>${list.length}/${tankCapacity(layout, this.tankId)} · ${powered ? 'powered' : 'no power'}</span>
         <button type="button" class="x" data-act="close" aria-label="Close">✕</button></div>
       ${list.length ? `<div class="tabs">${tabs}</div>` : ''}
-      ${c ? `<h3>${c.stage === 'egg' ? SPECIES[c.species].eggName.replace(/^./, (m) => m.toUpperCase()) : SPECIES[c.species].name}</h3>` : ''}
+      ${c ? `<h3>${c.stage === 'egg' ? SPECIES[c.species].eggName.replace(/^./, (m) => m.toUpperCase()) : SPECIES[c.species].name}</h3><p class="traits${isRare(traitsOf(c)) ? ' rare' : ''}">${traitText(c.species, traitsOf(c))} <small>· ${genText(traitsOf(c))}</small></p>` : ''}
       ${body}
       <div class="plants"><span>${grand ? 'Planter 1:' : 'Plant:'}</span>${plants}</div>
       <div class="acts">

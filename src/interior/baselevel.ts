@@ -1,10 +1,14 @@
-import { Graphics, Text } from 'pixi.js';
+import { Container, Graphics, Text } from 'pixi.js';
+import { DC, bolts, ceilingBeam, flangeRect, floorGrime, hazard, pipeRun, pipeUp, rivet, skirting, wallPanels } from './detail';
 import type { Light } from '../fx/lighting';
 import { T, type InteriorAct, type InteriorHooks } from './interior';
 import { BaseLayout, collarsOf, isDone, PieceKind, PIECES, pieceCode, Placed, shapeOf } from '../game/base';
-import type { MaterialId, SaveData, SavedLine, SpeciesId } from '../game/state';
+import type { CreatureData, MaterialId, PlantId, SaveData, SavedLine } from '../game/state';
+import { Critter } from '../actors/critters';
+import { traitsOf } from '../game/traits';
+import { HATCH_CAP } from '../game/creatures';
 import { ITEM_COLOURS, pointAlong } from '../world/linegfx';
-import { creaturesIn } from '../game/creatures';
+import { drawPlant, TankLife } from '../world/tanklife';
 import { mulberry32, WORLD_SEED } from '../rng';
 
 /**
@@ -27,6 +31,8 @@ import { mulberry32, WORLD_SEED } from '../rng';
 
 export const CW = 8;
 export const CH = 6;
+/** Milestone 9: creatures and plants in the indoor tanks are drawn this much bigger than outside. */
+export const TANK_SCALE = 1.45;
 
 export interface Room {
   piece: Placed;
@@ -226,6 +232,14 @@ export interface BaseCtx {
   feederLevels(id: number): { hopper: number; mash: number; run: boolean };
   stationBusy(id: number): boolean;
   storedFrac(): number;
+  /** Milestone 9: the Hatchery's panel, the Kelp farm's crop and tray, and the Revival pool. */
+  hatchery(id: number): void;
+  nursery(): CreatureData[];
+  farmCrop(id: number): { name: string; grow: 'fibre' | PlantId; progress: number; tray: number; cap: number };
+  farmCycle(id: number): void;
+  farmTake(id: number): void;
+  reviveLabel(): { ok: boolean; text: string };
+  revive(id: number): void;
 }
 
 const COL = {
@@ -244,14 +258,6 @@ const COL = {
   glassSea: 0x0c3440,
   sand: 0xb7a47a,
 };
-
-const SPECIES_LOOK: Record<SpeciesId, { body: number; glow: number; kind: 'fish' | 'puff' | 'ray' | 'crab' | 'shrimp' }> = {
-  glowfin: { body: 0x3a4a3a, glow: 0xe8d860, kind: 'fish' },
-  puffcap: { body: 0xd8cdb8, glow: 0xf0e0a0, kind: 'puff' },
-  ray: { body: 0x7a6a50, glow: 0xe0c070, kind: 'ray' },
-  crab: { body: 0xa8402e, glow: 0xffb060, kind: 'crab' },
-  shrimp: { body: 0xc04a36, glow: 0xfff0a0, kind: 'shrimp' },
-} as Record<SpeciesId, { body: number; glow: number; kind: 'fish' | 'puff' | 'ray' | 'crab' | 'shrimp' }>;
 
 function sign(text: string, x: number, y: number, size = 13, color = 0xd8dde0, alpha = 0.7): Text {
   const t = new Text({ text, style: { fontFamily: 'Courier New, monospace', fontSize: size, fill: color, fontWeight: 'bold', letterSpacing: 2 }, resolution: 3 });
@@ -281,7 +287,7 @@ interface Spot {
   x: number;
   y: number;
   r: number;
-  what: 'airlock' | 'planner' | 'unload' | 'tank' | 'station' | 'dock' | 'recomp' | 'info' | 'sealed' | 'lift' | 'board' | 'tune';
+  what: 'airlock' | 'planner' | 'unload' | 'tank' | 'station' | 'dock' | 'recomp' | 'info' | 'sealed' | 'lift' | 'board' | 'tune' | 'hatch' | 'farm' | 'farmtray' | 'revive';
   other?: Placed;
   to?: { x: number; y: number };
   up?: boolean;
@@ -294,6 +300,12 @@ export class BaseHooks implements InteriorHooks {
   private screens: Light[] = [];
   private tanks: { room: Room; x: number; y: number; w: number; h: number }[] = [];
   private turbines: { x: number; y: number; r: number; id: number }[] = [];
+  /**
+   * Milestone 9 (Colin, after the interior art pass): the tanks indoors show
+   * the very same creatures and plants as the tanks outside, swimming the
+   * same way, drawn bigger for the room's window.
+   */
+  readonly tankLife: TankLife;
   /** Conveyors and feed pipes, routed through the rooms' ceilings (part 2). */
   private routes: { id: number; kind: 'belt' | 'pipe'; tier: number; pts: [number, number][]; len: number }[] = [];
 
@@ -305,6 +317,15 @@ export class BaseHooks implements InteriorHooks {
     const a = level.airlocks.find((q) => q.id === domeId) ?? level.airlocks[0];
     this.spawn = { x: a.x, y: a.y };
     for (const r of level.rooms) this.planRoom(r);
+    this.tankLife = new TankLife({
+      boxOf: (p) => {
+        const t = this.tanks.find((q) => q.room.piece.id === p.id);
+        return t ? { x: t.x + 8, y: t.y + 10, w: t.w - 16, h: t.h - 16 } : null;
+      },
+      scale: TANK_SCALE,
+      clumps: true,
+      glass: false,
+    });
     for (const l of level.lifts) this.spots.push({ room: level.rooms[0], x: l.x, y: l.y, r: 40, what: 'lift', to: { x: l.toX, y: l.toY }, up: l.up });
     ctx.lines().forEach((l, i) => {
       const pts = this.routeLine(l, i % 4);
@@ -313,6 +334,134 @@ export class BaseHooks implements InteriorHooks {
       for (let k = 1; k < pts.length; k++) len += Math.hypot(pts[k][0] - pts[k - 1][0], pts[k][1] - pts[k - 1][1]);
       this.routes.push({ id: l.id, kind: l.kind, tier: l.tier ?? 1, pts, len });
     });
+  }
+
+  attach(lit: Container, emissive: Container, glow: Container): void {
+    lit.addChild(this.tankLife.view, this.extraLit);
+    emissive.addChild(this.tankLife.emissive, this.extraEm);
+    glow.addChild(this.tankLife.glow, this.extraGlow);
+    this.tankLife.sync(this.ctx.save, this.ctx.layout);
+  }
+  /** Milestone 9: the Hatchery's eggs and young (real creatures) and the farm's crops. */
+  private extraLit = new Container();
+  private extraEm = new Container();
+  private extraGlow = new Container();
+  private nest = new Map<number, { c: Critter; stage: string }>();
+  private crops = new Map<number, { key: string; plants: Container[] }>();
+
+  /** The four cradles in a Hatchery room, where its eggs and young sit. */
+  private cradles(r: Room): { x: number; y: number }[] {
+    const b = this.box(r);
+    const out: { x: number; y: number }[] = [];
+    for (let i = 0; i < HATCH_CAP; i++) out.push({ x: b.ox + 80 + i * ((b.ow - 260) / (HATCH_CAP - 1)), y: b.bottom - 76 });
+    return out;
+  }
+  /** The farm's planter tiers (y of each trough top). */
+  private farmTiers(r: Room): number[] {
+    const b = this.box(r);
+    return [b.bottom - 96, b.bottom - 22];
+  }
+
+  private syncNest(time: number, dt: number): void {
+    const rooms = this.level.rooms.filter((r) => r.kind === 'hatch').sort((a, b) => a.piece.id - b.piece.id);
+    const slots = rooms.flatMap((r) => this.cradles(r).map((q) => ({ ...q, on: this.powered(r.piece.id) })));
+    const list = this.ctx.nursery();
+    const keep = new Set<number>();
+    list.forEach((c, i) => {
+      const q = slots[i];
+      if (!q) return;
+      keep.add(c.id);
+      let n = this.nest.get(c.id);
+      if (!n || n.stage !== c.stage) {
+        n?.c.destroy();
+        const cr = new Critter(c.species, c.stage, c.id, traitsOf(c));
+        this.extraLit.addChild(cr.view);
+        this.extraEm.addChild(cr.emissive);
+        this.extraGlow.addChild(cr.glow);
+        n = { c: cr, stage: c.stage };
+        this.nest.set(c.id, n);
+      }
+      // Eggs rest in the bowl; the young circle slowly under the bell.
+      const egg = c.stage === 'egg';
+      const ph = time * 0.8 + c.id;
+      const x = egg ? q.x : q.x + Math.sin(ph) * 12;
+      const y = egg ? q.y + 12 : q.y - 6 + Math.sin(ph * 1.7) * 4;
+      n.c.update(dt, time, x, y, egg ? 0 : Math.cos(ph) * 12, 0, { vigour: q.on ? 0.9 : 0.4, sick: 0, size: egg ? 1.2 : 1.05 });
+    });
+    for (const [id, n] of this.nest)
+      if (!keep.has(id)) {
+        n.c.destroy();
+        this.nest.delete(id);
+      }
+  }
+
+  private syncCrops(time: number): void {
+    for (const r of this.level.rooms) {
+      if (r.kind !== 'farm') continue;
+      const f = this.ctx.farmCrop(r.piece.id);
+      const plant: PlantId = f.grow === 'fibre' ? 'kelp' : f.grow;
+      let cr = this.crops.get(r.piece.id);
+      if (!cr || cr.key !== plant) {
+        cr?.plants.forEach((p) => p.destroy({ children: true }));
+        const b = this.box(r);
+        const plants: Container[] = [];
+        for (const ty of this.farmTiers(r))
+          for (let x = b.ox + 140; x < b.ox + b.ow - 130; x += 52) {
+            const p = drawPlant(plant);
+            p.position.set(x + ((x * 13) % 9), ty + 3);
+            this.extraLit.addChildAt(p, 0);
+            plants.push(p);
+          }
+        cr = { key: plant, plants };
+        this.crops.set(r.piece.id, cr);
+      }
+      // The crop grows as the farm works towards the next harvest, and sways in the pumped water.
+      const on = this.powered(r.piece.id);
+      const sc = (plant === 'kelp' ? 0.95 : 1.5) * (0.6 + 0.4 * f.progress);
+      cr.plants.forEach((p, i) => {
+        p.scale.set(i % 2 ? -sc : sc, sc);
+        p.skew.x = on ? Math.sin(time * 0.9 + i * 1.3) * 0.08 : 0;
+      });
+    }
+  }
+  private detached = false;
+  detach(): void {
+    if (this.detached) return;
+    this.detached = true;
+    this.tankLife.destroy();
+    for (const n of this.nest.values()) n.c.destroy();
+    this.nest.clear();
+    this.crops.clear();
+    for (const c of [this.extraLit, this.extraEm, this.extraGlow]) c.destroy({ children: true });
+  }
+  private syncClock = 0;
+  tick(dt: number, time: number, x0: number, x1: number): void {
+    if (this.detached) return;
+    this.syncClock -= dt;
+    if (this.syncClock <= 0) {
+      this.syncClock = 0.4;
+      this.tankLife.sync(this.ctx.save, this.ctx.layout);
+    }
+    this.tankLife.update(dt, time, this.ctx.save, x0, x1);
+    this.syncNest(time, dt);
+    this.syncCrops(time);
+  }
+  /** Milestone 9: where the camera frames a room while its panel is open (the Hatchery). */
+  roomFocus(id: number): { x: number; y: number; h: number } | null {
+    const r = this.level.rooms.find((q) => q.piece.id === id);
+    if (!r) return null;
+    const b = this.box(r);
+    return { x: b.cx, y: b.bottom - 90, h: 340 };
+  }
+  /** Re-read the tanks now (a creature was added, moved or a plant planted). */
+  syncTanks(): void {
+    if (!this.detached) this.tankLife.sync(this.ctx.save, this.ctx.layout);
+  }
+  /** Milestone 9: where the camera frames a tank while it is tended indoors. */
+  tankFocus(id: number): { x: number; y: number; h: number } | null {
+    const t = this.tanks.find((q) => q.room.piece.id === id);
+    if (!t) return null;
+    return { x: t.x + t.w / 2, y: t.y + t.h / 2 + 20, h: Math.max(320, t.h + 150) };
   }
 
   /** Where to step in when climbing up out of the sub into a dock. */
@@ -438,7 +587,7 @@ export class BaseHooks implements InteriorHooks {
       case 'tank':
       case 'gtank': {
         const top = b.oy + 14;
-        const bot = b.bottom - 44;
+        const bot = b.bottom - 22;
         this.tanks.push({ room: r, x: b.ox + 30, y: top, w: b.ow - 60, h: bot - top });
         add(b.cx, b.bottom, 'tank', b.ow / 2 - 20);
         if (r.h > 1) add(b.cx, b.floor(0), 'tank', b.ow / 2 - 60);
@@ -461,6 +610,18 @@ export class BaseHooks implements InteriorHooks {
         add(b.cx, b.bottom, 'info', 120);
         break;
       case 'corridor':
+        break;
+      case 'hatch':
+        add(b.ox + b.ow - 70, b.bottom, 'hatch', 90);
+        add(b.cx - 60, b.bottom, 'hatch', 150);
+        break;
+      case 'farm':
+        add(b.ox + 60, b.bottom, 'farm', 60);
+        add(b.ox + b.ow - 60, b.bottom, 'farmtray', 60);
+        add(b.cx, b.bottom, 'info', 120);
+        break;
+      case 'revive':
+        add(b.cx, b.bottom, 'revive', 140);
         break;
       default:
         add(b.cx, b.bottom, 'info', 130);
@@ -549,6 +710,27 @@ export class BaseHooks implements InteriorHooks {
       }
       case 'sealed':
         return `Sealed hatch: ${PIECES[best.other!.kind].name.toLowerCase()} beyond is still a frame`;
+      case 'hatch':
+        if (!on) return `${code}: no power. The eggs are cooling: join it to a current turbine.`;
+        return { key: 'hatch', label: `Use the Hatchery (${code}): ${c.nursery().length} egg${c.nursery().length === 1 ? '' : 's'} and young`, seconds: 0.4, done: () => c.hatchery(p.id) };
+      case 'farm': {
+        const f = c.farmCrop(p.id);
+        return { key: 'farm', label: `Change the crop (growing ${f.name})`, seconds: 0.4, done: () => c.farmCycle(p.id) };
+      }
+      case 'farmtray': {
+        const f = c.farmCrop(p.id);
+        if (!on) return `${code}: no power. The grow lamps are off.`;
+        if (f.grow === 'fibre' && f.tray > 0) return { key: 'ftray', label: `Take ${f.tray} kelp fibre from the tray`, seconds: 0.5, done: () => c.farmTake(p.id) };
+        return f.grow === 'fibre'
+          ? `${code}: growing kelp fibre · ${Math.round(f.progress * 100)}% · tray ${f.tray}/${f.cap}`
+          : `${code}: growing ${f.name} cuttings · ${Math.round(f.progress * 100)}% · ready cuttings go to the planters`;
+      }
+      case 'revive':
+        if (!on) return `${code}: no power`;
+      {
+        const l = c.reviveLabel();
+        return l.ok ? { key: 'revive', label: l.text, seconds: 1.4, done: () => c.revive(p.id) } : l.text;
+      }
       default:
         return c.status(p);
     }
@@ -664,23 +846,22 @@ export class BaseHooks implements InteriorHooks {
     const b = this.box(r);
     const id = r.piece.id;
     const code = pieceCode(this.ctx.layout, r.piece);
-    // Back wall: charcoal panels, seams and a gold power line.
-    g.rect(b.ox, b.oy, b.ow, b.oh).fill({ color: COL.wall });
-    for (let y = b.oy; y < b.oy + b.oh; y += 80)
-      for (let x = b.ox; x < b.ox + b.ow; x += 120) {
-        g.rect(x + 2, y + 2, 116, 76).fill({ color: rand() < 0.5 ? COL.wallLight : COL.wall, alpha: 0.6 });
-        g.rect(x, y, 120, 2).fill({ color: COL.seam, alpha: 0.7 });
-      }
+    // Back wall: bevelled, riveted charcoal plates with vents, hatches and fittings (interior art pass).
+    wallPanels(g, b.ox, b.oy, b.ow, b.oh, rand);
+    // A conduit along the wall, under the line lanes, where the machines leave the wall clear.
+    const conduit = r.kind === 'storage' || r.kind === 'sorter' || r.kind === 'lab' || r.kind === 'workshop' || r.kind === 'filter' || r.kind === 'dock';
     for (let k = 0; k < r.h; k++) {
       const f = b.floor(k);
-      // Skirting along each floor, and a gold line at waist height.
-      g.rect(b.ox, f - 16, b.ow, 16).fill({ color: COL.wallDark });
-      g.rect(b.ox, f - 16, b.ow, 2).fill({ color: COL.chromeDark });
+      const ceil = k === 0 ? b.oy : b.floor(k - 1) + T;
+      // Grime gathers along the floor; a skirting plate; a gold line at waist height.
+      floorGrime(g, b.ox, b.ow, f, rand);
+      skirting(g, b.ox, b.ow, f);
       e.rect(b.ox, f - 92, b.ow, 1.6).fill({ color: COL.gold, alpha: 0.55 });
       for (let x = b.ox + 40; x < b.ox + b.ow - 40; x += 150) trace(e, x, f - 92, 90, rand, 0.45);
-      // Ceiling lamps, one per cell.
-      const ceil = k === 0 ? b.oy : b.floor(k - 1) + T;
-      for (let c = 0; c < r.w; c++) addLamp((r.tx0 + c * CW + 5.5) * T, ceil + 6, id);
+      if (conduit && f - ceil > 180) pipeRun(g, b.ox, b.ox + b.ow, ceil + 66, 3.5, DC.steel, DC.chrome, rand);
+      // The ceiling beam with its cables, and a lamp hung under it in each cell.
+      ceilingBeam(g, b.ox, b.ow, ceil, rand);
+      for (let c = 0; c < r.w; c++) addLamp((r.tx0 + c * CW + 5.5) * T, ceil + 16, id);
     }
     // The room's stencil code, high on the back wall.
     if (r.kind !== 'corridor') addText(sign(code, b.ox + 70, b.oy + 26, 13));
@@ -733,6 +914,8 @@ export class BaseHooks implements InteriorHooks {
         g.circle(ax, ay, 10).fill({ color: COL.chrome });
         e.circle(ax, ay, 44).stroke({ color: COL.lime, width: 2, alpha: 0.6 });
         addText(sign('AIRLOCK', ax, ay - 70, 10));
+        hazard(g, ax - 60, bot - 6, 120, 6);
+        for (const [hx, hy] of [[-40, -40], [40, -40], [-40, 40], [40, 40]]) rivet(g, ax + hx, ay + hy, 1.6);
         // Bunk on the left.
         g.roundRect(b.ox + 70, bot - 40, 120, 18, 4).fill({ color: COL.chromeDark });
         g.roundRect(b.ox + 74, bot - 50, 112, 12, 4).fill({ color: 0x4a5258 });
@@ -745,6 +928,11 @@ export class BaseHooks implements InteriorHooks {
         g.rect(cx2 - 50, bot - 70, 100, 3).fill({ color: COL.chrome });
         g.rect(cx2 - 42, bot - 62, 38, 24).fill({ color: 0x0c1418 });
         g.rect(cx2 + 4, bot - 62, 38, 24).fill({ color: 0x0c1418 });
+        // Screen bezels, a row of keys and the console's bolted side panels.
+        g.rect(cx2 - 43, bot - 63, 40, 26).stroke({ color: DC.chromeDark, width: 1.4 });
+        g.rect(cx2 + 3, bot - 63, 40, 26).stroke({ color: DC.chromeDark, width: 1.4 });
+        for (let i = 0; i < 8; i++) g.rect(cx2 - 40 + i * 10, bot - 30, 7, 4).fill({ color: i % 3 ? 0x4a5258 : 0x6f8a1e });
+        bolts(g, cx2 - 46, bot - 18, cx2 + 46, bot - 18, 23, 1);
         this.screens.push({ x: cx2, y: bot - 60, radius: 180, intensity: 0.45, color: [0.7, 0.95, 0.4], zone: id } as Light);
         break;
       }
@@ -777,14 +965,18 @@ export class BaseHooks implements InteriorHooks {
         }
         const sx = b.ox + b.ow - 12;
         g.rect(sx - 9, b.oy, 18, b.oh).fill({ color: COL.wallDark });
-        e.rect(sx - 4, b.oy, 8, b.oh).fill({ color: 0xffc040, alpha: 0.9 });
-        gl.rect(sx - 10, b.oy, 20, b.oh).fill({ color: 0xffb030, alpha: 0.35 });
+        // (Toned down in the interior art pass: it bloomed harder than anything else in the room.)
+        e.rect(sx - 3, b.oy, 6, b.oh).fill({ color: 0xe8b040, alpha: 0.75 });
+        gl.rect(sx - 8, b.oy, 16, b.oh).fill({ color: 0xffb030, alpha: 0.14 });
         for (let y = b.oy + 30; y < b.oy + b.oh; y += 70) g.rect(sx - 12, y, 24, 10).fill({ color: COL.chrome });
         // Lower level: the generator housing, with lime grille vents.
         g.roundRect(b.ox + 110, bot - 120, b.ow - 140, 120, 6).fill({ color: COL.wallDark });
         g.rect(b.ox + 110, bot - 120, b.ow - 140, 4).fill({ color: COL.chrome });
         for (let i = 0; i < 6; i++) g.rect(b.ox + 124, bot - 106 + i * 14, b.ow - 168, 7).fill({ color: COL.lime, alpha: 0.55 });
         gl.rect(b.ox + 120, bot - 110, b.ow - 160, 84).fill({ color: COL.lime, alpha: 0.2 });
+        flangeRect(g, b.ox + 110, bot - 120, b.ow - 140, 120, 6);
+        // Cable trunking from the generator up to the window's hub.
+        pipeUp(g, b.ox + 140, b.floor(0) + T, bot - 120, 5, COL.chromeDark, COL.chrome);
         this.screens.push({ x: b.cx + 30, y: bot - 70, radius: 200, intensity: 0.5, color: [0.75, 1, 0.3], zone: id } as Light);
         break;
       }
@@ -796,7 +988,14 @@ export class BaseHooks implements InteriorHooks {
           g.rect(b.ox + 16, sy, b.ow - 32, 5).fill({ color: COL.chrome });
           g.rect(b.ox + 16, sy + 5, b.ow - 32, 2).fill({ color: COL.seam });
         }
-        for (const x of [b.ox + 18, b.ox + b.ow - 24]) g.rect(x, bot - 150, 6, 150).fill({ color: COL.chromeDark });
+        for (const x of [b.ox + 18, b.ox + b.ow - 24]) {
+          g.rect(x, bot - 150, 6, 150).fill({ color: COL.chromeDark });
+          for (let y = bot - 144; y < bot - 6; y += 9) g.rect(x + 2, y, 2, 4).fill({ color: DC.grime });
+        }
+        // Diagonal bracing behind the shelves, and a stripe where the forklift path ends.
+        g.moveTo(b.ox + 24, bot - 46).lineTo(b.ox + 70, bot - 132).moveTo(b.ox + b.ow - 24, bot - 46).lineTo(b.ox + b.ow - 70, bot - 132).stroke({ color: DC.chromeDark, width: 2, alpha: 0.7 });
+        hazard(g, b.ox + 16, bot - 6, 40, 6);
+        hazard(g, b.ox + b.ow - 56, bot - 6, 40, 6);
         if (r.kind === 'sorter') addText(sign('SORTING BAYS', b.ox + b.ow - 90, b.oy + 26, 9, 0xc6f03a, 0.7));
         break;
       }
@@ -814,6 +1013,10 @@ export class BaseHooks implements InteriorHooks {
         // Vertical frame bars every few metres.
         for (let x = t.x + 160; x < t.x + t.w - 40; x += 160) g.rect(x - 4, t.y - 14, 8, t.h + 28).fill({ color: COL.chromeDark });
         gl.roundRect(t.x + 20, t.y + 20, t.w - 40, t.h - 40, 30).fill({ color: 0x1a8080, alpha: 0.12 });
+        // The frame is bolted all round; a level scale by the glass.
+        bolts(g, t.x - 7, t.y - 7, t.x + t.w + 7, t.y - 7, 26, 1.2);
+        bolts(g, t.x - 7, t.y + t.h + 7, t.x + t.w + 7, t.y + t.h + 7, 26, 1.2);
+        for (let y = t.y + 10; y < t.y + t.h - 10; y += 12) g.rect(t.x - 12, y, y % 36 < 12 ? 7 : 4, 1.4).fill({ color: COL.chromeHi, alpha: 0.6 });
         // A railing in front.
         for (let k = 0; k < r.h; k++) {
           const f = b.floor(k);
@@ -832,6 +1035,20 @@ export class BaseHooks implements InteriorHooks {
         g.roundRect(b.cx - 30, bot - 70, 60, 70, 6).fill({ color: COL.wallDark });
         g.circle(b.cx, bot - 40, 16).fill({ color: COL.chrome });
         g.rect(b.ox + 90, bot - 120, b.ow - 140, 8).fill({ color: COL.chromeDark });
+        // Column bands and caps, the pump motor's cooling fins, and the pipes into the columns.
+        for (const x of [b.ox + 50, b.ox + b.ow - 90]) {
+          for (const y of [bot - 130, bot - 80, bot - 30]) g.rect(x - 6, y, 52, 5).fill({ color: COL.chromeDark });
+          g.roundRect(x - 2, bot - 164, 44, 12, 4).fill({ color: COL.chrome });
+          rivet(g, x + 6, bot - 158, 1.2);
+          rivet(g, x + 34, bot - 158, 1.2);
+          for (let y = bot - 140; y < bot - 14; y += 10) g.rect(x + 3, y, 3, 1.2).fill({ color: COL.lime, alpha: 0.3 });
+        }
+        for (let i = 0; i < 6; i++) g.rect(b.cx - 22 + i * 8, bot - 66, 3, 14).fill({ color: DC.grime });
+        g.circle(b.cx, bot - 40, 9).fill({ color: COL.chromeDark });
+        g.circle(b.cx, bot - 40, 3).fill({ color: COL.chrome });
+        pipeRun(g, b.ox + 94, b.cx - 30, bot - 46, 4, DC.copper, DC.copperHi, rand);
+        pipeRun(g, b.cx + 30, b.ox + b.ow - 94, bot - 46, 4, DC.copper, DC.copperHi, rand);
+        hazard(g, b.cx - 30, bot - 6, 60, 6);
         break;
       }
       case 'feeder': {
@@ -841,6 +1058,20 @@ export class BaseHooks implements InteriorHooks {
         g.rect(b.ox + 80, f0 - 150, b.ow - 110, 5).fill({ color: COL.chrome });
         g.roundRect(b.ox + 80, bot - 150, b.ow - 110, 150, 10).fill({ color: COL.chrome });
         g.roundRect(b.ox + 88, bot - 142, b.ow - 126, 134, 8).fill({ color: 0x1a2a1c });
+        // Hopper ribs and a chute down to the vat; the vat's bolted bands and a sight window.
+        for (let i = 1; i < 5; i++) {
+          const yy = f0 - 150 + i * 22;
+          const inset = (i * 22 * 40) / 110;
+          g.rect(b.ox + 80 + inset, yy, b.ow - 110 - inset * 2, 3).fill({ color: COL.chromeDark });
+        }
+        pipeUp(g, b.cx + 20, f0 - 40, bot - 150, 6, COL.chromeDark, COL.chrome);
+        for (const yy of [bot - 110, bot - 50]) {
+          g.rect(b.ox + 82, yy, b.ow - 114, 5).fill({ color: COL.chromeDark });
+          bolts(g, b.ox + 90, yy + 2.5, b.ox + b.ow - 40, yy + 2.5, 30, 1);
+        }
+        g.roundRect(b.ox + b.ow - 80, bot - 96, 18, 40, 4).fill({ color: 0x2a4a22 });
+        g.roundRect(b.ox + b.ow - 80, bot - 96, 18, 40, 4).stroke({ color: COL.chrome, width: 2 });
+        hazard(g, b.ox + 80, bot - 6, b.ow - 110, 6);
         addText(sign('MASH', b.ox + 80 + (b.ow - 110) / 2, bot - 160, 9, 0xc6f03a, 0.7));
         break;
       }
@@ -853,6 +1084,20 @@ export class BaseHooks implements InteriorHooks {
         g.rect(px - 70, bot - 26, 140, 26).fill({ color: COL.wallDark });
         g.rect(px - 70, bot - 26, 140, 4).fill({ color: COL.gold, alpha: 0.8 });
         for (let k = 0; k < 4; k++) g.rect(b.ox + b.ow - 170, bot - 20 - k * 30, 130, 4).fill({ color: COL.chrome });
+        // Ribbed columns, two hydraulic cylinders on the crosshead, a bolted bed and a warning stripe.
+        for (const cx of [px - 73, px + 73]) {
+          for (let y = b.oy + 40; y < bot - 30; y += 22) g.rect(cx - 7, y, 14, 2).fill({ color: COL.chrome, alpha: 0.5 });
+          g.rect(cx - 7, b.oy + 32, 2, bot - b.oy - 60).fill({ color: COL.chromeHi, alpha: 0.25 });
+        }
+        for (const cx of [px - 40, px + 40]) {
+          g.roundRect(cx - 9, b.oy + 32, 18, 42, 4).fill({ color: COL.chromeDark });
+          g.rect(cx - 9, b.oy + 32, 4, 42).fill({ color: COL.chrome, alpha: 0.5 });
+          g.rect(cx - 11, b.oy + 70, 22, 4).fill({ color: COL.chrome });
+        }
+        bolts(g, px - 82, b.oy + 21, px + 82, b.oy + 21, 20, 1.4);
+        bolts(g, px - 64, bot - 12, px + 64, bot - 12, 16, 1.2);
+        hazard(g, px - 70, bot - 30, 140, 4);
+        for (let k = 0; k < 4; k++) g.rect(b.ox + b.ow - 170, bot - 16 - k * 30, 130, 1.5).fill({ color: DC.grime, alpha: 0.7 });
         break;
       }
       case 'dock': {
@@ -866,13 +1111,33 @@ export class BaseHooks implements InteriorHooks {
           g.circle(x, f0 - 36, 7).stroke({ color: COL.chrome, width: 3 });
         }
         addText(sign('MOON POOL', b.cx, f0 + 28, 11, 0x9ae0e0, 0.6));
+        // The gantry's bolted beam, winch drums, and stripes along the catwalk's edge.
+        bolts(g, b.ox + 46, b.oy + 15, b.ox + b.ow - 46, b.oy + 15, 30, 1.3);
+        for (const x of [b.cx - 120, b.cx + 120]) {
+          g.circle(x, b.oy + 30, 9).fill({ color: COL.chromeDark });
+          g.circle(x, b.oy + 30, 5).fill({ color: COL.chrome });
+        }
+        hazard(g, b.ox, f0 - 6, b.ow, 4);
         break;
       }
       case 'lab': {
         // A scanner table with a lime hologram, and wall screens.
         g.roundRect(b.cx - 70, bot - 50, 140, 50, 6).fill({ color: COL.wallDark });
         g.rect(b.cx - 70, bot - 50, 140, 4).fill({ color: COL.chrome });
-        for (const x of [b.ox + 20, b.ox + b.ow - 80]) g.rect(x, b.oy + 50, 60, 40).fill({ color: 0x0c1418 });
+        for (const x of [b.ox + 20, b.ox + b.ow - 80]) {
+          g.rect(x, b.oy + 50, 60, 40).fill({ color: 0x0c1418 });
+          g.rect(x - 3, b.oy + 47, 66, 46).stroke({ color: COL.chromeDark, width: 2.4 });
+          g.rect(x + 26, b.oy + 93, 8, 10).fill({ color: COL.chromeDark });
+        }
+        // Drawers under the scanner table, and sample racks on the wall.
+        for (let i = 0; i < 3; i++) {
+          g.rect(b.cx - 62 + i * 44, bot - 40, 38, 30).stroke({ color: DC.bevelLo, width: 1.2 });
+          g.rect(b.cx - 49 + i * 44, bot - 28, 12, 3).fill({ color: COL.chrome });
+        }
+        for (let i = 0; i < 6; i++) {
+          g.roundRect(b.ox + 110 + i * 12, b.oy + 64, 6, 20, 3).fill({ color: [0x6f8a1e, 0x2a7080, 0xb06a3a][i % 3], alpha: 0.8 });
+        }
+        g.rect(b.ox + 104, b.oy + 82, 78, 4).fill({ color: COL.chromeDark });
         this.screens.push({ x: b.cx, y: bot - 80, radius: 220, intensity: 0.55, color: [0.7, 1, 0.35], zone: id } as Light);
         break;
       }
@@ -882,6 +1147,19 @@ export class BaseHooks implements InteriorHooks {
         g.rect(b.cx - 140, bot - 44, 280, 4).fill({ color: COL.chrome });
         g.rect(b.cx - 10, b.oy, 20, 30).fill({ color: COL.chromeDark });
         for (let k = 0; k < 5; k++) g.rect(b.ox + 30 + k * 18, b.oy + 50, 4, 40 + (k % 2) * 14).fill({ color: COL.chrome });
+        // A pegboard of tools (a wrench, a hammer, a saw), the bench's vice and drawers.
+        g.rect(b.ox + b.ow - 180, b.oy + 40, 140, 90).fill({ color: 0x3a3428 });
+        for (let y = b.oy + 48; y < b.oy + 126; y += 10) for (let x = b.ox + b.ow - 172; x < b.ox + b.ow - 44; x += 10) g.circle(x, y, 1).fill({ color: DC.grime });
+        const tx = b.ox + b.ow - 160;
+        g.rect(tx, b.oy + 52, 4, 46).fill({ color: COL.chrome });
+        g.circle(tx + 2, b.oy + 52, 6).stroke({ color: COL.chrome, width: 3 });
+        g.rect(tx + 34, b.oy + 56, 4, 44).fill({ color: 0x6a4a2e });
+        g.rect(tx + 26, b.oy + 52, 20, 9).fill({ color: COL.chromeDark });
+        g.poly([tx + 66, b.oy + 54, tx + 104, b.oy + 54, tx + 104, b.oy + 66, tx + 66, b.oy + 78]).fill({ color: COL.chrome });
+        g.rect(tx + 100, b.oy + 52, 8, 16).fill({ color: COL.red, alpha: 0.85 });
+        g.roundRect(b.cx + 90, bot - 60, 34, 16, 3).fill({ color: COL.chromeDark });
+        g.rect(b.cx + 100, bot - 74, 14, 14).fill({ color: COL.chrome });
+        for (let i = 0; i < 4; i++) g.rect(b.cx - 130 + i * 50, bot - 30, 40, 22).stroke({ color: DC.bevelLo, width: 1.2 });
         break;
       }
       case 'recomp': {
@@ -894,6 +1172,96 @@ export class BaseHooks implements InteriorHooks {
         g.circle(cx, (b.oy + bot) / 2, 30).fill({ color: COL.glassSea });
         this.screens.push({ x: cx, y: (b.oy + bot) / 2, radius: 160, intensity: 0.5, color: [0.75, 1, 0.4], zone: id } as Light);
         g.roundRect(b.ox + 40, bot - 80, 60, 80, 4).fill({ color: COL.wallDark });
+        // The door's locking wheel, bolts round the bands, gauges on the control box.
+        const dy = (b.oy + bot) / 2;
+        g.circle(cx, dy, 46).stroke({ color: COL.chromeDark, width: 3 });
+        for (let i = 0; i < 12; i++) {
+          const a = (i / 12) * Math.PI * 2;
+          rivet(g, cx + Math.cos(a) * 36, dy + Math.sin(a) * 36, 1.6);
+        }
+        for (const y of [b.oy + 54, bot - 36]) bolts(g, cx - 84, y, cx + 84, y, 21, 1.1);
+        for (const yy of [bot - 64, bot - 40]) {
+          g.circle(b.ox + 58, yy, 7).fill({ color: COL.chrome });
+          g.circle(b.ox + 58, yy, 5).fill({ color: 0xd8d4c4 });
+          g.moveTo(b.ox + 58, yy).lineTo(b.ox + 61, yy - 3).stroke({ color: COL.red, width: 1 });
+        }
+        pipeUp(g, b.ox + 86, b.oy + 20, bot - 80, 4, DC.copper, DC.copperHi);
+        break;
+      }
+      case 'hatch': {
+        // Milestone 9: an incubator bench of glass cradles under warm lamps, and a console.
+        const cr = this.cradles(r);
+        g.roundRect(b.ox + 30, bot - 46, b.ow - 170, 46, 6).fill({ color: COL.wallDark });
+        g.rect(b.ox + 30, bot - 46, b.ow - 170, 5).fill({ color: COL.chrome });
+        bolts(g, b.ox + 38, bot - 30, b.ox + b.ow - 150, bot - 30, 26, 1.2);
+        for (const q of cr) {
+          // A chrome stand, a shallow bowl of warm water, and a glass bell over it.
+          g.rect(q.x - 4, q.y + 16, 8, bot - 46 - q.y - 16).fill({ color: COL.chromeDark });
+          g.ellipse(q.x, q.y + 16, 34, 7).fill({ color: COL.chrome });
+          g.ellipse(q.x, q.y + 13, 30, 5).fill({ color: 0x1a3a3a });
+          g.moveTo(q.x - 30, q.y + 13).bezierCurveTo(q.x - 32, q.y - 40, q.x + 32, q.y - 40, q.x + 30, q.y + 13).stroke({ color: COL.chromeHi, width: 1.6, alpha: 0.5 });
+          g.moveTo(q.x - 22, q.y - 8).quadraticCurveTo(q.x - 16, q.y - 26, q.x - 4, q.y - 28).stroke({ color: 0xffffff, width: 2, alpha: 0.18 });
+          // A heat lamp hanging over each cradle.
+          g.rect(q.x - 1.5, b.oy + 40, 3, q.y - 48 - b.oy - 40).fill({ color: COL.chromeDark });
+          g.poly([q.x - 14, q.y - 48, q.x + 14, q.y - 48, q.x + 8, q.y - 58, q.x - 8, q.y - 58]).fill({ color: COL.chrome });
+          e.ellipse(q.x, q.y - 47, 10, 2.4).fill({ color: 0xffd890, alpha: 0.9 });
+          gl.ellipse(q.x, q.y - 10, 34, 40).fill({ color: 0xffc070, alpha: 0.16 });
+          this.screens.push({ x: q.x, y: q.y - 20, radius: 120, intensity: 0.55, color: [1, 0.8, 0.5], zone: id } as Light);
+        }
+        // The console: a screen of egg readouts and a warm keypad.
+        const kx = b.ox + b.ow - 70;
+        g.roundRect(kx - 40, bot - 96, 80, 96, 6).fill({ color: COL.wallDark });
+        g.roundRect(kx - 32, bot - 88, 64, 40, 3).fill({ color: 0x0c1418 });
+        for (let i = 0; i < 6; i++) e.rect(kx - 26 + (i % 3) * 18, bot - 82 + Math.floor(i / 3) * 16, 12, 9).fill({ color: 0xffd890, alpha: 0.35 + (i % 2) * 0.2 });
+        for (let i = 0; i < 4; i++) rivet(g, kx - 30 + i * 20, bot - 38, 1.6);
+        hazard(g, b.ox + 30, bot - 6, b.ow - 170, 6);
+        addText(sign('HATCHERY', kx, bot - 110, 9, 0xffd890, 0.75));
+        break;
+      }
+      case 'farm': {
+        // Milestone 9: two tiers of planter troughs under lime grow lamps, a seed console and a tray hatch.
+        for (const ty of this.farmTiers(r)) {
+          g.rect(b.ox + 110, ty, b.ow - 220, 14).fill({ color: COL.chromeDark });
+          g.rect(b.ox + 114, ty + 2, b.ow - 228, 8).fill({ color: 0x4a3a28 });
+          g.rect(b.ox + 110, ty, b.ow - 220, 2).fill({ color: COL.chromeHi, alpha: 0.5 });
+          bolts(g, b.ox + 116, ty + 12, b.ox + b.ow - 116, ty + 12, 30, 1);
+          // The lamp rail over the tier.
+          g.rect(b.ox + 110, ty - 70, b.ow - 220, 5).fill({ color: COL.chrome });
+          for (let x = b.ox + 130; x < b.ox + b.ow - 120; x += 60) {
+            e.rect(x - 14, ty - 65, 28, 3).fill({ color: COL.lime, alpha: 0.85 });
+            gl.ellipse(x, ty - 40, 26, 30).fill({ color: COL.lime, alpha: 0.08 });
+          }
+          this.screens.push({ x: b.cx, y: ty - 40, radius: b.ow * 0.5, intensity: 0.5, color: [0.75, 1, 0.45], zone: id } as Light);
+        }
+        for (const x of [b.ox + 104, b.ox + b.ow - 116]) g.rect(x, b.oy + 30, 12, bot - b.oy - 30).fill({ color: COL.chromeDark });
+        // Seed console (left) and the tray hatch (right).
+        const sx = b.ox + 56;
+        g.roundRect(sx - 34, bot - 84, 68, 84, 6).fill({ color: COL.wallDark });
+        g.roundRect(sx - 26, bot - 76, 52, 30, 3).fill({ color: 0x0c1418 });
+        addText(sign('CROP', sx, bot - 96, 9, 0xc6f03a, 0.75));
+        const tx = b.ox + b.ow - 56;
+        g.roundRect(tx - 34, bot - 64, 68, 64, 6).fill({ color: COL.chrome });
+        g.roundRect(tx - 28, bot - 58, 56, 34, 4).fill({ color: COL.wallDark });
+        for (let i = 0; i < 4; i++) rivet(g, tx - 26 + i * 17, bot - 14, 1.4);
+        addText(sign('TRAY', tx, bot - 76, 9, 0xd8dde0, 0.6));
+        hazard(g, b.ox + 110, bot - 6, b.ow - 220, 6);
+        break;
+      }
+      case 'revive': {
+        // Milestone 9: a still, warm pool in a brass rim, under a glass hood.
+        const py = bot - 34;
+        g.roundRect(b.cx - 170, py - 12, 340, 46, 18).fill({ color: 0xa8822e });
+        g.roundRect(b.cx - 160, py - 6, 320, 30, 14).fill({ color: 0x14221c });
+        bolts(g, b.cx - 160, py - 9, b.cx + 160, py - 9, 24, 1.3);
+        g.moveTo(b.cx - 150, py - 12).bezierCurveTo(b.cx - 140, b.oy + 10, b.cx + 140, b.oy + 10, b.cx + 150, py - 12).stroke({ color: COL.chromeHi, width: 2, alpha: 0.45 });
+        g.moveTo(b.cx - 100, py - 50).quadraticCurveTo(b.cx - 70, b.oy + 40, b.cx - 20, b.oy + 36).stroke({ color: 0xffffff, width: 3, alpha: 0.12 });
+        gl.ellipse(b.cx, py, 180, 40).fill({ color: 0xfff0c0, alpha: 0.14 });
+        this.screens.push({ x: b.cx, y: py - 10, radius: 260, intensity: 0.65, color: [1, 0.93, 0.7], zone: id } as Light);
+        for (const x of [b.cx - 220, b.cx + 220]) {
+          g.roundRect(x - 18, bot - 120, 36, 120, 6).fill({ color: COL.wallDark });
+          e.rect(x - 10, bot - 110, 20, 3).fill({ color: 0xfff0c0, alpha: 0.6 });
+        }
+        addText(sign('REVIVAL POOL', b.cx, b.oy + 54, 10, 0xfff0c0, 0.7));
         break;
       }
       case 'crane': {
@@ -905,6 +1273,14 @@ export class BaseHooks implements InteriorHooks {
         g.rect(b.cx - 1.5, b.oy + 72, 3, f0 - b.oy - 100).fill({ color: COL.chromeDark });
         g.roundRect(b.cx - 120, bot - 30, 240, 30, 6).fill({ color: COL.wallDark });
         g.rect(b.cx - 120, bot - 30, 240, 4).fill({ color: COL.gold, alpha: 0.8 });
+        // The trolley's wheels and motor, a hook block, the cradle's jaws and a stripe round it.
+        for (const x of [b.cx - 20, b.cx + 20]) g.circle(x, b.oy + 44, 5).fill({ color: COL.chrome });
+        g.rect(b.cx - 26, b.oy + 50, 52, 3).fill({ color: DC.grime, alpha: 0.8 });
+        g.roundRect(b.cx - 10, f0 - 30, 20, 16, 3).fill({ color: COL.chrome });
+        g.arc(b.cx, f0 - 8, 8, 0, Math.PI).stroke({ color: COL.chromeDark, width: 3.5 });
+        for (const x of [b.cx - 110, b.cx + 96]) g.rect(x, bot - 52, 14, 22).fill({ color: COL.chromeDark });
+        bolts(g, b.cx - 112, bot - 20, b.cx + 112, bot - 20, 28, 1.2);
+        hazard(g, b.cx - 120, bot - 6, 240, 6);
         break;
       }
     }
@@ -964,6 +1340,19 @@ export class BaseHooks implements InteriorHooks {
         d.poly([sx - 30, sy - 36, sx - 20, sy - 56, sx + 6, sy - 56, sx + 2, sy - 36]).fill({ color: COL.lime, alpha: 0.6 });
         de.circle(sx + 96, sy - 16, 4).fill({ color: 0xfff0b0 });
         de.circle(sx - 94, sy - 12, 3).fill({ color: COL.red });
+      }
+      if (r.kind === 'revive' && on) {
+        // Slow rings drifting out across the still, warm water.
+        const py = bot - 22;
+        for (let k = 0; k < 3; k++) {
+          const u = ((time * 0.25 + k / 3) % 1);
+          de.ellipse(b.cx, py, 20 + u * 130, 3 + u * 8).stroke({ color: 0xfff0c0, width: 1.4, alpha: 0.5 * (1 - u) });
+        }
+      } else if (r.kind === 'farm' && on) {
+        const f = c.farmCrop(id);
+        const tx = b.ox + b.ow - 56;
+        for (let k = 0; k < Math.min(4, f.tray); k++) d.roundRect(tx - 24 + k * 12, bot - 50, 10, 22, 2).fill({ color: 0xc8a050 });
+        de.rect(b.ox + 34, bot - 72, 44 * f.progress, 4).fill({ color: COL.lime, alpha: 0.85 });
       }
       if (r.kind === 'dome' && on) {
         const cx2 = b.ox + b.ow - 120;
@@ -1043,64 +1432,9 @@ export class BaseHooks implements InteriorHooks {
 
   private drawTank(r: Room, d: Graphics, de: Graphics, time: number, on: boolean): void {
     const t = this.tanks.find((q) => q.room === r)!;
-    const save = this.ctx.save;
-    const td = save.tankData[String(r.piece.id)];
-    // Plants growing from the sand.
-    const plants = [td?.plant, td?.plant2].filter(Boolean) as string[];
-    plants.forEach((pl, i) => {
-      const px = t.x + t.w * (0.25 + i * 0.5);
-      const base = t.y + t.h - 18;
-      for (let k = 0; k < 5; k++) {
-        const sway = Math.sin(time * 1.2 + k) * 8;
-        const hgt = pl === 'kelp' ? t.h * 0.7 : pl === 'coral' ? 50 : 70;
-        const color = pl === 'kelp' ? 0x6a8a3a : pl === 'coral' ? 0xd87060 : pl === 'fan' ? 0xc89040 : 0x7aa050;
-        d.moveTo(px - 20 + k * 10, base)
-          .quadraticCurveTo(px - 20 + k * 10 + sway, base - hgt * 0.5, px - 20 + k * 10 + sway * 1.5, base - hgt * (0.6 + 0.08 * k))
-          .stroke({ color, width: pl === 'kelp' ? 5 : 4, alpha: 0.85 });
-      }
-    });
+    void d;
     // Bubbles from the filter inlet, when powered.
     if (on) for (let i = 0; i < 8; i++) de.circle(t.x + t.w - 30 + Math.sin(time * 2 + i) * 4, t.y + t.h - 20 - ((time * 50 + i * 37) % (t.h - 30)), 2 + (i % 3)).fill({ color: 0xc8ffff, alpha: 0.35 });
-    // The creatures.
-    const list = creaturesIn(save, r.piece.id);
-    list.forEach((cr, i) => {
-      const look = SPECIES_LOOK[cr.species] ?? SPECIES_LOOK.glowfin;
-      const sz = cr.stage === 'grown' ? 1 : cr.stage === 'young' ? 0.6 : 0.4;
-      const seed = cr.id * 7.31;
-      if (cr.stage === 'egg') {
-        const ex = t.x + 40 + ((i * 97) % Math.max(1, t.w - 80));
-        for (let k = 0; k < 5; k++) de.circle(ex + (k % 3) * 7, t.y + t.h - 26 - Math.floor(k / 3) * 6, 4).fill({ color: look.glow, alpha: 0.7 });
-        return;
-      }
-      const span = t.w - 80;
-      const ph = time * (0.12 + (seed % 1) * 0.08) + seed;
-      const u = (Math.sin(ph) + 1) / 2;
-      const dir = Math.cos(ph) >= 0 ? 1 : -1;
-      let x = t.x + 40 + u * span;
-      let y = t.y + 40 + ((Math.sin(seed) + 1) / 2) * (t.h - 110) + Math.sin(time * 1.3 + seed) * 10;
-      if (look.kind === 'crab') y = t.y + t.h - 30;
-      if (look.kind === 'shrimp') x = t.x + 40 + ((seed * 31) % span);
-      const s = 22 * sz;
-      if (look.kind === 'fish') {
-        d.ellipse(x, y, s, s * 0.4).fill({ color: look.body });
-        d.poly([x - dir * s, y, x - dir * s * 1.6, y - s * 0.4, x - dir * s * 1.6, y + s * 0.4]).fill({ color: look.body });
-        de.circle(x + dir * s * 0.5, y - s * 0.1, 3 * sz + 1).fill({ color: look.glow });
-        de.moveTo(x - dir * s * 0.6, y).lineTo(x + dir * s * 0.3, y).stroke({ color: look.glow, width: 1.5, alpha: 0.7 });
-      } else if (look.kind === 'puff') {
-        d.circle(x, y, s * 0.7).fill({ color: look.body, alpha: 0.6 });
-        for (let k = 0; k < 6; k++) de.moveTo(x - s * 0.5 + k * s * 0.2, y + s * 0.5).lineTo(x - s * 0.5 + k * s * 0.2 + Math.sin(time * 3 + k) * 4, y + s * 1.4).stroke({ color: look.glow, width: 1.2, alpha: 0.6 });
-      } else if (look.kind === 'ray') {
-        const flap = Math.sin(time * 3 + seed) * s * 0.25;
-        d.poly([x + dir * s, y, x, y - s * 0.5 - flap, x - dir * s, y, x, y + s * 0.5 + flap]).fill({ color: look.body });
-        for (let k = 0; k < 4; k++) de.circle(x + (k - 1.5) * s * 0.3, y + ((k % 2) - 0.5) * s * 0.3, 2).fill({ color: look.glow, alpha: 0.7 });
-      } else if (look.kind === 'crab') {
-        d.ellipse(x, y, s * 0.6, s * 0.35).fill({ color: look.body });
-        for (let k = -2; k <= 2; k++) d.moveTo(x + k * s * 0.2, y + s * 0.2).lineTo(x + k * s * 0.35, y + s * 0.55).stroke({ color: look.body, width: 2 });
-        de.circle(x + s * 0.3, y - s * 0.3, 1.8).fill({ color: look.glow });
-      } else {
-        d.ellipse(x, y, s * 0.5, s * 0.18).fill({ color: look.body });
-        de.circle(x + dir * s * 0.55, y - s * 0.2, 3).fill({ color: look.glow });
-      }
-    });
+
   }
 }

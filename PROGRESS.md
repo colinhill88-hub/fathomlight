@@ -1,6 +1,6 @@
 # Fathomlight progress
 
-Last updated: 2026-11-17, **character animation session A deployed (the swimming diver)**. Next is **character animation session B, the walker** (prompt in `docs/prompts/animation-b.md`), then milestone 9, breeding. Before that: graphics sessions G1 to G4 are done.
+Last updated: 2026-11-17, **milestone 9 (breeding) deployed**, with Colin's two creature fixes (the same creatures indoors, and tending without leaving the base). Next is **milestone 10, the deep** (prompt in `docs/prompts/milestone-10.md`).
 
 Play link: https://colinhill88-hub.github.io/fathomlight/ (live; first successful deploy 2026-11-14)
 
@@ -1242,10 +1242,128 @@ Colin asked for a dedicated polish pass on the player character before milestone
 
 **Tested** (type check and production build pass; headless Chromium, software GL): every lab segment as frame strips (stationary, slow, fast, boost, glide and settle, restart, turn, diagonal, vertical up and down, turn while diving, boost from still), and in the real game at 844 × 390: surfaced and treading water, swimming, boost, diving and turning, with the lamp following the helmet. No console errors. **Not tested on a real iPhone.** Every number to tune is at the top of the relevant block in `animate()` and `animateLimbs()` (kick rates, amplitudes, spring speeds, breath periods).
 
+### Base interior art pass (2026-11-17, after character animation session B)
+Colin asked, from his PC screenshots, whether the indoor art could carry more detail. The measurements said yes: on his PC (RTX, 3840 × 2040, Ultra) the base interior's scene pass was 4.2 ms for only 77k triangles and 31 draws, against 3.2 ms for 351k triangles outdoors. So the interior's GPU cost is per pixel (16 lights and wall shadows summed on every pixel), not geometry, and static detail is close to free.
+
+**What changed** (all drawn once into the static layer when the base level is built; nothing per frame)
+- **A detail kit** (`src/interior/detail.ts`). Rooms now use it for:
+  - bevelled wall plates, lit along the top and shadowed underneath, with corner rivets, and now and then a vent grille, an access hatch, a pressure gauge, a red valve wheel or a label plate;
+  - grime and drips gathering above each floor, and a riveted skirting;
+  - a steel I-beam under every ceiling, with gussets and slack cables on clamps;
+  - a steel conduit along the wall in rooms whose wall is free (storage, sorter, lab, workshop, filter, dock), below the conveyor and pipe lanes;
+  - hazard stripes at machine bases, and bolted flanges.
+
+  The lighting reads relief from brightness edges, so the bevels and seams catch the lamps.
+- **Lamp fixtures:** each lamp hangs on two rods under the beam. **Its glow now sits on the lamp** (it used to be a wide ellipse hanging below it, which read as a smudge in mid-air).
+- **Floors and ceilings:** diamond tread on the deck tops, a plate edge and bolts under each deck, a bolted strip along each ceiling lip.
+- **Machine rooms** (left over from the walkable base, part 2): press (ribbed columns, two hydraulic cylinders, bolted bed and crosshead, warning stripe), feeder (hopper ribs, a chute, bolted vat bands, a sight window), filter (column bands and caps, pump motor fins, copper pipes), crane (trolley wheels, hook block, cradle jaws), recompression chamber (bolt ring on the door, gauges, a copper pipe), workshop (a tool pegboard, a vice, drawers), lab (screen bezels, sample racks, drawers), storage and sorter (perforated uprights, bracing), tanks (bolted frames, a level scale), dock (bolted gantry, winch drums), dome (console keys and bezels, airlock bolts), turbine (bolted generator housing, cable trunking).
+- **Outside the hull:** the black water behind the base now has a faint rock floor and the base's own support legs.
+- **The turbine room's gold power spine is toned down** (it bloomed harder than anything else in Colin's screenshot).
+
+**Measured** (the 40-piece benchmark base, `?bench&scene=6&still`, software GL)
+- Draw calls **29, unchanged**. Triangles for the whole base **122k to 255k**: the static art is one Graphics drawn every frame without culling, so this is the full base, not just what is on screen.
+- CPU per frame unchanged (5.2 ms against 5.4 to 5.6 before; noise in software GL). On Colin's PC the extra triangles should add a fraction of a millisecond at most, given that 351k outdoor triangles cost 3.2 ms. Worth a `?bench` run on the iPhone.
+
+**Tested:** type check and build; every room kind captured before and after at 844 × 390 (`docs/art/interior/art-*.jpg`). A bug found that way: two rooms (workshop and recompression) had lost their `break`, so each also drew the next room's art over itself. Both are fixed, and every room kind now ends in a `break` (storage and tank share theirs with sorter and gtank by design). **Not tested on a real iPhone.**
+
+**To check after Colin plays:** whether the detail reads on the phone or turns to noise (every piece is low contrast on purpose; the strongest accents are the hazard stripes and red valve wheels); and the camera's floor line (the base camera puts the floor 70% of the way down the screen, so a quarter of the screen is the dark under-floor at the bottom of the base: `ly` in `Interior.render`).
+
+### Character animation, session B: the walker (2026-11-17)
+The on-foot explorer (`src/actors/walker.ts`, used in the Corvina and the walkable base) got the same polish as the diver in session A. Physics, controls, collisions and the rendering set-up are unchanged.
+
+**Audit (what was wrong before)**
+- **One Graphics was cleared and redrawn every frame**: about 100 shapes re-tessellated, about 0.45 ms of JavaScript a frame (profiled in the lab, below).
+- **The feet slid.** The step rhythm ran on time, not distance, so a planted foot drifted along the floor at most speeds. There was no heel or toe, no rise and fall tied to the steps, and no weight shift.
+- **Turning was an instant flip.** Stopping snapped the legs straight, and landings had no response at all. The jump was one fixed pose.
+- **It was not the diver.** It had lighter chrome, a different small helmet and face, a lamp on the helmet instead of the shoulder lamp, a simpler suit and no dive bag. The grapple line and lamp beam started from fixed points, not the animated body.
+
+**What changed**
+- **Same person:** the walker is now built from the diver's own parts (exported from `diver.ts`): the same helmet with the face inside, crest, blue-steel collar yoke, coiled hose, regulator port, twin tanks and harpoon, brass-etched charcoal suit with chrome knee guards and red ankle straps, red gloves with chrome cuffs, hip thruster, **shoulder lamp** (the beam now starts there) and **the dive bag**, which appears with the same load as underwater and swings at the hip. The helmet's front glass is a separate **face plate** that lifts up and back.
+- **Prebuilt jointed pieces** (24 Graphics drawn once); each frame only moves and turns them. Nothing is created per frame.
+- **Walking with real foot contact:** two-bone IK legs. A planted foot is fixed in the world while the body passes over it: heel strike, flat, then the heel rises over the ball while the fin blade stays flat on the floor (toe-off). The swing foot leaves at once and slows into its footfall, and the hips lower to meet it. Stride and cadence follow speed. **Full speed (270 units/s) is about 5 m/s for a person this size**, so the top end is a heavy jog with a short flight, and partial stick is a walk. There is rise and fall (vaulting over the leg when walking, sinking into it when jogging), opposing arm swing that lags slightly, a little shoulder twist, lean with speed, and the tanks, hose and bag bounce with each step.
+- **Starting:** the first strides are shorter and the arm swing, bob and lean build up. **Stopping:** the foot in the air lands where it was heading, the other comes up beside it and the body settles into a balanced, slightly staggered stance. The torso pitches with braking and settles (a soft spring). **Turning:** a quick mirror that never goes thinner than a third (like turning through a front view), with a dip and a step round to the new side.
+- **Standing:** breathing (the same breath shape as the diver's, faster after effort), a slow weight shift from foot to foot with the unweighted heel resting up a touch, glances and blinks (shared with the diver).
+- **Jump:** the feet push off the floor last (a quick crouch and push, since the physics jumps on the press), the knees tuck on the way up, then the legs reach down for the landing. **Falling:** the arms rise for a long fall. **Landing:** the knees absorb, scaled by fall speed, and the torso, arms, head and tanks follow through and settle.
+- **Grapple:** the near arm points at the hook as it flies. Reeling in, the legs trail. Hanging, both hands are on the line in front of the helmet and the legs sway as a pendulum. The line now leaves from the animated hand.
+- **Ladders:** hands and feet grip rungs (fixed in the world while they hold, a hand with the opposite foot), three rungs per move. Holding still, any hand or foot between rungs settles onto one. Stepping off the bottom, the feet step down to the floor.
+- **Working** (holding Collect at a console, rack or tank window): the near hand reaches out and works at it, with a slight lean and the head down.
+- **Hand-off with the swimming diver:** entering the Corvina or the base, the explorer arrives in a crouch (climbed in), stands up, and lifts the face plate after a moment. Holding Collect to leave (the Corvina's hatch or the base's airlock) **shuts the face plate first**, so the sealed helmet matches the diver who appears outside.
+- **Shared helpers** (`src/actors/animkit.ts`): a damped spring, breath shape, glance and blink timing, smoothstep and clamp. The diver now uses them too (same numbers, same behaviour). `batchAll()` keeps a character's pieces in one draw batch.
+
+**Animation lab:** `animlab.html?walker`. A 61-second script runs through the interior's own movement rules (`interior.ts` constants are now exported): standing, slow walk (stick 0.3), walk (0.6), full speed, stop, set off and turn, turn while walking, turn on the spot, standing jump, short hop, running jump, walking off a ledge, grapple fire, reel in and hang, swing off, ladder up, hold and down, working at a console. The tiled floor scrolls under the walker so any sliding shows against the seams. It shows gameplay scale (560 units to the screen height) on the left and 3x on the right. `?seg=N`, `?frozen` with `__lab.step(s)`, `__lab.footCheck(s)` (measures how far each heel and ball moves while it is planted, and how far any foot ends up from where the animation wanted it), `__lab.loop(n)` and `__lab.bench(n)`. `animlab.html?compare` stands the diver and walker side by side at one scale, and `&old` swaps in the walker as it was (`src/dev/walker_old.ts`, kept only for before and after measurements).
+
+**Measured** (headless Chromium, software GL)
+- **Foot contact:** the worst slide of a planted heel or ball over the whole script is **0.13 units** (before: the whole stride slid). Feet reach their targets everywhere (worst under 2 units) except the brief edge-on moment of a turn.
+- **CPU, profiled (simulate + animate + render, per frame):** walker JavaScript **0.07 to 0.09 ms, was 0.44 to 0.47 ms**. `animate()` alone is about 0.005 ms, was 0.05 ms (the old one rebuilt its drawing). The new walker uploads about 4,000 vertices a frame (one batch) against 2,600 before, because of the diver's detail. The software GL's own time per frame rose with that (1.4 to 2.5 ms, emulated GPU), which on a real GPU is trivial.
+- **Draw calls:** base interior (`?bench&scene=6&still`) **29, unchanged**. The diver's pieces are now batched too: **shallows 241 to 230, grotto 172 to 161** (these counts include every pass in this browser, so they are higher than session A's numbers).
+- Diver update unchanged at about 0.012 ms.
+
+**Tested:** type check and production build. Frame strips of every lab segment and a numeric foot-contact check, plus in-game at 844 × 390 in the Corvina (arriving, the plate lifting, walking, jumping, stopping, turning, with the beam swapping sides) and the base. Holding at the hatch shuts the plate and letting go reopens it (stepped test). No console errors. **Not tested on a real iPhone.** Strips: `docs/art/animation/b-*.jpg` (walk-slow, walk-full, stop-turn, turn-spot, jump, land, hang-climb, climb, compare, in-game-corvina, in-game-base).
+
+**Left over / to check after Colin plays**
+- **Gameplay speeds are fast for a person:** walking 270 is about 5 m/s (so full stick jogs) and climbing 210 is about 4 m/s (so the hands move three rungs at a time, briskly). The animation follows them honestly. If walking should look calmer, lower `WALK` in `interior.ts` (a gameplay change, Colin's call).
+- **Size:** the water view shows 640 units to the screen height and the interiors 560, and the diver is drawn about 1.4 times larger in world units, so on screen the diver is about 1.25 times the walker. The diver's legs are also shorter in proportion (they kick bent). Making the walker bigger needs taller doors and collision (`HEIGHT` 84).
+- Tuning numbers are at the top of `walker.ts` (proportions, rung spacing, climb stride) and in `ground()` (stride `D`, duty `beta`, lift, bob), `air()`, `hang()` and `climb()`.
+- No steam-vent flinch (a hit just throws the walker into the jump pose).
+
+
+### Milestone 9: breeding (2026-11-17)
+Colin's feedback first (after the walker and the interior art pass): the animation and room detail are liked. Two changes asked for, both done before breeding:
+
+**1. The same creatures indoors as outside.** The tank rooms used to draw pixel blobs. Now they show the very same creatures (`Critter`, from `src/actors/critters.ts`) and plants as the tanks outside, swimming by the same rules, at 1.45 times the outside size (`TANK_SCALE` in `src/interior/baselevel.ts`). `TankLife` (`src/world/tanklife.ts`) now takes options (where the water is, a scale, plant clumps), and the base's rooms run their own copy of it. Indoors you see the plants you planted as several clumps along the sand, swaying gently; flakes sink and get eaten after a feed, the water clouds and algae creeps up the glass as it gets dirty, and bubbles rise after a scrub. Sick creatures go pale and sink, eggs sit on the sand. The single tank's window is taller (it now reaches the railing).
+- **How it works:** the interior has a new pair of hooks, `attach` and `detach`, which put real actors into its lit, emissive and glow layers (between the room art and the walker), and a `tick` that moves them every frame.
+
+**2. Tending stays indoors.** Hold Collect at a tank window and tap Tend: the care panel opens on the right, the camera eases in on the tank (`Interior.focus`), and the walker waits at the glass. Picking a creature rings it in the tank. Feed, clean, plant, To jar and Release work as before, with their effects in the indoor tank. ✕ or Esc closes the panel and the camera goes back to the walker. The panel's header now uses the painted stencil code (TANK 2, GT-1), so it matches the room's sign (it used to count tanks west to east, so the numbers disagreed).
+
+**Milestone 9, Colin's choices** (asked before building): pairs in a tank breed, with a Hatchery; colour and glow pattern as traits, with a rare "radiant" glow that matters in play; the Kelp farm grows fibre or plant cuttings; a grown glowfin escort plus one more creature key; and a small Revival pool now; one egg about every 6 minutes per pair.
+
+**Inherited traits** (`src/game/traits.ts`)
+- **Colour:** four per species. The first three appear in the wild (55%, 30%, 15%); the fourth is rare and only ever appears by mutation. Glowfin: coral, tide blue, kelp gold, rare moonpale (full palettes). The others are a tint over the drawing: puffcap peach, rose, lemon, rare sea-glass; ray sand, slate, moss, rare midnight; crab rust, olive, brick, rare steel blue; shrimp amber, ruby, clearwater, rare gilded. Glow stays warm in every colour (cyan, violet and magenta stay the Choir's).
+- **Glow pattern:** three per species, the arrangement of the glowing marks (glowfin side line, spotted, banded; puffcap polka dots, rim lights, starburst; ray tail light, dappled glow, ring glow; crab eye shine, shell spots, claw tips; shrimp side lights, banded, tail lantern). Young glowfins now show a faint pattern too.
+- **Radiant:** a wider, brighter halo and a soft aura. A radiant creature makes 25% more (`RADIANT_MAKE`), and a radiant glowfin's escort light reaches 60% further (`RADIANT_LIGHT`).
+- **Inheritance:** colour and pattern each come from one parent or the other; 8% chance of a mutation for each (`MUTATION`), which is the only way to the rare colour. Radiant: 4% with no radiant parent, 35% with one, 75% with two (`RADIANT_ODDS`). Each egg is one generation after its parents.
+- Wild creatures show their traits too, and the one you catch keeps them in the jar and the tank. Creatures from older saves get wild traits fixed by their id (so their colours may differ from before).
+- The care panel shows them under the name ("Moonpale, banded · radiant · 3rd generation, bred at the base"), rare ones in gold, and the radiant bonus in the output line.
+
+**Breeding and the Hatchery** (`HX-1`, 2 × 1, `resin 4, quartz 3, moss 2, copper 2`, 36 s; no blueprint)
+- Two **happy, grown** creatures of one species in a tank are a breeding pair (`pairsIn`). While the base has a finished, **powered** Hatchery with room, each pair lays an egg about every **6 minutes** (`BREED_SECONDS`), straight into the Hatchery. Its traits come from two of the happy grown ones.
+- A Hatchery holds **4** eggs and young (`HATCH_CAP`; more Hatcheries hold more). Eggs hatch there in 90 s. The young wait in their cradle (they don't get hungry) until you place them.
+- **Indoors:** four glass cradles under heat lamps, with the real eggs and young in them (the young circle slowly under the bells), and a console. Hold Collect at the console: the Hatchery panel opens (in the care panel's frame, the camera on the cradles) with each egg or young, its traits, and a button per tank (full tanks greyed out) or To jar.
+- The care panel says how breeding is going for each grown creature: needs a mate, needs a Hatchery, no power, the Hatchery is full, or the next egg in about N minutes.
+- Toasts when an egg is laid (with its traits) and when one hatches.
+- **New egg drawings:** a dapple ray egg case (a leathery pouch with tendrils), a puffcap polyp (stalked buds), and amber and coral clutches for crabs and shrimp.
+
+**The Kelp farm** (`KF-1`, 2 × 1, `fibre 4, resin 3, quartz 2, copper 2`, 32 s; no blueprint; Echo whorls fit)
+- **Fibre:** with power it grows one kelp fibre every 150 s (`FARM_SECONDS`, faster with whorls) into its own tray of 4 (`FARM_TRAY`). A full tray pauses it. Up to 2 conveyors out: a conveyor straight into an **auto feeder** closes the feeding loop with no puffcaps needed, or into storage. Or take the tray by hand indoors.
+- **Cuttings:** switch it (Collect at the CROP console indoors; it cycles through kelp fibre and every tank plant you have scanned) to grow cuttings of a plant: one every 200 s, up to 3 of each kind kept ready (`CUTTING_SECONDS`, `CUTTING_CAP`). Planting a tank uses a cutting instead of materials (the planter buttons show "cutting (2 ready)").
+- **Indoors:** two tiers of planter troughs under lime grow lamps, with the real crop growing taller as the next harvest nears and swaying in the pumped water, a CROP console with a progress bar, and the TRAY hatch with fibre bundles stacked in it.
+- Rules: the top of `src/game/factory.ts` and the farm block in `Factory.tick`.
+
+**Creatures as keys**
+- **A grown glowfin lights a passage the dive light cannot** (`src/actors/escort.ts`). Take a grown glowfin out of a tank (To jar). Outside, it swims at your shoulder as a warm light (radius 340, ×1.6 when radiant). In the **kelp caves**, a new passage drops from the floor of the **junction** (the chamber with the air pocket) into **lightless water**: without a glowfin the dive light shrinks to almost nothing and you can't swim more than a little way in (the banner says why). With one, the darkness thins and its light shows the way down to a **hidden grotto** with: a **puffcap polyp** and a **dapple ray egg case** (the first wild eggs of either), three **glowing blooms**, and an **Echo whorl**. New cave shapes `KC.glowPassage` and `KC.glowGrotto` in `src/world/terrain.ts`; the lightless haze is `buildLightless` in `scenery.ts`.
+- **A grown tinker crab picks a lock.** In the wreck shelf's **hidden room** (behind the silt slump the sonar pulse reveals) there is now a rusted **strongbox** whose padlock is seized and too small for the cutter. With a grown tinker crab in the jar, hold Collect: the crab picks it, and inside are the **Revival pool drawings** (a data find for the Lab). This is the "side area of the wreck shelf" DESIGN.md asked for.
+
+**The Revival pool** (`RP-1`, 2 × 1, `brass 4, quartz 4, moss 3, plate 2`, 44 s; blueprint from the strongbox, decoded in a Lab in 90 s)
+- A new material, the **glowing bloom** (0.3 kg; "grows only where no lamp has ever shone"). For now the blooms grow in the hidden grotto (they regrow like other materials); the deep zones will have more.
+- Indoors: a warm, still pool in a brass rim under a glass hood. Hold Collect: one bloom wakes one dormant creature (the save already counted them since milestone 4). It comes back **young**, with wild traits, into your specimen jar (the jar must be empty).
+
+**Also**
+- Build cards for the three pieces, with icons; their drawings outside (`drawHatchery`, `drawFarm`, `drawRevive` in `basegfx.ts`); their stencil codes HX-, KF-, RP-.
+- Moving a grown glowfin or tinker crab into the jar says what it can do.
+
+**Tested** (headless Chromium at 844 × 390; the cloud has no GPU): type check and production build, no console errors; every new room and both indoor-tank views captured (`docs/art/milestone9/`); the Hatchery panel; a scripted breeding run (no Hatchery: no eggs in 400 s; with one: an egg after 360 s with a parent's colour, hatching 90 s later); the lightless gate (blocked without a glowfin, open with one) and the strongbox prompt. **Not tested on a real iPhone or Colin's PC.**
+
+**Left over / to check after Colin plays**
+- Numbers: `BREED_SECONDS` 360, `HATCH_CAP` 4, `MUTATION` 0.08, `RADIANT_ODDS`, `RADIANT_MAKE` 1.25, `RADIANT_LIGHT` 1.6 (`traits.ts`, `creatures.ts`); farm 150 s / 200 s / tray 4 / 3 cuttings (`factory.ts`); escort radius 340 (`escort.ts`); `TANK_SCALE` 1.45; the three pieces' costs in `PIECES`.
+- Whether the indoor tank creatures read well on the phone at 1.45× (and whether the Grand tank, whose window spans two floors, wants them bigger).
+- A grown glowfin in the jar is out with you, so it isn't in a tank making quartz. On a blackout the crew put it back in its tank (as before). A young one from the Hatchery or the Revival pool, which has no tank yet, now goes back to the Hatchery (if the base has none, it swims home and is lost).
+- Wild glowfin, puffcap and ray colours in the world changed slightly (their traits now pick their look).
+- **Mixed tanks (Colin's long-term goal):** breeding pairs are counted per species in a tank, so a mixed tank of two pairs breeds both. Tank upgrades and new partner species are still to plan.
+
 ## Next
 
-**Next session: character animation session B, the walker** (prompt in `docs/prompts/animation-b.md`). After that: **milestone 9, breeding** (prompt in `docs/prompts/milestone-9.md`, questions in DESIGN.md), unless Colin reorders. The four graphics sessions are done; what is left of the graphics plan is tuning from Colin's testing (every effect is a toggle and a number in `src/presets.ts`) and his PC and iPhone `?bench` tables, which are still to come. Graphics ideas not done: refraction through glass, cave rock-pillar backdrops, hand-placed shine lines, more bioluminescent detail on the shelf.
-- **Left over from the walkable base:** more detail in the machine rooms (feeder, press, filter, sorter, crane), line code plates indoors, and a sound for the lines and machines. Do these alongside a later milestone if Colin asks.
+**Next session: milestone 10, the deep** (prompt in `docs/prompts/milestone-10.md`): pressure suit tiers, sub depth plating, the trench zone and the Signal array story fragments. Milestone 9 left the glowing bloom and the Revival pool ready for the deep zones (more blooms there), and the creature keys are a pattern to reuse (a creature that opens something in the trench). The four graphics sessions are done; what is left of the graphics plan is tuning from Colin's testing (every effect is a toggle and a number in `src/presets.ts`) and his PC and iPhone `?bench` tables, which are still to come. Graphics ideas not done: refraction through glass, cave rock-pillar backdrops, hand-placed shine lines, more bioluminescent detail on the shelf.
+- **Left over from the walkable base:** line code plates indoors, and a sound for the lines and machines (the machine-room detail was done in the interior art pass). Do these alongside a later milestone if Colin asks.
 - **The harpoon:** decoration on the Crest diver for now; use its design for later tools and weapons.
 
 Where things are (on foot):
@@ -1253,8 +1371,9 @@ Where things are (on foot):
 - its lighting: `src/interior/light.ts`;
 - the Corvina's map: `src/interior/corvina.ts`;
 - the base's rooms: `src/interior/baselevel.ts` (`buildBaseLevel` builds the map from the layout; `BaseHooks` draws each room and says what you can do in it);
-- the walker: `src/actors/walker.ts`;
-- the hand-off: `src/main.ts` (`enterBase`, `exitBase`, `peekOut`, `backInside`, `simBase`, `interiorFrame`).
+- the walker: `src/actors/walker.ts` (built from the diver's parts; shared animation helpers in `src/actors/animkit.ts`; lab: `animlab.html?walker`);
+- the hand-off: `src/main.ts` (`enterBase`, `exitBase`, `peekOut`, `backInside`, `simBase`, `interiorFrame`);
+- milestone 9: traits `src/game/traits.ts`, breeding in `src/game/creatures.ts` (bottom), the Hatchery panel `src/ui/hatch.ts`, the glowfin escort `src/actors/escort.ts`, indoor tanks via `TankLife` in `BaseHooks` (`attach`, `tick`, `tankFocus`, `roomFocus`).
 
 ## Problems and open questions
 

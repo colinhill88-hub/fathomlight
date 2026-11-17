@@ -65,7 +65,7 @@ export function onSeabed(gx: number, gy: number): boolean {
 /** How many cells of the site are open water. */
 export const OPEN_CELLS = OPEN.filter(Boolean).length;
 
-export type PieceKind = 'dome' | 'corridor' | 'turbine' | 'storage' | 'tank' | 'filter' | 'feeder' | 'press' | 'dock' | 'lab' | 'workshop' | 'gtank' | 'sorter' | 'recomp' | 'crane';
+export type PieceKind = 'dome' | 'corridor' | 'turbine' | 'storage' | 'tank' | 'filter' | 'feeder' | 'press' | 'dock' | 'lab' | 'workshop' | 'gtank' | 'sorter' | 'recomp' | 'crane' | 'hatch' | 'farm' | 'revive';
 /** Creature tanks of either size (milestone 7 part 2 added the Grand tank). */
 export function isTankKind(k: PieceKind): boolean {
   return k === 'tank' || k === 'gtank';
@@ -291,8 +291,36 @@ export const PIECES: Record<PieceKind, PieceDef> = {
     blueprint: 'crane',
     shapes: [{ w: 2, h: 2, collars: [{ cx: 0, cy: 0, dir: 'L' }, { cx: 1, cy: 0, dir: 'R' }] }],
   },
+  // Milestone 9: breeding (Colin's choices: pairs breed in their tank, the Hatchery incubates).
+  hatch: {
+    kind: 'hatch',
+    name: 'Hatchery',
+    job: 'Happy grown pairs in the base\'s tanks lay eggs now and then: the Hatchery collects them and keeps them warm (4 at a time). Choose a tank for each young one that hatches. Colour and glow pattern pass from parent to young.',
+    cost: { resin: 4, quartz: 3, moss: 2, copper: 2 },
+    buildTime: 36,
+    shapes: [{ w: 2, h: 1, collars: [{ cx: 0, cy: 0, dir: 'L' }, { cx: 1, cy: 0, dir: 'R' }, { cx: 0, cy: 0, dir: 'U' }] }],
+  },
+  farm: {
+    kind: 'farm',
+    name: 'Kelp farm',
+    job: 'Grows kelp fibre under lamps, into its own tray, so a conveyor can carry it to an auto feeder or storage. Or switch it to grow cuttings of a tank plant you have scanned: planting with a cutting costs nothing.',
+    cost: { fibre: 4, resin: 3, quartz: 2, copper: 2 },
+    buildTime: 32,
+    ports: { beltOut: 2 },
+    whorls: true,
+    shapes: [{ w: 2, h: 1, collars: [{ cx: 0, cy: 0, dir: 'L' }, { cx: 1, cy: 0, dir: 'R' }, { cx: 1, cy: 0, dir: 'U' }] }],
+  },
+  revive: {
+    kind: 'revive',
+    name: 'Revival pool',
+    job: 'Wakes a dormant creature with one glowing bloom: it comes back young, into your jar.',
+    cost: { brass: 4, quartz: 4, moss: 3, plate: 2 },
+    buildTime: 44,
+    blueprint: 'revive',
+    shapes: [{ w: 2, h: 1, collars: [{ cx: 0, cy: 0, dir: 'L' }, { cx: 1, cy: 0, dir: 'R' }] }],
+  },
 };
-export const PIECE_ORDER: PieceKind[] = ['dome', 'corridor', 'turbine', 'storage', 'tank', 'filter', 'feeder', 'press', 'dock', 'lab', 'workshop', 'gtank', 'sorter', 'recomp', 'crane'];
+export const PIECE_ORDER: PieceKind[] = ['dome', 'corridor', 'turbine', 'storage', 'tank', 'filter', 'feeder', 'press', 'dock', 'lab', 'workshop', 'gtank', 'sorter', 'recomp', 'crane', 'hatch', 'farm', 'revive'];
 /** Each sorting pod's bay for every material. */
 export const SORT_BAY = 12;
 
@@ -528,6 +556,9 @@ const CODE_PREFIX: Record<PieceKind, string> = {
   sorter: 'SP-',
   recomp: 'RC-',
   crane: 'SC-',
+  hatch: 'HX-',
+  farm: 'KF-',
+  revive: 'RP-',
 };
 
 /** A piece's stencil code, as painted on it: CT-1, AF-2, PP-1, TANK 3. Pieces are numbered per kind in build order. */

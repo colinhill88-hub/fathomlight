@@ -673,6 +673,109 @@ function drawCrane(n: number): PieceArt {
   return { body, windows, windowGlow, lamp: { x: 45, y: 20 } };
 }
 
+/**
+ * Hatchery HX-1 (milestone 9): a rounded incubator hull with a window strip of
+ * egg cradles, warm under lamps, and a little egg-cup crane on top.
+ */
+function drawHatchery(n: number): PieceArt {
+  const W = CELL * 2;
+  const H = CELL;
+  const body = new Container();
+  const g = body.addChild(new Graphics());
+  const windows = new Graphics();
+  const windowGlow = new Graphics();
+  tubeH(g, 0, 18, H / 2, 1);
+  tubeH(g, W - 18, W, H / 2, 1);
+  g.roundRect(14, 12, W - 28, H - 22, 22).fill({ color: PAL.steel });
+  g.roundRect(20, 16, W - 40, 8, 4).fill({ color: 0xffffff, alpha: 0.12 });
+  g.roundRect(14, H - 34, W - 28, 24, 10).fill({ color: PAL.steelDeep, alpha: 0.5 });
+  // The cradle window: four cups in a row, each a warm pool of light.
+  g.roundRect(28, 34, W - 56, 36, 10).fill({ color: PAL.steelDark });
+  g.roundRect(28, 34, W - 56, 36, 10).stroke({ color: PAL.chrome, width: 2 });
+  for (let i = 0; i < 4; i++) {
+    const cx = 48 + i * ((W - 96) / 3);
+    g.ellipse(cx, 62, 13, 5).fill({ color: PAL.chrome });
+    windows.ellipse(cx, 52, 10, 12).fill({ color: 0xffd890, alpha: 0.45 });
+    windows.circle(cx - 2, 56, 3.4).fill({ color: 0xf2f6c8, alpha: 0.9 });
+    windows.circle(cx + 3, 57, 2.8).fill({ color: 0xf2f6c8, alpha: 0.8 });
+  }
+  windowGlow.roundRect(22, 28, W - 44, 48, 14).fill({ color: 0xffd080, alpha: 0.28 });
+  goldTraces(g, 30, H - 22, W - 60, 3);
+  rivets(g, 22, 20, W - 22, 20, 14);
+  body.addChild(stencil(`HX-${n}`, W - 44, H - 16, 6));
+  streaks(g, 16, W - 16, 26, 10, 14);
+  algaeLine(g, 14, W - 14, H - 10, 18);
+  return { body, windows, windowGlow, lamp: { x: 26, y: 14 } };
+}
+
+/**
+ * Kelp farm KF-1 (milestone 9): a long glass grow house with fronds of kelp
+ * rising from planters under a rail of lime grow lamps.
+ */
+function drawFarm(n: number): PieceArt {
+  const W = CELL * 2;
+  const H = CELL;
+  const body = new Container();
+  const g = body.addChild(new Graphics());
+  const windows = new Graphics();
+  const windowGlow = new Graphics();
+  tubeH(g, 0, 18, H / 2, 1);
+  tubeH(g, W - 18, W, H / 2, 1);
+  g.roundRect(12, 10, W - 24, H - 18, 8).fill({ color: PAL.steelDark });
+  g.rect(18, 22, W - 36, H - 44).fill({ color: 0x163a30 });
+  // Planter troughs and the fronds growing out of them.
+  g.rect(18, H - 30, W - 36, 10).fill({ color: 0x5a4a32 });
+  for (let i = 0; i < 9; i++) {
+    const x = 26 + i * ((W - 52) / 8);
+    const h = 30 + ((i * 37) % 13);
+    g.moveTo(x, H - 30).bezierCurveTo(x + 6, H - 30 - h * 0.4, x - 6, H - 30 - h * 0.7, x + 2, H - 30 - h).stroke({ color: i % 2 ? 0x7a8a3a : 0x6a7a30, width: 3.2, cap: 'round' });
+    g.ellipse(x + 2, H - 30 - h * 0.6, 3, 1.6).fill({ color: 0xa8923e });
+  }
+  // The grow-lamp rail.
+  g.rect(18, 18, W - 36, 5).fill({ color: PAL.chrome });
+  for (let i = 0; i < 5; i++) {
+    const x = 32 + i * ((W - 64) / 4);
+    windows.rect(x - 8, 23, 16, 3).fill({ color: PAL.lampOn });
+    windowGlow.ellipse(x, 40, 18, 22).fill({ color: PAL.glass, alpha: 0.16 });
+  }
+  // Glass glints, a frame bar, and the tray hatch on the right.
+  for (const gx of [0.3, 0.68]) g.poly([18 + (W - 36) * gx, 22, 18 + (W - 36) * gx + 8, 22, 18 + (W - 36) * gx - 10, H - 22, 18 + (W - 36) * gx - 18, H - 22]).fill({ color: 0xffffff, alpha: 0.06 });
+  g.rect(W / 2 - 2, 18, 4, H - 36).fill({ color: PAL.steel });
+  hazardBand(g, 12, H - 18, W - 24, 8);
+  rivets(g, 16, 14, W - 16, 14, 14);
+  body.addChild(stencil(`KF-${n}`, 44, H - 13, 6));
+  algaeLine(g, 12, W - 12, H - 8, 20);
+  return { body, windows, windowGlow, lamp: { x: W - 22, y: 12 }, whorlAt: { x: W - 34, y: H - 40 } };
+}
+
+/**
+ * Revival pool RP-1 (milestone 9): a low brass-rimmed basin under a glass
+ * hood, its still water lit warm from below.
+ */
+function drawRevive(n: number): PieceArt {
+  const W = CELL * 2;
+  const H = CELL;
+  const body = new Container();
+  const g = body.addChild(new Graphics());
+  const windows = new Graphics();
+  const windowGlow = new Graphics();
+  tubeH(g, 0, 18, H / 2, 1);
+  tubeH(g, W - 18, W, H / 2, 1);
+  g.roundRect(14, 30, W - 28, H - 40, 12).fill({ color: PAL.steel });
+  g.moveTo(26, 34).bezierCurveTo(30, 4, W - 30, 4, W - 26, 34).fill({ color: 0x86b3ae, alpha: 0.25 });
+  g.moveTo(26, 34).bezierCurveTo(30, 4, W - 30, 4, W - 26, 34).stroke({ color: PAL.chrome, width: 2 });
+  g.roundRect(30, 46, W - 60, 22, 10).fill({ color: 0xa8822e });
+  g.roundRect(34, 50, W - 68, 14, 7).fill({ color: 0x1a2620 });
+  windows.roundRect(36, 52, W - 72, 10, 5).fill({ color: 0xfff0c0, alpha: 0.6 });
+  windows.circle(W / 2, 57, 3).fill({ color: 0xffffff, alpha: 0.9 });
+  windowGlow.ellipse(W / 2, 50, W / 2 - 20, 26).fill({ color: 0xfff0c0, alpha: 0.25 });
+  rivets(g, 34, 48, W - 34, 48, 12);
+  goldTraces(g, 22, H - 20, W - 44, 3);
+  body.addChild(stencil(`RP-${n}`, W / 2, H - 14, 6));
+  algaeLine(g, 14, W - 14, H - 10, 18);
+  return { body, windows, windowGlow, lamp: { x: W - 30, y: 34 } };
+}
+
 /** Inside of a creature tank (local): the water the creatures swim in. */
 export const TANK_INNER = { x: 16, y: 16, w: CELL * 2 - 32, h: CELL - 30 };
 /** Milestone 7 part 2: the Grand tank's water, 3 × 2 cells. */
@@ -1204,6 +1307,9 @@ export function drawPiece(kind: PieceKind, n: number, rot: number, seed: number)
   if (kind === 'sorter') return drawSorter(n);
   if (kind === 'recomp') return drawRecomp(n);
   if (kind === 'crane') return drawCrane(n);
+  if (kind === 'hatch') return drawHatchery(n);
+  if (kind === 'farm') return drawFarm(n);
+  if (kind === 'revive') return drawRevive(n);
   if (kind === 'filter') return drawFilter(n);
   if (kind === 'feeder') return drawFeeder(n);
   if (kind === 'press') return drawPress(n);
@@ -1334,7 +1440,7 @@ export class BaseView {
       for (const w of l.whorls) this.dropWhorl(w);
       this.live.delete(id);
     }
-    const counts: Record<PieceKind, number> = { dome: 0, corridor: 0, turbine: 0, storage: 0, tank: 0, filter: 0, feeder: 0, press: 0, dock: 0, lab: 0, workshop: 0, gtank: 0, sorter: 0, recomp: 0, crane: 0 };
+    const counts: Record<PieceKind, number> = { dome: 0, corridor: 0, turbine: 0, storage: 0, tank: 0, filter: 0, feeder: 0, press: 0, dock: 0, lab: 0, workshop: 0, gtank: 0, sorter: 0, recomp: 0, crane: 0, hatch: 0, farm: 0, revive: 0 };
     for (const p of [...layout.pieces].sort((a, b) => a.id - b.id)) {
       counts[p.kind]++;
       if (this.live.has(p.id)) continue;

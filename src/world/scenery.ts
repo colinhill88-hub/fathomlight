@@ -30,6 +30,8 @@ import {
   ellTop,
   KC,
   KC_BOUNDS,
+  inLightless,
+  LIGHTLESS_EDGE,
   KC_FINDS,
   KC_PILLARS,
   KELP_WALL,
@@ -1296,6 +1298,7 @@ export class Scenery {
     decorLayer.addChild(this.kcDark);
     this.slices.push({ obj: this.kcDark, x0: 17300, x1: 18900 });
     this.buildBlackWater();
+    this.buildLightless(decorLayer);
     this.setKelpCaves([false, false, false, false], false);
   }
 
@@ -1498,6 +1501,7 @@ export class Scenery {
       this.setVane(0);
     }
     this.buildHidden();
+    this.buildLocker();
     this.setHidden(false);
     // Heavy salvage: a rusted winch drum, a propeller hub and an engine block, lying in the silt.
     SALVAGE.forEach((sv, i) => {
@@ -1539,6 +1543,56 @@ export class Scenery {
   setHidden(open: boolean): void {
     this.hiddenOpen.visible = open;
     this.hiddenShut.visible = !open;
+    this.lockerG.visible = open;
+  }
+
+  // ---- Milestone 9: the rusted strongbox in the hidden room (a grown tinker crab picks its lock) ----
+  private lockerG = new Container();
+  private lockerShut = new Graphics();
+  private lockerOpenG = new Graphics();
+  /** Where the strongbox sits. */
+  static readonly LOCKER = { x: 19404, y: 1563 };
+  private buildLocker(): void {
+    const { x, y } = Scenery.LOCKER;
+    const sh = this.lockerShut;
+    sh.ellipse(x, y + 2, 30, 5).fill({ color: 0x2a2826, alpha: 0.6 });
+    sh.roundRect(x - 24, y - 30, 48, 30, 3).fill({ color: 0x5a4434 });
+    sh.rect(x - 24, y - 30, 48, 6).fill({ color: 0x6a5240 });
+    for (const bx of [x - 18, x + 14]) sh.rect(bx, y - 30, 4, 30).fill({ color: 0x3e3028 });
+    // The seized padlock: tiny, crusted, too fine for a cutter.
+    sh.roundRect(x - 5, y - 20, 10, 9, 2).fill({ color: 0x8a6a3a });
+    sh.arc(x, y - 20, 3.6, Math.PI, 0).stroke({ color: 0x8a6a3a, width: 1.6 });
+    sh.circle(x, y - 15.5, 1.2).fill({ color: 0x2a2018 });
+    rustStreaks(sh, x - 20, x + 20, y - 24, 5, 10);
+    const op = this.lockerOpenG;
+    op.ellipse(x, y + 2, 30, 5).fill({ color: 0x2a2826, alpha: 0.6 });
+    op.roundRect(x - 24, y - 24, 48, 24, 3).fill({ color: 0x5a4434 });
+    op.roundRect(x - 21, y - 21, 42, 16, 2).fill({ color: 0x241c16 });
+    op.poly([x - 24, y - 24, x + 24, y - 24, x + 28, y - 46, x - 20, y - 50]).fill({ color: 0x6a5240 });
+    op.roundRect(x + 10, y - 4, 8, 6, 1).fill({ color: 0x8a6a3a });
+    this.lockerG.addChild(sh, op);
+    this.view.addChild(this.lockerG);
+    this.lockerG.visible = false;
+    this.setLocker(false);
+  }
+  setLocker(open: boolean): void {
+    this.lockerShut.visible = !open;
+    this.lockerOpenG.visible = open;
+  }
+
+  // ---- Milestone 9: the lightless passage and grotto under the kelp caves' junction ----
+  private kcLightless = new Graphics();
+  private buildLightless(decorLayer: Container): void {
+    const d = this.kcLightless;
+    // Soft layers that thicken going in from the edge, so the darkness swallows the passage gradually.
+    const fn = (x: number, y: number) => (inLightless(x, y) ? Math.max(caveField(x, y, false), 70 - Math.hypot(x - LIGHTLESS_EDGE.x, y - LIGHTLESS_EDGE.y) * 0.6) : 40);
+    for (let k = 0; k < 4; k++) traceField(d, (x, y) => fn(x, y) + k * 22, 16100, 17080, 1360, 1820, 8, 0x000000, 0.36);
+    decorLayer.addChild(d);
+    this.slices.push({ obj: d, x0: 16000, x1: 17200 });
+  }
+  /** How thick the lightless water looks (1: pitch black; less while a glowfin's light swims with you). */
+  setLightless(alpha: number): void {
+    this.kcLightless.alpha = alpha;
   }
 
   private salvageG = new Map<string, Graphics>();

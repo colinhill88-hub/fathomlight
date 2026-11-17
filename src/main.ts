@@ -34,6 +34,8 @@ import {
   caveFloor,
   inShape,
   inKelpCaves,
+  inLightless,
+  LIGHTLESS_EDGE,
   KC,
   KC_FINDS,
   KELP_WALL,
@@ -91,10 +93,13 @@ import { BaseView, BuildOverlay, storageCapacity } from './world/basegfx';
 import { BuildMode } from './ui/build';
 import { Wildlife } from './world/wildlife';
 import { TankLife } from './world/tanklife';
+import { Escort } from './actors/escort';
 import { CareMode } from './ui/care';
-import { creaturesIn, newCreature, SPECIES, tankCapacity, tankNumber, tickCare } from './game/creatures';
+import { creaturesIn, newCreature, payCost, PLANT_ORDER, PLANTS, SPECIES, SPECIES_ORDER, tankCapacity, tankNumber, tickCare } from './game/creatures';
+import { HatchPanel } from './ui/hatch';
+import { traitText, wildTraits } from './game/traits';
 import { RatesPanel } from './ui/rates';
-import { Factory, FEEDER_MASH_CAP, HOPPER_CAP, machineData, PRESS_COPPER_CAP, PRESS_PLATE_CAP, PRESS_SCRAP_CAP, whorlMult, whorlsFree } from './game/factory';
+import { Factory, FARM_TRAY, FEEDER_MASH_CAP, HOPPER_CAP, machineData, PRESS_COPPER_CAP, PRESS_PLATE_CAP, PRESS_SCRAP_CAP, whorlMult, whorlsFree } from './game/factory';
 import { LinesView } from './world/linegfx';
 import { StationMode } from './ui/station';
 import { DIVE_LIGHT, GEAR, hasGear, jobOf, jobRunning, LAMP, RESEARCH, tickStations } from './game/gear';
@@ -232,6 +237,9 @@ async function boot(): Promise<void> {
   // Milestone 8: wreck lurkers in their dens on the shelf.
   const lurkers = new Lurkers(LURKER_DENS);
   const tankLife = new TankLife();
+  // Milestone 9: a grown glowfin from the jar swims beside the diver as a light.
+  const escort = new Escort();
+  let llSafe = { x: 0, y: 0 };
   const schools = [
     new School(22, { x0: 1850, x1: 3500, y0: 200, y1: 380 }),
     new School(16, { x0: 6950, x1: 8250, y0: 300, y1: 450 }),
@@ -364,6 +372,7 @@ async function boot(): Promise<void> {
       linesView.view,
       pickups.view,
       wildlife.view,
+      escort.view,
       lurkers.view,
       ...schools.map((s) => s.view),
       ...fish.map((f) => f.view),
@@ -376,8 +385,8 @@ async function boot(): Promise<void> {
       scenery.over,
     );
     frontCam.addChild(scenery.front);
-    emissiveCam.addChild(scenery.emissive, baseView.emissive, tankLife.emissive, pickups.emissive, wildlife.emissive, lurkers.emissive, sub.emissive, drone.emissive, ...fish.map((f) => f.lure), diver.lens, surfaceFx.view);
-    glowCam.addChild(scenery.glow, baseView.glow, tankLife.glow, pickups.glow, wildlife.glow, lurkers.glow, sub.glow, drone.glow, ...fish.map((f) => f.halo), diver.lensGlow);
+    emissiveCam.addChild(scenery.emissive, baseView.emissive, tankLife.emissive, pickups.emissive, wildlife.emissive, escort.emissive, lurkers.emissive, sub.emissive, drone.emissive, ...fish.map((f) => f.lure), diver.lens, surfaceFx.view);
+    glowCam.addChild(scenery.glow, baseView.glow, tankLife.glow, pickups.glow, wildlife.glow, escort.glow, lurkers.glow, sub.glow, drone.glow, ...fish.map((f) => f.halo), diver.lensGlow);
   }
   populate();
 
@@ -459,11 +468,35 @@ async function boot(): Promise<void> {
     toast: (t, k) => hud.toast(t, k),
     refreshInventory: () => hud.refreshInventory(),
     persist: () => persist(),
-    fedFx: (id) => tankLife.feed(id),
-    scrubFx: (id) => tankLife.scrub(id),
-    changed: () => tankLife.sync(save, layout),
+    // Milestone 9: tending happens indoors too, so effects go to both views of the tank.
+    fedFx: (id) => {
+      tankLife.feed(id);
+      baseHooks?.tankLife.feed(id);
+    },
+    scrubFx: (id) => {
+      tankLife.scrub(id);
+      baseHooks?.tankLife.scrub(id);
+    },
+    changed: () => {
+      tankLife.sync(save, layout);
+      baseHooks?.syncTanks();
+    },
     released: (c) => wildlife.release(c.species, c.stage, save),
-    highlight: (id) => (tankLife.highlight = id),
+    highlight: (id) => {
+      tankLife.highlight = id;
+      if (baseHooks) baseHooks.tankLife.highlight = id;
+    },
+  });
+  // Milestone 9: the Hatchery's panel (it shares the care panel's frame).
+  const hatchPanel = new HatchPanel({
+    save,
+    layout,
+    toast: (t, k) => hud.toast(t, k),
+    persist: () => persist(),
+    changed: () => {
+      tankLife.sync(save, layout);
+      baseHooks?.syncTanks();
+    },
   });
   /** Give materials back: into storage while there is room, the rest carried. */
   function refund(cost: Partial<Record<keyof typeof save.bag, number>>): void {
@@ -719,7 +752,7 @@ async function boot(): Promise<void> {
     if (j.keep) {
       j.keep.tank = tankId;
       save.creatures.push(j.keep);
-    } else newCreature(save, j.species, j.stage === 'egg' ? 'egg' : 'young', tankId);
+    } else newCreature(save, j.species, j.stage === 'egg' ? 'egg' : 'young', tankId, j.traits);
     save.jar = null;
     tankLife.sync(save, layout);
     drone.cheer();
@@ -1232,12 +1265,34 @@ async function boot(): Promise<void> {
     for (const ev of tickCare(save, layout, dt)) {
       const name = SPECIES[ev.c.species].name;
       const where = `tank ${tankNumber(layout, ev.c.tank)}`;
+      // Milestone 9: breeding.
+      if (ev.type === 'laid') {
+        const tp = layout.pieces.find((q) => q.id === ev.parents[0].tank);
+        hud.toast(`A ${name.toLowerCase()} pair in ${tp ? pieceCode(layout, tp) : 'a tank'} laid an egg: it is in the Hatchery (${traitText(ev.c.species, ev.c.traits!)}).`, 'big');
+        if (!save.tips.includes('laid')) {
+          save.tips.push('laid');
+          setTimeout(() => hud.toast('Eggs hatch in the Hatchery. Then stand at its console inside the base and choose a tank for each young one.', 'big'), 2600);
+        }
+        persist();
+        continue;
+      }
+      if (ev.type === 'nursery-hatched') {
+        hud.toast(`A ${name.toLowerCase()} hatched in the Hatchery: ${traitText(ev.c.species, ev.c.traits!)}. Choose a tank for it at the Hatchery console.`, 'big');
+        baseHooks?.syncTanks();
+        persist();
+        continue;
+      }
       if (ev.type === 'hatched') hud.toast(`The ${name.toLowerCase()} eggs hatched in ${where}! The fry need feeding.`, 'big');
       else if (ev.type === 'grown') hud.toast(`The ${name.toLowerCase()} in ${where} is fully grown, and glows brighter`, 'big');
       else if (ev.type === 'sick') hud.toast(`The ${name.toLowerCase()} in ${where} is sick (${ev.why}). Tend it soon.`, 'warn');
       else if (ev.type === 'better') hud.toast(`The ${name.toLowerCase()} in ${where} is feeling better`);
       else if (ev.type === 'dormant')
-        hud.toast(`The ${name.toLowerCase()} in ${where} went dormant. Its remains are kept in storage until a Revival pool is found.`, 'warn');
+        hud.toast(
+          `The ${name.toLowerCase()} in ${where} went dormant. Its remains are kept in storage: ${
+            layout.pieces.some((q) => q.kind === 'revive') ? 'a glowing bloom in the Revival pool can wake it' : 'a Revival pool could wake it, if one were found'
+          }.`,
+          'warn',
+        );
       else if (ev.type === 'made') {
         const belt = save.lines.some((l) => l.kind === 'belt' && l.from === ev.c.tank);
         hud.toast(`+1 ${MATERIALS[ev.kind].name} from the ${name.toLowerCase()} (${belt ? 'on the conveyor' : `in ${where}'s output tray`})`);
@@ -1253,7 +1308,10 @@ async function boot(): Promise<void> {
           );
         }
       }
-      if (ev.type !== 'made' && ev.type !== 'better') tankLife.sync(save, layout);
+      if (ev.type !== 'made' && ev.type !== 'better') {
+        tankLife.sync(save, layout);
+        baseHooks?.syncTanks();
+      }
       persist();
     }
 
@@ -1652,6 +1710,7 @@ async function boot(): Promise<void> {
     hidden.open = save.hiddenOpen;
     scenery.setCorvina(save.corvina);
     scenery.setHidden(save.hiddenOpen);
+    scenery.setLocker(save.lockerOpen);
     for (const sv of SALVAGE) if (sv.id in save.salvageTaken && save.playSeconds - save.salvageTaken[sv.id] > SALVAGE_REGROW && save.sub?.salvage !== sv.id) delete save.salvageTaken[sv.id];
     scenery.setSalvage(save.salvageTaken);
     if (diver.x > 15800 && diver.x < 17200) scenery.updateKelpCaves(time, surge);
@@ -1740,6 +1799,33 @@ async function boot(): Promise<void> {
       !aboard && (inShape(KC.dark, diver.x, diver.y) || inShape(KC.exit, diver.x, diver.y) || (diver.x > 17480 && inShape(KC.downPassage, diver.x, diver.y)));
     const blackLimit = litN >= BRACKETS.length ? Infinity : litMaxX + 330;
     const atBlackEdge = inBlack && diver.x > blackLimit - 50;
+    // ---- Milestone 9: the lightless passage. Only a grown glowfin's light gets through it. ----
+    escort.sync(save.jar, diver.x, diver.y);
+    escort.update(dt, time, diver.x, diver.y, diver.facing, !aboard && blackout === 0);
+    if (escort.active && !save.tips.includes('escort')) {
+      save.tips.push('escort');
+      hud.toast('The grown glowfin slips out of the jar and swims at your shoulder, lighting the water around you. Its light reaches where no lamp can.', 'big');
+    }
+    const inLL = !aboard && inLightless(diver.x, diver.y);
+    const llLit = escort.reach > 60;
+    const llDeep = inLL && Math.hypot(diver.x - LIGHTLESS_EDGE.x, diver.y - LIGHTLESS_EDGE.y) > 50;
+    if (llDeep && !llLit && blackout === 0) {
+      diver.x = llSafe.x;
+      diver.y = llSafe.y;
+      diver.vx *= -0.2;
+      diver.vy *= -0.2;
+    } else llSafe = { x: diver.x, y: diver.y };
+    const atLightless = inLL && !llLit;
+    if (inLL && blackout === 0 && !save.tips.includes('lightless')) {
+      save.tips.push('lightless');
+      hud.toast(
+        llLit
+          ? 'Lightless water: not even the dive light gets into it. But the glowfin\'s glow does. Stay close to it.'
+          : 'Lightless water: your dive light dies a hand\'s width out, and the dark is total. Something that makes its own light might show the way. A grown glowfin, perhaps?',
+        'big',
+      );
+    }
+    scenery.setLightless(llLit ? 0.3 : 1);
     if (inBlack && diver.x > blackLimit) {
       diver.x = blackLimit;
       if (diver.vx > 0) diver.vx = 0;
@@ -1802,6 +1888,8 @@ async function boot(): Promise<void> {
             ? surge > 0.4
               ? 'Cold surge! Too strong to swim against: wait it out in a pocket in the roof.'
               : 'A lull: swim on to the next pocket before the surge comes back.'
+            : atLightless
+              ? 'Lightless water. Your dive light dies a hand\'s width out. A grown glowfin carried in your jar would light the way (take one out of a tank).'
             : atBlackEdge
               ? `Black water. Your light dies in the silt a few metres out. Set lumen moss on the brackets to light a way through (${litN} of ${BRACKETS.length} lit).`
             : domeHere && !isDone(domeHere)
@@ -1909,6 +1997,11 @@ async function boot(): Promise<void> {
           if (j.keep && layout.pieces.some((p) => p.id === j.keep!.tank)) {
             save.creatures.push(j.keep);
             jarMsg = ` The crew put the ${SPECIES[j.species].name.toLowerCase()} from your jar back in its tank.`;
+          } else if (j.keep && layout.pieces.some((p) => p.kind === 'hatch' && isDone(p))) {
+            // Milestone 9: one from the Hatchery or the Revival pool (no tank yet) goes back to the Hatchery.
+            j.keep.tank = -1;
+            save.nursery.push(j.keep);
+            jarMsg = ` The crew put the ${SPECIES[j.species].name.toLowerCase()} from your jar in the Hatchery.`;
           } else {
             wildlife.release(j.species, j.stage, save);
             jarMsg = ` The specimen jar came open; the ${SPECIES[j.species].name.toLowerCase()} swam home.`;
@@ -1968,7 +2061,7 @@ async function boot(): Promise<void> {
     const wtKnown = !!wt && save.scans.includes(SPECIES[wt.species].scan);
     const wildOk = !!wt && wtKnown && !save.jar && !diver.surfaced && !atDrone;
     for (const ev of wildlife.update(dt, time, reachPt.x, reachPt.y, Math.hypot(diver.vx, diver.vy), aboard ? sub.thrust > 0 : diver.boosting, save, collectHeld && wildOk, camX - 200, camX + lastViewW + 200)) {
-      save.jar = { species: ev.species, stage: ev.stage };
+      save.jar = { species: ev.species, stage: ev.stage, traits: wildlife.traitsOf(ev.id) };
       drone.cheer();
       const sp = SPECIES[ev.species];
       const name = ev.stage === 'egg' ? sp.eggName : sp.youngName;
@@ -2168,6 +2261,28 @@ async function boot(): Promise<void> {
             hud.toast(`Inside the locker: 3 brass fittings and an Echo whorl (${save.whorls.length}), glowing in colours nothing else on the reef does.`, 'big');
           },
         };
+      // Milestone 9: the rusted strongbox in the hidden room. A grown tinker crab picks its lock.
+      if (save.hiddenOpen && !save.lockerOpen && near({ x: Scenery.LOCKER.x, y: Scenery.LOCKER.y - 24 }, 80)) {
+        if (save.jar?.species === 'crab' && save.jar.stage === 'grown')
+          holdAct = {
+            key: 'crablock',
+            label: 'Let the tinker crab pick the lock',
+            seconds: 2.6,
+            done: () => {
+              save.lockerOpen = true;
+              if (!save.finds.includes('poolplans') && !save.blueprints.includes('revive')) save.finds.push('poolplans');
+              scenery.setLocker(true);
+              drone.cheer();
+              sound.find('bag');
+              hud.showReading(
+                'Revival pool drawings',
+                'The crab clambers onto the padlock, works its fine claws into the keyhole, and with a crunch of rust the shackle drops. Inside, wrapped in oilcloth: drawings for a warm, still pool where a dormant creature can be woken by the light of a glowing bloom.\n\nA Lab can decode them. Glowing blooms grow only where no lamp has ever shone.',
+                'Taken: decode it in a Lab. The crab climbs back into the jar.',
+              );
+            },
+          };
+        else infoAct = 'A rusted strongbox. Its padlock is seized solid and far too small for the cutter: something with fine claws could pick it. A grown tinker crab, carried in your jar?';
+      }
       // The flow vane's winch, on the far side of the race.
       const vw = Scenery.vaneWinchPoint();
       if (!save.vane && Math.hypot(diver.x - vw.x, diver.y - vw.y) < 110)
@@ -2620,7 +2735,7 @@ async function boot(): Promise<void> {
     // Milestone 7: the dive light DL-1 replaces the shoulder lamp: further, brighter and wider.
     const lampSpec = hasGear(save, 'light') ? DIVE_LIGHT : LAMP;
     // Black water swallows the light, except near a lit bracket.
-    lampLight.radius = lampSpec.radius * (inBlack && nearLit > 260 ? 0.32 : 1);
+    lampLight.radius = lampSpec.radius * (inBlack && nearLit > 260 ? 0.32 : 1) * (inLightless(diver.x, diver.y) && !aboard ? 0.15 : 1);
     lampLight.coneCos = lampSpec.coneCos;
     lampLight.intensity = aboard ? 0 : lampSpec.intensity * diver.lamp * diver.view.alpha;
     scenery.caveDark.alpha = hasGear(save, 'light') && diver.lamp > 0.5 && !aboard ? 0.15 : 1;
@@ -2635,7 +2750,7 @@ async function boot(): Promise<void> {
     diver.lensGlow.position.set(lp.x, lp.y);
     diver.lensGlow.alpha = diver.lamp * diver.view.alpha;
 
-    const lights: Light[] = [...(save.sub ? sub.lights : []), lampLight, ...drone.lights, ...scenery.lights, ...baseView.lights, ...pickups.lights, ...wildlife.lights, ...lurkers.lights, ...fish.map((f) => f.light)];
+    const lights: Light[] = [...(save.sub ? sub.lights : []), lampLight, ...drone.lights, ...scenery.lights, ...baseView.lights, ...pickups.lights, ...wildlife.lights, escort.light, ...lurkers.lights, ...fish.map((f) => f.light)];
     // G2: soft contact shadows where things meet the seabed (the diver's, the sub's, the drone's and the base's feet).
     const contacts: [number, number, number, number][] = [];
     if (fx.contact && preset.contactShadows > 0) {
@@ -2874,7 +2989,12 @@ async function boot(): Promise<void> {
       interior.place(x, y, interior.walker.face);
       sound.clamps(true);
     },
-    tend: (id) => peekOut('care', id),
+    // Milestone 9 (Colin): tending stays indoors. The camera eases in on the tank
+    // room's window and the care panel opens beside it.
+    tend: (id) => {
+      care.setAvailable(id);
+      care.open(id);
+    },
     station: (id) => peekOut('station', id),
     dock: (id) => peekOut('dock', id),
     build: () => peekOut('build', null),
@@ -2910,6 +3030,13 @@ async function boot(): Promise<void> {
           return `${code}: ${save.craneQueue ? `${save.craneQueue} salvage waiting` : 'idle. Lower salvage onto it from the sub, outside.'}`;
         case 'recomp':
           return `${code}: pressure chamber ready`;
+        case 'farm': {
+          const m = machineData(save, p.id);
+          const grow = m.grow ?? 'fibre';
+          return `${code}: growing ${grow === 'fibre' ? 'kelp fibre' : `${PLANTS[grow].name.toLowerCase()} cuttings`} · ${Math.round(Math.min(1, m.press) * 100)}%${
+            grow === 'fibre' ? ` · tray ${m.fibre}/${FARM_TRAY}` : ` · ${save.cuttings[grow] ?? 0} ready`
+          }`;
+        }
         default:
           return `${code}: ${PIECES[p.kind].name}`;
       }
@@ -2917,6 +3044,57 @@ async function boot(): Promise<void> {
     pressing: (id) => factory.pressState.get(id) === 'running',
     feederLevels: (id) => readings.feeder(id),
     stationBusy: (id) => readings.station(id),
+    // ---- Milestone 9 ----
+    hatchery: (id) => hatchPanel.open(id),
+    nursery: () => save.nursery,
+    farmCrop: (id) => {
+      const m = machineData(save, id);
+      const grow = m.grow ?? 'fibre';
+      return { name: grow === 'fibre' ? 'kelp fibre' : `${PLANTS[grow].name.toLowerCase()} cuttings`, grow, progress: Math.min(1, m.press), tray: m.fibre, cap: FARM_TRAY };
+    },
+    farmCycle: (id) => {
+      const m = machineData(save, id);
+      const opts: ('fibre' | (typeof PLANT_ORDER)[number])[] = ['fibre', ...PLANT_ORDER.filter((pl) => save.scans.includes(PLANTS[pl].scan))];
+      const i = opts.indexOf(m.grow ?? 'fibre');
+      m.grow = opts[(i + 1) % opts.length];
+      m.press = 0;
+      sound.clip();
+      hud.toast(
+        m.grow === 'fibre'
+          ? 'The farm grows kelp fibre: into its tray, for a conveyor (to an auto feeder or storage), or take it by hand.'
+          : `The farm grows ${PLANTS[m.grow].name.toLowerCase()} cuttings (${save.cuttings[m.grow] ?? 0} ready). Planting it in a tank uses a cutting instead of materials.`,
+      );
+      persist();
+    },
+    farmTake: (id) => {
+      const m = machineData(save, id);
+      if (m.fibre <= 0) return;
+      save.bag.fibre += m.fibre;
+      hud.toast(`+${m.fibre} kelp fibre from the farm's tray`);
+      m.fibre = 0;
+      hud.refreshInventory();
+      persist();
+    },
+    reviveLabel: () => {
+      const sp = SPECIES_ORDER.find((k) => (save.dormant[k] ?? 0) > 0);
+      if (!sp) return { ok: false, text: 'Revival pool: no dormant creatures in storage. Nothing needs waking.' };
+      const n = SPECIES_ORDER.reduce((a, k) => a + (save.dormant[k] ?? 0), 0);
+      if (save.bag.bloom + save.stored.bloom < 1)
+        return { ok: false, text: `Revival pool: ${n} dormant · each waking needs a glowing bloom (they grow only where no lamp has ever shone)` };
+      if (save.jar) return { ok: false, text: 'Revival pool: empty your specimen jar first (the woken creature goes into it)' };
+      return { ok: true, text: `Wake a dormant ${SPECIES[sp].name.toLowerCase()} (1 glowing bloom)` };
+    },
+    revive: () => {
+      const sp = SPECIES_ORDER.find((k) => (save.dormant[k] ?? 0) > 0);
+      if (!sp || save.jar || !payCost(save, { bloom: 1 })) return;
+      save.dormant[sp] = (save.dormant[sp] ?? 0) - 1;
+      const c = { id: save.nextCreatureId++, species: sp, tank: -1, stage: 'young' as const, growth: 0, fed: 0.7, comfort: 0.5, sickness: 0, make: 0, traits: wildTraits() };
+      save.jar = { species: sp, stage: 'young', keep: c, traits: c.traits };
+      sound.find('bag');
+      hud.refreshInventory();
+      hud.toast(`The bloom's light sinks into the still water, and a young ${SPECIES[sp].name.toLowerCase()} stirs. It is in your specimen jar: put it in a tank.`, 'big');
+      persist();
+    },
     storedFrac: () => {
       const cap = storageCapacity(layout);
       return cap ? Math.min(1, MATERIALS_LIST.reduce((a, k) => a + save.stored[k], 0) / cap) : 0;
@@ -3017,7 +3195,29 @@ async function boot(): Promise<void> {
       interior.reload(level.map, baseHooks);
       if (!interior.standable(interior.walker.x, interior.walker.y)) interior.place(baseHooks.spawn.x, baseHooks.spawn.y, 1);
     }
-    const evs: InteriorEvent[] = interior.update(dt, { moveX: s.moveX, moveY: s.moveY, jump: s.jumpHeld, collect: s.collect, lamp: s.lamp }, paused);
+    // The same dive bag as in the water, swinging at the hip.
+    interior.walker.load = bagLoad(save);
+    // Tending a tank indoors: the walker waits at the window while the panel is open.
+    // Milestone 9: the Hatchery's panel frames its cradles the same way.
+    if (inside === 'base' && care.active && care.tankId !== null && baseHooks) {
+      const f = baseHooks.tankFocus(care.tankId);
+      interior.focus = f ? { ...f, panelPx: Math.min(360, cssW * 0.44) + 24 } : null;
+    } else if (inside === 'base' && hatchPanel.active && hatchPanel.pieceId !== null && baseHooks) {
+      const f = baseHooks.roomFocus(hatchPanel.pieceId);
+      interior.focus = f ? { ...f, panelPx: Math.min(360, cssW * 0.44) + 24 } : null;
+    } else {
+      interior.focus = null;
+      if (care.available !== null && !care.active) care.setAvailable(null);
+    }
+    if (inside !== 'base' && hatchPanel.active) hatchPanel.close();
+    care.update(dt);
+    hatchPanel.update(dt);
+    const frozen = care.active || hatchPanel.active;
+    const evs: InteriorEvent[] = interior.update(
+      dt,
+      frozen ? { moveX: 0, moveY: 0, jump: false, collect: false, lamp: false } : { moveX: s.moveX, moveY: s.moveY, jump: s.jumpHeld, collect: s.collect, lamp: s.lamp },
+      paused,
+    );
     const maxO2 = maxOxygen(save);
     if (!paused) {
       save.playSeconds += dt;
@@ -3092,8 +3292,8 @@ async function boot(): Promise<void> {
       else if (e.type === 'jump') sound.step(true);
       else if (e.type === 'land') sound.step(false, e.hard);
     }
-    hud.setCollect(interior.label, interior.progress);
-    hud.setBanner(interior.banner);
+    hud.setCollect(frozen ? null : interior.label, frozen ? 0 : interior.progress);
+    hud.setBanner(frozen ? '' : interior.banner);
     watch.draw(performance.now(), save.oxygen, maxO2, 0, 0, true, { kg: bagWeight(save.bag), ...bagLimits(save) }, save.suit);
     hud.setSuit(save.suit, true);
     hud.setSubChip(null);
@@ -3109,7 +3309,7 @@ async function boot(): Promise<void> {
       aboard: false,
       inDome: true,
       blackout: 0,
-      panel: paused ? 'read' : '',
+      panel: paused ? 'read' : frozen ? 'care' : '',
       speed: Math.abs(interior.walker.vx),
       boosting: false,
       lampOn: interior.lampOn,

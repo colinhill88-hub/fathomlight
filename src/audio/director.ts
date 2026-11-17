@@ -11,7 +11,7 @@ import { BASIN_EAST, CAVE, FOREST, GROTTO, inCaveTunnel, inKelpCaves, KC, SITE_M
  * cues. A few cues come straight from game events (pickups, dents, toasts).
  */
 
-export type WorkKind = 'fibre' | 'scrap' | 'copper' | 'quartz' | 'resin' | 'moss' | 'brass' | 'creature' | 'repair' | 'winch' | 'recorder' | 'cutter';
+export type WorkKind = 'fibre' | 'scrap' | 'copper' | 'quartz' | 'resin' | 'moss' | 'brass' | 'bloom' | 'creature' | 'repair' | 'winch' | 'recorder' | 'cutter';
 
 export interface AudioFrame {
   dt: number;
@@ -429,6 +429,7 @@ export class SoundDirector {
       case 'resin': // Scrape off: a blade dragged over a holdfast.
         audio.hiss({ dur: 0.22, attack: 0.03, gain: 0.05, freq: 1300 * j(), to: 2100, q: 3, pan });
         return 0.42 * j();
+      case 'bloom':
       case 'moss': // Peel off: a soft tearing crackle.
         for (let i = 0; i < 4; i++) audio.hiss({ t: t + i * 0.035 * j(), dur: 0.02, gain: 0.04, freq: 1200 * j(), q: 1.5, pan });
         return 0.32 * j();

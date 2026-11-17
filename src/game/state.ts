@@ -1,3 +1,4 @@
+import type { Traits } from './traits';
 /**
  * Everything about the player's progress that needs to survive closing the
  * app, plus automatic saving to the device (localStorage).
@@ -8,7 +9,7 @@
  * planned for milestone 11.
  */
 
-export type MaterialId = 'scrap' | 'copper' | 'quartz' | 'fibre' | 'plate' | 'resin' | 'moss' | 'brass';
+export type MaterialId = 'scrap' | 'copper' | 'quartz' | 'fibre' | 'plate' | 'resin' | 'moss' | 'brass' | 'bloom';
 /** Materials found on the reef. Hull plating (milestone 5 part 2) is only made by the plate press. */
 export type ReefMaterial = Exclude<MaterialId, 'plate'>;
 
@@ -44,8 +45,15 @@ export const MATERIALS: Record<MaterialId, { name: string; plural: string; blurb
     blurb: 'Heavy valves, portholes and fittings unbolted from wrecks on the shelf. Green with age, bright underneath. Wreck shelf base pieces and pressure gear.',
     kg: 3,
   },
+  // Milestone 9: the rare glowing bloom (the Revival pool uses one per revival).
+  bloom: {
+    name: 'Glowing bloom',
+    plural: 'Glowing blooms',
+    blurb: 'A soft flower of light that grows only where no lamp has ever shone. The Revival pool uses one to wake a dormant creature.',
+    kg: 0.3,
+  },
 };
-export const MATERIAL_ORDER: MaterialId[] = ['scrap', 'copper', 'quartz', 'fibre', 'plate', 'resin', 'moss', 'brass'];
+export const MATERIAL_ORDER: MaterialId[] = ['scrap', 'copper', 'quartz', 'fibre', 'plate', 'resin', 'moss', 'brass', 'bloom'];
 
 /** Oxygen, in seconds of breathing, for the starting tank and for each tank upgrade. */
 export const BASE_OXYGEN = 75;
@@ -149,6 +157,8 @@ export interface CreatureData {
   sickness: number;
   /** 0..1 towards the next material it makes, once grown and happy. */
   make: number;
+  /** Milestone 9: colour, glow pattern and radiance (src/game/traits.ts). Missing on old saves: fixed by its id. */
+  traits?: Traits;
 }
 
 /** What is in the specimen jar the diver carries (one creature or one egg clutch). */
@@ -157,6 +167,8 @@ export interface JarData {
   stage: 'egg' | 'young' | 'grown';
   /** Set when it was taken out of a tank: it keeps its needs and growth when put back. */
   keep?: CreatureData;
+  /** Milestone 9: a creature from the Hatchery or the Revival pool carries its traits. */
+  traits?: Traits;
 }
 
 /** Per creature tank: water quality (0..1) and the plant growing in it. */
@@ -172,6 +184,8 @@ export interface TankData {
    * tray for a conveyor (or the diver) to take it away.
    */
   out?: Partial<Record<MaterialId, number>>;
+  /** Milestone 9: 0..1 towards the next egg, per species with a happy grown pair here. */
+  breed?: Partial<Record<SpeciesId, number>>;
 }
 
 /** A conveyor or feed pipe between two base pieces (milestone 5; rules in src/game/factory.ts). */
@@ -196,6 +210,8 @@ export interface MachineData {
   scrap?: number;
   copper?: number;
   plate?: number;
+  /** Milestone 9, the Kelp farm: what it grows ('fibre' or a plant's id). Its tray uses `fibre`, its progress `press`. */
+  grow?: 'fibre' | PlantId;
 }
 
 /** Modules that fit the submersible's slots (milestone 6; rules in src/game/sub.ts). */
@@ -234,9 +250,9 @@ export interface SubData {
 /** Milestone 7: gear built in the Workshop (rules in src/game/gear.ts). */
 export type GearId = 'light' | 'cutter' | 'tow' | 'welder' | 'relay' | 'sonar' | 'psuit';
 /** Blueprints the Lab decodes. Each one lets the Workshop build something, or unlocks a base piece. */
-export type BlueprintId = 'light' | 'cutter' | 'tow' | 'welder' | 'relay' | 'gtank' | 'sorter' | 'sonar' | 'psuit' | 'recomp' | 'crane';
+export type BlueprintId = 'light' | 'cutter' | 'tow' | 'welder' | 'relay' | 'gtank' | 'sorter' | 'sonar' | 'psuit' | 'recomp' | 'crane' | 'revive';
 /** Data finds the diver brings back to the Lab (they weigh nothing). */
-export type FindId = 'recorder' | 'relaylog' | 'weldchip' | 'towcoil' | 'cache' | 'sonardata' | 'suitplans';
+export type FindId = 'recorder' | 'relaylog' | 'weldchip' | 'towcoil' | 'cache' | 'sonardata' | 'suitplans' | 'poolplans';
 /** What a Lab or Workshop is busy with. */
 export interface StationJob {
   /** 'research:light' or 'build:light'. */
@@ -248,7 +264,7 @@ export interface StationJob {
 /** A base piece as saved (see src/game/base.ts). */
 export interface SavedPiece {
   id: number;
-  kind: 'dome' | 'corridor' | 'turbine' | 'storage' | 'tank' | 'filter' | 'feeder' | 'press' | 'dock' | 'lab' | 'workshop' | 'gtank' | 'sorter' | 'recomp' | 'crane';
+  kind: 'dome' | 'corridor' | 'turbine' | 'storage' | 'tank' | 'filter' | 'feeder' | 'press' | 'dock' | 'lab' | 'workshop' | 'gtank' | 'sorter' | 'recomp' | 'crane' | 'hatch' | 'farm' | 'revive';
   gx: number;
   gy: number;
   rot: number;
@@ -294,6 +310,15 @@ export interface SaveData {
   caught: Record<string, number>;
   /** Creatures that died of neglect, kept in storage as dormant remains (revived later). */
   dormant: Partial<Record<SpeciesId, number>>;
+  /**
+   * Milestone 9: eggs laid by pairs in the tanks, incubating in the base's
+   * Hatchery, and the young that hatched from them waiting to be placed.
+   */
+  nursery: CreatureData[];
+  /** Milestone 9: plant cuttings grown in a Kelp farm, used instead of materials when planting. */
+  cuttings: Partial<Record<PlantId, number>>;
+  /** Milestone 9: the wreck shelf's rusted locker, picked open by a grown tinker crab. */
+  lockerOpen: boolean;
   /** Conveyors and feed pipes between pieces (milestone 5). */
   lines: SavedLine[];
   nextLineId: number;
@@ -360,14 +385,14 @@ export function freshSave(spawnX: number, spawnY: number): SaveData {
     y: spawnY,
     oxygen: BASE_OXYGEN,
     lampOn: true,
-    bag: { scrap: 0, copper: 0, quartz: 0, fibre: 0, plate: 0, resin: 0, moss: 0, brass: 0 },
+    bag: { scrap: 0, copper: 0, quartz: 0, fibre: 0, plate: 0, resin: 0, moss: 0, brass: 0, bloom: 0 },
     scans: [],
     tanks: [],
     taken: {},
     dropped: null,
     pieces: [],
     nextPieceId: 1,
-    stored: { scrap: 0, copper: 0, quartz: 0, fibre: 0, plate: 0, resin: 0, moss: 0, brass: 0 },
+    stored: { scrap: 0, copper: 0, quartz: 0, fibre: 0, plate: 0, resin: 0, moss: 0, brass: 0, bloom: 0 },
     drone: 'stranded',
     creatures: [],
     nextCreatureId: 1,
@@ -375,6 +400,9 @@ export function freshSave(spawnX: number, spawnY: number): SaveData {
     jar: null,
     caught: {},
     dormant: {},
+    nursery: [],
+    cuttings: {},
+    lockerOpen: false,
     lines: [],
     nextLineId: 1,
     machines: {},
@@ -429,6 +457,9 @@ export function loadSave(spawnX: number, spawnY: number): { data: SaveData; load
       tankData: d.tankData && typeof d.tankData === 'object' ? d.tankData : {},
       caught: d.caught && typeof d.caught === 'object' ? d.caught : {},
       dormant: d.dormant && typeof d.dormant === 'object' ? d.dormant : {},
+      nursery: Array.isArray(d.nursery) ? d.nursery : [],
+      cuttings: d.cuttings && typeof d.cuttings === 'object' ? d.cuttings : {},
+      lockerOpen: d.lockerOpen === true,
       jar: d.jar && typeof d.jar === 'object' ? d.jar : null,
       lines: Array.isArray(d.lines) ? d.lines : [],
       machines: d.machines && typeof d.machines === 'object' ? d.machines : {},
