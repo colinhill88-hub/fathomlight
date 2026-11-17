@@ -1,6 +1,7 @@
 import { Container, Graphics } from 'pixi.js';
 import { mulberry32 } from '../rng';
 import type { SpeciesId } from '../game/state';
+import { traitsOf, type Traits } from '../game/traits';
 
 /**
  * The keepable creatures of the sunlit shallows, drawn with code
@@ -27,10 +28,31 @@ import type { SpeciesId } from '../game/state';
  * facing every frame.
  */
 
+/** Glowfin colours (milestone 9 traits): coral, tide blue, kelp gold and the rare moonpale. */
 const GLOWFIN_LOOKS = [
   { body: 0xd27a86, stripe: 0x9a4a5c, belly: 0xf0c2b8, fin: 0xb85f70, lure: 0xfff2a8 },
   { body: 0x78a6c8, stripe: 0x45708f, belly: 0xc8dde6, fin: 0x5e8aad, lure: 0xf3f7b0 },
+  { body: 0xd6ad52, stripe: 0x93712a, belly: 0xf4e2b4, fin: 0xbf9036, lure: 0xfff0a0 },
+  { body: 0xe6e2da, stripe: 0x9c94aa, belly: 0xffffff, fin: 0xc6bfd0, lure: 0xfffbe2 },
 ];
+/**
+ * The other species' colours are a tint over their drawing (index 0 is the
+ * drawing as it is). Glow stays warm in every colour: cyan, violet and
+ * magenta belong to the Choir.
+ */
+const BODY_TINTS: Record<SpeciesId, number[]> = {
+  glowfin: [0xffffff, 0xffffff, 0xffffff, 0xffffff],
+  puffcap: [0xffffff, 0xffc4d2, 0xfff2a0, 0xb4eedc],
+  ray: [0xffffff, 0xa6b2c2, 0xbad49a, 0x5c6482],
+  crab: [0xffffff, 0xc4d494, 0xffa494, 0x98b6ea],
+  shrimp: [0xffffff, 0xff9a92, 0xd2ecff, 0xffdc6a],
+};
+
+/** Multiply two 0xRRGGBB tints. */
+function mulTint(a: number, b: number): number {
+  const ch = (s: number) => Math.round((((a >> s) & 255) * ((b >> s) & 255)) / 255);
+  return (ch(16) << 16) | (ch(8) << 8) | ch(0);
+}
 
 export type Stage = 'egg' | 'young' | 'grown';
 
@@ -54,15 +76,22 @@ export class Critter {
   private parts: Record<string, Graphics> = {};
   private body = new Container();
   private look: number;
+  readonly traits: Traits;
+  private tint = 0xffffff;
+  private aura: Graphics | null = null;
 
   constructor(
     readonly species: SpeciesId,
     readonly stage: Stage,
     seed: number,
+    traits?: Traits,
   ) {
     const r = mulberry32(seed * 977 + 13);
     this.phase = r() * 10;
-    this.look = Math.floor(r() * 2);
+    // Milestone 9: colour and glow pattern are inherited traits (wild ones are fixed by the seed).
+    this.traits = traits ?? traitsOf({ id: seed });
+    this.look = Math.max(0, Math.min(3, this.traits.colour));
+    this.tint = BODY_TINTS[species][this.look] ?? 0xffffff;
     this.view.addChild(this.body);
     if (stage === 'egg') this.drawEggs(r);
     else if (species === 'glowfin') this.drawGlowfin();
@@ -70,6 +99,58 @@ export class Critter {
     else if (species === 'crab') this.drawCrab(r);
     else if (species === 'shrimp') this.drawShrimp();
     else this.drawRay();
+    if (stage !== 'egg') this.drawPattern();
+    if (stage !== 'egg' && this.traits.radiant) {
+      // Radiant: a wider, brighter glow, and a soft aura around the whole body.
+      this.parts.halo.scale.set(1.7);
+      this.aura = new Graphics().ellipse(0, -2, 30, 20).fill({ color: 0xfff0c0, alpha: 0.5 });
+      this.glow.addChildAt(this.aura, 0);
+    }
+  }
+
+  /** Milestone 9: the glow pattern trait (pattern 0 is the one each species was first drawn with). */
+  private drawPattern(): void {
+    const p = this.traits.pattern;
+    if (!p) return;
+    const sp = this.species;
+    const d = this.parts.dots;
+    if (sp === 'glowfin') {
+      d.clear();
+      if (p === 1) for (const [x, y] of [[-12, -4], [-7, 3], [-3, -6], [1, 4], [4, -2], [-10, 6], [-15, 0]] as const) d.circle(x, y, 1).fill({ color: 0xf6f0b0 });
+      else for (const x of [-10, -4, 2]) d.moveTo(x + 0.6, -9).quadraticCurveTo(x + 3.4, 0, x + 0.6, 9).stroke({ color: 0xf6f0b0, width: 0.9 });
+    } else if (sp === 'puffcap') {
+      d.clear();
+      if (p === 1) for (let i = 0; i < 9; i++) d.circle(-16 + i * 4, 3.6, 1).fill({ color: 0xfff2c0 });
+      else for (let i = 0; i < 7; i++) {
+        const a = Math.PI + (i / 6) * Math.PI;
+        d.moveTo(Math.cos(a) * 4, -5 + Math.sin(a) * 3).lineTo(Math.cos(a) * 14, -3 + Math.sin(a) * 10).stroke({ color: 0xfff2c0, width: 0.9 });
+      }
+    } else if (sp === 'ray') {
+      const g = new Graphics();
+      if (p === 1) for (const [x, y, rad] of [[-12, -1, 1.4], [-6, 2, 1.1], [-2, -3, 1.5], [4, 1, 1.2], [-15, 3, 0.9], [8, -3, 0.9]] as const) g.circle(x, y, rad).fill({ color: 0xfff0c0 });
+      else g.ellipse(0, 0, 19, 6.6).stroke({ color: 0xfff0c0, width: 0.8, alpha: 0.9 });
+      this.emissive.addChild(g);
+      this.parts.dots = g;
+    } else if (sp === 'crab') {
+      if (p === 1) for (const [x, y] of [[-8, -5], [-3, -8], [3, -7], [7, -4], [-1, -3]] as const) d.circle(x, y, 0.9).fill({ color: 0xffc860 });
+      else {
+        const tips = new Graphics().circle(14.4, -3.2, 1.3).fill({ color: 0xffc860 }).circle(13.8, -1.8, 1).fill({ color: 0xffc860 });
+        tips.position.copyFrom(this.parts.claw.position);
+        this.emissive.addChild(tips);
+        this.parts.tips = tips;
+      }
+    } else if (sp === 'shrimp') {
+      d.clear();
+      if (p === 1) for (let i = 0; i < 6; i++) {
+        const x = 10 - i * 4.4;
+        const y = -Math.sin((i / 6) * Math.PI * 0.8) * 3 - 1;
+        d.moveTo(x - 1.2, y - 4 + i * 0.4).lineTo(x - 1.2, y + 4 - i * 0.4).stroke({ color: 0xffd070, width: 0.8 });
+      }
+      else {
+        for (let i = 0; i < 3; i++) d.circle(9 - i * 4.4, 2, 0.7).fill({ color: 0xffd070 });
+        d.circle(-19, 0.5, 2.4).fill({ color: 0xffd070 });
+      }
+    }
   }
 
   /** Base scale for this species and stage. */
@@ -307,8 +388,12 @@ export class Critter {
 
   // ---- Eggs ----
   private drawEggs(r: () => number): void {
+    if (this.species === 'ray') return this.drawEggCase();
+    if (this.species === 'puffcap') return this.drawPolyp();
     const g = new Graphics();
     const em = new Graphics();
+    // Milestone 9: crab and shrimp clutches (laid in the Hatchery) are amber and coral, not glowfin green.
+    const egg = this.species === 'crab' ? 0xe8a060 : this.species === 'shrimp' ? 0xf0c890 : 0xd8e890;
     const spots: [number, number, number][] = [];
     for (let i = 0; i < 8; i++) {
       const a = r() * Math.PI;
@@ -318,7 +403,7 @@ export class Critter {
     spots.sort((a, b) => a[1] - b[1]);
     g.ellipse(0, 1, 13, 3).fill({ color: 0x3a3a28, alpha: 0.35 });
     for (const [x, y, rad] of spots) {
-      g.circle(x, y, rad).fill({ color: 0xd8e890, alpha: 0.55 });
+      g.circle(x, y, rad).fill({ color: egg, alpha: 0.55 });
       g.circle(x, y, rad).stroke({ color: 0xf2f6c8, width: 0.7, alpha: 0.7 });
       // A curled fry inside, with a dot of an eye.
       g.arc(x, y + 0.3, rad * 0.5, 0.6, Math.PI * 1.6).stroke({ color: 0x8a7a40, width: 0.9, alpha: 0.75 });
@@ -330,6 +415,46 @@ export class Critter {
     this.emissive.addChild(em);
     this.parts.dots = em;
     const halo = new Graphics().ellipse(0, -3, 18, 12).fill({ color: 0xf0f6b0, alpha: 0.5 });
+    this.glow.addChild(halo);
+    this.parts.halo = halo;
+  }
+
+  /** Milestone 9: a dapple ray egg case, a leathery pouch with curling tendrils and a curled ray inside. */
+  private drawEggCase(): void {
+    const g = new Graphics();
+    const em = new Graphics();
+    g.ellipse(0, 2, 15, 3).fill({ color: 0x3a3a28, alpha: 0.35 });
+    for (const [x, y, sx] of [[-12, -10, -1], [12, -10, 1], [-12, 0, -1], [12, 0, 1]] as const)
+      g.moveTo(x, y).bezierCurveTo(x + sx * 5, y - 4, x + sx * 7, y + 3, x + sx * 4, y + 6).stroke({ color: 0x5a4a30, width: 1.2 });
+    g.roundRect(-12, -12, 24, 13, 4).fill({ color: 0x6a5434, alpha: 0.92 });
+    g.roundRect(-10, -10, 20, 9, 3).fill({ color: 0xa88a58, alpha: 0.45 });
+    g.ellipse(-1, -6, 6, 2.4).fill({ color: 0xc8b08a, alpha: 0.7 });
+    g.circle(3.5, -7, 0.8).fill({ color: 0x1a1612 });
+    g.ellipse(-4, -10, 5, 1).fill({ color: 0xffffff, alpha: 0.2 });
+    em.ellipse(-1, -6, 3, 1.2).fill({ color: 0xffe0a0, alpha: 0.5 });
+    this.body.addChild(g);
+    this.emissive.addChild(em);
+    this.parts.dots = em;
+    const halo = new Graphics().ellipse(0, -5, 18, 10).fill({ color: 0xffe0a0, alpha: 0.4 });
+    this.glow.addChild(halo);
+    this.parts.halo = halo;
+  }
+
+  /** Milestone 9: a puffcap polyp, a little stalked cluster of buds that will bud off a young bell. */
+  private drawPolyp(): void {
+    const g = new Graphics();
+    const em = new Graphics();
+    g.ellipse(0, 1, 11, 3).fill({ color: 0x3a3a28, alpha: 0.35 });
+    for (const [x, h] of [[-6, 11], [0, 16], [6, 12], [-2, 8]] as const) {
+      g.moveTo(x, 0).quadraticCurveTo(x - 2, -h * 0.5, x, -h).stroke({ color: 0xe8c8a8, width: 1.6 });
+      g.ellipse(x, -h - 2, 3.4, 2.8).fill({ color: 0xf2d2b6, alpha: 0.9 });
+      g.ellipse(x, -h - 0.5, 3.6, 1).fill({ color: 0xe8b894 });
+      em.circle(x, -h - 2.6, 1).fill({ color: 0xfff2c0 });
+    }
+    this.body.addChild(g);
+    this.emissive.addChild(em);
+    this.parts.dots = em;
+    const halo = new Graphics().ellipse(0, -12, 14, 10).fill({ color: 0xffd9a0, alpha: 0.45 });
     this.glow.addChild(halo);
     this.parts.halo = halo;
   }
@@ -358,7 +483,7 @@ export class Critter {
       bob = Math.sin(t * 1.7) * 2;
       this.parts.tail.rotation = Math.sin(t * (5 + sp * 0.08)) * 0.35;
       this.parts.pec.rotation = Math.sin(t * 6) * 0.4;
-      this.parts.dots.alpha = this.stage === 'grown' ? vig : 0;
+      this.parts.dots.alpha = this.stage === 'grown' ? vig : 0.35 * vig;
       const lp = 0.75 + 0.25 * Math.sin(t * 3);
       this.parts.lure.alpha = 0.4 + 0.6 * vig;
       this.parts.halo.alpha = 0.75 * vig * lp;
@@ -402,6 +527,10 @@ export class Critter {
         lg.moveTo(bx, 0).lineTo(bx - 3 + ph * 2, 5).lineTo(bx - 6 + ph * 3, 9).stroke({ color: 0x7a4a30, width: 1.4, cap: 'round', join: 'round' });
       }
       this.parts.claw.rotation = Math.sin(t * 1.3) * 0.15 + (Math.sin(t * 0.37) > 0.6 ? Math.sin(t * 12) * 0.12 : 0);
+      if (this.parts.tips) {
+        this.parts.tips.rotation = this.parts.claw.rotation;
+        this.parts.tips.alpha = 0.5 + 0.5 * vig;
+      }
       this.parts.dots.alpha = 0.5 + 0.5 * vig;
       this.parts.halo.alpha = 0.35 * vig;
     } else if (this.species === 'shrimp') {
@@ -449,6 +578,7 @@ export class Critter {
       this.parts.halo.position.set(tx, ty);
       this.parts.tip.alpha = this.stage === 'grown' ? 0.4 + 0.6 * vig : 0.25 * vig;
       this.parts.halo.alpha = this.stage === 'grown' ? 0.6 * vig : 0.15;
+      if (this.parts.dots) this.parts.dots.alpha = (this.stage === 'grown' ? 0.5 + 0.5 * vig : 0.3 * vig) * (0.8 + 0.2 * Math.sin(t * 1.4));
     }
     if (this.stage === 'egg') {
       this.parts.dots.alpha = 0.4 + 0.4 * vig * (0.8 + 0.2 * Math.sin(t * 2));
@@ -457,7 +587,9 @@ export class Critter {
     // Sick creatures turn pale and grey.
     const grey = Math.round(255 - sick * 90);
     const tint = (grey << 16) | (Math.round(grey * 1.0) << 8) | Math.min(255, grey + 10);
-    this.body.tint = sick > 0.01 ? tint : 0xffffff;
+    this.body.tint = sick > 0.01 ? mulTint(tint, this.tint) : this.tint;
+    if (this.aura) this.aura.alpha = 0.35 * vig * (0.75 + 0.25 * Math.sin(t * 1.1));
+    if (this.traits.radiant && this.stage !== 'egg') this.parts.halo.alpha = Math.min(1, this.parts.halo.alpha * 1.35);
     for (const c of [this.view, this.emissive, this.glow]) {
       c.position.set(x, y + bob);
       c.scale.set(sx * (this.stage === 'egg' ? 1 : fx), sy);

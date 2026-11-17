@@ -118,10 +118,19 @@ export const RESEARCH: Record<BlueprintId, ResearchDef> = {
     scans: [],
     seconds: 140,
   },
+  // Milestone 9: the locker on the wreck shelf a tinker crab picks open.
+  revive: {
+    id: 'revive',
+    name: 'Revival pool RP-1 blueprint',
+    text: "Reads the drawings from the shelf's rusted locker: a warm, still pool that wakes a dormant creature with the light of a glowing bloom. Unlocks a build card.",
+    finds: ['poolplans'],
+    scans: [],
+    seconds: 90,
+  },
 };
-export const RESEARCH_ORDER: BlueprintId[] = ['light', 'gtank', 'sorter', 'relay', 'welder', 'tow', 'cutter', 'recomp', 'crane', 'sonar', 'psuit'];
+export const RESEARCH_ORDER: BlueprintId[] = ['light', 'gtank', 'sorter', 'relay', 'welder', 'tow', 'cutter', 'recomp', 'crane', 'sonar', 'psuit', 'revive'];
 /** Blueprints that unlock a base piece (build card) instead of Workshop gear. */
-export const PIECE_BLUEPRINTS: Partial<Record<BlueprintId, string>> = { gtank: 'gtank', sorter: 'sorter', recomp: 'recomp', crane: 'crane' };
+export const PIECE_BLUEPRINTS: Partial<Record<BlueprintId, string>> = { gtank: 'gtank', sorter: 'sorter', recomp: 'recomp', crane: 'crane', revive: 'revive' };
 
 export interface GearDef {
   id: GearId;
@@ -210,6 +219,7 @@ export const FINDS: Record<FindId, { name: string; text: string }> = {
   cache: { name: 'Survey cache cartridge', text: 'The data cartridge from the earlier expedition\'s cache, deep in the kelp caves.' },
   sonardata: { name: 'Corvina sonar logs', text: "Test logs from the Corvina's lab: a pulse sonar her crew were building." },
   suitplans: { name: 'Pressure suit drawings', text: "A waterproof roll of drawings from the Corvina's lab: a deep-water suit." },
+  poolplans: { name: 'Revival pool drawings', text: "Oilcloth drawings from the wreck shelf's rusted locker: a pool that wakes dormant creatures." },
 };
 
 /** The dive light (DL-1) against the shoulder lamp: reach, brightness and beam width. */

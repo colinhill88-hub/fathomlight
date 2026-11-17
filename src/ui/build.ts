@@ -77,6 +77,12 @@ import { WHORL_ICON } from '../world/whorl';
 
 /** Small side-view icons for the palette, drawn as SVG. */
 const PIECE_ICONS: Record<PieceKind, string> = {
+  hatch:
+    '<svg viewBox="0 0 40 32"><rect x="0" y="13" width="4" height="7" fill="#5b6467"/><rect x="36" y="13" width="4" height="7" fill="#5b6467"/><rect x="3" y="5" width="34" height="23" rx="9" fill="#5b6467"/><rect x="7" y="11" width="26" height="11" rx="4" fill="#262d30"/><ellipse cx="12" cy="16" rx="3" ry="3.4" fill="#ffd890"/><ellipse cx="20" cy="16" rx="3" ry="3.4" fill="#ffd890"/><ellipse cx="28" cy="16" rx="3" ry="3.4" fill="#ffd890"/><circle cx="12" cy="17" r="1.4" fill="#f2f6c8"/><circle cx="20" cy="17" r="1.4" fill="#f2f6c8"/><circle cx="28" cy="17" r="1.4" fill="#f2f6c8"/><rect x="5" y="24" width="30" height="1.5" fill="#c9a13a"/></svg>',
+  farm:
+    '<svg viewBox="0 0 40 32"><rect x="0" y="13" width="4" height="7" fill="#5b6467"/><rect x="36" y="13" width="4" height="7" fill="#5b6467"/><rect x="3" y="4" width="34" height="25" rx="3" fill="#24292c"/><rect x="6" y="8" width="28" height="15" fill="#163a30"/><rect x="6" y="6" width="28" height="2" fill="#c6f03a"/><path d="M10 23c2-5-2-9 1-14M16 23c2-6-2-8 1-12M22 23c2-5-2-9 1-14M28 23c2-6-2-8 1-12" stroke="#7a8a3a" stroke-width="2" fill="none"/><rect x="6" y="22" width="28" height="3" fill="#5a4a32"/></svg>',
+  revive:
+    '<svg viewBox="0 0 40 32"><rect x="0" y="16" width="4" height="7" fill="#5b6467"/><rect x="36" y="16" width="4" height="7" fill="#5b6467"/><path d="M8 14q12-14 24 0z" fill="#86b3ae" opacity=".4"/><path d="M8 14q12-14 24 0" stroke="#a4b0b7" stroke-width="1.5" fill="none"/><rect x="3" y="13" width="34" height="15" rx="5" fill="#5b6467"/><rect x="8" y="17" width="24" height="7" rx="3.5" fill="#a8822e"/><rect x="10" y="19" width="20" height="3" rx="1.5" fill="#fff0c0"/></svg>',
   recomp:
     '<svg viewBox="0 0 40 32"><rect x="2" y="8" width="36" height="20" rx="10" fill="#7a6a4a"/><rect x="6" y="8" width="3" height="20" fill="#a8822e"/><rect x="31" y="8" width="3" height="20" fill="#a8822e"/><circle cx="20" cy="18" r="6" fill="#0f2a33"/><circle cx="20" cy="18" r="6" fill="none" stroke="#e8c870" stroke-width="1.6"/><rect x="14" y="3" width="12" height="5" rx="1" fill="#5b6467"/></svg>',
   crane:

@@ -2,6 +2,7 @@ import { Container, Graphics } from 'pixi.js';
 import { mulberry32, WORLD_SEED } from '../rng';
 import { groundY, isSolid, WORLD_W } from './terrain';
 import { Critter } from '../actors/critters';
+import type { Traits } from '../game/traits';
 import { REGROW_SECONDS, SaveData, SpeciesId } from '../game/state';
 import type { PointLight } from './scenery';
 
@@ -122,6 +123,12 @@ export class Wildlife {
     }
     this.emissive.addChild(this.ring, this.eyes);
     this.glow.addChild(this.eyeHalo);
+  }
+
+  /** Milestone 9: the traits of a wild creature (so the one you catch looks the same in the tank). */
+  traitsOf(id: string): Traits | undefined {
+    const w = this.all.find((q) => q.id === id);
+    return w ? { ...w.critter.traits } : undefined;
   }
 
   /**

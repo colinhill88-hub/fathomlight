@@ -2,6 +2,7 @@ import { Container, Graphics } from 'pixi.js';
 import { Critter } from '../actors/critters';
 import { BaseLayout, pieceRect, Placed } from '../game/base';
 import { creaturesIn, tankDataFor, tanks, vigour } from '../game/creatures';
+import { traitsOf } from '../game/traits';
 import { CreatureData, PlantId, SaveData } from '../game/state';
 import { tankInner } from './basegfx';
 
@@ -50,7 +51,7 @@ interface TankView {
   murkShown: number;
 }
 
-function drawPlant(kind: PlantId): Container {
+export function drawPlant(kind: PlantId): Container {
   const c = new Container();
   const g = c.addChild(new Graphics());
   if (kind === 'coral') {
@@ -205,7 +206,7 @@ export class TankLife {
         }
         // New, or it hatched or grew: redraw it.
         if (old) old.critter.destroy();
-        const critter = new Critter(c.species, c.stage, c.id);
+        const critter = new Critter(c.species, c.stage, c.id, traitsOf(c));
         v.root.addChildAt(critter.view, 2);
         this.emissive.addChild(critter.emissive);
         this.glow.addChild(critter.glow);

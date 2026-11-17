@@ -1,6 +1,7 @@
 import { BaseLayout, isDone, isTankKind, Placed } from './base';
 import { CreatureData, MaterialId, MATERIAL_ORDER, MATERIALS, PlantId, SaveData, SpeciesId, TankData } from './state';
 import { EAT_BELOW, MASH_FED, TRAY_CAP, trayCount, whorlMult } from './factory';
+import { ensureTraits, inherit, RADIANT_MAKE, traitsOf, wildTraits, type Traits } from './traits';
 
 /**
  * Creature care (milestone 4). No drawing here, just the rules.
@@ -206,7 +207,7 @@ export function makeRate(
   layout: BaseLayout,
   c: CreatureData,
   thriving = thrivingTanks(save, layout),
-): { perMin: number; shoal: number; reef: number; whorl: number; clean: number } {
+): { perMin: number; shoal: number; reef: number; whorl: number; clean: number; radiant: number } {
   const happyMates = creaturesIn(save, c.tank).filter((m) => m.id !== c.id && isHappy(save, m));
   const mates = happyMates.length;
   const shoal = SHOAL_BONUS * mates;
@@ -215,7 +216,9 @@ export function makeRate(
   const reef = Math.min(REEF_MAX, REEF_BONUS * (thriving.size - (thriving.has(c.tank) ? 1 : 0)));
   const whorl = whorlMult(save, c.tank);
   const base = c.stage === 'grown' && isHappy(save, c) ? 60 / MAKE_SECONDS : 0;
-  return { perMin: base * (1 + shoal + clean) * (1 + reef) * whorl, shoal, reef, whorl, clean };
+  // Milestone 9: a radiant creature makes a quarter more.
+  const radiant = traitsOf(c).radiant ? RADIANT_MAKE : 1;
+  return { perMin: base * (1 + shoal + clean) * (1 + reef) * whorl * radiant, shoal, reef, whorl, clean, radiant };
 }
 
 export function tankDataFor(save: SaveData, tankId: number): TankData {
@@ -361,7 +364,9 @@ export type CareEvent =
   | { type: 'sick'; c: CreatureData; why: string }
   | { type: 'better'; c: CreatureData }
   | { type: 'dormant'; c: CreatureData }
-  | { type: 'made'; c: CreatureData; kind: MaterialId; stored: boolean };
+  | { type: 'made'; c: CreatureData; kind: MaterialId; stored: boolean }
+  | { type: 'laid'; c: CreatureData; parents: [CreatureData, CreatureData] }
+  | { type: 'nursery-hatched'; c: CreatureData };
 
 /**
  * Run the needs forward by dt seconds of play.
@@ -445,7 +450,103 @@ export function tickCare(save: SaveData, layout: BaseLayout, dt: number): CareEv
       }
     }
   }
+  tickBreeding(save, layout, dt, ev);
   return ev;
+}
+
+// ---- Milestone 9: breeding (Colin's choices) ----
+/**
+ * A happy, grown pair of one species in a tank lays an egg about this often
+ * (6 minutes of play), while the base has a powered Hatchery with room.
+ */
+export const BREED_SECONDS = 360;
+/** Eggs and young one Hatchery holds. */
+export const HATCH_CAP = 4;
+
+/** Finished, powered Hatcheries. */
+export function hatcheries(layout: BaseLayout): Placed[] {
+  return layout.pieces.filter((p) => p.kind === 'hatch' && isDone(p) && layout.powered.has(p.id));
+}
+/** How many eggs and young the base's Hatcheries can still take. */
+export function nurseryRoom(save: SaveData, layout: BaseLayout): number {
+  return HATCH_CAP * hatcheries(layout).length - save.nursery.length;
+}
+/** Happy grown creatures of a species in a tank (the ones that can breed). */
+function breeders(save: SaveData, tankId: number, sp: SpeciesId): CreatureData[] {
+  return creaturesIn(save, tankId).filter((c) => c.species === sp && c.stage === 'grown' && isHappy(save, c));
+}
+/** Pairs of a species in a tank that are ready to breed. */
+export function pairsIn(save: SaveData, tankId: number, sp: SpeciesId): number {
+  return Math.floor(breeders(save, tankId, sp).length / 2);
+}
+
+/** How breeding is going for this creature's kind in its tank, for the care panel. */
+export function breedNote(save: SaveData, layout: BaseLayout, c: CreatureData): ComfortNote | null {
+  if (c.stage !== 'grown') return null;
+  const sp = SPECIES[c.species];
+  const name = sp.name.toLowerCase();
+  if (!isHappy(save, c)) return { text: `Too unsettled to breed`, good: false };
+  const pairs = pairsIn(save, c.tank, c.species);
+  if (!pairs) return { text: `Another happy grown ${name} here would make a breeding pair`, good: false };
+  if (!layout.pieces.some((p) => p.kind === 'hatch' && isDone(p))) return { text: `A breeding pair: build a Hatchery so they can lay eggs`, good: false };
+  if (!hatcheries(layout).length) return { text: `A breeding pair, but the Hatchery has no power`, good: false };
+  const prog = tankDataFor(save, c.tank).breed?.[c.species] ?? 0;
+  if (nurseryRoom(save, layout) <= 0) return { text: `A breeding pair: the Hatchery is full. Place its young in tanks to make room`, good: false };
+  const min = Math.max(1, Math.ceil(((1 - prog) * BREED_SECONDS) / pairs / 60));
+  return { text: `A breeding pair: next egg to the Hatchery in about ${min} min`, good: true };
+}
+
+function tickBreeding(save: SaveData, layout: BaseLayout, dt: number, ev: CareEvent[]): void {
+  const hatch = hatcheries(layout);
+  // Eggs in a powered Hatchery hatch; the young wait there (they don't get hungry) until placed.
+  if (hatch.length)
+    for (const c of save.nursery) {
+      if (c.stage !== 'egg') continue;
+      c.growth += dt / HATCH_SECONDS;
+      if (c.growth >= 1) {
+        c.stage = 'young';
+        c.growth = 0;
+        c.fed = 0.8;
+        ev.push({ type: 'nursery-hatched', c });
+      }
+    }
+  if (!hatch.length) return;
+  for (const t of tanks(layout)) {
+    const td = tankDataFor(save, t.id);
+    for (const sp of SPECIES_ORDER) {
+      const b = breeders(save, t.id, sp);
+      const pairs = Math.floor(b.length / 2);
+      if (!pairs) {
+        if (td.breed?.[sp]) delete td.breed[sp];
+        continue;
+      }
+      td.breed ??= {};
+      const prog = Math.min(1, (td.breed[sp] ?? 0) + (pairs * dt) / BREED_SECONDS);
+      td.breed[sp] = prog;
+      if (prog < 1 || nurseryRoom(save, layout) <= 0) continue;
+      td.breed[sp] = 0;
+      // Two parents from the happy grown ones, and the egg's traits from them.
+      const i = Math.floor(Math.random() * b.length);
+      let j = Math.floor(Math.random() * (b.length - 1));
+      if (j >= i) j++;
+      const pa = b[i];
+      const pb = b[j];
+      const egg: CreatureData = {
+        id: save.nextCreatureId++,
+        species: sp,
+        tank: -1,
+        stage: 'egg',
+        growth: 0,
+        fed: 0.8,
+        comfort: 0.5,
+        sickness: 0,
+        make: 0,
+        traits: inherit(ensureTraits(pa), ensureTraits(pb)),
+      };
+      save.nursery.push(egg);
+      ev.push({ type: 'laid', c: egg, parents: [pa, pb] });
+    }
+  }
 }
 
 /** Take a cost from what is carried first, then from storage. False if it cannot be paid. */
@@ -462,8 +563,9 @@ export function payCost(save: SaveData, cost: Partial<Record<MaterialId, number>
 }
 
 /** A new creature for a tank, from what was in the jar. */
-export function newCreature(save: SaveData, species: SpeciesId, stage: 'egg' | 'young', tank: number): CreatureData {
-  const c: CreatureData = { id: save.nextCreatureId++, species, tank, stage, growth: 0, fed: 0.75, comfort: 0.5, sickness: 0, make: 0 };
+export function newCreature(save: SaveData, species: SpeciesId, stage: 'egg' | 'young', tank: number, traits?: Traits): CreatureData {
+  // Milestone 9: wild ones get wild traits; young from the Hatchery or the Revival pool bring theirs.
+  const c: CreatureData = { id: save.nextCreatureId++, species, tank, stage, growth: 0, fed: 0.75, comfort: 0.5, sickness: 0, make: 0, traits: traits ?? wildTraits() };
   save.creatures.push(c);
   return c;
 }

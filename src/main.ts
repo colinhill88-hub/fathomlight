@@ -92,9 +92,11 @@ import { BuildMode } from './ui/build';
 import { Wildlife } from './world/wildlife';
 import { TankLife } from './world/tanklife';
 import { CareMode } from './ui/care';
-import { creaturesIn, newCreature, SPECIES, tankCapacity, tankNumber, tickCare } from './game/creatures';
+import { creaturesIn, newCreature, payCost, PLANT_ORDER, PLANTS, SPECIES, SPECIES_ORDER, tankCapacity, tankNumber, tickCare } from './game/creatures';
+import { HatchPanel } from './ui/hatch';
+import { traitText, wildTraits } from './game/traits';
 import { RatesPanel } from './ui/rates';
-import { Factory, FEEDER_MASH_CAP, HOPPER_CAP, machineData, PRESS_COPPER_CAP, PRESS_PLATE_CAP, PRESS_SCRAP_CAP, whorlMult, whorlsFree } from './game/factory';
+import { Factory, FARM_TRAY, FEEDER_MASH_CAP, HOPPER_CAP, machineData, PRESS_COPPER_CAP, PRESS_PLATE_CAP, PRESS_SCRAP_CAP, whorlMult, whorlsFree } from './game/factory';
 import { LinesView } from './world/linegfx';
 import { StationMode } from './ui/station';
 import { DIVE_LIGHT, GEAR, hasGear, jobOf, jobRunning, LAMP, RESEARCH, tickStations } from './game/gear';
@@ -478,6 +480,17 @@ async function boot(): Promise<void> {
       if (baseHooks) baseHooks.tankLife.highlight = id;
     },
   });
+  // Milestone 9: the Hatchery's panel (it shares the care panel's frame).
+  const hatchPanel = new HatchPanel({
+    save,
+    layout,
+    toast: (t, k) => hud.toast(t, k),
+    persist: () => persist(),
+    changed: () => {
+      tankLife.sync(save, layout);
+      baseHooks?.syncTanks();
+    },
+  });
   /** Give materials back: into storage while there is room, the rest carried. */
   function refund(cost: Partial<Record<keyof typeof save.bag, number>>): void {
     for (const k of MATERIALS_LIST) {
@@ -732,7 +745,7 @@ async function boot(): Promise<void> {
     if (j.keep) {
       j.keep.tank = tankId;
       save.creatures.push(j.keep);
-    } else newCreature(save, j.species, j.stage === 'egg' ? 'egg' : 'young', tankId);
+    } else newCreature(save, j.species, j.stage === 'egg' ? 'egg' : 'young', tankId, j.traits);
     save.jar = null;
     tankLife.sync(save, layout);
     drone.cheer();
@@ -1245,12 +1258,34 @@ async function boot(): Promise<void> {
     for (const ev of tickCare(save, layout, dt)) {
       const name = SPECIES[ev.c.species].name;
       const where = `tank ${tankNumber(layout, ev.c.tank)}`;
+      // Milestone 9: breeding.
+      if (ev.type === 'laid') {
+        const tp = layout.pieces.find((q) => q.id === ev.parents[0].tank);
+        hud.toast(`A ${name.toLowerCase()} pair in ${tp ? pieceCode(layout, tp) : 'a tank'} laid an egg: it is in the Hatchery (${traitText(ev.c.species, ev.c.traits!)}).`, 'big');
+        if (!save.tips.includes('laid')) {
+          save.tips.push('laid');
+          setTimeout(() => hud.toast('Eggs hatch in the Hatchery. Then stand at its console inside the base and choose a tank for each young one.', 'big'), 2600);
+        }
+        persist();
+        continue;
+      }
+      if (ev.type === 'nursery-hatched') {
+        hud.toast(`A ${name.toLowerCase()} hatched in the Hatchery: ${traitText(ev.c.species, ev.c.traits!)}. Choose a tank for it at the Hatchery console.`, 'big');
+        baseHooks?.syncTanks();
+        persist();
+        continue;
+      }
       if (ev.type === 'hatched') hud.toast(`The ${name.toLowerCase()} eggs hatched in ${where}! The fry need feeding.`, 'big');
       else if (ev.type === 'grown') hud.toast(`The ${name.toLowerCase()} in ${where} is fully grown, and glows brighter`, 'big');
       else if (ev.type === 'sick') hud.toast(`The ${name.toLowerCase()} in ${where} is sick (${ev.why}). Tend it soon.`, 'warn');
       else if (ev.type === 'better') hud.toast(`The ${name.toLowerCase()} in ${where} is feeling better`);
       else if (ev.type === 'dormant')
-        hud.toast(`The ${name.toLowerCase()} in ${where} went dormant. Its remains are kept in storage until a Revival pool is found.`, 'warn');
+        hud.toast(
+          `The ${name.toLowerCase()} in ${where} went dormant. Its remains are kept in storage: ${
+            layout.pieces.some((q) => q.kind === 'revive') ? 'a glowing bloom in the Revival pool can wake it' : 'a Revival pool could wake it, if one were found'
+          }.`,
+          'warn',
+        );
       else if (ev.type === 'made') {
         const belt = save.lines.some((l) => l.kind === 'belt' && l.from === ev.c.tank);
         hud.toast(`+1 ${MATERIALS[ev.kind].name} from the ${name.toLowerCase()} (${belt ? 'on the conveyor' : `in ${where}'s output tray`})`);
@@ -1266,7 +1301,10 @@ async function boot(): Promise<void> {
           );
         }
       }
-      if (ev.type !== 'made' && ev.type !== 'better') tankLife.sync(save, layout);
+      if (ev.type !== 'made' && ev.type !== 'better') {
+        tankLife.sync(save, layout);
+        baseHooks?.syncTanks();
+      }
       persist();
     }
 
@@ -1981,7 +2019,7 @@ async function boot(): Promise<void> {
     const wtKnown = !!wt && save.scans.includes(SPECIES[wt.species].scan);
     const wildOk = !!wt && wtKnown && !save.jar && !diver.surfaced && !atDrone;
     for (const ev of wildlife.update(dt, time, reachPt.x, reachPt.y, Math.hypot(diver.vx, diver.vy), aboard ? sub.thrust > 0 : diver.boosting, save, collectHeld && wildOk, camX - 200, camX + lastViewW + 200)) {
-      save.jar = { species: ev.species, stage: ev.stage };
+      save.jar = { species: ev.species, stage: ev.stage, traits: wildlife.traitsOf(ev.id) };
       drone.cheer();
       const sp = SPECIES[ev.species];
       const name = ev.stage === 'egg' ? sp.eggName : sp.youngName;
@@ -2928,6 +2966,13 @@ async function boot(): Promise<void> {
           return `${code}: ${save.craneQueue ? `${save.craneQueue} salvage waiting` : 'idle. Lower salvage onto it from the sub, outside.'}`;
         case 'recomp':
           return `${code}: pressure chamber ready`;
+        case 'farm': {
+          const m = machineData(save, p.id);
+          const grow = m.grow ?? 'fibre';
+          return `${code}: growing ${grow === 'fibre' ? 'kelp fibre' : `${PLANTS[grow].name.toLowerCase()} cuttings`} · ${Math.round(Math.min(1, m.press) * 100)}%${
+            grow === 'fibre' ? ` · tray ${m.fibre}/${FARM_TRAY}` : ` · ${save.cuttings[grow] ?? 0} ready`
+          }`;
+        }
         default:
           return `${code}: ${PIECES[p.kind].name}`;
       }
@@ -2935,6 +2980,57 @@ async function boot(): Promise<void> {
     pressing: (id) => factory.pressState.get(id) === 'running',
     feederLevels: (id) => readings.feeder(id),
     stationBusy: (id) => readings.station(id),
+    // ---- Milestone 9 ----
+    hatchery: (id) => hatchPanel.open(id),
+    nursery: () => save.nursery,
+    farmCrop: (id) => {
+      const m = machineData(save, id);
+      const grow = m.grow ?? 'fibre';
+      return { name: grow === 'fibre' ? 'kelp fibre' : `${PLANTS[grow].name.toLowerCase()} cuttings`, grow, progress: Math.min(1, m.press), tray: m.fibre, cap: FARM_TRAY };
+    },
+    farmCycle: (id) => {
+      const m = machineData(save, id);
+      const opts: ('fibre' | (typeof PLANT_ORDER)[number])[] = ['fibre', ...PLANT_ORDER.filter((pl) => save.scans.includes(PLANTS[pl].scan))];
+      const i = opts.indexOf(m.grow ?? 'fibre');
+      m.grow = opts[(i + 1) % opts.length];
+      m.press = 0;
+      sound.clip();
+      hud.toast(
+        m.grow === 'fibre'
+          ? 'The farm grows kelp fibre: into its tray, for a conveyor (to an auto feeder or storage), or take it by hand.'
+          : `The farm grows ${PLANTS[m.grow].name.toLowerCase()} cuttings (${save.cuttings[m.grow] ?? 0} ready). Planting it in a tank uses a cutting instead of materials.`,
+      );
+      persist();
+    },
+    farmTake: (id) => {
+      const m = machineData(save, id);
+      if (m.fibre <= 0) return;
+      save.bag.fibre += m.fibre;
+      hud.toast(`+${m.fibre} kelp fibre from the farm's tray`);
+      m.fibre = 0;
+      hud.refreshInventory();
+      persist();
+    },
+    reviveLabel: () => {
+      const sp = SPECIES_ORDER.find((k) => (save.dormant[k] ?? 0) > 0);
+      if (!sp) return { ok: false, text: 'Revival pool: no dormant creatures in storage. Nothing needs waking.' };
+      const n = SPECIES_ORDER.reduce((a, k) => a + (save.dormant[k] ?? 0), 0);
+      if (save.bag.bloom + save.stored.bloom < 1)
+        return { ok: false, text: `Revival pool: ${n} dormant · each waking needs a glowing bloom (they grow only where no lamp has ever shone)` };
+      if (save.jar) return { ok: false, text: 'Revival pool: empty your specimen jar first (the woken creature goes into it)' };
+      return { ok: true, text: `Wake a dormant ${SPECIES[sp].name.toLowerCase()} (1 glowing bloom)` };
+    },
+    revive: () => {
+      const sp = SPECIES_ORDER.find((k) => (save.dormant[k] ?? 0) > 0);
+      if (!sp || save.jar || !payCost(save, { bloom: 1 })) return;
+      save.dormant[sp] = (save.dormant[sp] ?? 0) - 1;
+      const c = { id: save.nextCreatureId++, species: sp, tank: -1, stage: 'young' as const, growth: 0, fed: 0.7, comfort: 0.5, sickness: 0, make: 0, traits: wildTraits() };
+      save.jar = { species: sp, stage: 'young', keep: c, traits: c.traits };
+      sound.find('bag');
+      hud.refreshInventory();
+      hud.toast(`The bloom's light sinks into the still water, and a young ${SPECIES[sp].name.toLowerCase()} stirs. It is in your specimen jar: put it in a tank.`, 'big');
+      persist();
+    },
     storedFrac: () => {
       const cap = storageCapacity(layout);
       return cap ? Math.min(1, MATERIALS_LIST.reduce((a, k) => a + save.stored[k], 0) / cap) : 0;
@@ -3038,15 +3134,21 @@ async function boot(): Promise<void> {
     // The same dive bag as in the water, swinging at the hip.
     interior.walker.load = bagLoad(save);
     // Tending a tank indoors: the walker waits at the window while the panel is open.
+    // Milestone 9: the Hatchery's panel frames its cradles the same way.
     if (inside === 'base' && care.active && care.tankId !== null && baseHooks) {
       const f = baseHooks.tankFocus(care.tankId);
+      interior.focus = f ? { ...f, panelPx: Math.min(360, cssW * 0.44) + 24 } : null;
+    } else if (inside === 'base' && hatchPanel.active && hatchPanel.pieceId !== null && baseHooks) {
+      const f = baseHooks.roomFocus(hatchPanel.pieceId);
       interior.focus = f ? { ...f, panelPx: Math.min(360, cssW * 0.44) + 24 } : null;
     } else {
       interior.focus = null;
       if (care.available !== null && !care.active) care.setAvailable(null);
     }
+    if (inside !== 'base' && hatchPanel.active) hatchPanel.close();
     care.update(dt);
-    const frozen = care.active;
+    hatchPanel.update(dt);
+    const frozen = care.active || hatchPanel.active;
     const evs: InteriorEvent[] = interior.update(
       dt,
       frozen ? { moveX: 0, moveY: 0, jump: false, collect: false, lamp: false } : { moveX: s.moveX, moveY: s.moveY, jump: s.jumpHeld, collect: s.collect, lamp: s.lamp },
@@ -3143,7 +3245,7 @@ async function boot(): Promise<void> {
       aboard: false,
       inDome: true,
       blackout: 0,
-      panel: paused ? 'read' : care.active ? 'care' : '',
+      panel: paused ? 'read' : frozen ? 'care' : '',
       speed: Math.abs(interior.walker.vx),
       boosting: false,
       lampOn: interior.lampOn,
