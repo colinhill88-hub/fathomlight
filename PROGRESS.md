@@ -1356,7 +1356,7 @@ Colin's feedback first (after the walker and the interior art pass): the animati
 **Left over / to check after Colin plays**
 - Numbers: `BREED_SECONDS` 360, `HATCH_CAP` 4, `MUTATION` 0.08, `RADIANT_ODDS`, `RADIANT_MAKE` 1.25, `RADIANT_LIGHT` 1.6 (`traits.ts`, `creatures.ts`); farm 150 s / 200 s / tray 4 / 3 cuttings (`factory.ts`); escort radius 340 (`escort.ts`); `TANK_SCALE` 1.45; the three pieces' costs in `PIECES`.
 - Whether the indoor tank creatures read well on the phone at 1.45× (and whether the Grand tank, whose window spans two floors, wants them bigger).
-- A grown glowfin in the jar is out with you, so it isn't in a tank making quartz. If a blackout makes it "swim home", it is lost like any jar creature: consider sending it back to its tank instead.
+- A grown glowfin in the jar is out with you, so it isn't in a tank making quartz. On a blackout the crew put it back in its tank (as before). A young one from the Hatchery or the Revival pool, which has no tank yet, now goes back to the Hatchery (if the base has none, it swims home and is lost).
 - Wild glowfin, puffcap and ray colours in the world changed slightly (their traits now pick their look).
 - **Mixed tanks (Colin's long-term goal):** breeding pairs are counted per species in a tank, so a mixed tank of two pairs breeds both. Tank upgrades and new partner species are still to plan.
 

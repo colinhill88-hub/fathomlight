@@ -1997,6 +1997,11 @@ async function boot(): Promise<void> {
           if (j.keep && layout.pieces.some((p) => p.id === j.keep!.tank)) {
             save.creatures.push(j.keep);
             jarMsg = ` The crew put the ${SPECIES[j.species].name.toLowerCase()} from your jar back in its tank.`;
+          } else if (j.keep && layout.pieces.some((p) => p.kind === 'hatch' && isDone(p))) {
+            // Milestone 9: one from the Hatchery or the Revival pool (no tank yet) goes back to the Hatchery.
+            j.keep.tank = -1;
+            save.nursery.push(j.keep);
+            jarMsg = ` The crew put the ${SPECIES[j.species].name.toLowerCase()} from your jar in the Hatchery.`;
           } else {
             wildlife.release(j.species, j.stage, save);
             jarMsg = ` The specimen jar came open; the ${SPECIES[j.species].name.toLowerCase()} swam home.`;
