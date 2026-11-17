@@ -79,6 +79,10 @@ body {
   -webkit-backdrop-filter: blur(8px);
   max-height: calc(100vh - var(--safe-top) - var(--safe-bottom) - 84px);
   overflow-y: auto;
+  /* The page blocks touch scrolling everywhere else; the panel must scroll with a finger (G1 made it longer). */
+  touch-action: pan-y;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
 }
 
 #hud .panel[hidden] {
