@@ -1005,10 +1005,12 @@ export class Diver {
     this.view.position.set(this.x, this.y);
     const fa = this.faceS.x;
     this.view.scale.x = Math.abs(fa) < 0.06 ? (fa < 0 ? -0.06 : 0.06) : fa;
-    const chest = 1 + this.heave * 0.035;
-    this.body.scale.set(Diver.SCALE * (1 + this.heave * 0.01), Diver.SCALE * chest);
+    // Floating still the breath is easier to see; swimming keeps the smaller lift.
+    const still = 1 - this.swimBlend;
+    const chest = 1 + this.heave * (0.035 + 0.02 * still);
+    this.body.scale.set(Diver.SCALE * (1 + this.heave * (0.01 + 0.006 * still)), Diver.SCALE * chest);
     this.body.rotation = this.pitch + Math.sin(this.kick - 0.6) * A * 0.04 * this.swimBlend;
-    this.body.y = Math.sin(this.kick * 2) * A * 1.4 * this.swimBlend - this.heave * 1.2 * (1 - this.swimBlend);
+    this.body.y = Math.sin(this.kick * 2) * A * 1.4 * this.swimBlend - this.heave * (1.2 + 0.9 * still) * (1 - this.swimBlend);
 
     this.animateHead(dt, input);
     this.animateGear(dt);

@@ -952,10 +952,33 @@ export class BaseHooks implements InteriorHooks {
         }
         break;
       }
-      case 'shaft':
-        // Chrome bands up the shaft, like an upright corridor.
+      case 'shaft': {
+        // Chrome bands up the shaft, like an upright corridor, with a gold conduit down the wall
+        // beside the ladder, and a lime level marker at each floor.
         for (let y = b.oy + 20; y < b.oy + b.oh; y += 50) g.rect(b.ox, y, b.ow, 6).fill({ color: COL.chromeDark });
+        g.rect(b.ox + b.ow - 14, b.oy, 8, b.oh).fill({ color: COL.wallDark });
+        e.rect(b.ox + b.ow - 11, b.oy, 2, b.oh).fill({ color: 0xe8b040, alpha: 0.55 });
+        for (let k = 0; k < r.h; k++) {
+          const fy = b.floor(k);
+          g.rect(b.ox + 8, fy - 14, 22, 4).fill({ color: COL.chrome });
+          e.rect(b.ox + 10, fy - 13, 18, 2).fill({ color: COL.lime, alpha: 0.7 });
+          addText(sign(`L${r.h - k}`, b.ox + 56, fy - 22, 9, 0xc6f03a, 0.65));
+        }
         break;
+      }
+      case 'junction': {
+        // A hub chamber: a chrome ring on the back wall with arrows to the four ways out, and a gold trace.
+        g.circle(b.cx, b.oy + 62, 30).fill({ color: COL.chrome });
+        g.circle(b.cx, b.oy + 62, 30).stroke({ color: COL.chromeDark, width: 3 });
+        g.circle(b.cx, b.oy + 62, 22).fill({ color: COL.glassSea });
+        e.circle(b.cx, b.oy + 62, 8).fill({ color: COL.lime, alpha: 0.5 });
+        for (const [dx, dy] of [[0, -1], [1, 0], [0, 1], [-1, 0]] as const) {
+          const ax = b.cx + dx * 44;
+          const ay = b.oy + 62 + dy * 44;
+          e.poly([ax + dx * 7, ay + dy * 7, ax - dy * 5 - dx * 3, ay + dx * 5 - dy * 3, ax + dy * 5 - dx * 3, ay - dx * 5 - dy * 3]).fill({ color: COL.gold, alpha: 0.6 });
+        }
+        break;
+      }
       case 'turbine': {
         // Upper level: a round window onto the impeller (it turns in animate). A gold spine runs the full height.
         const t = this.turbines.find((q) => q.id === id)!;

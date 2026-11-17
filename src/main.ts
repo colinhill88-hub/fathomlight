@@ -1344,6 +1344,12 @@ async function boot(): Promise<void> {
         const press = layout.pieces.find((q) => q.kind === 'press' && save.lines.some((l) => l.from === q.id || l.to === q.id)) ?? layout.pieces.find((q) => q.kind === 'press');
         const at = press && baseHooks ? baseHooks.dockSpawn(press.id) : null;
         if (at) interior.place(at.x, at.y, 1);
+        // ?bench&scene=6&at=x,y stands in the base interior at that spot (tiles are 40 units), for screenshots.
+        const atq = new URLSearchParams(location.search).get('at');
+        if (atq) {
+          const [ax, ay] = atq.split(',').map(Number);
+          if (Number.isFinite(ax) && Number.isFinite(ay)) interior.place(ax, ay, 1);
+        }
         interior.lampOn = true;
         return;
       }

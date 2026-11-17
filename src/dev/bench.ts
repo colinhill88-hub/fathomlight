@@ -83,6 +83,7 @@ const SEQUENCE: PieceKind[] = [
   'corridor', 'lab', 'workshop', 'corridor', 'dock', 'corridor', 'gtank', 'sorter', 'corridor', 'crane', 'recomp', 'storage',
   'corridor', 'turbine', 'corridor', 'tank', 'corridor', 'press', 'corridor', 'storage', 'corridor', 'gtank', 'filter',
   'corridor', 'feeder', 'corridor', 'lab', 'corridor', 'tank',
+  'junction', 'shaft', 'junction', 'bracket',
 ];
 
 /**
