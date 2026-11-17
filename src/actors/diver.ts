@@ -108,6 +108,13 @@ interface Leg {
   thigh: Container;
   shin: Container;
   fin: Container;
+  /** The flexible end of the fin blade. */
+  tip: Container;
+  /** Ankle angle (relative to the shin) and its speed: a damped spring pushed by the water. */
+  finAng: number;
+  finVel: number;
+  /** The shin's angle last frame, to tell how fast the foot sweeps through the water. */
+  prevShin: number;
 }
 interface Arm {
   upper: Container;
@@ -135,29 +142,38 @@ function buildLeg(far: boolean): Leg {
   shin.addChild(sg);
   thigh.addChild(shin);
 
+  // The fin is two pieces so the blade can flex: the foot pocket and the
+  // stiff root of the blade turn at the ankle, and the softer tip bends
+  // further on its own joint (follow-through in the water).
   const fin = new Container();
   fin.x = 22;
+  fin.scale.set(0.88, 1);
   const fg = new Graphics();
   fg.roundRect(-5, -6, 12, 12, 4).fill({ color: C.rubber });
-  // Short fins with red tips (the concept's "short fins").
-  fg.moveTo(2, -6)
-    .lineTo(32, -8)
-    .quadraticCurveTo(37, -1, 34, 5.5)
-    .lineTo(4, 5)
-    .closePath()
-    .fill({ color: C.rubber });
-  fg.moveTo(24, -7.5).lineTo(32, -8).quadraticCurveTo(37, -1, 34, 5.5).lineTo(24, 5.2).closePath().fill({ color: C.red });
-  fg.moveTo(32, -8).quadraticCurveTo(37, -1, 34, 5.5).stroke({ color: C.redShade, width: 1.6, alpha: 0.9 });
+  fg.moveTo(2, -6).lineTo(19, -7).lineTo(19, 5.1).lineTo(4, 5).closePath().fill({ color: C.rubber });
   for (const y of [-4, 0, 3.5])
     fg.moveTo(8, y * 0.7)
-      .lineTo(23, y * 1.1)
+      .lineTo(19, y * 1.03)
       .stroke({ color: 0x3e4140, width: 1, alpha: 0.7 });
-  fg.moveTo(10, -2).lineTo(20, -2.4).stroke({ color: C.visor, width: 1, alpha: 0.7 });
+  fg.moveTo(10, -2).lineTo(19, -2.3).stroke({ color: C.visor, width: 1, alpha: 0.7 });
   fg.tint = tint;
-  fg.scale.set(0.88, 1);
-  fin.addChild(fg);
+  const tip = new Container();
+  tip.x = 18;
+  const tg2 = new Graphics();
+  // Short fins with red tips (the concept's "short fins").
+  tg2.moveTo(-1, -7).lineTo(14, -8).quadraticCurveTo(19, -1, 16, 5.5).lineTo(-1, 5.1).closePath().fill({ color: C.rubber });
+  tg2.moveTo(6, -7.5).lineTo(14, -8).quadraticCurveTo(19, -1, 16, 5.5).lineTo(6, 5.2).closePath().fill({ color: C.red });
+  tg2.moveTo(14, -8).quadraticCurveTo(19, -1, 16, 5.5).stroke({ color: C.redShade, width: 1.6, alpha: 0.9 });
+  for (const y of [-4, 0, 3.5])
+    tg2.moveTo(0, y * 1.03)
+      .lineTo(5, y * 1.1)
+      .stroke({ color: 0x3e4140, width: 1, alpha: 0.7 });
+  tg2.moveTo(0, -2.3).lineTo(2, -2.4).stroke({ color: C.visor, width: 1, alpha: 0.7 });
+  tg2.tint = tint;
+  tip.addChild(tg2);
+  fin.addChild(fg, tip);
   shin.addChild(fin);
-  return { thigh, shin, fin };
+  return { thigh, shin, fin, tip, finAng: -0.3, finVel: 0, prevShin: Math.PI };
 }
 
 function buildArm(far: boolean): Arm {
@@ -330,8 +346,8 @@ function buildShoulderLamp(): Graphics {
 function buildHelmet(): Container {
   const c = new Container();
   const g = new Graphics();
-  const shell = () =>
-    g
+  const shell = (q: Graphics) =>
+    q
       .moveTo(46, 15)
       .bezierCurveTo(37, 4, 37, -18, 54, -25)
       .bezierCurveTo(66, -30, 81, -26, 87, -14)
@@ -340,15 +356,19 @@ function buildHelmet(): Container {
       .closePath();
 
   // Inside of the helmet: in shadow, so the glass reads as deep and tinted.
-  shell().fill({ color: 0x0e1a17, alpha: 0.55 });
+  shell(g).fill({ color: 0x0e1a17, alpha: 0.55 });
+  c.addChild(g);
+  // The head is its own piece so it can turn a little inside the glass.
+  const hd = new Graphics();
+  hd.label = 'head';
   // The head in side profile, filling most of the helmet: skull, brow,
   // nose, lips, chin and a jaw line that rises back towards the ear. Below
   // it a slim neck in shadow disappears into the suit's dark neck seal.
   // Neck first, so the jaw overlaps it.
-  g.moveTo(61, 6).lineTo(71, 6).lineTo(70.5, 16).lineTo(60.5, 16).closePath().fill({ color: 0x6e4c3b });
-  g.moveTo(61, 6).lineTo(71, 6).lineTo(70.5, 10).quadraticCurveTo(66, 8, 61, 9).closePath().fill({ color: 0x2c1e17, alpha: 0.45 });
+  hd.moveTo(61, 6).lineTo(71, 6).lineTo(70.5, 16).lineTo(60.5, 16).closePath().fill({ color: 0x6e4c3b });
+  hd.moveTo(61, 6).lineTo(71, 6).lineTo(70.5, 10).quadraticCurveTo(66, 8, 61, 9).closePath().fill({ color: 0x2c1e17, alpha: 0.45 });
   const head = () =>
-    g
+    hd
       .moveTo(60, 9)
       .bezierCurveTo(54, 5, 50, -2, 51, -8)
       .bezierCurveTo(52, -17, 62, -23, 71, -22)
@@ -363,7 +383,7 @@ function buildHelmet(): Container {
       .closePath();
   head().fill({ color: C.skin });
   // Shading: the back of the head is turned away from the light.
-  g.moveTo(60, 9)
+  hd.moveTo(60, 9)
     .bezierCurveTo(54, 5, 50, -2, 51, -8)
     .bezierCurveTo(52, -14, 58, -19, 64, -21)
     .quadraticCurveTo(60, -6, 66, 6.5)
@@ -371,10 +391,10 @@ function buildHelmet(): Container {
     .closePath()
     .fill({ color: 0x3a2a22, alpha: 0.4 });
   // Soft shadow under the jaw and a cheekbone highlight.
-  g.moveTo(81, 9.3).quadraticCurveTo(76, 10.2, 70.5, 7.5).quadraticCurveTo(76, 7.6, 80.4, 7.6).closePath().fill({ color: 0x2c1e17, alpha: 0.35 });
-  g.ellipse(77.5, -1.2, 3.4, 2).fill({ color: 0xc69274, alpha: 0.35 });
+  hd.moveTo(81, 9.3).quadraticCurveTo(76, 10.2, 70.5, 7.5).quadraticCurveTo(76, 7.6, 80.4, 7.6).closePath().fill({ color: 0x2c1e17, alpha: 0.35 });
+  hd.ellipse(77.5, -1.2, 3.4, 2).fill({ color: 0xc69274, alpha: 0.35 });
   // Cap of hair over the crown and back of the head, with a few strands.
-  g.moveTo(51.5, -3)
+  hd.moveTo(51.5, -3)
     .bezierCurveTo(50, -14, 60, -23, 71, -22)
     .bezierCurveTo(77, -21.5, 80.5, -18, 81.5, -14)
     .quadraticCurveTo(72, -17, 64, -12)
@@ -382,30 +402,40 @@ function buildHelmet(): Container {
     .closePath()
     .fill({ color: 0x3b261c });
   for (const [x0, y0, x1, y1] of [[56, -14, 66, -19], [60, -10, 72, -17], [54, -6, 60, -15]])
-    g.moveTo(x0, y0).lineTo(x1, y1).stroke({ color: 0x5a3c2c, width: 0.7, alpha: 0.7 });
+    hd.moveTo(x0, y0).lineTo(x1, y1).stroke({ color: 0x5a3c2c, width: 0.7, alpha: 0.7 });
   // Ear.
-  g.moveTo(63, -4.5).quadraticCurveTo(67.5, -5, 67, 0).quadraticCurveTo(66.5, 3.5, 63.5, 3).quadraticCurveTo(62, -1, 63, -4.5).fill({ color: 0x8a5f49 });
-  g.moveTo(64.2, -2.5).quadraticCurveTo(66, -2.6, 65.6, 0.4).stroke({ color: 0x5e3f30, width: 0.8, alpha: 0.85 });
+  hd.moveTo(63, -4.5).quadraticCurveTo(67.5, -5, 67, 0).quadraticCurveTo(66.5, 3.5, 63.5, 3).quadraticCurveTo(62, -1, 63, -4.5).fill({ color: 0x8a5f49 });
+  hd.moveTo(64.2, -2.5).quadraticCurveTo(66, -2.6, 65.6, 0.4).stroke({ color: 0x5e3f30, width: 0.8, alpha: 0.85 });
   // Brow, eye with an upper lid, nostril, the line from nose to mouth, lips.
-  g.moveTo(75.5, -9.6).quadraticCurveTo(78.8, -11, 81.6, -9.6).stroke({ color: 0x2a1a14, width: 1.4, alpha: 0.9 });
-  g.moveTo(77.4, -6.4).quadraticCurveTo(79.2, -7.6, 80.8, -6.2).quadraticCurveTo(79.2, -5.4, 77.4, -6.4).fill({ color: 0xe8e0d6 });
-  g.circle(79.8, -6.4, 0.85).fill({ color: 0x1a120e });
-  g.moveTo(77.2, -6.6).quadraticCurveTo(79.2, -8.1, 81, -6.5).stroke({ color: 0x2a1a14, width: 0.7, alpha: 0.85 });
-  g.circle(83.2, 0.8, 0.55).fill({ color: 0x3a241b, alpha: 0.85 });
-  g.moveTo(81.4, 1.2).quadraticCurveTo(80, 3.4, 80.8, 5.4).stroke({ color: 0x5e3a2c, width: 0.6, alpha: 0.5 });
-  g.moveTo(82.2, 3).lineTo(83.3, 3.3).stroke({ color: 0x6a3a2c, width: 0.9 });
+  hd.moveTo(75.5, -9.6).quadraticCurveTo(78.8, -11, 81.6, -9.6).stroke({ color: 0x2a1a14, width: 1.4, alpha: 0.9 });
+  hd.moveTo(77.4, -6.4).quadraticCurveTo(79.2, -7.6, 80.8, -6.2).quadraticCurveTo(79.2, -5.4, 77.4, -6.4).fill({ color: 0xe8e0d6 });
+  hd.circle(79.8, -6.4, 0.85).fill({ color: 0x1a120e });
+  hd.moveTo(77.2, -6.6).quadraticCurveTo(79.2, -8.1, 81, -6.5).stroke({ color: 0x2a1a14, width: 0.7, alpha: 0.85 });
+  hd.circle(83.2, 0.8, 0.55).fill({ color: 0x3a241b, alpha: 0.85 });
+  hd.moveTo(81.4, 1.2).quadraticCurveTo(80, 3.4, 80.8, 5.4).stroke({ color: 0x5e3a2c, width: 0.6, alpha: 0.5 });
+  hd.moveTo(82.2, 3).lineTo(83.3, 3.3).stroke({ color: 0x6a3a2c, width: 0.9 });
+  // An eyelid for the occasional blink (shown by the Diver).
+  const lid = new Graphics();
+  lid.moveTo(77.2, -6.8).quadraticCurveTo(79.2, -8.1, 81, -6.6).quadraticCurveTo(79.2, -5.2, 77.2, -6.2).closePath().fill({ color: 0x8a5f49 });
+  lid.label = 'eyelid';
+  lid.visible = false;
+  const headRig = new Container();
+  headRig.label = 'headRig';
+  headRig.addChild(hd, lid);
+  c.addChild(headRig);
+  const f = new Graphics();
   // The suit's neck seal: a dark rubber collar with a metal ring, sitting in
   // the bottom of the helmet.
-  g.moveTo(52, 13).quadraticCurveTo(64, 10.5, 77, 12.5).lineTo(79, 20).quadraticCurveTo(64, 22, 50, 19).closePath().fill({ color: C.suit });
-  g.moveTo(52, 13).quadraticCurveTo(64, 10.5, 77, 12.5).stroke({ color: C.chrome, width: 1.6 });
+  f.moveTo(52, 13).quadraticCurveTo(64, 10.5, 77, 12.5).lineTo(79, 20).quadraticCurveTo(64, 22, 50, 19).closePath().fill({ color: C.suit });
+  f.moveTo(52, 13).quadraticCurveTo(64, 10.5, 77, 12.5).stroke({ color: C.chrome, width: 1.6 });
   // Tinted glass shell.
-  shell().fill({ color: C.visor, alpha: 0.3 });
-  shell().stroke({ color: C.visorEdge, width: 2, alpha: 0.95 });
+  shell(f).fill({ color: C.visor, alpha: 0.3 });
+  shell(f).stroke({ color: C.visorEdge, width: 2, alpha: 0.95 });
   // Thick glass catches more colour along its edges.
-  g.moveTo(47, 12).bezierCurveTo(40, 2, 40, -16, 55, -22).stroke({ color: C.visor, width: 3, alpha: 0.55, cap: 'round' });
+  f.moveTo(47, 12).bezierCurveTo(40, 2, 40, -16, 55, -22).stroke({ color: C.visor, width: 3, alpha: 0.55, cap: 'round' });
 
   // One smooth crest fin, sweeping back past the rear of the helmet.
-  g.moveTo(82, -22)
+  f.moveTo(82, -22)
     .quadraticCurveTo(79, -37, 65, -39)
     .quadraticCurveTo(49, -40, 35, -32)
     .quadraticCurveTo(47, -27, 56, -25.5)
@@ -413,23 +443,27 @@ function buildHelmet(): Container {
     .closePath()
     .fill({ color: C.visor, alpha: 0.8 })
     .stroke({ color: C.visorEdge, width: 1.5 });
-  g.moveTo(78, -26).quadraticCurveTo(64, -32, 44, -31).stroke({ color: C.visorEdge, width: 1, alpha: 0.7 });
-  g.moveTo(76, -30).quadraticCurveTo(66, -34, 54, -34).stroke({ color: 0xf2ffd0, width: 1.4, alpha: 0.55, cap: 'round' });
+  f.moveTo(78, -26).quadraticCurveTo(64, -32, 44, -31).stroke({ color: C.visorEdge, width: 1, alpha: 0.7 });
+  f.moveTo(76, -30).quadraticCurveTo(66, -34, 54, -34).stroke({ color: 0xf2ffd0, width: 1.4, alpha: 0.55, cap: 'round' });
 
   // Moulded rib down the side, and the face-plate frame.
-  g.moveTo(55, -20).quadraticCurveTo(52, -4, 56, 12).stroke({ color: C.visorEdge, width: 1.4, alpha: 0.7 });
-  g.moveTo(82, -17).bezierCurveTo(87, -8, 87, 5, 81, 13).stroke({ color: C.visorEdge, width: 2, alpha: 0.9 });
+  f.moveTo(55, -20).quadraticCurveTo(52, -4, 56, 12).stroke({ color: C.visorEdge, width: 1.4, alpha: 0.7 });
+  f.moveTo(82, -17).bezierCurveTo(87, -8, 87, 5, 81, 13).stroke({ color: C.visorEdge, width: 2, alpha: 0.9 });
 
   // Reflections.
-  g.moveTo(60, -21).quadraticCurveTo(71, -26, 81, -18).stroke({ color: 0xf6ffe0, width: 2.4, alpha: 0.55, cap: 'round' });
-  g.circle(85, -9, 1.7).fill({ color: 0xffffff, alpha: 0.7 });
-  g.moveTo(87.5, -2).quadraticCurveTo(88, 3, 86, 8).stroke({ color: 0xffffff, width: 1.2, alpha: 0.35, cap: 'round' });
+  f.moveTo(60, -21).quadraticCurveTo(71, -26, 81, -18).stroke({ color: 0xf6ffe0, width: 2.4, alpha: 0.55, cap: 'round' });
+  f.circle(85, -9, 1.7).fill({ color: 0xffffff, alpha: 0.7 });
+  f.moveTo(87.5, -2).quadraticCurveTo(88, 3, 86, 8).stroke({ color: 0xffffff, width: 1.2, alpha: 0.35, cap: 'round' });
 
 
   // Coiled breathing hose from the back unit, over the side of the helmet,
   // down to the regulator port on the chest.
-  coiledHose(g, [[44, -42], [60, -46], [59, -8], [51, 3]], 4.2);
-  c.addChild(g);
+  c.addChild(f);
+  // The hose is its own piece (the Diver moves it to the body so it can sway a little).
+  const hose = new Graphics();
+  coiledHose(hose, [[44, -42], [60, -46], [59, -8], [51, 3]], 4.2);
+  hose.label = 'hose';
+  c.addChild(hose);
 
   // Breath fogging the inside of the glass after surfacing (faded in and out by the Diver).
   const fog = new Graphics();
@@ -505,7 +539,9 @@ export class Diver {
   private farArm = buildArm(true);
   private face = 1; // 1 right, -1 left
   private faceAnim = 1;
+  private faceVel = 0;
   private pitch = 0;
+  private pitchVel = 0;
   private kick = 0;
   private time = 0;
   private boostTime = 0;
@@ -522,6 +558,43 @@ export class Diver {
   private plume = new Graphics();
   private visorFog!: Container;
   private visorDrops!: Container;
+  private headRig!: Container;
+  private eyelid!: Container;
+  private hose!: Container;
+
+  // ---- Animation state (character animation polish, session A) ----
+  // Everything here is plain numbers updated in place: no objects are made per frame.
+  /** Smoothed swimming effort, 0 floating still .. 1 full kick. Builds up and dies away gradually. */
+  private drive = 0;
+  /** Smoothed boost, 0..1: ramps in fast and fades out over about half a second. */
+  private boostLvl = 0;
+  /** Smoothed hip swing of the kick, radians. */
+  private kickAmp = 0.06;
+  /** 0 relaxed floating pose .. 1 streamlined swimming pose. */
+  private swimBlend = 0;
+  /** 0 arms sculling in front .. 1 arms back along the body (a slow pull stroke between them). */
+  private armBlend = 0;
+  /** 1 just after turning around, fading to 0: extra sculling and kicking while the body comes round. */
+  private turn = 0;
+  /** Underwater breathing: phase 0..1 of the current breath, and bubbles waiting to be released. */
+  private breathUw = 0.3;
+  private bubblesDue = 0;
+  private trickle = 0;
+  /** The head inside the glass: where it is looking now, where it wants to look, and when it next glances. */
+  private headAng = 0;
+  private headVel = 0;
+  private glance = 0;
+  private glanceTimer = 2.5;
+  private blinkTimer = 3;
+  /** The dive bag hangs like a pendulum, the hose sways a little. */
+  private bagAng = 0;
+  private bagVel = 0;
+  private hoseAng = 0;
+  private hoseVel = 0;
+  private lastVx = 0;
+  private plumeDrawn = false;
+  /** Reused for lampPose so the per-frame lamp query makes no garbage. */
+  private readonly lampOut: LampPose = { x: 0, y: 0, dirX: 1, dirY: 0 };
 
   private static readonly SCALE = 0.86;
   private static readonly RADIUS = 26;
@@ -536,6 +609,16 @@ export class Diver {
     helmet.x = -6;
     this.visorFog = helmet.getChildByLabel('visorFog')!;
     this.visorDrops = helmet.getChildByLabel('visorDrops')!;
+    // The head turns about the neck, inside the glass.
+    this.headRig = helmet.getChildByLabel('headRig')!;
+    this.headRig.pivot.set(66, 8);
+    this.headRig.position.set(66, 8);
+    this.eyelid = this.headRig.getChildByLabel('eyelid', true)!;
+    // The hose sways about its chest fitting; it lives on the body, over the helmet.
+    this.hose = helmet.getChildByLabel('hose')!;
+    helmet.removeChild(this.hose);
+    this.hose.pivot.set(51, 3);
+    this.hose.position.set(51 - 6, 3);
     const hip = { x: -26, y: 5 };
     const shoulder = { x: 25, y: 6 };
     this.farLeg.thigh.position.set(hip.x + 2, hip.y - 3);
@@ -548,6 +631,7 @@ export class Diver {
       torso,
       this.diveBag,
       helmet,
+      this.hose,
       buildShoulderLamp(),
       this.nearLeg.thigh,
       this.plume,
@@ -581,28 +665,47 @@ export class Diver {
   private static readonly LAMP = { x: 48, y: 14.5 };
   private static readonly BUBBLE = { x: 47, y: 9 };
 
+  /**
+   * Local drawing space to world space. The facing flip is a mirror in
+   * world x (so turning around never flips the body's tilt), applied after
+   * the body's pitch.
+   */
   private toWorld(lx: number, ly: number): [number, number] {
     const S = Diver.SCALE;
-    const sx = lx * this.faceAnim * S;
+    lx *= S;
     ly *= S;
     const r = this.body.rotation;
     const c = Math.cos(r);
     const s = Math.sin(r);
-    return [this.x + sx * c - ly * s, this.y + sx * s + ly * c];
+    return [this.x + this.view.scale.x * (lx * c - ly * s), this.y + this.body.y + lx * s + ly * c];
   }
 
+  /**
+   * Where the lamp is and where it points. The same object is returned
+   * every call (copy the numbers if you need to keep them).
+   */
   lampPose(): LampPose {
     const [x, y] = this.toWorld(Diver.LAMP.x, Diver.LAMP.y);
     const r = this.body.rotation;
-    const dl = 1;
     const dyl = 0.1; // aim slightly downwards
-    const dx = dl * this.face;
-    return {
-      x,
-      y,
-      dirX: dx * Math.cos(r) - dyl * Math.sin(r),
-      dirY: dx * Math.sin(r) + dyl * Math.cos(r),
-    };
+    // The beam swaps sides when the body passes edge-on halfway through a turn.
+    const side = this.view.scale.x >= 0 ? 1 : -1;
+    const o = this.lampOut;
+    o.x = x;
+    o.y = y;
+    o.dirX = side * (Math.cos(r) - dyl * Math.sin(r));
+    o.dirY = Math.sin(r) + dyl * Math.cos(r);
+    return o;
+  }
+
+  /**
+   * Bubbles breathed out since the last call (underwater only). Bubbles
+   * now leave the helmet in time with the diver's breathing.
+   */
+  takeBubbles(): number {
+    const n = Math.floor(this.bubblesDue);
+    this.bubblesDue -= n;
+    return n;
   }
 
   bubblePoint(): [number, number] {
@@ -695,31 +798,128 @@ export class Diver {
     const speed = Math.hypot(this.vx, this.vy);
     this.speedNorm = Math.min(1.6, speed / Diver.SPEED);
 
-    // Facing and body angle.
+    this.animate(dt, moveX, moveY);
+  }
+
+  /**
+   * Animate only, for when something else moves the diver (the grapple
+   * reeling them in): the body keeps breathing and trails its legs
+   * instead of freezing mid-kick.
+   */
+  pose(dt: number): void {
+    this.time += dt;
+    this.speedNorm = Math.min(1.6, Math.hypot(this.vx, this.vy) / Diver.SPEED);
+    this.animate(dt, 0, 0);
+  }
+
+  /**
+   * Everything visual that follows from the movement: facing, body angle,
+   * breathing, the head, equipment, and the limbs. Gameplay state (position,
+   * speed, collisions) is never changed here.
+   */
+  private animate(dtIn: number, moveX: number, moveY: number): void {
+    // Springs below are stable to about 1/20 s; a long hitch just slows the animation.
+    const dt = Math.min(dtIn, 0.05);
+    if (dt <= 0) return;
+    const speed = Math.hypot(this.vx, this.vy);
+    const input = this.surfaced || this.working ? 0 : Math.min(1, Math.hypot(moveX, moveY));
+
+    // Facing. Turning around starts a short "coming round" envelope.
+    const prevFace = this.face;
     if (this.vx > 25) this.face = 1;
     else if (this.vx < -25) this.face = -1;
-    this.faceAnim += (this.face - this.faceAnim) * Math.min(1, dt * 9);
-    if (Math.abs(this.faceAnim) < 0.08) this.faceAnim = this.face * 0.08; // never quite zero width
+    if (this.face !== prevFace) this.turn = 1;
+    this.turn = Math.max(0, this.turn - dt * 1.6);
+    // A critically damped spring: the turn eases in and out instead of starting at full speed.
+    {
+      const w = 13;
+      this.faceVel += (w * w * (this.face - this.faceAnim) - 2 * w * this.faceVel) * dt;
+      this.faceAnim += this.faceVel * dt;
+    }
 
+    // Effort and boost, smoothed: kicks build up as the diver gets going and
+    // die away slowly after letting go, so the diver glides to a stop.
+    const L = Math.min(1.6, this.load);
+    let want = input * (0.5 + 0.5 * Math.min(1, this.speedNorm)) + this.turn * 0.25 * input;
+    if (this.surfaced) want = 0.3; // treading water
+    want = Math.min(1, want);
+    this.drive += (want - this.drive) * Math.min(1, dt * (want > this.drive ? 3.2 : 1.1));
+    const bWant = this.boostTime > 0 ? 1 : 0;
+    this.boostLvl += (bWant - this.boostLvl) * Math.min(1, dt * (bWant > this.boostLvl ? 14 : 2.4));
+
+    // Pose blends: streamlined when travelling, relaxed when floating.
     const moving = this.surfaced ? 0 : Math.min(1, speed / 60);
+    const swimWant = this.surfaced || this.working ? 0 : Math.max(moving, input * 0.6);
+    this.swimBlend += (swimWant - this.swimBlend) * Math.min(1, dt * (swimWant > this.swimBlend ? 3 : 1.4));
+    // The arms pull back quickly when setting off (a stroke) and drift forward slowly when stopping.
+    this.armBlend += (swimWant - this.armBlend) * Math.min(1, dt * (swimWant > this.armBlend ? 4.5 : 1.2));
+
+    // Breathing underwater: slow and calm when still, quicker when working hard.
+    if (!this.surfaced) {
+      const period = 4.2 - 1.2 * this.drive - 1.1 * this.boostLvl - 0.4 * L * this.drive;
+      const before = this.breathUw;
+      this.breathUw += dt / period;
+      if (this.breathUw >= 1) this.breathUw -= 1;
+      const ph = this.breathUw;
+      // In over the first 40%, then a longer breath out.
+      this.heave = (ph < 0.4 ? Math.sin((ph / 0.4) * Math.PI * 0.5) : Math.cos(((ph - 0.4) / 0.6) * Math.PI * 0.5)) * 0.55;
+      if (before < 0.4 && ph >= 0.4) {
+        // The breath out: a burst from the regulator, then a short trickle.
+        this.bubblesDue += 3 + Math.round(2 * this.drive + 2 * this.boostLvl);
+        this.trickle = 0.7;
+      }
+      if (this.trickle > 0) {
+        this.trickle -= dt;
+        this.bubblesDue += dt * (2.5 + 3 * this.drive);
+      }
+    } else {
+      this.bubblesDue = 0;
+      this.trickle = 0;
+    }
+
+    // Body angle: along the direction of travel, head up when floating.
     const swimAngle = Math.atan2(this.vy, Math.abs(this.vx) + 25);
     const idleAngle = -0.22 + Math.sin(this.time * 0.9) * 0.04;
     let targetPitch = Math.max(-1.15, Math.min(1.15, swimAngle * moving + idleAngle * (1 - moving)));
+    targetPitch -= this.turn * 0.14 * (1 - Math.abs(targetPitch)); // the body lifts a little as it comes round
     // Upright and treading water at the surface; the head tips back a little with each breath in.
     if (this.surfaced) targetPitch = -1.08 - this.heave * 0.12 + Math.sin(this.time * 1.3) * 0.04;
     if (this.working) targetPitch = Math.atan2(this.working.y - this.y, Math.abs(this.working.x - this.x) + 30) * 0.8;
-    this.pitch += (targetPitch - this.pitch) * Math.min(1, dt * (this.surfaced ? 7 : 5));
+    {
+      // A slightly soft spring: the body settles with a hint of follow-through, never a snap.
+      const w = this.surfaced ? 9 : 5.5;
+      const z = 0.82;
+      this.pitchVel += (w * w * (targetPitch - this.pitch) - 2 * z * w * this.pitchVel) * dt;
+      this.pitch += this.pitchVel * dt;
+    }
 
     // Breath fog on the glass clears slowly; drops of water run off.
     this.visorFog.alpha = Math.max(0, this.visorFog.alpha - dt * 0.35);
     this.visorDrops.alpha = Math.max(0, this.visorDrops.alpha - dt * 0.22);
 
-    this.view.position.set(this.x, this.y);
-    const chest = 1 + this.heave * 0.035;
-    this.body.scale.set(this.faceAnim * Diver.SCALE * (1 + this.heave * 0.01), Diver.SCALE * chest);
-    this.body.rotation = this.pitch * this.face;
+    // Kick rhythm. The phase only ever advances, so speeding up or slowing
+    // down never makes the legs jump.
+    const kickRate = 1.9 + this.drive * 6.4 + this.boostLvl * 5.5 + L * 1.4 * this.drive + this.turn * 1.5;
+    this.kick += dt * kickRate;
+    // Small, irregular kicks to hold position when floating still.
+    const hold = 0.045 + 0.05 * Math.max(0, Math.sin(this.time * 0.37) * Math.sin(this.time * 0.23 + 1));
+    const ampWant = hold * (1 - this.drive) + this.drive * 0.27 + this.boostLvl * 0.13 + this.turn * 0.07;
+    this.kickAmp += (ampWant - this.kickAmp) * Math.min(1, dt * 4);
 
-    this.animateLimbs(dt, moving);
+    // Place the body: facing mirror on the view, pitch and a little torso
+    // flex from the kick on the body, a breath rising and falling.
+    const A = this.kickAmp;
+    this.view.position.set(this.x, this.y);
+    const fa = this.faceAnim;
+    this.view.scale.x = Math.abs(fa) < 0.06 ? (fa < 0 ? -0.06 : 0.06) : fa;
+    const chest = 1 + this.heave * 0.035;
+    this.body.scale.set(Diver.SCALE * (1 + this.heave * 0.01), Diver.SCALE * chest);
+    this.body.rotation = this.pitch + Math.sin(this.kick - 0.6) * A * 0.04 * this.swimBlend;
+    this.body.y = Math.sin(this.kick * 2) * A * 1.4 * this.swimBlend - this.heave * 1.2 * (1 - this.swimBlend);
+
+    this.animateHead(dt, input);
+    this.animateGear(dt);
+    this.animateLimbs(dt);
   }
 
   /**
@@ -751,41 +951,132 @@ export class Diver {
     this.vy = 0;
   }
 
-  private animateLimbs(dt: number, moving: number): void {
-    const s = this.speedNorm;
-    const boost = this.boostTime > 0 ? 1 : 0;
-    // A heavy bag makes the diver kick harder for the same speed.
-    this.kick += dt * (2.2 + s * 6.5 + boost * 5 + Math.min(1.6, this.load) * 1.6 * Math.min(1, s * 3));
-    this.diveBag.visible = this.load > 0.005;
+  /**
+   * The head inside the glass: it leads the body into climbs and dives,
+   * tucks in when boosting, and when floating it now and then looks
+   * around. An occasional blink.
+   */
+  private animateHead(dt: number, input: number): void {
+    this.glanceTimer -= dt;
+    if (this.glanceTimer <= 0) {
+      // Restrained: a look up, a look down, or back to straight ahead.
+      const r = rand();
+      this.glance = r < 0.35 ? -0.1 - rand() * 0.06 : r < 0.6 ? 0.06 + rand() * 0.05 : 0;
+      this.glanceTimer = 2.2 + rand() * 4;
+    }
+    const still = (1 - this.swimBlend) * (this.working ? 0 : 1);
+    // Looking where the body is going: a little further than the body's own angle.
+    const lead = Math.max(-0.12, Math.min(0.12, (this.pitchVel * 0.08) + Math.sin(this.pitch) * 0.08 * this.swimBlend));
+    let want = this.glance * still * (1 - input) + lead - this.boostLvl * 0.05 * (1 - this.turn);
+    if (this.surfaced) want = -0.05 - this.heave * 0.06;
+    if (this.working) want = 0.1;
+    want = Math.max(-0.17, Math.min(0.14, want));
+    const w = 7;
+    this.headVel += (w * w * (want - this.headAng) - 2 * w * this.headVel) * dt;
+    this.headAng += this.headVel * dt;
+    this.headRig.rotation = this.headAng;
+
+    this.blinkTimer -= dt;
+    if (this.blinkTimer <= 0) this.blinkTimer = 2.5 + rand() * 4.5;
+    this.eyelid.visible = this.blinkTimer < 0.13;
+  }
+
+  /** The dive bag swings on its clip, the hose sways, the thruster plume. */
+  private animateGear(dt: number): void {
+    const boost = this.boostLvl;
     // Hip jets: a lime plume while boosting, fading out after.
     const jet = Math.min(1, this.boostTime / 0.3);
-    const pl = this.plume.clear();
     if (jet > 0.02) {
+      const pl = this.plume.clear();
       const len = 26 + 18 * jet + Math.sin(this.time * 40) * 3;
       pl.poly([-38, 10, -38 - len, 14, -38, 18]).fill({ color: C.visor, alpha: 0.55 * jet });
       pl.poly([-38, 12, -38 - len * 0.6, 14, -38, 16]).fill({ color: 0xf4ffd0, alpha: 0.8 * jet });
-    }
-    const fill = Math.min(1.6, this.load);
-    this.diveBag.scale.set(0.55 + 0.32 * fill, 0.5 + 0.45 * fill);
-    this.diveBag.rotation = -this.pitch * 0.6 + Math.sin(this.kick * 0.5) * 0.06;
-    const amp = 0.1 + Math.min(1, s) * 0.32 + boost * 0.12;
-    const legs: [Leg, number][] = [
-      [this.nearLeg, 0],
-      [this.farLeg, Math.PI],
-    ];
-    for (const [leg, off] of legs) {
-      const p = this.kick + off;
-      leg.thigh.rotation = Math.PI - 0.06 + Math.sin(p) * amp;
-      leg.shin.rotation = 0.12 + Math.sin(p - 0.9) * amp * 0.9;
-      leg.fin.rotation = Math.sin(p - 1.7) * amp * 1.2;
+      this.plumeDrawn = true;
+    } else if (this.plumeDrawn) {
+      this.plume.clear();
+      this.plumeDrawn = false;
     }
 
-    // Arms: streamlined along the body when swimming, gentle sculling when still.
-    const scull = Math.sin(this.time * 2.1);
-    const arms: [Arm, number][] = [
-      [this.nearArm, 0],
-      [this.farArm, 0.8],
-    ];
+    // Forward acceleration, in the body's own frame (positive = speeding up the way it faces).
+    const ax = ((this.vx - this.lastVx) / dt) * (this.face);
+    this.lastVx = this.vx;
+    const fill = Math.min(1.6, this.load);
+    this.diveBag.visible = this.load > 0.005;
+    this.diveBag.scale.set(0.55 + 0.32 * fill, 0.5 + 0.45 * fill);
+    {
+      // A pendulum: hangs straight down in the world, swings back when the
+      // diver speeds up and forward when they slow, jiggles with the kick.
+      const target = -this.pitch * 0.6;
+      const push = Math.max(-1, Math.min(1, ax / 600)) * 3 + Math.sin(this.kick * 2) * this.kickAmp * 2.5 * this.swimBlend;
+      const w = 4.2 - 0.8 * Math.min(1, fill);
+      this.bagVel += (w * w * (target - this.bagAng) - 2 * 0.35 * w * this.bagVel + push) * dt;
+      this.bagAng += this.bagVel * dt;
+      this.bagAng = Math.max(-0.7, Math.min(0.7, this.bagAng));
+      this.diveBag.rotation = this.bagAng;
+    }
+    {
+      // The hose flexes a little with the head, the breath and sudden changes of speed.
+      const target = this.headAng * 0.25 + this.heave * 0.02 - boost * 0.02;
+      const push = Math.max(-1, Math.min(1, ax / 800)) * 0.6;
+      const w = 9;
+      this.hoseVel += (w * w * (target - this.hoseAng) - 2 * 0.4 * w * this.hoseVel + push) * dt;
+      this.hoseAng += this.hoseVel * dt;
+      this.hoseAng = Math.max(-0.06, Math.min(0.06, this.hoseAng));
+      this.hose.rotation = this.hoseAng;
+    }
+  }
+
+  /**
+   * Legs and arms.
+   *
+   * The flutter kick comes from the hips: the thigh swings, the knee bends
+   * on the way up and snaps straight on the way down, and the fin is a
+   * damped spring that the water bends against the sweep of the foot, with
+   * its softer tip bending further. Speed, boost and load set how fast and
+   * how big the kick is; nothing switches instantly.
+   */
+  private animateLimbs(dt: number): void {
+    const A = this.kickAmp;
+    const sb = this.swimBlend;
+    const s = Math.min(1, this.speedNorm);
+    for (let i = 0; i < 2; i++) {
+      const leg = i === 0 ? this.nearLeg : this.farLeg;
+      const p = this.kick + (i === 0 ? 0 : Math.PI);
+      // Relaxed float: hips a little flexed, knees bent, the far leg a little different from the near one.
+      const hipIdle = Math.PI - 0.3 + (i === 0 ? 0 : 0.1);
+      const kneeIdle = 0.42 + (i === 0 ? 0 : 0.14);
+      const hipBase = hipIdle + (Math.PI - 0.04 - hipIdle) * sb;
+      const kneeBase = kneeIdle + (0.08 - kneeIdle) * sb;
+      leg.thigh.rotation = hipBase + Math.sin(p) * A;
+      // The knee only ever bends one way. It is most bent just as the thigh
+      // starts down, then straightens through the downbeat (the whip).
+      const k = 0.5 + 0.5 * Math.sin(p - 0.5);
+      leg.shin.rotation = kneeBase + A * 1.15 * k * k;
+
+      // Ankle and fin. Pointed toes when swimming, relaxed feet when floating.
+      const ankle = -0.35 + 0.3 * sb;
+      const shinWorld = leg.thigh.rotation + leg.shin.rotation + this.pitch;
+      const sweep = (shinWorld - leg.prevShin) / dt;
+      leg.prevShin = shinWorld;
+      // Moving forward, the water lines the fin up with the flow (a stiffer spring).
+      const w = 9 + 7 * s + 4 * this.boostLvl;
+      const damp = 2 * 0.55 * w;
+      // The water holds the blade back against the foot's sweep.
+      const drag = Math.max(-25, Math.min(25, sweep)) * (0.6 + 0.5 * s);
+      leg.finVel += (w * w * (ankle - leg.finAng) - damp * leg.finVel - drag * w * 0.9) * dt;
+      leg.finAng += leg.finVel * dt;
+      if (leg.finAng > 0.7) {
+        leg.finAng = 0.7;
+        leg.finVel = Math.min(0, leg.finVel);
+      } else if (leg.finAng < -0.75) {
+        leg.finAng = -0.75;
+        leg.finVel = Math.max(0, leg.finVel);
+      }
+      leg.fin.rotation = leg.finAng;
+      // The softer tip bends further the same way.
+      leg.tip.rotation = (leg.finAng - ankle) * 0.75;
+    }
+
     if (this.working) {
       // Working at a spot: the near arm chips, pries or cuts with short strokes.
       const strike = Math.sin(this.time * 13);
@@ -795,13 +1086,24 @@ export class Diver {
       this.farArm.fore.rotation = -0.6;
       return;
     }
-    for (const [arm, off] of arms) {
-      const idleUpper = 1.05 + Math.sin(this.time * 2.1 + off) * 0.22;
-      const idleFore = -0.9 + scull * 0.15;
-      const swimUpper = Math.PI - 0.32 + Math.sin(this.kick * 0.5 + off) * 0.05;
-      const swimFore = 0.12;
-      arm.upper.rotation = idleUpper + (swimUpper - idleUpper) * moving;
-      arm.fore.rotation = idleFore + (swimFore - idleFore) * moving;
+
+    // Arms. Floating: a lazy figure-of-eight scull in front to hold
+    // position. Swimming: back along the body, trimming a little with each
+    // kick, tucked in tight when boosting. While coming round after a turn
+    // (or climbing slowly) the hands scull to help steer.
+    const ab = this.armBlend;
+    const scull = Math.min(1, this.turn * 1.2 + Math.max(0, -Math.sin(this.pitch)) * 0.35 * (1 - this.boostLvl) * (1 - this.drive * 0.5));
+    for (let i = 0; i < 2; i++) {
+      const arm = i === 0 ? this.nearArm : this.farArm;
+      const off = i === 0 ? 0 : 0.9;
+      const t = this.time * 1.25 + off;
+      const idleUpper = 1.02 + Math.sin(t) * 0.17 + this.heave * 0.05;
+      const idleFore = -0.85 + Math.sin(t + 1.3) * 0.18;
+      const swimUpper = Math.PI - 0.32 + this.boostLvl * 0.1 + Math.sin(this.kick + off) * A * 0.12;
+      const swimFore = 0.12 - this.boostLvl * 0.07 + Math.sin(this.kick + off + 0.8) * A * 0.15;
+      const st = this.time * 4.2 + off * 2;
+      arm.upper.rotation = idleUpper + (swimUpper - idleUpper) * ab - Math.sin(st) * 0.22 * scull * ab;
+      arm.fore.rotation = idleFore + (swimFore - idleFore) * ab - (0.25 + Math.sin(st + 1.2) * 0.25) * scull * ab;
     }
   }
 

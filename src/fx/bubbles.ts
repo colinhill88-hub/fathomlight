@@ -23,7 +23,6 @@ export class Bubbles {
   });
   private pool: Bubble[] = [];
   private texture: Texture;
-  private breath = 0;
 
   constructor(renderer: Renderer) {
     const g = new Graphics();
@@ -57,15 +56,14 @@ export class Bubbles {
     b.p.alpha = 0.9;
   }
 
-  /** emitX/Y is the helmet valve; boosting makes the diver breathe harder. */
-  update(dt: number, emitX: number, emitY: number, diverVX: number, diverVY: number, hard: boolean): void {
-    this.breath -= dt * (hard ? 2.2 : 1);
+  /**
+   * emitX/Y is the helmet valve. `out` is how many bubbles the diver
+   * breathed out this frame (Diver.takeBubbles: a burst at the start of each
+   * breath out, then a short trickle, quicker when working hard).
+   */
+  update(dt: number, emitX: number, emitY: number, diverVX: number, diverVY: number, out: number): void {
     // Only breathe out bubbles underwater; at the surface the diver breathes air.
-    if (this.breath <= 0 && emitY > 8) {
-      this.breath = 2.4 + rand() * 1.2;
-      const n = 4 + Math.floor(rand() * 4);
-      for (let i = 0; i < n; i++) this.spawn(emitX, emitY - i * 5, diverVX, diverVY);
-    }
+    if (out > 0 && emitY > 8) for (let i = 0; i < out; i++) this.spawn(emitX, emitY - i * 4, diverVX, diverVY);
     for (const b of this.pool) {
       if (!b.alive) continue;
       const p = b.p;

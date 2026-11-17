@@ -1622,7 +1622,7 @@ async function boot(): Promise<void> {
         subBubbles.puff(w.x, w.y, -sub.face * 60, 0, sub.thrust > 0 ? 2 : 1);
       }
     }
-    subBubbles.update(dt, sub.x, 0, 0, 0, false);
+    subBubbles.update(dt, sub.x, 0, 0, 0, 0);
     nearSub = !!S && S.stage === 'built' && !S.aboard && blackout === 0 && Math.hypot(diver.x - sub.x, diver.y - (sub.y - 10)) < 170;
     hud.setBoard(inControl ? (aboard ? 'Exit' : nearSub ? (S!.hull > 0 ? 'Board' : 'Breached') : null) : null);
     if (nearSub && !wasNearSub && input.state.lastDevice !== 'touch' && !save.tips.includes('subkey')) {
@@ -1699,6 +1699,7 @@ async function boot(): Promise<void> {
         diver.x += (dx / Math.max(1, d)) * step;
         diver.y += (dy / Math.max(1, d)) * step;
         diver.surfaced = false;
+        diver.pose(dt);
         scenery.setTow(r, { x: diver.x, y: diver.y - 6 });
         if (d < 40) {
           grapple = null;
@@ -2475,7 +2476,7 @@ async function boot(): Promise<void> {
 
     for (const f of fish) f.update(dt, time, diver.x, diver.y);
     const [bx, by] = diver.bubblePoint();
-    bubbles.update(dt, bx, aboard ? 0 : by, diver.vx, diver.vy, diver.boosting);
+    bubbles.update(dt, bx, aboard ? 0 : by, diver.vx, diver.vy, diver.takeBubbles());
 
     if (Math.hypot(s.moveX, s.moveY) > 0.2 && hintTimer === 0) hintTimer = 0.001;
     if (hintTimer > 0) {

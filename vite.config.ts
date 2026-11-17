@@ -9,5 +9,10 @@ const date = new Date().toISOString().slice(0, 16).replace('T', ' ');
 export default defineConfig({
   base: './',
   define: { __BUILD_ID__: JSON.stringify(`${sha} · ${date} UTC`) },
-  build: { target: 'es2022', chunkSizeWarningLimit: 1500 },
+  build: {
+    target: 'es2022',
+    chunkSizeWarningLimit: 1500,
+    // animlab.html: the character animation lab (src/dev/animlab.ts), also on the play link.
+    rollupOptions: { input: { main: 'index.html', animlab: 'animlab.html' } },
+  },
 });
