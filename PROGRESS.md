@@ -1,6 +1,6 @@
 # Fathomlight progress
 
-Last updated: 2026-11-17, **character animation session B deployed (the walker)**. Next is **milestone 9, breeding** (prompt in `docs/prompts/milestone-9.md`). Before that: graphics sessions G1 to G4 are done.
+Last updated: 2026-11-17, **character animation session B and the base interior art pass deployed**. Next is **milestone 9, breeding** (prompt in `docs/prompts/milestone-9.md`). Before that: graphics sessions G1 to G4 are done.
 
 Play link: https://colinhill88-hub.github.io/fathomlight/ (live; first successful deploy 2026-11-14)
 
@@ -1242,6 +1242,32 @@ Colin asked for a dedicated polish pass on the player character before milestone
 
 **Tested** (type check and production build pass; headless Chromium, software GL): every lab segment as frame strips (stationary, slow, fast, boost, glide and settle, restart, turn, diagonal, vertical up and down, turn while diving, boost from still), and in the real game at 844 × 390: surfaced and treading water, swimming, boost, diving and turning, with the lamp following the helmet. No console errors. **Not tested on a real iPhone.** Every number to tune is at the top of the relevant block in `animate()` and `animateLimbs()` (kick rates, amplitudes, spring speeds, breath periods).
 
+### Base interior art pass (2026-11-17, after character animation session B)
+Colin asked, from his PC screenshots, whether the indoor art could carry more detail. The measurements said yes: on his PC (RTX, 3840 × 2040, Ultra) the base interior's scene pass was 4.2 ms for only 77k triangles and 31 draws, against 3.2 ms for 351k triangles outdoors. So the interior's GPU cost is per pixel (16 lights and wall shadows summed on every pixel), not geometry, and static detail is close to free.
+
+**What changed** (all drawn once into the static layer when the base level is built; nothing per frame)
+- **A detail kit** (`src/interior/detail.ts`). Rooms now use it for:
+  - bevelled wall plates, lit along the top and shadowed underneath, with corner rivets, and now and then a vent grille, an access hatch, a pressure gauge, a red valve wheel or a label plate;
+  - grime and drips gathering above each floor, and a riveted skirting;
+  - a steel I-beam under every ceiling, with gussets and slack cables on clamps;
+  - a steel conduit along the wall in rooms whose wall is free (storage, sorter, lab, workshop, filter, dock), below the conveyor and pipe lanes;
+  - hazard stripes at machine bases, and bolted flanges.
+
+  The lighting reads relief from brightness edges, so the bevels and seams catch the lamps.
+- **Lamp fixtures:** each lamp hangs on two rods under the beam. **Its glow now sits on the lamp** (it used to be a wide ellipse hanging below it, which read as a smudge in mid-air).
+- **Floors and ceilings:** diamond tread on the deck tops, a plate edge and bolts under each deck, a bolted strip along each ceiling lip.
+- **Machine rooms** (left over from the walkable base, part 2): press (ribbed columns, two hydraulic cylinders, bolted bed and crosshead, warning stripe), feeder (hopper ribs, a chute, bolted vat bands, a sight window), filter (column bands and caps, pump motor fins, copper pipes), crane (trolley wheels, hook block, cradle jaws), recompression chamber (bolt ring on the door, gauges, a copper pipe), workshop (a tool pegboard, a vice, drawers), lab (screen bezels, sample racks, drawers), storage and sorter (perforated uprights, bracing), tanks (bolted frames, a level scale), dock (bolted gantry, winch drums), dome (console keys and bezels, airlock bolts), turbine (bolted generator housing, cable trunking).
+- **Outside the hull:** the black water behind the base now has a faint rock floor and the base's own support legs.
+- **The turbine room's gold power spine is toned down** (it bloomed harder than anything else in Colin's screenshot).
+
+**Measured** (the 40-piece benchmark base, `?bench&scene=6&still`, software GL)
+- Draw calls **29, unchanged**. Triangles for the whole base **122k to 255k**: the static art is one Graphics drawn every frame without culling, so this is the full base, not just what is on screen.
+- CPU per frame unchanged (5.2 ms against 5.4 to 5.6 before; noise in software GL). On Colin's PC the extra triangles should add a fraction of a millisecond at most, given that 351k outdoor triangles cost 3.2 ms. Worth a `?bench` run on the iPhone.
+
+**Tested:** type check and build; every room kind captured before and after at 844 × 390 (`docs/art/interior/art-*.jpg`). A bug found that way: two rooms (workshop and recompression) had lost their `break`, so each also drew the next room's art over itself. Both are fixed, and every room kind now ends in a `break` (storage and tank share theirs with sorter and gtank by design). **Not tested on a real iPhone.**
+
+**To check after Colin plays:** whether the detail reads on the phone or turns to noise (every piece is low contrast on purpose; the strongest accents are the hazard stripes and red valve wheels); and the camera's floor line (the base camera puts the floor 70% of the way down the screen, so a quarter of the screen is the dark under-floor at the bottom of the base: `ly` in `Interior.render`).
+
 ### Character animation, session B: the walker (2026-11-17)
 The on-foot explorer (`src/actors/walker.ts`, used in the Corvina and the walkable base) got the same polish as the diver in session A. Physics, controls, collisions and the rendering set-up are unchanged.
 
@@ -1284,7 +1310,7 @@ The on-foot explorer (`src/actors/walker.ts`, used in the Corvina and the walkab
 ## Next
 
 **Next session: milestone 9, breeding** (prompt in `docs/prompts/milestone-9.md`, questions in DESIGN.md), unless Colin reorders. The four graphics sessions are done; what is left of the graphics plan is tuning from Colin's testing (every effect is a toggle and a number in `src/presets.ts`) and his PC and iPhone `?bench` tables, which are still to come. Graphics ideas not done: refraction through glass, cave rock-pillar backdrops, hand-placed shine lines, more bioluminescent detail on the shelf.
-- **Left over from the walkable base:** more detail in the machine rooms (feeder, press, filter, sorter, crane), line code plates indoors, and a sound for the lines and machines. Do these alongside a later milestone if Colin asks.
+- **Left over from the walkable base:** line code plates indoors, and a sound for the lines and machines (the machine-room detail was done in the interior art pass). Do these alongside a later milestone if Colin asks.
 - **The harpoon:** decoration on the Crest diver for now; use its design for later tools and weapons.
 
 Where things are (on foot):
