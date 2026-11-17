@@ -212,6 +212,9 @@ export class Hud {
       ['hatch', 'Hatchery'],
       ['farm', 'Kelp farm'],
       ['revive', 'Revival pool'],
+      ['shaft', 'Riser shaft'],
+      ['junction', 'Cross junction'],
+      ['bracket', 'Cliff bracket'],
     ];
     const base = save.pieces.length
       ? [

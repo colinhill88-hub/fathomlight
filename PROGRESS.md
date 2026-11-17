@@ -1500,3 +1500,11 @@ Where things are (on foot):
 - **Health** is not in yet. Nothing in the shallows can hurt you, so it arrives with predators and crush depth (milestones 7 and 9).
 - **Things to watch in Colin's review:** whether the kelp is too bright or too busy, how strong the caustics and water wobble are, and how fast the diver swims. Each is a single number in the code and easy to tune.
 - **Frame rate on the real phone.** Milestone 0: Colin measured a steady 60 fps in both presets. Milestone 1: mid 30s fps on High with the lamp on in the deep grotto (Colin, iPhone). He accepts this; graphics stay as they are. Ultra on the PC is not yet tested. If we tune performance later (milestone 11), the grotto with the lamp on is the scene to profile: there the lighting shader adds up the most lights and the glow layer is busiest.
+
+## Terrain and build-bar pass (after milestone 9)
+
+- **Tighter, stepped trench** (`src/world/terrain.ts`): 282 open cells (was 658). The basin floor is raised to grid row 3 and runs cols 24–33; a sloped bed (one row a column) climbs the west side to a ledge (the Echo whorl nook, now at x -2950) and a full-height wall; three terraces (rows 5, 7, 9) step down from the shelf. `GRID_X0`, `GRID_BASE`, `OLD_SITE` and the grid size are unchanged, so no save migration is needed: the existing load-time pass in `src/main.ts` removes and refunds pieces now in rock, and sends the diver or sub back to the buoy if saved inside the old basin.
+- **Build camera** frames the open cells (`SITE` in `src/game/base.ts`), not the whole grid.
+- **Three structural pieces** (`src/game/base.ts`, `src/world/basegfx.ts`): Riser shaft (1×3, D/U collars, 5 scrap 2 fibre, 24 s), Cross junction (1×1, four collars, 3 scrap 1 fibre, 12 s) and Cliff bracket (1×1, two rotations, must stand beside solid rock, 3 scrap 2 copper, 16 s). No blueprint needed. A separate stilt piece was skipped: legs are already drawn under every floating piece.
+- **Build bar** (`src/ui/build.ts`, `src/style.css`): All / Modules / Structure tabs above a card row that scrolls sideways (cards stay 156 px wide, names wrap to two lines). Picking a piece from another tab by key or pad switches tab.
+- **To look at on a real phone:** the tab row adds about 40 px above the cards (36 px in landscape), and the action and tool buttons moved up by the same amount (`--bar-extra`).

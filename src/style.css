@@ -2767,3 +2767,93 @@ body.on-foot #hint {
 .bench #collect-label {
   display: none !important;
 }
+
+/* ---- Build bar: category tabs, and cards that keep a readable width and scroll sideways ---- */
+:root {
+  /* Height the tab row adds above the cards (the action and tool buttons sit above the bar). */
+  --bar-extra: 40px;
+}
+#build-bar {
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+.bar-tabs {
+  display: flex;
+  gap: 6px;
+  flex: none;
+}
+.bar-tab {
+  min-height: 34px;
+  min-width: 76px;
+  padding: 0 14px;
+  border-radius: 17px;
+  border: 1px solid var(--ui-line);
+  background: var(--ui-bg);
+  color: var(--ui-text);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  touch-action: manipulation;
+}
+.bar-tab.on {
+  border-color: #ffc070;
+  box-shadow: 0 0 0 2px rgba(255, 192, 112, 0.5) inset;
+}
+.bar-cards {
+  display: flex;
+  gap: 6px;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x proximity;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-x;
+  /* Soft fades at the edges say there is more to scroll to. */
+  -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 14px, #000 calc(100% - 14px), transparent 100%);
+  mask-image: linear-gradient(90deg, transparent 0, #000 14px, #000 calc(100% - 14px), transparent 100%);
+  padding: 0 14px;
+}
+.bar-cards::-webkit-scrollbar {
+  display: none;
+}
+.bar-cards .piece-card {
+  flex: 0 0 156px;
+  max-width: none;
+  scroll-snap-align: start;
+}
+.bar-cards .piece-card.tab-off {
+  display: none !important;
+}
+/* Names wrap to two lines rather than being cut off. */
+.bar-cards .piece-card b {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  line-height: 1.15;
+}
+#build-actions {
+  bottom: calc(var(--safe-bottom) + 92px + var(--bar-extra));
+}
+#build-tools {
+  bottom: calc(var(--safe-bottom) + 92px + var(--bar-extra));
+}
+@media (max-height: 440px) {
+  :root {
+    --bar-extra: 36px;
+  }
+  .bar-tab {
+    min-height: 30px;
+  }
+  #build-actions {
+    bottom: calc(var(--safe-bottom) + 80px + var(--bar-extra));
+  }
+  #build-tools {
+    bottom: calc(var(--safe-bottom) + 78px + var(--bar-extra));
+  }
+}

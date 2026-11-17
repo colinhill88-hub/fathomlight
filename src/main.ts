@@ -650,9 +650,9 @@ async function boot(): Promise<void> {
   scenery.setRelays(save.relays);
 
   /*
-   * The terraces (Colin, after milestone 6): the cliff under the shelf now
-   * steps down in three rock ledges. Pieces an older save had built where the
-   * new rock is come out, with everything refunded (into storage first).
+   * The tighter, stepped trench (Colin, after milestone 9; the terraces of
+   * milestone 6 before it): pieces an older save had built where the rock is
+   * now come out, with everything refunded (into storage first).
    * Creatures in such a tank move to another tank with room, or swim home.
    * Runs on every load, but only ever finds anything once.
    */
@@ -696,7 +696,7 @@ async function boot(): Promise<void> {
       setTimeout(
         () =>
           hud.toast(
-            `The cliff under the shelf has settled into rock terraces. ${buried.length} piece${buried.length > 1 ? 's' : ''} inside the new rock came out (${names.join(', ')}), and everything in them is back in storage.${
+            `The Kestrel trench has been reshaped into rock terraces. ${buried.length} piece${buried.length > 1 ? 's' : ''} inside the new rock came out (${names.join(', ')}), and everything in them is back in storage.${
               moved ? ` ${moved} creature${moved > 1 ? 's' : ''} moved to another tank.` : ''
             }${freed ? ` ${freed} creature${freed > 1 ? 's' : ''} had no tank with room and swam home.` : ''}`,
             'big',
@@ -708,6 +708,15 @@ async function boot(): Promise<void> {
     // Lift the diver and the sub out if they were saved where the rock is now.
     for (let k = 0; k < 60 && isSolid(diver.x, diver.y); k++) diver.y -= 12;
     for (let k = 0; k < 60 && (isSolid(sub.x, sub.y) || isSolid(sub.x, sub.y + 40)); k++) sub.y -= 12;
+    // The old far basin is solid wall now: anyone still inside it goes back to the buoy.
+    if (isSolid(diver.x, diver.y)) {
+      diver.x = SPAWN.x;
+      diver.y = SPAWN.y;
+    }
+    if (isSolid(sub.x, sub.y) || isSolid(sub.x, sub.y + 40)) {
+      sub.x = SPAWN.x;
+      sub.y = SPAWN.y + 60;
+    }
     if (save.sub?.aboard) {
       diver.x = sub.x;
       diver.y = sub.y - 10;

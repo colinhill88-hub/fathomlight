@@ -62,10 +62,25 @@ export function onSeabed(gx: number, gy: number): boolean {
   return gy === 0 || !cellOpen(gx, gy - 1);
 }
 
+/** The world rectangle that holds every open cell (the build camera frames this, not the rock around it). */
+export const SITE = (() => {
+  let c0 = GRID_COLS;
+  let r0 = GRID_ROWS;
+  let r1 = 0;
+  for (let gy = 0; gy < GRID_ROWS; gy++)
+    for (let gx = 0; gx < GRID_COLS; gx++)
+      if (OPEN[gy * GRID_COLS + gx]) {
+        c0 = Math.min(c0, gx);
+        r0 = Math.min(r0, gy);
+        r1 = Math.max(r1, gy);
+      }
+  return { x0: GRID_X0 + c0 * CELL, x1: GRID_X1, y0: GRID_BASE - (r1 + 1) * CELL, y1: GRID_BASE - r0 * CELL };
+})();
+
 /** How many cells of the site are open water. */
 export const OPEN_CELLS = OPEN.filter(Boolean).length;
 
-export type PieceKind = 'dome' | 'corridor' | 'turbine' | 'storage' | 'tank' | 'filter' | 'feeder' | 'press' | 'dock' | 'lab' | 'workshop' | 'gtank' | 'sorter' | 'recomp' | 'crane' | 'hatch' | 'farm' | 'revive';
+export type PieceKind = 'dome' | 'corridor' | 'turbine' | 'storage' | 'tank' | 'filter' | 'feeder' | 'press' | 'dock' | 'lab' | 'workshop' | 'gtank' | 'sorter' | 'recomp' | 'crane' | 'hatch' | 'farm' | 'revive' | 'shaft' | 'junction' | 'bracket';
 /** Creature tanks of either size (milestone 7 part 2 added the Grand tank). */
 export function isTankKind(k: PieceKind): boolean {
   return k === 'tank' || k === 'gtank';
@@ -96,6 +111,8 @@ export interface PieceDef {
   whorls?: boolean;
   /** Milestone 7 part 2: a blueprint the Lab must decode before the build card appears. */
   blueprint?: BlueprintId;
+  /** A cliff bracket: it only goes beside solid rock, on the side its rotation says (rotation 0: rock to the west). */
+  needsRock?: boolean;
 }
 
 export const PIECES: Record<PieceKind, PieceDef> = {
@@ -319,8 +336,64 @@ export const PIECES: Record<PieceKind, PieceDef> = {
     blueprint: 'revive',
     shapes: [{ w: 2, h: 1, collars: [{ cx: 0, cy: 0, dir: 'L' }, { cx: 1, cy: 0, dir: 'R' }] }],
   },
+  // After milestone 9 (Colin's terrain pass): structure for building up and down the stepped trench.
+  shaft: {
+    kind: 'shaft',
+    name: 'Riser shaft',
+    job: 'A walkable shaft three cells tall, with collars at the top and bottom: one piece instead of three upright corridors, and a little cheaper.',
+    cost: { scrap: 5, fibre: 2 },
+    buildTime: 24,
+    shapes: [{ w: 1, h: 3, collars: [{ cx: 0, cy: 0, dir: 'D' }, { cx: 0, cy: 2, dir: 'U' }] }],
+  },
+  junction: {
+    kind: 'junction',
+    name: 'Cross junction',
+    job: 'A small hub with a collar on every side, for branching a base up, down and across.',
+    cost: { scrap: 3, fibre: 1 },
+    buildTime: 12,
+    shapes: [
+      {
+        w: 1,
+        h: 1,
+        collars: [
+          { cx: 0, cy: 0, dir: 'L' },
+          { cx: 0, cy: 0, dir: 'R' },
+          { cx: 0, cy: 0, dir: 'U' },
+          { cx: 0, cy: 0, dir: 'D' },
+        ],
+      },
+    ],
+  },
+  bracket: {
+    kind: 'bracket',
+    name: 'Cliff bracket',
+    job: 'Bolts to solid rock beside it and carries collars up, down and out from the cliff face. Rotate it to mount on the other side.',
+    cost: { scrap: 3, copper: 2 },
+    buildTime: 16,
+    needsRock: true,
+    shapes: [
+      {
+        w: 1,
+        h: 1,
+        collars: [
+          { cx: 0, cy: 0, dir: 'R' },
+          { cx: 0, cy: 0, dir: 'U' },
+          { cx: 0, cy: 0, dir: 'D' },
+        ],
+      },
+      {
+        w: 1,
+        h: 1,
+        collars: [
+          { cx: 0, cy: 0, dir: 'L' },
+          { cx: 0, cy: 0, dir: 'U' },
+          { cx: 0, cy: 0, dir: 'D' },
+        ],
+      },
+    ],
+  },
 };
-export const PIECE_ORDER: PieceKind[] = ['dome', 'corridor', 'turbine', 'storage', 'tank', 'filter', 'feeder', 'press', 'dock', 'lab', 'workshop', 'gtank', 'sorter', 'recomp', 'crane', 'hatch', 'farm', 'revive'];
+export const PIECE_ORDER: PieceKind[] = ['dome', 'corridor', 'turbine', 'storage', 'tank', 'filter', 'feeder', 'press', 'dock', 'lab', 'workshop', 'gtank', 'sorter', 'recomp', 'crane', 'hatch', 'farm', 'revive', 'shaft', 'junction', 'bracket'];
 /** Each sorting pod's bay for every material. */
 export const SORT_BAY = 12;
 
@@ -347,6 +420,11 @@ export interface Placed {
 /** Is the piece finished (not a frame still being welded)? */
 export function isDone(p: { progress?: number }): boolean {
   return p.progress === undefined || p.progress >= 1;
+}
+
+function shapeIndex(p: { kind: PieceKind; rot: number }): number {
+  const n = PIECES[p.kind].shapes.length;
+  return ((p.rot % n) + n) % n;
 }
 
 export function shapeOf(p: { kind: PieceKind; rot: number }) {
@@ -481,6 +559,7 @@ export class BaseLayout {
     if (p.gx < 0 || p.gy < 0 || p.gx + s.w > GRID_COLS || p.gy + s.h > GRID_ROWS) return 'Outside the Kestrel site';
     for (const [x, y] of cellsOf(p)) if (!cellOpen(x, y)) return 'Solid rock here (tunnelling comes later)';
     for (const [x, y] of cellsOf(p)) if (this.pieceAt(x, y)) return 'Something is already there';
+    if (PIECES[p.kind].needsRock && cellOpen(p.gx + (shapeIndex(p) === 0 ? -1 : 1), p.gy)) return 'A cliff bracket bolts to solid rock beside it';
     if (this.pieces.length === 0) {
       for (let i = 0; i < s.w; i++) if (onSeabed(p.gx + i, p.gy)) return null;
       return 'The first piece goes on the seabed';
@@ -559,6 +638,9 @@ const CODE_PREFIX: Record<PieceKind, string> = {
   hatch: 'HX-',
   farm: 'KF-',
   revive: 'RP-',
+  shaft: 'SH-',
+  junction: 'JX-',
+  bracket: 'BR-',
 };
 
 /** A piece's stencil code, as painted on it: CT-1, AF-2, PP-1, TANK 3. Pieces are numbered per kind in build order. */

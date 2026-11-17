@@ -419,7 +419,7 @@ function drawDome(n: number): PieceArt {
   return { body, windows, windowGlow, lamp: { x: cx, y: drumTop - ry - 20 }, sheen, streak, streakSpan: rx * 2.6 };
 }
 
-function drawCorridor(n: number, rot: number): PieceArt {
+function drawCorridor(n: number, rot: number, withStencil = true): PieceArt {
   // Colin's corridor board: a charcoal drum with gold circuit lines, thick chrome
   // flanges at both ends, a lime porthole in a chrome ring, one red lamp, and a
   // coiled conduit along the top.
@@ -460,9 +460,100 @@ function drawCorridor(n: number, rot: number): PieceArt {
   windows.circle(c, c, 11).fill({ color: PAL.glass, alpha: 0.85 });
   windowGlow.circle(c, c, 22).fill({ color: PAL.glass, alpha: 0.45 });
   const lamp = rot % 2 === 0 ? { x: L - 26, y: c - 22 } : { x: c + 22, y: L - 26 };
-  body.addChild(stencil(`C-${String(n).padStart(2, '0')}`, rot % 2 === 0 ? c + 28 : c - 22, rot % 2 === 0 ? c + 26 : c + 30, 6, rot % 2 === 0 ? 0 : -Math.PI / 2));
+  if (withStencil) body.addChild(stencil(`C-${String(n).padStart(2, '0')}`, rot % 2 === 0 ? c + 28 : c - 22, rot % 2 === 0 ? c + 26 : c + 30, 6, rot % 2 === 0 ? 0 : -Math.PI / 2));
   void g;
   return { body, windows, windowGlow, lamp };
+}
+
+/** A flange across a vertical tube (the top or bottom edge of a cell). */
+function flangeH(g: Graphics, cx: number, y: number, w: number, h = 10): void {
+  g.roundRect(cx - w / 2, y - h / 2, w, h, 3).fill({ color: PAL.chrome });
+  g.roundRect(cx - w / 2 + 2, y - h / 2 + 1.5, w - 4, 2.5, 1).fill({ color: PAL.chromeHi, alpha: 0.8 });
+  g.roundRect(cx - w / 2 + 2, y + h / 2 - 3, w - 4, 2, 1).fill({ color: PAL.steelDark, alpha: 0.6 });
+  for (let k = 0; k < 4; k++) g.circle(cx - w / 2 + 8 + (k * (w - 16)) / 3, y, 1.2).fill({ color: PAL.steelDark });
+}
+
+/** A riser shaft: three upright corridor drums stacked, with one stencil. */
+function drawShaft(n: number): PieceArt {
+  const body = new Container();
+  const windows = new Graphics();
+  const windowGlow = new Graphics();
+  const c = CELL / 2;
+  for (let k = 0; k < 3; k++) {
+    const cell = drawCorridor(n, 1, false);
+    cell.body.y = k * CELL;
+    body.addChild(cell.body);
+    windows.circle(c, c + k * CELL, 11).fill({ color: PAL.glass, alpha: 0.85 });
+    windowGlow.circle(c, c + k * CELL, 22).fill({ color: PAL.glass, alpha: 0.45 });
+  }
+  body.addChild(stencil(`SH-${n}`, c - 22, CELL * 1.5 + 30, 6, -Math.PI / 2));
+  return { body, windows, windowGlow, lamp: { x: c + 22, y: CELL * 3 - 26 } };
+}
+
+/** A cross junction: tubes through all four edges meeting at a chrome-ringed hub. */
+function drawJunction(n: number): PieceArt {
+  const body = new Container();
+  const g = body.addChild(new Graphics());
+  const windows = new Graphics();
+  const windowGlow = new Graphics();
+  const c = CELL / 2;
+  tubeH(g, 0, CELL, c, 0);
+  tubeV(g, 0, CELL, c, 0);
+  // The hub: a rounded charcoal block over the crossing, with gold traces and a lime port.
+  g.roundRect(c - 34, c - 34, 68, 68, 14).fill({ color: PAL.steel });
+  g.roundRect(c - 34, c - 34, 68, 68, 14).stroke({ color: PAL.steelDark, width: 2 });
+  g.roundRect(c - 30, c - 30, 60, 8, 4).fill({ color: 0xffffff, alpha: 0.08 });
+  goldTraces(g, c - 28, c + 24, 56, 4);
+  g.circle(c, c - 2, 15).fill({ color: PAL.chrome });
+  g.circle(c, c - 2, 15).stroke({ color: PAL.steelDark, width: 1.5 });
+  g.circle(c, c - 2, 10).fill({ color: 0x4a6a14 });
+  g.circle(c - 3, c - 5, 3.5).fill({ color: 0xe8ffb0, alpha: 0.4 });
+  // Flanges at the four edges.
+  const D = TUBE + 14;
+  flangeV(g, 9, c, D, 12);
+  flangeV(g, CELL - 9, c, D, 12);
+  flangeH(g, c, 9, D, 12);
+  flangeH(g, c, CELL - 9, D, 12);
+  scratches(g, 10, 10, CELL - 10, CELL - 10, 5);
+  windows.circle(c, c - 2, 9).fill({ color: PAL.glass, alpha: 0.85 });
+  windowGlow.circle(c, c - 2, 20).fill({ color: PAL.glass, alpha: 0.45 });
+  body.addChild(stencil(`JX-${n}`, c, c + 41, 6));
+  return { body, windows, windowGlow, lamp: { x: CELL - 26, y: 26 } };
+}
+
+/** A cliff bracket: a bolted rock plate with a gusset, carrying tubes up, down and out. Drawn for rock on the west; rot 1 mirrors it. */
+function drawBracket(n: number, rot: number): PieceArt {
+  const body = new Container();
+  const art = new Container();
+  const g = art.addChild(new Graphics());
+  const windows = new Graphics();
+  const windowGlow = new Graphics();
+  const c = CELL / 2;
+  tubeV(g, 0, CELL, c + 8, 0);
+  tubeH(g, 24, CELL, c, 1);
+  // The anchor plate against the rock, with bolt heads, and a diagonal gusset to the tube.
+  g.roundRect(0, 6, 26, CELL - 12, 4).fill({ color: PAL.steelDark });
+  g.roundRect(0, 6, 5, CELL - 12, 2).fill({ color: 0xffffff, alpha: 0.08 });
+  for (const y of [18, c, CELL - 18]) {
+    g.circle(13, y, 4.5).fill({ color: PAL.chrome });
+    g.circle(13, y, 4.5).stroke({ color: PAL.steelDeep, width: 1 });
+    g.circle(12, y - 1, 1.6).fill({ color: PAL.chromeHi, alpha: 0.8 });
+  }
+  g.moveTo(26, c + 30).lineTo(c - 12, c + 8).lineTo(c - 12, c + 24).closePath().fill({ color: PAL.steel });
+  g.moveTo(26, c - 30).lineTo(c - 12, c - 8).lineTo(c - 12, c - 24).closePath().fill({ color: PAL.steel });
+  flangeV(g, CELL - 9, c, TUBE + 14, 12);
+  flangeH(g, c + 8, 9, TUBE + 14, 12);
+  flangeH(g, c + 8, CELL - 9, TUBE + 14, 12);
+  scratches(g, 26, 10, CELL - 10, CELL - 10, 4);
+  streaks(g, 4, 22, 12, 3, 28);
+  if (rot % 2 === 1) {
+    art.scale.x = -1;
+    art.position.x = CELL;
+  }
+  body.addChild(art);
+  const lx = rot % 2 === 1 ? 26 : CELL - 26;
+  body.addChild(stencil(`BR-${n}`, rot % 2 === 1 ? c - 8 : c + 8, c + 40, 6));
+  return { body, windows, windowGlow, lamp: { x: lx, y: 24 } };
 }
 
 function drawTurbine(n: number): PieceArt {
@@ -1301,6 +1392,9 @@ export function drawPiece(kind: PieceKind, n: number, rot: number, seed: number)
   rand = mulberry32(WORLD_SEED ^ (seed * 7919 + 0x1b5e));
   if (kind === 'dome') return drawDome(n);
   if (kind === 'corridor') return drawCorridor(n, rot);
+  if (kind === 'shaft') return drawShaft(n);
+  if (kind === 'junction') return drawJunction(n);
+  if (kind === 'bracket') return drawBracket(n, rot);
   if (kind === 'turbine') return drawTurbine(n);
   if (kind === 'tank') return drawTank(n);
   if (kind === 'gtank') return drawTank(n, true);
@@ -1440,7 +1534,7 @@ export class BaseView {
       for (const w of l.whorls) this.dropWhorl(w);
       this.live.delete(id);
     }
-    const counts: Record<PieceKind, number> = { dome: 0, corridor: 0, turbine: 0, storage: 0, tank: 0, filter: 0, feeder: 0, press: 0, dock: 0, lab: 0, workshop: 0, gtank: 0, sorter: 0, recomp: 0, crane: 0, hatch: 0, farm: 0, revive: 0 };
+    const counts: Record<PieceKind, number> = { dome: 0, corridor: 0, turbine: 0, storage: 0, tank: 0, filter: 0, feeder: 0, press: 0, dock: 0, lab: 0, workshop: 0, gtank: 0, sorter: 0, recomp: 0, crane: 0, hatch: 0, farm: 0, revive: 0, shaft: 0, junction: 0, bracket: 0 };
     for (const p of [...layout.pieces].sort((a, b) => a.id - b.id)) {
       counts[p.kind]++;
       if (this.live.has(p.id)) continue;

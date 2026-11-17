@@ -952,6 +952,10 @@ export class BaseHooks implements InteriorHooks {
         }
         break;
       }
+      case 'shaft':
+        // Chrome bands up the shaft, like an upright corridor.
+        for (let y = b.oy + 20; y < b.oy + b.oh; y += 50) g.rect(b.ox, y, b.ow, 6).fill({ color: COL.chromeDark });
+        break;
       case 'turbine': {
         // Upper level: a round window onto the impeller (it turns in animate). A gold spine runs the full height.
         const t = this.turbines.find((q) => q.id === id)!;

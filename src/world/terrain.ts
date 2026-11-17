@@ -426,53 +426,62 @@ export function smooth(t: number): number {
 const bump = (x: number, cx: number, w: number, h: number) => Math.exp(-(((x - cx) / w) ** 2)) * h;
 
 /**
- * The Kestrel basin (milestone 5). Its floor sits a little below the bottom
- * row of the build grid (see GRID_BASE in src/game/base.ts), so every
- * bottom-row cell is open water. BASIN_EAST is where the cliff up to the
- * old shelf starts; BASIN_WEST where the far wall starts to rise.
+ * The Kestrel basin (milestone 5, tightened after milestone 9). Its floor sits
+ * a little below row 3 of the build grid (see GRID_BASE in src/game/base.ts):
+ * the three rows under it are rock, so the trench is shallower than it was.
+ * BASIN_EAST is where the cliff up to the old shelf starts; BASIN_WEST is
+ * where the stepped west wall meets the floor's western slope.
  */
-export const BASIN_FLOOR = 1700;
+export const BASIN_FLOOR = 1364;
 export const BASIN_EAST = 300;
-export const BASIN_WEST = -4990;
-/** A nook in the west wall (an Echo whorl hides there). */
-export const WALL_NOOK = { x: -5225, y: 770 };
+export const BASIN_WEST = -2644;
+/** A nook on a ledge of the west wall (an Echo whorl hides there). */
+export const WALL_NOOK = { x: -2950, y: 560 };
 
 /*
- * The terraces line up with the build grid (src/game/base.ts can't be
- * imported here, so its numbers are repeated): cells are 112 units, the grid
- * starts at x = -4884 and its bottom row sits on y = 1655. A ledge `rows`
- * high fills that many cells of its two columns with rock; its riser sits
- * inside its own west column, so the cells beside it stay open. Its top is
- * 16 below the row line, which keeps the row above open despite the ripples.
- * They take 30 cells: 2 columns × (2 + 5 + 8) rows.
+ * The steps line up with the build grid (src/game/base.ts can't be imported
+ * here, so its numbers are repeated): cells are 112 units, the grid starts at
+ * x = -4884 and its bottom row sits on y = 1655. A step `rows` high fills that
+ * many cells of its columns with rock. Its top is 16 below the row line, which
+ * keeps the row above open despite the ripples. East steps rise towards the
+ * shelf with the riser inside their own west column; west steps rise towards
+ * the wall with the riser inside their own east column, so the cells beside a
+ * step always stay open. Listed from the floor outwards.
  */
 const T_CELL = 112;
 const T_GRID_X0 = -4884;
 const T_GRID_BASE = 1655;
-const TERRACES = [
-  { col: 41, rows: 2 },
-  { col: 43, rows: 5 },
-  { col: 45, rows: 8 },
-].map((t) => ({ x: T_GRID_X0 + t.col * T_CELL, y: T_GRID_BASE - t.rows * T_CELL + 16 }));
+const stepY = (rows: number) => T_GRID_BASE - rows * T_CELL + 16;
+/** Three terraces down from the shelf: rows 5, 7 and 9 (columns 34-37, 38-41, 42-45). */
+const EAST_STEPS = [
+  { col: 34, rows: 5 },
+  { col: 38, rows: 7 },
+  { col: 42, rows: 9 },
+].map((t) => ({ x: T_GRID_X0 + t.col * T_CELL, y: stepY(t.rows) }));
+/** The floor's western slope (one row a column, columns 23 to 20), then a ledge for the nook and the wall. */
+const WEST_STEPS = [
+  { col: 23, rows: 4 },
+  { col: 22, rows: 5 },
+  { col: 21, rows: 6 },
+  { col: 20, rows: 7 },
+  { col: 19, rows: 8 },
+  { col: 18, rows: 10 },
+  { col: 17, rows: 10 },
+  { col: 16, rows: 10 },
+  { col: 15, rows: 14 },
+].map((t) => ({ x: T_GRID_X0 + (t.col + 1) * T_CELL, y: stepY(t.rows) }));
 
 function basinGround(x: number): number {
   // Gentle ripples on the floor, and a few low sand mounds.
   let y = BASIN_FLOOR + 6 + Math.sin(x * 0.004) * 6 + Math.sin(x * 0.0113 + 2) * 4;
-  y -= bump(x, -3300, 260, 10) + bump(x, -1450, 320, 12);
-  // Terraces at the foot of the cliff (Colin, after milestone 6): three rock
-  // ledges, each two grid columns wide, stepping down from the shelf, so pieces
-  // built off the shelf edge stand on a ledge instead of on 17 m legs.
-  for (const t of TERRACES) y += (t.y - y) * smooth((x - t.x) / 46);
+  y -= bump(x, -1800, 260, 10) + bump(x, -1250, 320, 12);
+  // Stepped terraces down from the shelf, and the western slope up to the wall.
+  for (const t of EAST_STEPS) y += (t.y - y) * smooth((x - t.x) / 46);
+  for (const t of WEST_STEPS) y += (t.y - y) * smooth((t.x - x) / 46);
   // The cliff up to the shelf: steep, with a shoulder part-way up.
   const up = smooth((x - (BASIN_EAST - 10)) / 85);
   y += (430 - y) * up;
   y += bump(x, BASIN_EAST + 10, 22, 90) * (1 - up);
-  // The west wall: a steep rise with a ledge (the nook) part-way up.
-  const w = smooth((BASIN_WEST - x) / 170);
-  y += (WALL_NOOK.y + 26 - y) * w;
-  y -= bump(x, WALL_NOOK.x + 35, 30, 14) * w; // a lip at the front of the nook
-  const w2 = smooth((BASIN_WEST - 290 - x) / 170);
-  y += (110 - y) * w2;
   return y;
 }
 

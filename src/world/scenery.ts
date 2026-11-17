@@ -844,8 +844,8 @@ export class Scenery {
       paintRock(g, pts, (x) => (x >= WORLD_X0 - 60 && x <= BASIN_WEST + 80 ? gy(x) : NaN), detail * 0.7);
     });
     // Boulders on the basin floor, mostly near the walls (the middle is for building).
-    rock(-5000, 300, (g) => {
-      for (const x of [-4880, -4620, -3950, -2420, -1150, -260, 130, 200]) {
+    rock(-2700, 300, (g) => {
+      for (const x of [-2420, -1150, -260, 130, 200]) {
         const y = gy(x);
         const r = R(18, 46);
         const pts: [number, number][] = [];
@@ -860,7 +860,7 @@ export class Scenery {
     decorLayer.addChild(decorBasin);
     this.slices.push({ obj: decorBasin, x0: WORLD_X0 - 100, x1: 600 });
     // Coral and fans on the nook ledge and along the foot of the walls.
-    for (const x of [WALL_NOOK.x - 60, WALL_NOOK.x - 20, WALL_NOOK.x + 30, -4930, -4800, 160, 240, -3100, -1800]) {
+    for (const x of [WALL_NOOK.x - 60, WALL_NOOK.x - 20, WALL_NOOK.x + 30, 160, 240, -1800]) {
       const y = gy(x) + 4;
       if (rand() < 0.6) {
         drawCoral(decorBasin, x, y, corals[Math.floor(rand() * corals.length)], R(0.6, 1.0));
@@ -871,9 +871,9 @@ export class Scenery {
       }
     }
     // Tall kelp: along the shelf edge, up the cliff and at the foot of the west wall (behind the base).
-    for (const x of [250, 330, 420, 470, -4950, -4870, -4760, -3500, -2000, -700]) addKelp(x, R(260, x < 0 && x > -4700 ? 420 : 600), kelpBack, greens[Math.floor(rand() * greens.length)]);
+    for (const x of [250, 330, 420, 470, -2000, -700]) addKelp(x, R(260, x < 0 ? 420 : 600), kelpBack, greens[Math.floor(rand() * greens.length)]);
     // Warm anemones on the basin floor: a little light down where the sun barely reaches.
-    for (const x of [-4720, -3020, -1320, 60]) {
+    for (const x of [-3020, -1320, 60]) {
       const y = gy(x) + 4;
       const core = new Graphics();
       const halo = new Graphics();

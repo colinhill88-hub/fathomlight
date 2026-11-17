@@ -5,6 +5,7 @@ import {
   CELL,
   cellAt,
   GRID_BASE,
+  SITE,
   GRID_COLS,
   GRID_ROWS,
   GRID_X0,
@@ -75,8 +76,24 @@ import { WHORL_ICON } from '../world/whorl';
  * Y rotates, B lets go or closes, X removes.
  */
 
+/** The build bar's categories: structure is what joins a base together, modules is what it does. */
+type BarTab = 'all' | 'modules' | 'structure';
+const BAR_TABS: [BarTab, string][] = [
+  ['all', 'All'],
+  ['modules', 'Modules'],
+  ['structure', 'Structure'],
+];
+const STRUCTURE: PieceKind[] = ['corridor', 'shaft', 'junction', 'bracket'];
+const TAB_OF = Object.fromEntries(PIECE_ORDER.map((k) => [k, STRUCTURE.includes(k) ? 'structure' : 'modules'])) as Record<PieceKind, BarTab>;
+
 /** Small side-view icons for the palette, drawn as SVG. */
 const PIECE_ICONS: Record<PieceKind, string> = {
+  shaft:
+    '<svg viewBox="0 0 40 32"><rect x="13" y="1" width="14" height="30" rx="3" fill="#2c3236"/><rect x="11" y="1" width="18" height="3" fill="#a4b0b7"/><rect x="11" y="28" width="18" height="3" fill="#a4b0b7"/><rect x="13" y="11" width="14" height="1.5" fill="#a4b0b7"/><rect x="13" y="20" width="14" height="1.5" fill="#a4b0b7"/><circle cx="20" cy="8" r="2.4" fill="#c6f03a"/><circle cx="20" cy="16" r="2.4" fill="#c6f03a"/><circle cx="20" cy="24" r="2.4" fill="#c6f03a"/></svg>',
+  junction:
+    '<svg viewBox="0 0 40 32"><rect x="1" y="12" width="38" height="8" fill="#2c3236"/><rect x="16" y="1" width="8" height="30" fill="#2c3236"/><rect x="11" y="7" width="18" height="18" rx="4" fill="#4a545a"/><circle cx="20" cy="16" r="5" fill="#a4b0b7"/><circle cx="20" cy="16" r="3" fill="#6f8a1e"/><rect x="0" y="10" width="2.5" height="12" fill="#a4b0b7"/><rect x="37.5" y="10" width="2.5" height="12" fill="#a4b0b7"/></svg>',
+  bracket:
+    '<svg viewBox="0 0 40 32"><rect x="1" y="2" width="7" height="28" rx="1" fill="#6a6f6c"/><circle cx="4.5" cy="8" r="1.6" fill="#a4b0b7"/><circle cx="4.5" cy="24" r="1.6" fill="#a4b0b7"/><rect x="8" y="12" width="30" height="8" fill="#2c3236"/><rect x="21" y="1" width="8" height="30" fill="#2c3236"/><path d="M8 26l12-6v6zM8 6l12 6V6z" fill="#4a545a"/><rect x="37" y="10" width="2.5" height="12" fill="#a4b0b7"/></svg>',
   hatch:
     '<svg viewBox="0 0 40 32"><rect x="0" y="13" width="4" height="7" fill="#5b6467"/><rect x="36" y="13" width="4" height="7" fill="#5b6467"/><rect x="3" y="5" width="34" height="23" rx="9" fill="#5b6467"/><rect x="7" y="11" width="26" height="11" rx="4" fill="#262d30"/><ellipse cx="12" cy="16" rx="3" ry="3.4" fill="#ffd890"/><ellipse cx="20" cy="16" rx="3" ry="3.4" fill="#ffd890"/><ellipse cx="28" cy="16" rx="3" ry="3.4" fill="#ffd890"/><circle cx="12" cy="17" r="1.4" fill="#f2f6c8"/><circle cx="20" cy="17" r="1.4" fill="#f2f6c8"/><circle cx="28" cy="17" r="1.4" fill="#f2f6c8"/><rect x="5" y="24" width="30" height="1.5" fill="#c9a13a"/></svg>',
   farm:
@@ -195,6 +212,10 @@ export class BuildMode {
   private whorlAddBtn = document.getElementById('build-whorl-add') as HTMLButtonElement;
   private whorlTakeBtn = document.getElementById('build-whorl-take') as HTMLButtonElement;
   private cards = new Map<PieceKind, HTMLButtonElement>();
+  /** The build bar's category tabs, and the row of cards that scrolls beside them. */
+  private tabBtns = new Map<BarTab, HTMLButtonElement>();
+  private cardRow = document.createElement('div');
+  private tab: BarTab = 'all';
   private removeArmed = 0;
   private reason: string | null = null;
   /** Touch points on the screen, for pinch and pan. */
@@ -213,12 +234,29 @@ export class BuildMode {
     host: HTMLElement,
     private readonly deps: BuildDeps,
   ) {
+    // Category tabs (All / Modules / Structure) stand beside a row of cards that scrolls sideways.
+    const tabs = document.createElement('div');
+    tabs.className = 'bar-tabs';
+    tabs.setAttribute('role', 'tablist');
+    for (const [id, label] of BAR_TABS) {
+      const t = document.createElement('button');
+      t.type = 'button';
+      t.className = 'bar-tab';
+      t.textContent = label;
+      t.setAttribute('role', 'tab');
+      t.addEventListener('pointerdown', (e) => e.stopPropagation());
+      t.addEventListener('click', () => this.setTab(id));
+      tabs.appendChild(t);
+      this.tabBtns.set(id, t);
+    }
+    this.cardRow.className = 'bar-cards';
+    this.bar.append(tabs, this.cardRow);
     for (const kind of PIECE_ORDER) {
       const b = document.createElement('button');
       b.type = 'button';
       b.className = 'piece-card';
       b.dataset.kind = kind;
-      this.bar.appendChild(b);
+      this.cardRow.appendChild(b);
       this.cards.set(kind, b);
       b.addEventListener('pointerdown', (e) => e.stopPropagation());
       b.addEventListener('click', () => this.pick(this.ghost?.kind === kind ? null : kind));
@@ -296,6 +334,12 @@ export class BuildMode {
   }
 
   /** Pick a piece to place (null lets go of it). It appears at the nearest spot where it fits. */
+  private setTab(t: BarTab): void {
+    this.tab = t;
+    this.refresh();
+    this.cardRow.scrollTo?.({ left: 0 });
+  }
+
   pick(kind: PieceKind | null): void {
     if (kind && PIECES[kind].blueprint && !this.deps.save.blueprints.includes(PIECES[kind].blueprint!)) return;
     this.selected = null;
@@ -310,7 +354,14 @@ export class BuildMode {
     const rot = prev && prev.kind === kind ? prev.rot : 0;
     this.ghost = { kind, rot, gx: 0, gy: 0 };
     this.snapToBest(prev ? this.ghostCentre(prev) : null);
+    // Picked by a key or the pad from another tab: show it, and bring its card into view.
+    if (this.tab !== 'all' && TAB_OF[kind] !== this.tab) this.tab = TAB_OF[kind];
     this.refresh();
+    try {
+      this.cards.get(kind)?.scrollIntoView({ inline: 'nearest', block: 'nearest', behavior: 'smooth' });
+    } catch {
+      /* no scrolling: fine */
+    }
   }
 
   private ghostCentre(g: Ghost): { x: number; y: number } {
@@ -334,6 +385,21 @@ export class BuildMode {
       if (d < bestD) {
         bestD = d;
         best = s;
+      }
+    }
+    // Nowhere for this rotation (a cliff bracket wants rock on one side): try the others.
+    if (!best && PIECES[g.kind].shapes.length > 1) {
+      for (let k = 1; k < PIECES[g.kind].shapes.length && !best; k++) {
+        const rot = (g.rot + k) % PIECES[g.kind].shapes.length;
+        for (const sp of layout.validSpots(g.kind, rot)) {
+          const c = this.ghostCentre({ ...g, rot, ...sp });
+          const d = Math.hypot(c.x - target.x, c.y - target.y) + sp.gy * 40;
+          if (d < bestD) {
+            bestD = d;
+            best = sp;
+            g.rot = rot;
+          }
+        }
       }
     }
     if (best) {
@@ -723,8 +789,8 @@ export class BuildMode {
   private maxH(): number {
     const W = window.innerWidth;
     const H = window.innerHeight;
-    const siteW = GRID_X1 - GRID_X0 + 500;
-    const siteH = GRID_BASE + 300;
+    const siteW = SITE.x1 - SITE.x0 + 500;
+    const siteH = SITE.y1 + 300;
     const whole = Math.max(siteH, (siteW * H) / W) * 1.1;
     // Phones stop a little short of the whole site (it still shows almost all
     // of its width), which keeps the frame rate up; a PC sees everything.
@@ -734,8 +800,8 @@ export class BuildMode {
   private clampCam(): void {
     const c = this.cam;
     c.h = Math.max(320, Math.min(this.maxH(), c.h));
-    c.x = Math.max(GRID_X0 - 100, Math.min(GRID_X1 + 100, c.x));
-    c.y = Math.max(-150, Math.min(GRID_BASE + 150, c.y));
+    c.x = Math.max(SITE.x0 - 100, Math.min(SITE.x1 + 100, c.x));
+    c.y = Math.max(-150, Math.min(SITE.y1 + 150, c.y));
   }
 
   /**
@@ -1192,6 +1258,7 @@ export class BuildMode {
       const def = PIECES[kind];
       // Milestone 7 part 2: pieces with a blueprint only show once the Lab has decoded it.
       card.hidden = !!def.blueprint && !save.blueprints.includes(def.blueprint);
+      card.classList.toggle('tab-off', this.tab !== 'all' && TAB_OF[kind] !== this.tab);
       const afford = canAfford(kind, save.bag, save.stored);
       const cost = MATERIAL_ORDER.filter((k) => def.cost[k])
         .map((k) => {
@@ -1203,6 +1270,10 @@ export class BuildMode {
       if (card.innerHTML !== html) card.innerHTML = html;
       card.classList.toggle('short', !afford);
       card.setAttribute('aria-pressed', String(this.ghost?.kind === kind));
+    }
+    for (const [id, t] of this.tabBtns) {
+      t.setAttribute('aria-selected', String(id === this.tab));
+      t.classList.toggle('on', id === this.tab);
     }
     const g = this.ghost;
     const drone = this.deps.droneReady();
