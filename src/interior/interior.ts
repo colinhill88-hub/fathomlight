@@ -18,6 +18,8 @@ export const T = 40;
 export const GRAVITY = 1900;
 export const MAX_FALL = 950;
 export const WALK = 270;
+/** Holding Shift (or the pad's left bumper) on foot: a sprint (Colin, after the terrain pass). */
+export const SPRINT = 430;
 export const ACCEL_GROUND = 2200;
 export const ACCEL_AIR = 1200;
 export const JUMP_V = 660;
@@ -112,6 +114,8 @@ export interface InteriorInput {
   moveX: number;
   moveY: number;
   jump: boolean;
+  /** Held: run faster on foot. */
+  sprint?: boolean;
   collect: boolean;
   lamp: boolean;
 }
@@ -164,6 +168,7 @@ export class Interior {
   private cssW = 1;
   private cssH = 1;
   private coyote = 0;
+  private sprinting = false;
   private buffer = 0;
   private jumpWas = false;
   private collectWas = false;
@@ -801,7 +806,9 @@ export class Interior {
 
   private updateWalk(dt: number, inp: InteriorInput, jumpPressed: boolean, ev: InteriorEvent[]): void {
     const w = this.walker;
-    const target = inp.moveX * WALK;
+    // The sprint carries on through a jump, but only starts from the floor.
+    if (w.onGround) this.sprinting = !!inp.sprint && Math.abs(inp.moveX) > 0.5;
+    const target = inp.moveX * (this.sprinting ? SPRINT : WALK);
     const a = w.onGround ? ACCEL_GROUND : ACCEL_AIR;
     if (Math.abs(target - w.vx) < a * dt) w.vx = target;
     else w.vx += Math.sign(target - w.vx) * a * dt;

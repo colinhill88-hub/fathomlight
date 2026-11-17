@@ -62,6 +62,9 @@ async function main(): Promise<void> {
   const mk = (zoom: () => number, cx: () => number) => {
     const cam = new Container();
     const d = new Diver();
+    // ?jar=glowfin (or glowfin-egg, crab-young...) hangs a filled specimen jar on the belt.
+    const jq = params.get('jar');
+    if (jq) d.jar = { species: jq.split('-')[0] as 'glowfin', stage: (jq.split('-')[1] ?? 'grown') as 'grown' };
     d.x = ax;
     d.y = ay;
     d.lampOn = false;

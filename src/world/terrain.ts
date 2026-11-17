@@ -55,9 +55,21 @@ export const WU_PER_METRE = 75;
 
 /** Where the diver starts, and comes back to after blacking out: the Kestrel buoy at the surface. */
 export const SPAWN = { x: 900, y: 40 };
+/**
+ * Where a new game starts (Colin, after the terrain pass): at the surface just
+ * off the build trench's western lip, looking east down the whole site. Blacking
+ * out still brings you back to the buoy (SPAWN).
+ */
+export const START = { x: -2950, y: 40 };
 export const BUOY_X = 900;
 export const BEACON_X = 4990;
 export const SLED_X = 4120;
+/**
+ * The SLED 2 recorder (the dive light's data): thrown clear of the sled onto
+ * open sand to its west, away from the stranded drone and the scrap around the
+ * wreck, with a blinking amber beacon (Colin, after the terrain pass).
+ */
+export const RECORDER_X = 3810;
 export const ANCHOR_X = 2860;
 export const CREVICE_X = 7700;
 export const GROTTO = { x0: 5810, x1: 6500, y0: 760, y1: 1000 };

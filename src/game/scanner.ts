@@ -89,7 +89,7 @@ export const SCAN_ENTRIES: ScanEntry[] = [
     id: 'sled',
     name: 'Survey sled wreck',
     category: 'Wreckage',
-    text: 'A towed survey sled from an earlier expedition. Its recorder still holds part of a dive light design: unclip it (Collect) and take it to a Lab to decode.',
+    text: 'A towed survey sled from an earlier expedition. Its recorder was torn loose and lies on the sand just west of the sled, its amber beacon blinking. It still holds part of a dive light design: hold Collect at it and take it to a Lab to decode.',
   },
   {
     id: 'drone',

@@ -7,6 +7,7 @@ import type { CreatureData, MaterialId, PlantId, SaveData, SavedLine } from '../
 import { Critter } from '../actors/critters';
 import { traitsOf } from '../game/traits';
 import { HATCH_CAP } from '../game/creatures';
+import { WHORLS_PER_PIECE } from '../game/factory';
 import { ITEM_COLOURS, pointAlong } from '../world/linegfx';
 import { drawPlant, TankLife } from '../world/tanklife';
 import { mulberry32, WORLD_SEED } from '../rng';
@@ -222,9 +223,11 @@ export interface BaseCtx {
   /** The moon pool: is the sub berthed in this dock, and climbing down into it. */
   subDocked(dockId: number): boolean;
   boardSub(): void;
-  /** Fit Echo whorls: opens the build view with this machine selected. */
-  tune(id: number): void;
+  /** Echo whorls fitted to a machine, and how many are spare. */
+  whorlsFitted(id: number): number;
   whorlsFree(): number;
+  /** Fit (+1) or take out (-1) an Echo whorl, right here at the machine's console. */
+  fitWhorl(id: number, step: 1 | -1): void;
   /** A one-line status for a machine. */
   status(p: Placed): string;
   /** Live machine readings for the art. */
@@ -349,6 +352,51 @@ export class BaseHooks implements InteriorHooks {
   private nest = new Map<number, { c: Critter; stage: string }>();
   private crops = new Map<number, { key: string; plants: Container[] }>();
 
+  /**
+   * The Echo whorl socket plate on the wall by a machine's whorl console (after
+   * the terrain pass): two sockets that glow when a whorl is fitted, and blink
+   * softly while a spare is waiting to go in.
+   */
+  private whorlPlates = new Map<number, { em: Graphics; key: string }>();
+  private syncWhorlPlates(time: number): void {
+    for (const sp of this.spots) {
+      if (sp.what !== 'tune') continue;
+      const id = sp.room.piece.id;
+      let pl = this.whorlPlates.get(id);
+      const x = sp.x;
+      const y = sp.y - 122;
+      if (!pl) {
+        const g = new Graphics();
+        g.roundRect(x - 26, y - 15, 52, 30, 6).fill({ color: COL.wallDark });
+        g.roundRect(x - 26, y - 15, 52, 30, 6).stroke({ color: COL.chrome, width: 2 });
+        g.rect(x - 22, y - 12, 44, 2).fill({ color: COL.chromeHi, alpha: 0.35 });
+        for (const dx of [-11, 11]) {
+          g.circle(x + dx, y + 1, 8).fill({ color: 0x15191b });
+          g.circle(x + dx, y + 1, 8).stroke({ color: COL.chromeDark, width: 2 });
+        }
+        g.moveTo(x, y - 15).lineTo(x, y - 34).stroke({ color: COL.gold, width: 1.6, alpha: 0.7 });
+        this.extraLit.addChild(g);
+        const em = new Graphics();
+        this.extraEm.addChild(em);
+        pl = { em, key: '' };
+        this.whorlPlates.set(id, pl);
+      }
+      const n = this.ctx.whorlsFitted(id);
+      const spare = this.ctx.whorlsFree() > 0;
+      const blink = spare && n < WHORLS_PER_PIECE ? 0.35 + 0.35 * Math.sin(time * 3) : 0;
+      const key = `${n}:${blink.toFixed(2)}`;
+      if (key === pl.key) continue;
+      pl.key = key;
+      const em = pl.em.clear();
+      [-11, 11].forEach((dx, i) => {
+        if (i < n) {
+          em.circle(x + dx, y + 1, 6).fill({ color: 0x8ff4ff, alpha: 0.9 });
+          em.circle(x + dx - 2, y - 1, 2).fill({ color: 0xffffff, alpha: 0.8 });
+        } else if (i === n && blink > 0) em.circle(x + dx, y + 1, 6.5).stroke({ color: COL.lime, width: 1.6, alpha: blink });
+      });
+    }
+  }
+
   /** The four cradles in a Hatchery room, where its eggs and young sit. */
   private cradles(r: Room): { x: number; y: number }[] {
     const b = this.box(r);
@@ -445,6 +493,7 @@ export class BaseHooks implements InteriorHooks {
     this.tankLife.update(dt, time, this.ctx.save, x0, x1);
     this.syncNest(time, dt);
     this.syncCrops(time);
+    this.syncWhorlPlates(time);
   }
   /** Milestone 9: where the camera frames a room while its panel is open (the Hatchery). */
   roomFocus(id: number): { x: number; y: number; h: number } | null {
@@ -626,7 +675,7 @@ export class BaseHooks implements InteriorHooks {
       default:
         add(b.cx, b.bottom, 'info', 130);
     }
-    // Fit Echo whorls (opens the build view with this machine selected), once any have been found.
+    // Fit Echo whorls right here (the socket plate on the wall above), once any have been found.
     if (PIECES[r.kind].whorls && this.ctx.save.whorls.length > 0) add(b.ox + b.ow - 56, r.kind === 'feeder' || r.kind === 'press' ? b.bottom : b.bottom, 'tune', 40);
     for (const d of this.level.doors)
       if (d.sealed && d.tx >= r.tx0 && d.tx < r.tx0 + r.tw && d.floorTy >= r.ty0 && d.floorTy < r.ty0 + r.th)
@@ -705,8 +754,15 @@ export class BaseHooks implements InteriorHooks {
       case 'board':
         return { key: 'board', label: 'Climb down into KS-1', seconds: 1, done: () => c.boardSub() };
       case 'tune': {
+        // Fitted straight from the console (Colin, after the terrain pass): fit one while there
+        // is room and a spare; once full (or out of spares), the same console takes one out.
         const free = c.whorlsFree();
-        return { key: 'tune', label: `Fit Echo whorls to ${code} (${free} free)`, seconds: 0.4, done: () => c.tune(p.id) };
+        const n = c.whorlsFitted(p.id);
+        if (!isDone(p)) return `${code} is still a frame: whorls fit once it is built`;
+        if (n < WHORLS_PER_PIECE && free > 0)
+          return { key: 'tune+' + n, label: `Fit an Echo whorl to ${code} (${n}/${WHORLS_PER_PIECE} fitted · ${free} spare)`, seconds: 0.8, done: () => c.fitWhorl(p.id, 1) };
+        if (n > 0) return { key: 'tune-' + n, label: `Take an Echo whorl out of ${code} (${n}/${WHORLS_PER_PIECE} fitted)`, seconds: 0.8, done: () => c.fitWhorl(p.id, -1) };
+        return `${code}: no spare Echo whorls. They hide in quiet corners of the reef.`;
       }
       case 'sealed':
         return `Sealed hatch: ${PIECES[best.other!.kind].name.toLowerCase()} beyond is still a frame`;

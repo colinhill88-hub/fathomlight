@@ -12,6 +12,7 @@ import {
   groundY,
   LEDGE,
   SLED_X,
+  RECORDER_X,
   smooth,
   WORLD_H,
   WORLD_W,
@@ -758,6 +759,7 @@ export class Scenery {
     // Survey sled wreck in the channel and the old anchor in the coral garden.
     this.view.addChild(drawSled(decorAt(SLED_X), SLED_X));
     this.scanPoints.sled.push({ x: SLED_X - 20, y: gy(SLED_X) - 40 });
+    this.buildRecorder(decorAt(RECORDER_X));
     drawAnchor(decorAt(ANCHOR_X), ANCHOR_X);
     this.scanPoints.anchor.push({ x: ANCHOR_X, y: gy(ANCHOR_X) - 40 });
 
@@ -1667,6 +1669,80 @@ export class Scenery {
   }
 
   /** The grapple's target: an amber ring and crosshair round the anchor, or none. */
+  /** The SLED 2 recorder on the sand: a yellow canister with a cable back to the sled and an amber beacon. */
+  private buildRecorder(cable: Graphics): void {
+    const x = RECORDER_X;
+    const y = gy(x) + 2;
+    // The torn data cable, half buried, trailing back to the sled's west end.
+    const sx = SLED_X - 118;
+    const sy = gy(sx) - 6;
+    cable.moveTo(x + 16, y - 6).quadraticCurveTo((x + sx) / 2, y + 2, sx, sy).stroke({ color: 0x1e2224, width: 2.6 });
+    cable.moveTo(x + 16, y - 6).quadraticCurveTo((x + sx) / 2, y + 2, sx, sy).stroke({ color: 0x3e4448, width: 1, alpha: 0.6 });
+    const g = this.recorder.addChild(new Graphics());
+    // Lying on its side, tipped a little: a bright yellow flight-recorder canister.
+    g.ellipse(0, 4, 26, 4).fill({ color: 0x000000, alpha: 0.25 });
+    g.roundRect(-20, -18, 40, 22, 5).fill({ color: 0xe0a92a });
+    g.roundRect(-20, -18, 40, 6, 3).fill({ color: 0xffffff, alpha: 0.2 });
+    g.roundRect(-20, -2, 40, 6, 3).fill({ color: 0x8c6414, alpha: 0.6 });
+    for (const bx of [-13, 13]) g.rect(bx - 2.5, -19, 5, 24).fill({ color: 0x2a2e30 });
+    g.rect(-6, -12, 12, 7).fill({ color: 0x232524 });
+    g.rect(-5, -11, 10, 1.6).fill({ color: 0xe0a92a, alpha: 0.8 });
+    g.circle(19, -7, 3).fill({ color: 0x2a2e30 }); // cable gland
+    for (let i = 0; i < 8; i++) g.circle(R(-18, 18), R(-16, 2), R(0.8, 1.8)).fill({ color: PAL.algae, alpha: 0.6 });
+    const t = new Text({ text: 'SLED 2 · REC', style: { fontFamily: 'Courier New, monospace', fontSize: 4.5, fontWeight: 'bold', fill: 0x2a2418 }, resolution: 6 });
+    t.anchor.set(0.5);
+    t.position.set(0, -2.5);
+    t.alpha = 0.75;
+    this.recorder.addChild(t);
+    this.recorder.position.set(x, y - 2);
+    this.recorder.rotation = -0.08;
+    this.view.addChild(this.recorder);
+    const lx = x - 1;
+    const ly = y - 24;
+    this.recLamp.rect(-1, 3, 2, 4).fill({ color: 0x2a2e30 });
+    this.recLamp.circle(0, 0, 3.4).fill({ color: 0xffb030 });
+    this.recLamp.circle(-0.8, -1, 1.2).fill({ color: 0xfff0c0 });
+    this.recLamp.position.set(lx, ly);
+    this.recGlow.circle(0, 0, 30).fill({ color: 0xffa020 });
+    this.recGlow.position.set(lx, ly);
+    this.emissive.addChild(this.recLamp, this.recRing);
+    this.glow.addChild(this.recGlow);
+    this.recLight = { x: lx, y: ly, radius: 220, intensity: 0, color: [1.0, 0.68, 0.22] };
+    this.lights.push(this.recLight);
+  }
+  private recorder = new Container();
+  private recLamp = new Graphics();
+  private recGlow = new Graphics();
+  private recRing = new Graphics();
+  private recLight: PointLight = { x: 0, y: 0, radius: 0, intensity: 0, color: [1, 1, 1] };
+
+  /**
+   * Show the SLED 2 recorder until it is taken. Its beacon blinks twice every
+   * couple of seconds, and a slow ring pulses round it when the diver is near.
+   */
+  setRecorder(show: boolean, near: boolean, time: number): void {
+    this.recorder.visible = this.recLamp.visible = this.recGlow.visible = show;
+    this.recRing.clear();
+    if (!show) {
+      this.recLight.intensity = 0;
+      return;
+    }
+    const t = time % 1.8;
+    const pulse = (a: number) => (t >= a && t < a + 0.5 ? Math.exp(-(t - a) * 9) : 0);
+    const lvl = 0.15 + 0.85 * Math.max(pulse(0), pulse(0.28));
+    this.recLight.intensity = lvl * 1.2;
+    this.recLamp.alpha = 0.4 + 0.6 * lvl;
+    this.recGlow.alpha = lvl * 0.9;
+    this.recGlow.scale.set(0.7 + lvl * 0.5);
+    if (near) {
+      const x = this.recorder.x;
+      const y = this.recorder.y - 8;
+      const r = 34 + ((time * 22) % 18);
+      this.recRing.circle(x, y, r).stroke({ color: 0xffc860, width: 2, alpha: 0.8 * (1 - (r - 34) / 18) });
+      this.recRing.circle(x, y, 32).stroke({ color: 0xffc860, width: 1.2, alpha: 0.5 });
+    }
+  }
+
   setGrappleMark(p: { x: number; y: number } | null, time: number): void {
     const g = this.markG.clear();
     if (!p) return;

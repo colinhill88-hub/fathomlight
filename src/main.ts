@@ -24,7 +24,7 @@ import {
   caveTop,
   boom,
   FOREST,
-  SLED_X,
+  RECORDER_X,
   GROTTO,
   groundY,
   inCaveTunnel,
@@ -57,6 +57,7 @@ import {
   WRECK_SHELF,
   WRECKS,
   SPAWN,
+  START,
   WORLD_H,
   WORLD_SPAN,
   WORLD_W,
@@ -205,7 +206,7 @@ async function boot(): Promise<void> {
   const overlayCam = new Container();
 
   // Progress from the last visit (or a fresh start at the Kestrel buoy).
-  const loaded = loadSave(SPAWN.x, SPAWN.y);
+  const loaded = loadSave(START.x, START.y);
   const save: SaveData = loaded.data;
   if (BENCH) seedBenchSave(save);
 
@@ -943,6 +944,10 @@ async function boot(): Promise<void> {
     return null;
   }
   let lastViewW = 1000;
+  /** The SLED 2 recorder still lies out on the sand (not taken, decoded or being decoded). */
+  function recorderOut(): boolean {
+    return !save.finds.includes('recorder') && !save.blueprints.includes('light') && !hasGear(save, 'light') && !Object.values(save.jobs).some((j) => j.id === 'research:light');
+  }
   /** Text for the jar chip. */
   function jarText(): string | null {
     const j = save.jar;
@@ -1734,7 +1739,10 @@ async function boot(): Promise<void> {
 
     // The dive bag's weight slows the diver (no sinking through a dome's floor).
     diver.load = bagLoad(save);
-    diver.noSink = false;
+    diver.jar = save.jar;
+    // Planning in build view (or reading a panel out here): the diver treads water where they are
+    // instead of sinking with the bag's weight (Colin, after the terrain pass).
+    diver.noSink = build.active || care.active || dockUI.active || station.active;
     if (boarding) {
       // Climbing into the sub: swim to the hatch, then down through it.
       boarding.t += dt;
@@ -2090,7 +2098,10 @@ async function boot(): Promise<void> {
       persist();
     }
     const wildTarget = wildlife.target && !atDrone && !diver.surfaced ? wildlife.target : null;
-    if (wildTarget && collectHeld && !wildOk && time - fullWarnAt > 4) {
+    // A creature the jar can't take (full, or not scanned yet) never hides a material in reach
+    // (Colin, after the terrain pass: the grotto's nodules sat under the glowfin eggs).
+    const wildBlocks = !!wildTarget && (wildOk || !pickups.target);
+    if (wildTarget && wildBlocks && collectHeld && !wildOk && time - fullWarnAt > 4) {
       fullWarnAt = time;
       hud.toast(
         !save.scans.includes(SPECIES[wildTarget.species].scan)
@@ -2106,7 +2117,7 @@ async function boot(): Promise<void> {
       hud.toast(`Dive bag full (${bagLimits(save).max} kg). Unload at a storage pod to carry more.`, 'warn');
     }
     // The sub's grabber arm reaches further than a diver's hand (after milestone 7b: Colin found it hard to line up).
-    for (const ev of pickups.update(dt, time, reachPt.x, reachPt.y, save, collectHeld && !atDrone && !bagFull && !wildTarget, speed, grab ? GRAB_REACH : undefined)) {
+    for (const ev of pickups.update(dt, time, reachPt.x, reachPt.y, save, collectHeld && !atDrone && !bagFull && !wildBlocks, speed, grab ? GRAB_REACH : undefined)) {
       if (ev.type === 'material') {
         save.bag[ev.kind]++;
         sound.pickup(ev.kind);
@@ -2192,15 +2203,11 @@ async function boot(): Promise<void> {
       });
     }
     scenery.setGrappleMark(grappleTarget >= 0 ? ANCHORS[grappleTarget] : null, time);
+    scenery.setRecorder(recorderOut(), Math.abs(diver.x - RECORDER_X) < 260 && Math.abs(diver.y - groundY(RECORDER_X)) < 260, time);
     if (!otherTarget && blackout === 0 && inControl && !diver.surfaced && !aboard) {
-      const rx = SLED_X - 20;
-      const ry = groundY(SLED_X) - 44;
-      const recNeeded =
-        save.scans.includes('sled') &&
-        !save.finds.includes('recorder') &&
-        !save.blueprints.includes('light') &&
-        !Object.values(save.jobs).some((j) => j.id === 'research:light');
-      if (recNeeded && Math.hypot(diver.x - rx, diver.y - ry) < 120)
+      const rx = RECORDER_X;
+      const ry = groundY(RECORDER_X) - 22;
+      if (recorderOut() && Math.hypot(diver.x - rx, diver.y - ry) < 80)
         holdAct = {
           key: 'recorder',
           label: 'Unclip the SLED 2 recorder',
@@ -2537,7 +2544,7 @@ async function boot(): Promise<void> {
         fullWarnAt = time;
         hud.toast(`To repair the drone you need ${missing.join(' and ')} more`, 'warn');
       }
-    } else if (wildTarget) {
+    } else if (wildTarget && wildBlocks) {
       const sp = SPECIES[wildTarget.species];
       hud.setCollect(
         !save.scans.includes(sp.scan)
@@ -2940,7 +2947,7 @@ async function boot(): Promise<void> {
         hud.toast(
           input.state.lastDevice === 'touch'
             ? 'Inside the Corvina: dry, and dark. The stick walks, Boost jumps (hold for higher; down + Boost drops through a grating). When a ring is marked, tap Collect to fire the grapple; jump to swing off it.'
-            : 'Inside the Corvina: dry, and dark. A/D walk, Space or Shift jumps (hold for higher; S + jump drops through a grating). When a ring is marked, tap C to fire the grapple; jump to swing off it.',
+            : 'Inside the Corvina: dry, and dark. A/D walk, hold Shift to sprint, Space jumps (hold for higher; S + jump drops through a grating). When a ring is marked, tap C to fire the grapple; jump to swing off it.',
           'big',
         );
       }, 900);
@@ -2998,8 +3005,15 @@ async function boot(): Promise<void> {
       boardSub(false);
       persist();
     },
-    tune: (id) => peekOut('build', null, id),
+    whorlsFitted: (id) => save.fitted[String(id)] ?? 0,
     whorlsFree: () => whorlsFree(save),
+    fitWhorl: (id, step) => {
+      const p = layout.pieces.find((q) => q.id === id);
+      if (!p) return;
+      build.fitWhorlOn(p, step);
+      sound.clip();
+      persist();
+    },
     lift: (x, y) => {
       interior.place(x, y, interior.walker.face);
       sound.clamps(true);
@@ -3010,7 +3024,12 @@ async function boot(): Promise<void> {
       care.setAvailable(id);
       care.open(id);
     },
-    station: (id) => peekOut('station', id),
+    // The Lab and Workshop panel opens indoors too (Colin, after the terrain pass):
+    // the camera frames the room and the walker waits while it is open.
+    station: (id) => {
+      station.setAvailable(id);
+      station.open(id);
+    },
     dock: (id) => peekOut('dock', id),
     build: () => peekOut('build', null),
     exit: (id) => exitBase(id),
@@ -3132,7 +3151,7 @@ async function boot(): Promise<void> {
         hud.toast(
           input.state.lastDevice === 'touch'
             ? 'Inside the base: dry air, and everything is used from in here. Walk with the stick, push up or down at a ladder to climb, and hold Collect at a console, a storage rack or a tank window.'
-            : 'Inside the base: dry air, and everything is used from in here. A/D walk, W/S climb ladders, and hold C at a console, a storage rack or a tank window.',
+            : 'Inside the base: dry air, and everything is used from in here. A/D walk (hold Shift to sprint), Space jumps, W/S climb ladders, and hold C at a console, a storage rack or a tank window.',
           'big',
         );
       }, 900);
@@ -3212,6 +3231,7 @@ async function boot(): Promise<void> {
     }
     // The same dive bag as in the water, swinging at the hip.
     interior.walker.load = bagLoad(save);
+    interior.walker.jar = save.jar;
     // Tending a tank indoors: the walker waits at the window while the panel is open.
     // Milestone 9: the Hatchery's panel frames its cradles the same way.
     if (inside === 'base' && care.active && care.tankId !== null && baseHooks) {
@@ -3220,17 +3240,23 @@ async function boot(): Promise<void> {
     } else if (inside === 'base' && hatchPanel.active && hatchPanel.pieceId !== null && baseHooks) {
       const f = baseHooks.roomFocus(hatchPanel.pieceId);
       interior.focus = f ? { ...f, panelPx: Math.min(360, cssW * 0.44) + 24 } : null;
+    } else if (inside === 'base' && station.active && station.pieceId !== null && baseHooks) {
+      const f = baseHooks.roomFocus(station.pieceId);
+      interior.focus = f ? { ...f, panelPx: Math.min(380, cssW * 0.46) + 24 } : null;
     } else {
       interior.focus = null;
       if (care.available !== null && !care.active) care.setAvailable(null);
+      if (station.available !== null && !station.active) station.setAvailable(null);
     }
     if (inside !== 'base' && hatchPanel.active) hatchPanel.close();
+    if (inside !== 'base' && station.active) station.close();
     care.update(dt);
     hatchPanel.update(dt);
-    const frozen = care.active || hatchPanel.active;
+    station.update(dt);
+    const frozen = care.active || hatchPanel.active || station.active;
     const evs: InteriorEvent[] = interior.update(
       dt,
-      frozen ? { moveX: 0, moveY: 0, jump: false, collect: false, lamp: false } : { moveX: s.moveX, moveY: s.moveY, jump: s.jumpHeld, collect: s.collect, lamp: s.lamp },
+      frozen ? { moveX: 0, moveY: 0, jump: false, collect: false, lamp: false } : { moveX: s.moveX, moveY: s.moveY, jump: s.jumpHeld, sprint: s.sprint, collect: s.collect, lamp: s.lamp },
       paused,
     );
     const maxO2 = maxOxygen(save);

@@ -44,8 +44,10 @@ const SPOTS: Spot[] = (() => {
   // kept creatures, which make materials, matter more. 39 spots became 28.
   // Four more after milestone 7b (Colin: early scrap was too slow), appended so
   // saved ids (scrap-0 … scrap-7) keep their places.
-  add('scrap', [3960, 4040, 4210, 4290, 4930, 7420, [6120, 760], 2890, 2050, 3620, 5600, 6560]);
-  add('copper', [520, 1260, 2660, 3400, 4460, 7120, [6330, 760]]);
+  // The grotto's scrap and copper sit well clear of the glowfin egg clutches (6040, 6390) after
+  // the terrain pass (Colin: a nodule right beside the eggs was hard to take).
+  add('scrap', [3960, 4040, 4210, 4290, 4930, 7420, [6215, 760], 2890, 2050, 3620, 5600, 6560]);
+  add('copper', [520, 1260, 2660, 3400, 4460, 7120, [5860, 760]]);
   // quartz-0 moved from the old west wall (now the basin) to the top of the cliff.
   add('quartz', [372, 2220, 3140, 4720, 5310, 6020, 6420]);
   add('fibre', [1650, 1910, 2560, 3300, 6960, 7900]);

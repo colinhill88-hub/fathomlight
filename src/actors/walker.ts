@@ -1,6 +1,6 @@
 import { Container, Graphics } from 'pixi.js';
 import { mulberry32 } from '../rng';
-import { C, accentBand, buildDiveBag, buildHelmet, buildShoulderLamp, chromeBands, coiledHose, etching, rimEdge, rivets, scratches, segment } from './diver';
+import { BeltJar, C, JarLook, accentBand, buildDiveBag, buildHelmet, buildShoulderLamp, chromeBands, coiledHose, etching, rimEdge, rivets, scratches, segment } from './diver';
 import { Glance, Spring, approach, batchAll, breathShape, clamp, smoothstep } from './animkit';
 
 /**
@@ -39,6 +39,10 @@ const BALL = 8;
 const UPPER = 15;
 const FORE = 15;
 const REACH = THIGH + SHIN - 0.4;
+/** How far into a sprint (0 at the jog, 270, to 1 at full sprint, 430). */
+function sprintOf(speed: number): number {
+  return Math.min(1, Math.max(0, (speed - 275) / 140));
+}
 /** Hip height standing (knees a little soft). */
 const STAND_HIP = -49.5;
 /** Torso space: origin at the pelvis, up is -y. */
@@ -344,6 +348,9 @@ export class Walker {
   private plate!: Container;
   private lampC = new Container();
   private bag = buildDiveBag();
+  /** The specimen jar on the belt (set from the save each frame). */
+  jar: JarLook | null = null;
+  private beltJar = new BeltJar();
   private lampDot = new Graphics();
   private nozzleDot = new Graphics();
 
@@ -441,6 +448,7 @@ export class Walker {
     this.lampC.scale.set(0.55);
     this.bag.scale.set(0.5);
     this.bag.visible = false;
+    this.beltJar.view.scale.set(0.8);
     this.rig.addChild(
       this.farArm.upper,
       this.farLeg.thigh,
@@ -451,6 +459,7 @@ export class Walker {
       this.hose,
       this.lampC,
       this.nearLeg.thigh,
+      this.beltJar.view,
       this.nearArm.upper,
     );
     this.view.addChild(this.rig);
@@ -574,7 +583,7 @@ export class Walker {
     // Breathing: slow standing, quicker walking and after effort.
     const speed = Math.abs(this.vx);
     const run = clamp((speed - 140) / 130, 0, 1);
-    const work = mode === 'ground' ? this.walkAmt * (0.4 + 0.6 * speed / 270) : mode === 'climb' ? this.climbMove : 0.3;
+    const work = mode === 'ground' ? this.walkAmt * (0.4 + 0.6 * Math.min(1, speed / 270) + 0.5 * sprintOf(speed)) : mode === 'climb' ? this.climbMove : 0.3;
     this.exert = clamp(this.exert + dt * (work * 0.06 - 0.025), 0, 1);
     const period = 3.8 - 1.4 * work - 1.2 * this.exert;
     this.breath = (this.breath + dt / period) % 1;
@@ -756,10 +765,14 @@ export class Walker {
 
     if (this.gaitOn) {
       this.gaitRamp = approach(this.gaitRamp, 1, 2.4, dt);
-      const D = (60 + 0.33 * speed) * (0.62 + 0.38 * this.gaitRamp);
-      const beta = 0.64 - 0.3 * run;
+      // Sprinting (Shift, after the terrain pass): past the jog the stride keeps
+      // lengthening, the cadence quickens, the feet barely touch and the knees come high.
+      const spr = sprintOf(speed);
+      const jog = Math.min(speed, 270);
+      const D = (60 + 0.33 * jog + 0.45 * (speed - jog)) * (0.62 + 0.38 * this.gaitRamp);
+      const beta = 0.64 - 0.3 * run - 0.1 * spr;
       this.phase = (this.phase + (speed * dt) / D) % 1;
-      const lift = 4 + 6 * run + (3 * speed) / 270;
+      const lift = 4 + 6 * run + (3 * jog) / 270 + 8 * spr;
       for (let i = 0; i < 2; i++) {
         const f = this.feet[i];
         const psi = (this.phase + i * 0.5) % 1;
@@ -789,7 +802,7 @@ export class Walker {
           this.plantedAnkle(f, (f.wx - this.x) / sxw, roll);
         } else {
           // The footfall: ahead of the hip, not further than the leg reaches comfortably.
-          const land = this.x + face * Math.min(beta * D * 0.42, 21);
+          const land = this.x + face * Math.min(beta * D * 0.42, 21 + 5 * spr);
           // The foot leaves at once (so it never trails out of reach) and slows into the footfall.
           const wx = f.liftX + (land - f.liftX) * (1 - Math.pow(1 - s, 1.7));
           f.tx = (wx - this.x) / sxw;
@@ -802,9 +815,9 @@ export class Walker {
       // jogging sinks into it. Twice per stride.
       const c = Math.cos(Math.PI * 4 * (this.phase - beta / 2));
       // A heavy suit: the knees stay a little softer walking.
-      hipY += (1.5 + run) * this.walkAmt + c * (-(1 - run) * (1 + (1.6 * speed) / 270) + run * 3) * this.walkAmt;
-      lean = 0.05 + 0.11 * (speed / 270) * this.walkAmt;
-      look = 0.035;
+      hipY += (1.5 + run + 0.4 * spr) * this.walkAmt + c * (-(1 - run) * (1 + (1.6 * jog) / 270) + run * 3 + spr * 1.5) * this.walkAmt;
+      lean = 0.05 + (0.11 * (jog / 270) + 0.2 * spr) * this.walkAmt;
+      look = 0.035 - 0.03 * spr;
     } else {
       // Standing: settle each foot under the hip with a small step when it is out of place.
       this.stepCool = Math.max(0, this.stepCool - dt);
@@ -1115,6 +1128,17 @@ export class Walker {
       tp(-3, 0, this.bag);
       this.bag.rotation = this.bagS.x;
     }
+    // The specimen jar hangs at the front of the belt and swings with the same pendulum.
+    this.beltJar.set(this.jar, this.time);
+    if (this.jar) {
+      if (!this.bag.visible) {
+        const jig = mode === 'ground' ? Math.sin(this.phase * Math.PI * 4) * this.walkAmt * 3 : 0;
+        this.bagS.step(0, 6, 0.3, dt, -clamp(axL, -3000, 3000) * 0.004 + jig);
+        this.bagS.clamp(-0.7, 0.7);
+      }
+      tp(1, -1, this.beltJar.view);
+      this.beltJar.view.rotation = this.bagS.x * 0.8;
+    }
     // Unlit dots: the lamp lens and the thruster nozzle.
     this.toWorld(LENS_X + 1, LENS_Y - chest * 0.5, this.lampOut);
     this.lampDot.position.set(this.lampOut.x, this.lampOut.y);
@@ -1173,11 +1197,13 @@ export class Walker {
       let ikx = NaN;
       let iky = 0;
       if (mode === 'ground') {
-        const A = (0.14 + 0.36 * (speed / 270)) * this.walkAmt;
+        const spr = sprintOf(speed);
+        // Sprinting, the arms pump hard from the shoulder with the elbows bent near square.
+        const A = (0.14 + 0.36 * Math.min(1, speed / 270) + 0.32 * spr) * this.walkAmt;
         const ph = Math.cos(this.phase * Math.PI * 2);
         const swing = (i === 0 ? -1 : 1) * A * ph;
-        sw = sw * (1 - this.walkAmt) + swing + 0.06 * this.walkAmt;
-        el = el + (0.25 + 0.6 * run) * this.walkAmt + Math.max(0, swing) * 0.4;
+        sw = sw * (1 - this.walkAmt) + swing + (0.06 + 0.1 * spr) * this.walkAmt;
+        el = el + (0.25 + 0.6 * run + 0.45 * spr) * this.walkAmt + Math.max(0, swing) * (0.4 + 0.3 * spr);
         // Idle: the arms hang and move a little with the breath.
         sw += (1 - this.walkAmt) * this.heave * 0.03;
         if (this.working > 0 && i === 0 && !this.gaitOn) {

@@ -9,7 +9,6 @@ import {
   GRID_COLS,
   GRID_ROWS,
   GRID_X0,
-  GRID_X1,
   isDone,
   isStoreKind,
   isTankKind,
@@ -758,8 +757,12 @@ export class BuildMode {
 
   /** Fit (+1) or take out (-1) an Echo whorl on the selected piece. */
   fitWhorl(step: 1 | -1): void {
-    const p = this.selected;
-    if (!p || !PIECES[p.kind].whorls) return;
+    if (this.selected) this.fitWhorlOn(this.selected, step);
+  }
+
+  /** Fit (+1) or take out (-1) an Echo whorl on a piece (also used from the console inside the base). */
+  fitWhorlOn(p: Placed, step: 1 | -1): void {
+    if (!PIECES[p.kind].whorls) return;
     const { save } = this.deps;
     const k = String(p.id);
     const n = save.fitted[k] ?? 0;
@@ -822,10 +825,11 @@ export class BuildMode {
       y1 = Math.max(y1, r.y + r.h);
     }
     if (!layout.pieces.length) {
-      x0 = GRID_X1 - 11 * CELL;
-      x1 = GRID_X1;
-      y0 = 80;
-      y1 = 460;
+      // Nothing built yet: show the whole trench, wall to shelf.
+      x0 = SITE.x0 + CELL * 1.5;
+      x1 = SITE.x1 - CELL * 1.5;
+      y0 = SITE.y0 + CELL;
+      y1 = SITE.y1 - CELL * 0.6;
     }
     x0 -= CELL * 1.5;
     x1 += CELL * 1.5;

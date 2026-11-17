@@ -355,6 +355,82 @@ export function buildDiveBag(): Container {
   return c;
 }
 
+/** What the specimen jar holds, for the jar on the belt. */
+export interface JarLook {
+  species: 'glowfin' | 'puffcap' | 'ray' | 'crab' | 'shrimp';
+  stage: 'egg' | 'young' | 'grown';
+}
+
+const JAR_TINT: Record<JarLook['species'], { body: number; fin: number; glow?: number }> = {
+  glowfin: { body: 0xc4697d, fin: 0x8e3f55, glow: 0xfff2a8 },
+  puffcap: { body: 0xffc4d2, fin: 0xd88aa0 },
+  ray: { body: 0x8fa6c4, fin: 0x5c6482 },
+  crab: { body: 0xe0703a, fin: 0x9a4220 },
+  shrimp: { body: 0xff9a92, fin: 0xd0605a },
+};
+
+/**
+ * The specimen jar, clipped to the belt (Colin, after the terrain pass): a
+ * small glass jar with a chrome lid, empty until something is caught, then
+ * showing what is inside (eggs, a youngster or a grown creature).
+ */
+export class BeltJar {
+  readonly view = new Container();
+  private content = new Graphics();
+  private key = '';
+  constructor() {
+    const g = new Graphics();
+    // Clip and strap from the belt.
+    g.rect(-1.2, -5, 2.4, 5.5).fill({ color: C.red });
+    g.circle(0, 0, 1.8).stroke({ color: C.chrome, width: 1 });
+    // The jar: glass with a chrome lid and band.
+    g.roundRect(-4.6, 2.6, 9.2, 11.4, 3).fill({ color: 0x2e5a62, alpha: 0.55 });
+    this.view.addChild(g, this.content);
+    const front = new Graphics();
+    front.roundRect(-4.6, 2.6, 9.2, 11.4, 3).stroke({ color: 0xc8eef2, width: 0.8, alpha: 0.85 });
+    front.rect(-3.4, 4.2, 1.1, 7.5).fill({ color: 0xffffff, alpha: 0.38 });
+    front.roundRect(-5.2, 0.4, 10.4, 3, 1.2).fill({ color: C.chromeMid });
+    front.rect(-5.2, 0.4, 10.4, 1).fill({ color: C.chromeHi, alpha: 0.7 });
+    front.rect(-4.6, 9.6, 9.2, 1.2).fill({ color: C.accent, alpha: 0.8 });
+    this.view.addChild(front);
+    this.view.visible = false;
+  }
+  /** Show what the jar holds (null hides the jar: nothing caught). */
+  set(look: JarLook | null, time: number): void {
+    this.view.visible = !!look;
+    if (!look) return;
+    const k = look.species + look.stage;
+    const t = JAR_TINT[look.species];
+    if (k !== this.key) {
+      this.key = k;
+      const g = this.content.clear();
+      if (look.stage === 'egg') {
+        for (const [x, y, r] of [[-1.6, 11.6, 1.5], [1.4, 11.8, 1.4], [0, 9.6, 1.4]] as const) {
+          g.circle(x, y, r).fill({ color: t.body, alpha: 0.85 });
+          g.circle(x - 0.4, y - 0.4, r * 0.35).fill({ color: 0xffffff, alpha: 0.6 });
+        }
+      } else {
+        const sc = look.stage === 'grown' ? 1 : 0.7;
+        if (t.glow) g.circle(0, 8, 4.4 * sc).fill({ color: t.glow, alpha: 0.35 });
+        if (look.species === 'crab') {
+          g.ellipse(0, 9, 3 * sc, 2 * sc).fill({ color: t.body });
+          for (const sx of [-1, 1]) g.circle(sx * 3.2 * sc, 7.6, 1.1 * sc).fill({ color: t.fin });
+        } else if (look.species === 'ray') {
+          g.poly([-3.8 * sc, 8, 0, 6.2, 3.8 * sc, 8, 0, 9.6]).fill({ color: t.body });
+          g.rect(-0.3, 9, 0.6, 3 * sc).fill({ color: t.fin });
+        } else {
+          g.ellipse(0.6, 8, 2.8 * sc, 1.7 * sc).fill({ color: t.body });
+          g.poly([-1.8 * sc, 8, -3.8 * sc, 6.4, -3.8 * sc, 9.6]).fill({ color: t.fin });
+          g.circle(2 * sc, 7.6, 0.5).fill({ color: 0x141414 });
+        }
+        if (t.glow) g.circle(2.6 * sc, 6.6, 0.9).fill({ color: t.glow });
+      }
+    }
+    // The creature drifts a little in its water.
+    this.content.position.set(Math.sin(time * 1.3) * 0.5, Math.sin(time * 2.1) * 0.4);
+  }
+}
+
 export function buildShoulderLamp(): Graphics {
   const g = new Graphics();
   g.rect(33, 7, 3.5, 15).fill({ color: C.red }); // strap round the harness
@@ -655,6 +731,9 @@ export class Diver {
   private heave = 0;
   private diveCooldown = 0;
   private diveBag = buildDiveBag();
+  /** The specimen jar on the belt (set from the save each frame). */
+  jar: JarLook | null = null;
+  private beltJar = new BeltJar();
   /** Hip thruster rig: a white housing with a lime nozzle, and the plume while boosting. */
   private thruster = new Graphics();
   private plume = new Graphics();
@@ -727,6 +806,7 @@ export class Diver {
       this.farArm.upper,
       torso,
       this.diveBag,
+      this.beltJar.view,
       helmet,
       this.hose,
       buildShoulderLamp(),
@@ -736,6 +816,7 @@ export class Diver {
       this.nearArm.upper,
     );
     this.diveBag.position.set(-8, 15);
+    this.beltJar.view.position.set(5, 15);
     {
       const t = this.thruster;
       t.roundRect(-30, 8, 24, 12, 5).fill({ color: 0xd8dde0 });
@@ -1066,21 +1147,98 @@ export class Diver {
     this.eyelid.visible = this.glance.blinking;
   }
 
+  /**
+   * The hip thruster's exhaust (Colin, after the terrain pass: more like a
+   * thruster than a triangle). A flared bell of lime light with a white-hot
+   * core, a bright ring at the nozzle, shock diamonds that pulse down the
+   * jet, and churned bubbles and sparks thrown out behind, which drift and
+   * fade after the boost ends. All in the body's own drawing space.
+   */
+  private drawPlume(dt: number, jet: number): void {
+    const NX = -38;
+    const NY = 14;
+    const sp = this.jetSparks;
+    // Feed the trail while firing.
+    if (jet > 0.05) {
+      this.jetEmit += dt * (40 + 50 * jet);
+      while (this.jetEmit >= 1) {
+        this.jetEmit -= 1;
+        const a = (Math.random() - 0.5) * 0.5;
+        const v = 120 + Math.random() * 110 * jet;
+        sp.push({ x: NX - 4, y: NY + (Math.random() - 0.5) * 5, vx: -Math.cos(a) * v, vy: Math.sin(a) * v, life: 0, max: 0.22 + Math.random() * 0.25, r: 0.9 + Math.random() * 1.8, hot: Math.random() < 0.45 });
+      }
+    }
+    for (let i = sp.length - 1; i >= 0; i--) {
+      const q = sp[i];
+      q.life += dt;
+      if (q.life >= q.max) {
+        sp.splice(i, 1);
+        continue;
+      }
+      // Water drag: the jet slows fast and the bubbles start to rise (up is -y, before the body's pitch).
+      const k = Math.exp(-dt * 6);
+      q.vx *= k;
+      q.vy = q.vy * k - 40 * dt;
+      q.x += q.vx * dt;
+      q.y += q.vy * dt;
+    }
+    if (jet <= 0.02 && !sp.length) {
+      if (this.plumeDrawn) {
+        this.plume.clear();
+        this.plumeDrawn = false;
+      }
+      return;
+    }
+    const pl = this.plume.clear();
+    this.plumeDrawn = true;
+    if (jet > 0.02) {
+      const t = this.time;
+      const flick = 1 + Math.sin(t * 47) * 0.06 + Math.sin(t * 73 + 1) * 0.05;
+      const len = (30 + 26 * jet) * flick;
+      // The bell: a little wider than the nozzle a short way out, then tapering to a soft tip.
+      const bell = (u: number, w: number, l: number): number[] => {
+        const top: number[] = [];
+        const bot: number[] = [];
+        const n = 10;
+        for (let i = 0; i <= n; i++) {
+          const f = i / n;
+          const half = w * (0.75 + 0.6 * Math.sin(Math.PI * Math.min(1, f * 1.6)) * (1 - f)) * Math.pow(1 - f, 0.45) + 0.4;
+          const wob = Math.sin(t * 31 + f * 9 + u) * 0.5 * f;
+          top.push(NX - l * f, NY - half + wob);
+          bot.unshift(NX - l * f, NY + half + wob);
+        }
+        return [...top, ...bot];
+      };
+      pl.poly(bell(0, 6.2, len)).fill({ color: C.visor, alpha: 0.28 * jet });
+      pl.poly(bell(2, 4.2, len * 0.78)).fill({ color: 0xd9ff70, alpha: 0.5 * jet });
+      pl.poly(bell(4, 2.2, len * 0.45)).fill({ color: 0xfaffe6, alpha: 0.95 * jet });
+      // Shock diamonds: bright knots that travel a little down the jet and pulse.
+      for (let i = 0; i < 3; i++) {
+        const f = 0.22 + i * 0.2 + ((t * 3.2) % 0.2);
+        const x = NX - len * f;
+        const r = (2.6 - i * 0.55) * (0.8 + 0.2 * Math.sin(t * 55 + i));
+        pl.poly([x + r * 1.5, NY, x, NY - r, x - r * 1.5, NY, x, NY + r]).fill({ color: 0xffffff, alpha: 0.75 * jet * (1 - f) });
+      }
+      // The nozzle's hot ring.
+      pl.ellipse(NX + 0.5, NY, 2.6, 5.4).fill({ color: 0xf4ffd0, alpha: 0.9 * jet });
+      pl.ellipse(NX + 0.5, NY, 1.4, 3.2).fill({ color: 0xffffff, alpha: jet });
+    }
+    // Churned bubbles (pale rings) and sparks (lime dots) thrown out behind.
+    for (const q of sp) {
+      const f = q.life / q.max;
+      if (q.hot) pl.circle(q.x, q.y, q.r * (1 - f * 0.6)).fill({ color: 0xe6ff9a, alpha: 0.85 * (1 - f) });
+      else pl.circle(q.x, q.y, q.r * (1 + f * 0.8)).stroke({ color: 0xdff6ff, width: 0.8, alpha: 0.7 * (1 - f) });
+    }
+  }
+  private jetSparks: { x: number; y: number; vx: number; vy: number; life: number; max: number; r: number; hot: boolean }[] = [];
+  private jetEmit = 0;
+
   /** The dive bag swings on its clip, the hose sways, the thruster plume. */
   private animateGear(dt: number): void {
     const boost = this.boostLvl;
     // Hip jets: a lime plume while boosting, fading out after.
     const jet = Math.min(1, this.boostTime / 0.3);
-    if (jet > 0.02) {
-      const pl = this.plume.clear();
-      const len = 26 + 18 * jet + Math.sin(this.time * 40) * 3;
-      pl.poly([-38, 10, -38 - len, 14, -38, 18]).fill({ color: C.visor, alpha: 0.55 * jet });
-      pl.poly([-38, 12, -38 - len * 0.6, 14, -38, 16]).fill({ color: 0xf4ffd0, alpha: 0.8 * jet });
-      this.plumeDrawn = true;
-    } else if (this.plumeDrawn) {
-      this.plume.clear();
-      this.plumeDrawn = false;
-    }
+    this.drawPlume(dt, jet);
 
     // Forward acceleration, in the body's own frame (positive = speeding up the way it faces).
     const ax = ((this.vx - this.lastVx) / dt) * (this.face);
@@ -1098,6 +1256,8 @@ export class Diver {
       this.bagS.x = Math.max(-0.7, Math.min(0.7, this.bagS.x));
       this.diveBag.rotation = this.bagS.x;
     }
+    this.beltJar.set(this.jar, this.time);
+    this.beltJar.view.rotation = this.bagS.x * 0.8;
     {
       // The hose flexes a little with the head, the breath and sudden changes of speed.
       const target = this.headS.x * 0.25 + this.heave * 0.02 - boost * 0.02;

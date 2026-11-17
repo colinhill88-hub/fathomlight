@@ -1509,3 +1509,18 @@ Where things are (on foot):
 - **Build bar** (`src/ui/build.ts`, `src/style.css`): All / Modules / Structure tabs above a card row that scrolls sideways (cards stay 156 px wide, names wrap to two lines). Picking a piece from another tab by key or pad switches tab.
 - **To look at on a real phone:** the tab row adds about 40 px above the cards (36 px in landscape), and the action and tool buttons moved up by the same amount (`--bar-extra`).
 - **Follow-ups:** the bench base now includes the new structure pieces (`src/dev/bench.ts`); the Cross junction and Riser shaft have interior art (a hub ring with direction arrows; a gold conduit and L1/L2/L3 level markers); the swimming diver's breath is easier to see when floating still (walking-style boost, `src/actors/diver.ts`); and `?bench&scene=6&at=x,y` stands in the base interior at that spot, for screenshots.
+
+## Colin's notes before milestone 11
+
+- **Start at the trench's west lip.** A new game starts at the surface just off the trench's western wall (`START` in `src/world/terrain.ts`), looking east down the site. Blacking out still brings you back to the buoy (`SPAWN`). With nothing built, the build view frames the whole trench (`SITE`), not the old flat shelf.
+- **No sinking while building.** In build view (and with the care, dock or Lab panel open outside) the diver treads water where they are, however heavy the bag (`diver.noSink`).
+- **Lab and Workshop panels open indoors**, like tending: the camera frames the room and the walker waits while the panel is open. No more popping outside.
+- **Sprint on foot.** Space jumps, Shift sprints (430 against the 270 jog; `SPRINT` in `src/interior/interior.ts`). Pad: left bumper or left stick click. Touch: drag the stick well past its rim. The walker has a sprint pose: longer, quicker strides, high heel kick, more lean, arms pumping (`sprintOf` in `src/actors/walker.ts`; `animlab.html?walker&seg=4` shows it). In the water, Shift and Space both still boost.
+- **Thruster plume** (`drawPlume` in `src/actors/diver.ts`): a flared lime bell with a white-hot core, a hot ring at the nozzle, pulsing shock diamonds, and churned bubbles and sparks that drift and fade after the boost.
+- **Current turbine:** collars left and right on its upper level too, so pieces join its top deck (inside, a doorway off the upper grating).
+- **Riser shaft:** side collars on its top and bottom cells (both sides).
+- **Specimen jar on the belt** (`BeltJar` in `src/actors/diver.ts`), on the swimmer and the walker: hidden while empty, showing eggs, a youngster or a grown creature in the species' colours. `animlab.html?jar=glowfin` and `animlab.html?walker&jar=crab-young` preview it.
+- **Grotto nodules moved clear of the glowfin eggs** (scrap to x 6215, copper to 5860). A creature the jar can't take (full, or not scanned) no longer hides a material in reach.
+- **SLED 2 recorder** is now its own yellow canister on the sand west of the sled (`RECORDER_X` 3810), away from the drone and the scrap, with a blinking amber beacon, a light, a cable back to the sled and a pulsing ring when you're near. It no longer needs the sled scanned first.
+- **Echo whorls are fitted indoors**, at the machine's console: hold C to fit one (or, once full or out of spares, to take one out). A socket plate on the wall above shows what's fitted and blinks when a spare can go in. The build view's whorl buttons still work outside.
+- **To try on the real phone:** the touch sprint (drag past the stick's rim) and whether the whorl console spot at a tank's right end is easy to stand at.
