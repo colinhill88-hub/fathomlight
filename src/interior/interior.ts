@@ -1,3 +1,4 @@
+import { perf } from '../dev/perf';
 import { BlurFilter, Container, Graphics, RenderTexture, Renderer, Sprite, Text } from 'pixi.js';
 import type { Light } from '../fx/lighting';
 import { Walker } from '../actors/walker';
@@ -171,6 +172,9 @@ export class Interior {
     return this.state.breakers.length > 0 && this.state.breakers.every(Boolean);
   }
 
+  /** Graphics session G2 settings for the lighting here (set by the game from the preset and the Settings toggles). */
+  look = { shadowLights: 0, shadowSteps: 0, relief: 0 };
+
   resize(cssW: number, cssH: number, res: number): void {
     this.cssW = cssW;
     this.cssH = cssH;
@@ -237,6 +241,7 @@ export class Interior {
     const nb = this.spots.filter((s) => s.ch === 'B').length;
     while (this.state.breakers.length < nb) this.state.breakers.push(false);
     this.buildStatic();
+    this.lighting.setOccupancy(map, T);
     const s = hooks ? hooks.spawn : this.spots.find((p) => p.ch === 'S')!;
     const w = this.walker;
     w.x = s.x;
@@ -983,6 +988,9 @@ export class Interior {
       (l) => l.intensity > 0 && Math.abs(l.x - cx) < viewW / 2 + l.radius && Math.abs(l.y - cy) < viewH / 2 + l.radius,
     );
     pool.sort((a, b) => Math.hypot(a.x - cx, a.y - cy) - Math.hypot(b.x - cx, b.y - cy));
+    // G2: the helmet lamp and the nearest few room lamps cast shadows through the walls.
+    this.headLamp.shadow = true;
+    pool.forEach((l, i) => (l.shadow = i < 2));
     const lights: Light[] = [this.headLamp, ...pool.slice(0, MAX_LIGHTS - 1)];
     this.lighting.update({
       time: this.time,
@@ -994,9 +1002,13 @@ export class Interior {
       cssH: this.cssH,
       ambient: this.hooks ? [0.3, 0.32, 0.34] : this.power ? [0.46, 0.44, 0.42] : [0.16, 0.17, 0.2],
       lights,
+      shadowLights: this.look.shadowLights,
+      shadowSteps: this.look.shadowSteps,
+      relief: this.look.relief,
     });
-    this.renderer.render({ container: this.litRoot, target: this.sceneRT, clear: true, clearColor: [0, 0, 0, 0] });
-    this.renderer.render({ container: this.glowCam, target: this.glowRT, clear: true, clearColor: [0, 0, 0, 0] });
+    perf.lights = lights.length;
+    perf.pass('lit', () => this.renderer.render({ container: this.litRoot, target: this.sceneRT, clear: true, clearColor: [0, 0, 0, 0] }));
+    perf.pass('glow', () => this.renderer.render({ container: this.glowCam, target: this.glowRT, clear: true, clearColor: [0, 0, 0, 0] }));
   }
 
   /** For tests and the sound: where the walker is. */

@@ -1,6 +1,6 @@
 # Fathomlight progress
 
-Last updated: 2026-11-17, **the walkable base, part 2 deployed (conveyors and pipes along the ceilings, the moon pool entry, lifts, whorl fitting from inside)**. Next is **milestone 9, breeding** (see Next).
+Last updated: 2026-11-17, **graphics session G4 deployed (materials and life)**, the last of the four planned graphics sessions (G1 measure and HDR post stack, G2 lamp shadows and relief, G3 atmosphere, G4 materials). Next is **milestone 9, breeding**, unless Colin wants a graphics tuning pass first after testing G3 and G4.
 
 Play link: https://colinhill88-hub.github.io/fathomlight/ (live; first successful deploy 2026-11-14)
 
@@ -38,6 +38,24 @@ These are defined in `src/presets.ts`. **Auto** picks High on touch devices (iPh
 | Glow (bloom) sharpness and smoothness | ¼ resolution, 2 blur passes | ½ resolution, 4 blur passes |
 | Plants and coral | normal | about 1.6× more |
 | Soft shadows | baked rock shadows | baked rock shadows **plus** the diver's moving soft shadow on the seabed |
+| *G1:* HDR picture and tone mapping | half-float picture, soft shoulder from 0.72 | same, with MSAA on the picture ("Smooth edges") |
+| *G1:* Bloom | strength 0.30, starts at 1.0, 4 steps from ¼ screen, glow feed 0.18 | strength 0.34, starts at 1.0, 6 steps from ½ screen, glow feed 0.20 |
+| *G1:* Colour grading, vignette | per zone, vignette as before | same |
+| *G1:* Film grain | 0.6 | 1.0 |
+| *G1:* Skip hidden caustics | on | on |
+| *G3:* Zone backdrops | faint (0.8) silhouettes | full (1.0) |
+| *G3:* God rays | strength 0.09, 8 steps, at ¼ screen | 0.14, 14 steps |
+| *G3:* Lit snow and bokeh | lamp strength 0.9, 5 soft near specks | 1.3, 12 specks |
+| *G3:* Depth of field (near kelp) | off | 2.4 px blur |
+| *G3:* Surface shimmer | 0.6 | 1.0 |
+| *G4:* Grime and grain | strength 0.35 | 0.55 |
+| *G4:* Metal sheen | 0.6 | 1.0 |
+| *G4:* Dome glass streak | 0.7 | 1.0 |
+| *G4:* Eye-shine | 1.0 | 1.0 |
+| *G4:* Render scale (Settings switch, off by default) | 1.25x | 1.5x |
+| *G2:* Lamp shadows | the diver's lamp casts; 10 march steps | the diver's lamp and the sub's lights (up to 3 lights); 22 steps |
+| *G2:* Relief lighting | 4 taps, strength 0.55 | 8 taps, strength 0.8 |
+| *G2:* Contact shadows | up to 6, base 0.4 | up to 12, base 0.5 |
 
 Every effect in the DESIGN.md High row is on in High: dynamic lights, light shafts, caustics, depth fog, glow, water distortion and particles.
 
@@ -1051,9 +1069,146 @@ Cut from High so far: the phone renders at 2× instead of its native 3×. Colin 
 - **Tested** (scripted in headless Chromium at about 3 fps; no console errors): a 13-piece base with three lines (a belt from storage to the press across the whole base, a pipe from the feeder up a shaft to the tank, a belt between two stacked rooms) routed and drew; the lift carried the walker between floors (y 1280 to 320); boarding from the dock left the interior with the sub aboard; Exit from the docked sub came up into the base; the whorl console appeared at the press. Screenshots of the press room's ceiling lines, the feeder's pipe and the dock.
 - **Not done yet from the original part 2 list:** each machine room is not much more detailed than in part 1; the ceiling lines add the most. A line's code plate (CB-1, FL-2) is not drawn indoors.
 
+### Graphics fidelity audit (planning only, 2026-11-17)
+- **Colin asked for** a graphics fidelity initiative: a more polished, premium look without changing the art direction, the renderer or gameplay. This session was an audit and plan only; **no code changed**.
+- **The plan is in `docs/graphics-fidelity-plan.md`**: how the renderer works today (draw order, passes, shaders), what is missing (no HDR or tone mapping, bloom only on opted-in objects, lights that pass through rock, flat-lit surfaces, generic backdrops, unlit particles), the performance picture, ten upgrades ranked by visual impact, and four sessions (G1 measure + HDR post stack; G2 light with form and shadow; G3 atmosphere and composition; G4 materials and creatures, optional).
+- **Baseline screenshots** (Ultra, cloud software renderer, 1280 × 680): `docs/art/fidelity/before-*.png` (shallows, grotto with lamp, kelp forest, wreck shelf).
+- **No frame times were measured**: the cloud browser has no GPU. Session G1 builds a performance overlay and a fixed benchmark route so Colin can measure his PC (RTX 5080, about 106 fps at 2560 × 1360 on Ultra today) and iPhone before and after each session.
+- **Colin approved the plan** and chose to run session G1 next, before milestone 9 (the walkable base part 2 was finished in a parallel session). The G1 prompt is in `docs/prompts/graphics-g1.md`.
+
+### Graphics session G1: measure, then HDR and the post stack (2026-11-17)
+- **Colin's feedback on the walkable base, part 2:** "looks good". Nothing was flagged, so nothing was fixed.
+- **Housekeeping:** the plan (`docs/graphics-fidelity-plan.md`) and this session's prompt lived on the audit branch `claude/fathomlight-graphics-audit-2p8vp3`; they were merged into this branch (a fast-forward) so the session could read them.
+- **Rendering only.** No gameplay, save format or drawing code changed beyond what the passes need. No new dependencies, no WebGPU, no Three.js. All colours still obey the Choir rule (cyan, violet and magenta only for the Choir).
+
+**1. Performance overlay** (`src/dev/perf.ts`; Settings → Graphics effects → **Show performance**, off by default)
+- Shows fps and frame ms, **CPU update** ms (the game's own frame code) and **CPU render** ms (handing drawing to the graphics card), **GPU ms per pass**, draw calls, triangles, light count and render resolution.
+- GPU times come from `EXT_disjoint_timer_query_webgl2` where the browser has it (desktop Chrome and Edge do). Safari on the iPhone does not, so there it says "GPU timer: not available here" and the frame time and fps are the numbers to read. A software renderer (like the cloud's) is detected and its timer is not used.
+- Passes: `lit` (the flat picture), `glow`, `scene` (water, rock, lighting, emissives, glow and snow into the HDR picture), `bloom`, `post` (the final pass plus the crisp overlays).
+- Draw calls and triangles are counted by wrapping the GL draw calls, only while measuring is on.
+
+**2. Benchmark route** (`src/dev/bench.ts`; open the play link with `?bench` on the end)
+- Seven scenes, about 8 s each (the first 2 s and 3 frames of each are not measured; a slow machine runs on until it has 10 frames): shallows at the buoy, basin with a seeded big base (40 pieces, 17 lines, view zoomed out 2.2×), grotto with the lamp on, kelp forest, kelp caves black chamber (two brackets lit), wreck shelf by the Corvina, base interior with ceiling lines (standing in the press room). The diver is held still with a slow sideways sway so water, particles and lights all move.
+- It prints a table (fps, mean ms, p95, worst, CPU update and render, GPU ms, draws, triangles, lights, frames, resolution) with a **Copy table** button, and GPU ms per pass underneath.
+- **It never touches the real save:** with `?bench`, `loadSave`, `writeSave` and `clearSave` in `src/game/state.ts` skip the device's save entirely (checked: no save key is written). The base is seeded from a fixed recipe (`seedBenchSave`).
+- Extra developer switches: `&still` holds the view perfectly still, `&scene=N` (0 to 6) stays in one scene for screenshots, `&at=x,y` moves that scene, `&sync` waits for each pass to finish and times it (a stalling estimate for machines without a GPU timer, used here for the cloud).
+
+**3. Baseline numbers (cloud, before any rendering change): relative only.** The cloud browser has **no GPU** (SwiftShader, software), so frame times there are not GPU times and are not comparable with Colin's devices: they only say whether something got dramatically worse. What is reliable is draw calls, triangles, lights and the CPU numbers. These came from the code as it stood before the post stack (measuring tools only), at 1280 × 680 Ultra and 844 × 390 High, one run each (noise is about ±20% per scene).
+
+| Scene (Ultra, 1280 × 680) | Draw calls | Triangles (k) | Lights | CPU update ms | CPU render ms | Software frame ms |
+| --- | --- | --- | --- | --- | --- | --- |
+| Shallows at the buoy | 223 | 532 | 1 | 2.4 | 13.0 | 656 |
+| Basin, seeded big base | 219 | 391 | 10 | 1.5 | 5.9 | 614 |
+| Grotto, lamp on | 153 | 363 | 12 | 1.8 | 7.2 | 788 |
+| Kelp forest | 147 | 260 | 4 | 2.1 | 6.6 | 780 |
+| Kelp caves, black chamber | 136 | 470 | 6 | 1.4 | 5.3 | 564 |
+| Wreck shelf, by the Corvina | 139 | 475 | 2 | 1.6 | 7.3 | 903 |
+| Base interior, ceiling lines | 17 | 121 | 13 | 0.9 | 3.2 | (65, sync-stalled) |
+
+| Scene (High, 844 × 390) | Draw calls | Triangles (k) | Lights | CPU update ms | CPU render ms | Software frame ms |
+| --- | --- | --- | --- | --- | --- | --- |
+| Shallows at the buoy | 211 | 414 | 1 | 1.6 | 6.8 | 262 |
+| Basin, seeded big base | 209 | 375 | 8 | 1.5 | 5.5 | 344 |
+| Grotto, lamp on | 143 | 256 | 8 | 1.8 | 5.5 | 315 |
+| Kelp forest | 138 | 204 | 4 | 1.5 | 4.3 | 231 |
+| Kelp caves, black chamber | 126 | 360 | 7 | 1.2 | 3.1 | 312 |
+| Wreck shelf, by the Corvina | 128 | 364 | 3 | 1.7 | 6.7 | 261 |
+| Base interior, ceiling lines | 17 | 121 | 15 | 1.1 | 2.7 | (110, sync-stalled) |
+
+- **Reading them:** the world is about 140 to 230 draw calls and 250 to 530 thousand triangles; the CPU side is small (the game's own code 1 to 2.5 ms, submitting drawing 3 to 13 ms), so the CPU is not the limit on a PC and probably not on the phone either. Where the time goes on a real GPU is the question for **Colin's PC and iPhone numbers** (see "What Colin should do next" below). **No GPU timings were invented.**
+
+**4. Cheap wins**
+- **Caustics skipped where they cannot be seen** (`src/fx/lighting.ts`): the caustic net (about a hundred transcendental operations per pixel, three times over on Ultra) is skipped wherever it would add less than about one level of 255 (deep water, caves, shaded areas, under rock). Settings toggle "Skip hidden caustics" turns it off to compare. In the cloud the grotto (caves, shade) was the scene that got cheaper in software (about 590 to 470 ms in one run); the real saving has to be measured on a GPU.
+- **Canvas MSAA is off** (`antialias: false` in `src/main.ts`): the screen is now one full-screen quad (the post pass) plus thin overlays. The world's own edges are antialiased in the pictures it is drawn from: the flat picture still has MSAA, and on **Ultra the world picture has MSAA too** ("Smooth edges (MSAA)" in Settings, `hdrMsaa` in `presets.ts`). Without it, the long rock ridges in the backdrop show faint stair-steps on a 1× screen (checked in a crop); with it they match the old look. **High has no MSAA** (the phone renders at 2×, and the screenshots at that density look clean). Note: in the software renderer, MSAA on a half-float picture is a slow path (about +50% frame time there); a real GPU should not care, but this is **the first thing to compare on the PC** (Smooth edges on and off).
+
+**5. The HDR post stack** (`src/fx/post.ts`; wired up in `src/main.ts`, search "Measuring" and `drawPost`)
+- **New draw order.** The world (water, backdrop, lighting, emissives, glow sprite, snow, and dry interiors) is drawn into one **half-float picture** (`PostStack.sceneRT`). Then the **bloom chain**, then **one full-screen post pass** to the screen, then the **scanner, build grid and collect rings** (`overlayCam`) on top, crisp. The old CSS vignette (`#vignette`) is gone; the DOM HUD, low-air edge and blackout are unchanged.
+- **Half-float check:** the device is tested on a scratch WebGL context (`halfFloatSupported`): the extension, plus a real framebuffer-completeness check. If it fails (older iPhones), the picture is **8-bit** instead: the whole stack still works, but tone mapping is switched off (there is no light brighter than white to roll off, so it would only dim highlights) and bloom starts 0.18 lower. Settings shows which path is in use under "Graphics effects".
+- **Tone mapping:** a soft shoulder, untouched below 0.72 and rolling off towards white above it (continuous in value and slope), per channel so very bright warm lights go creamy white instead of clipping into flat coloured discs.
+- **Per-zone colour grading** (`GRADES` in `post.ts`; zone weights from `zoneMix`, eased so crossing a boundary never pops): shallows warm and clear, basin cool, forest green and dim, shelf grey-teal (saturation 0.7), caves near black but kept readable (brightness within about 8% of before), interiors dry steel. Brightness stays within about ±6% of the old look in every other scene (measured on the benchmark screenshots).
+- **Bloom** (threshold with a soft knee, 13-tap downsample chain, tent upsample, with the old **glow layer fed into it** through a wide filter so its sharp stored edges never show): anything brighter than white blooms, lamp-lit hull and brass roll off softly, lures and anemones glow naturally. The existing glow sprite is unchanged, so existing glows keep their look.
+- **Vignette** moved into the final shader (same shape and strength as the CSS one). **Fine grain** (strongest in the mid-tones) also dithers the 8-bit output.
+- **Interiors get the same post pass** (their own grade). Their lighting shaders now draw into the HDR picture (`RT_VERTEX` in `src/fx/shared.ts`: Pixi stores off-screen pictures upside down, so the water and the two lighting shaders use a flipped vertex shader).
+- **Settings → Graphics effects** (all saved on the device): HDR picture, Tone mapping, Colour grading, Bloom, Vignette, Film grain, Smooth edges (MSAA), Skip hidden caustics, Show performance. With **everything off** the picture is the old look (clamped colours, no vignette); that is the A/B reference.
+- **Readability checks:** pickups, the lurker's warning flare and the grotto's glowing lures still pop (warm glows, bloom is subtle: strengths 0.30 to 0.34); build ghosts and grid are in `overlayCam`, drawn after post, so they are crisp (checked in build mode); the basin floor, caves and wreck shelf stay readable (mean brightness of the benchmark screenshots: shallows +4%, basin +1%, grotto -6%, forest -4%, caves -8%, shelf -3%, base -4%).
+- **Screenshots** of the same fixed scenes before and after, Ultra, 1280 × 680, software renderer: `docs/art/fidelity/g1-before-*.jpg` and `g1-after-*.jpg` (shallows, basin, grotto, forest, caves, shelf, base). The earlier `before-*.png` are from the audit.
+
+**After, in the cloud (relative only).** Same scenes and settings as the baseline, with the post stack. Draw calls rise by about 8 (High) or 12 (Ultra) for the bloom chain and the final pass; triangles, lights and CPU time are unchanged within noise. Software frame time (not a GPU time): High averaged 288 ms before and 288 ms after over the six outdoor scenes; Ultra averaged 717 ms before and 693 ms after with Smooth edges off, and about 1115 ms with it on (the software-only MSAA slow path above).
+
+| Ultra, 1280 × 680 | Draw calls | CPU update ms | CPU render ms | Software frame ms: before → after (edges off) → after (edges on) |
+| --- | --- | --- | --- | --- |
+| Shallows at the buoy | 223 → 235 | 2.4 → 2.5 | 13.0 → 7.8 | 656 → 629 → 988 |
+| Basin, seeded big base | 219 → 231 | 1.5 → 1.5 | 5.9 → 5.3 | 614 → 682 → 1008 |
+| Grotto, lamp on | 153 → 165 | 1.8 → 1.8 | 7.2 → 6.6 | 788 → 730 → 1217 |
+| Kelp forest | 147 → 159 | 2.1 → 1.5 | 6.6 → 7.9 | 780 → 702 → 1205 |
+| Kelp caves, black chamber | 136 → 148 | 1.4 → 1.5 | 5.3 → 3.4 | 564 → 662 → 1088 |
+| Wreck shelf, by the Corvina | 139 → 151 | 1.6 → 1.6 | 7.3 → 6.8 | 903 → 752 → 1183 |
+| Base interior (60 fps-capped; sync-stalled, not comparable) | 17 → 29 | 0.9 → 1.4 | 3.2 → 3.0 | n/m |
+
+| High, 844 × 390 | Draw calls | CPU update ms | CPU render ms | Software frame ms |
+| --- | --- | --- | --- | --- |
+| Shallows at the buoy | 211 → 219 | 1.6 → 2.1 | 6.8 → 6.2 | 262 → 260 |
+| Basin, seeded big base | 209 → 217 | 1.5 → 1.5 | 5.5 → 5.0 | 344 → 360 |
+| Grotto, lamp on | 143 → 151 | 1.8 → 1.5 | 5.5 → 4.2 | 315 → 321 |
+| Kelp forest | 138 → 146 | 1.5 → 1.4 | 4.3 → 5.3 | 231 → 232 |
+| Kelp caves, black chamber | 126 → 134 | 1.2 → 1.2 | 3.1 → 3.3 | 312 → 288 |
+| Wreck shelf, by the Corvina | 128 → 136 | 1.7 → 1.5 | 6.7 → 5.3 | 261 → 265 |
+| Base interior (sync-stalled, not comparable) | 17 → 25 | 1.1 → 1.2 | 2.7 → 2.4 | n/m |
+
+- **High cost review (the 10% rule).** The iPhone cannot be measured from the cloud, so High was built as the cheap set from the start: half-float picture with no MSAA, bloom starting at **¼** screen (a quarter of Ultra's pixels) with 4 steps instead of 6, a lighter grain, one extra full-screen pass in all. Nothing was cut from High yet. **If the phone is more than about 10% slower in the grotto than Colin's mid-30s**, cut in this order, each one a Settings toggle and a number in `presets.ts`: (1) Bloom, (2) HDR picture off (8-bit), (3) Film grain. The caustics skip should give some of it back in the grotto.
+- **Tested** (type check and production build pass; headless Chromium in the cloud, software GL, so slow): the whole benchmark ran in both presets with no console errors and wrote no save; every Settings toggle switches on and off at runtime with no Pixi warnings (after fixing a texture-lifetime warning); the 8-bit fallback was forced by hiding the float extensions and the game ran with the note shown; build mode (grid, ghost, bottom bar) draws correctly over the post pass; phone layout (844 × 390 at 2×) shows the new Settings block and the overlay; before and after screenshots of all seven scenes.
+
+- **Fix after Colin's first look:** the Settings panel would not scroll by touch on the iPhone (the page blocks touch scrolling, and G1 made the panel longer, so the Graphics effects block was out of reach). `#hud .panel` now has `touch-action: pan-y`.
+
+**What Colin should do next (also sent as a message):**
+1. Open the play link with `?bench` on the end (on the PC and then on the iPhone, with the phone in landscape and plugged in or at normal battery). Wait for the table (about a minute), tap **Copy table**, and send both tables. On the PC, run it again with **Smooth edges (MSAA)** switched off in Settings to see what that costs, and once with **Show performance** on while swimming the grotto with the lamp.
+2. Look at the game in the shallows, grotto, forest and shelf, and flip **Tone mapping, Colour grading, Bloom, Vignette** one at a time (Settings → Graphics effects). Say which you like and which are too strong.
+3. Tell us the grotto's frame rate on the iPhone with everything on, against his earlier mid-30s.
+
+### Graphics session G2: light with form and shadow (2026-11-17)
+- **Colin's feedback on G1:** the Settings panel would not scroll by touch (fixed straight away: `touch-action: pan-y`); "I like the look". He chose G2 next. His G1 PC and iPhone `?bench` numbers had not arrived, so the G2 cost is also unmeasured on real hardware.
+- **Lamp shadows** (`src/fx/lighting.ts`, `src/world/terrain.ts`): the world bake now also stores **where rock, steel and sand are** (the green channel of the same mask the daylight bake uses, so no extra texture). The diver's lamp and the sub's lights **march from each lit pixel towards the lamp** through that map: thick rock or hull between blocks the light, so the cone and its visible beam **stop at pillars, ceilings and the Corvina's hull** and leave real shadow behind them (see the caves and shelf pairs). A pixel's own rock counts as its surface, not as a shadow (otherwise the lit floor goes dark), and a thin skin of rock only dims. Only the first few lights cast (`lightShadows`), the rest stay as before.
+- **Relief lighting:** a surface normal worked out from the art itself (coverage plus brightness slope, 4 taps; 8 on Ultra). Each light, and the sun, now shades by the normal, so rock, hull plates and rivets pick up form; caustics fall only on surfaces that face up. Strength 0.55 (High) and 0.8 (Ultra), `relief` in `presets.ts`.
+- **Contact shadows** (generalising the diver's old Ultra-only ellipse): soft ellipses under the diver, the sub, the drone and the feet of base pieces on the seabed, up to 6 (High) or 12 (Ultra), on both presets.
+- **Interiors** (`src/interior/light.ts`): a one-pixel-per-tile steel map (`setOccupancy`) lets the helmet lamp and the nearest room lamps cast shadows through walls (so a lamp no longer lights the next room through a wall), plus the same relief lighting.
+- **Settings → Graphics effects:** new toggles **Lamp shadows, Relief lighting, Contact shadows** (with all of them off the picture matches G1).
+- **Readability:** mean brightness of the seven benchmark scenes changed by at most -2%, except the caves (-21%: the lamp no longer lights through the rock, so the black chamber is darker behind pillars; the lit parts, pickups and brackets are unchanged) and the base interior (-6%). If the caves are too dark, raise the rock softness (`uShadowCfg[1]`, 26) or lower `lightShadows`.
+- **Screenshots** before and after (Ultra, 1280 x 680, software renderer): `docs/art/fidelity/g2-before-*.jpg` and `g2-after-*.jpg`.
+- **Cloud numbers, relative only** (640 x 340 Ultra and 422 x 195 High so the software renderer can keep up; two runs each, six outdoor scenes averaged; software frame ms, not GPU time, about 20% noise): Ultra 477 ms before, 501 after (+5%); High 185 before, 190 after (+3%). Draw calls and triangles are unchanged within noise. The base interior in High was about 25% slower in software (50 to 62 ms), since its shader got a march and normals; it is a light scene, but **check indoors on the phone**.
+- **First real iPhone number (Colin, after G2):** High, every effect on, swimming in the grotto with the lamp on (screenshot of the overlay): **28 fps, frame 35.9 ms, CPU update 1.7 ms, CPU render 4.2 ms, 146 draw calls, 235.7k triangles, 8 lights, 1748 x 804.** The GPU timer is not available on Safari, so there is no per-pass split. Colin is **happy with it**. For reference, his milestone 1 reading in the same kind of scene was the mid 30s fps, so this is a little lower, but it is a different build and a single reading; the CPU side is tiny, so the time is on the GPU. No `?bench` table yet, and no with-and-without comparison: still to come if Colin wants to tune further.
+- **Cost to measure on real hardware:** the shadow march only runs for pixels inside a lit cone (10 taps High, 22 Ultra, jittered per pixel and per frame so it shows up as grain, not bands); relief is 4 or 8 taps for every lit pixel. The G1 overlay shows GPU ms per pass: compare the `scene` pass with Lamp shadows and Relief lighting on and off in the grotto and the black chamber.
+- **If High is more than about 10% slower than after G1 on the iPhone**, cut in this order (each a toggle and a number in `presets.ts`): Relief lighting, then `shadowSteps` (10 to 6), then Contact shadows. Nothing has been cut from High yet.
+
+### Graphics session G3: atmosphere and composition (2026-11-17)
+- **Colin's feedback on G2:** he ran High with every option on in the grotto on the iPhone and was **happy with the performance** (28 fps, 35.9 ms; details in the G2 section). He asked for G3 and then G4 to follow so he can test them together.
+- **Zone backdrops** (`src/scene/zonebackdrop.ts`): faint mid-ground silhouettes, drawn once, fogged to the water colour and positioned in world space at one parallax depth: **the basin** gets boulders and natural arches, **the kelp forest** ranks of distant kelp, **the wreck shelf** sunk hulks with masts and a crane. Kept low-contrast (alpha 0.62 at most) so they never read as swimmable rock. The kelp caves have none (the cave interior hides the backdrop anyway).
+- **God rays:** a quarter-screen pass marches from each pixel toward a sun above the screen through the flat lit picture, so shafts are cut by kelp, rock, hardware and the diver; they fade with camera depth (gone below about 20 m) and are skipped entirely when too deep or indoors.
+- **Lit marine snow:** specks inside the four brightest lights catch them (brighter and warm), and a sparse near layer of big soft out-of-focus specks ("bokeh", 5 on High and 12 on Ultra) slides past in front.
+- **Depth of field (Ultra only):** the near foreground kelp gets a soft 2.4 px blur; High keeps it sharp.
+- **Surface shimmer:** a faint, noise-broken caustic net drifting through the water just under the surface.
+- **Settings → Graphics effects:** Zone backdrops, God rays, Lit snow, Depth of field, Surface shimmer (all saved on the device).
+- **Readability:** mean brightness of the seven benchmark scenes changed by -0% to +5% (the shallows get brighter from the rays and shimmer). Screenshots before and after (Ultra, 960 x 510, software renderer): `docs/art/fidelity/g3-before-*.jpg` and `g3-after-*.jpg`.
+- **Cloud numbers, relative only** (640 x 340 Ultra, 422 x 195 High, two runs each, six outdoor scenes averaged, software frame ms, about 20% noise): Ultra 526 before and 535 after (+2%); High 199 before and 204 after (+2%). Draw calls +3.
+- **Not done from the G3 plan:** the kelp caves' rock-pillar backdrop, and forward scattering in the lamp beam as its own effect (the lit snow gives the sparkle).
+- **If High slows more than about 10% on the iPhone**, cut in this order: God rays, Lit snow, Zone backdrops (each a toggle and a number in `presets.ts`). Nothing has been cut yet.
+
+### Graphics session G4: materials and life (2026-11-17)
+- **Colin asked for G4 straight after G3** so he can test both in the morning. G3 was deployed first, then this.
+- **Grime and grain** (`src/fx/lighting.ts`): painterly mottling, vertical streaks and a fine grain **anchored to world positions**, so they never swim with the camera. Greyish bright pixels are treated as hardware and get several times more than rock and water (a simple colour test, not a per-object mask).
+- **Metal sheen:** chrome, brass and bright steel catch the diver's lamp and the sub's lights with a highlight worked out from the G2 relief normals, so it travels across a flange as the lamp moves. It needs Relief lighting on.
+- **Dome glass streak** (`src/world/basegfx.ts`): a pale slanted band slides slowly across each dome habitat's glass (clipped to the dome), a pass every twenty seconds or so.
+- **Eye-shine** (`src/world/wildlife.ts`): creatures inside the lamp's beam get a warm glint at the head (warm only, never the Choir's colours), stronger when close and squarely lit, and strongest on the wary kelp-forest species (crabs and shrimp).
+- **Render scale** (Settings, off by default): supersampling (1.5x on Ultra, 1.25x on High) for a sharper picture at a GPU cost; capped by the 4K backbuffer limit.
+- **Settings → Graphics effects:** Grime and grain, Metal sheen, Glass streak, Eye-shine, Render scale.
+- **Not done from the G4 plan, honestly:** refraction of what is behind dome and tank glass (only the moving streak, and only on domes, not the creature tanks); sheen is a shader effect, not hand-placed shine lines in the drawing files, so it only touches bright grey surfaces; no new fin flutter (the wreck lurker already undulates; other creatures were left alone); no extra bioluminescent detail toward the shelf.
+- **Readability:** mean brightness of the seven benchmark scenes changed by 0 to -5% (grime darkens a little). Screenshots before and after (Ultra, 960 x 510, software renderer): `docs/art/fidelity/g4-before-*.jpg` and `g4-after-*.jpg`. The first version of the grime looked like woven cloth on the rock; it was cut to about 40% and its fine grain reduced.
+- **Cloud numbers, relative only** (640 x 340 Ultra, 422 x 195 High, two runs, six outdoor scenes, software frame ms, about 20% noise): Ultra 621 before and 645 after (+4%); High 248 before and 249 after (0%).
+- **If High slows on the iPhone**, cut in this order: Metal sheen, Grime and grain, Eye-shine. Render scale is off by default.
+- **Tested:** type check and build pass; every Settings toggle (all effects of G1 to G4, including Render scale) flipped on and off with no console errors; before and after screenshots of the seven scenes.
+
 ## Next
 
-**Next session: milestone 9, breeding** (prompt in `docs/prompts/milestone-9.md`, questions in DESIGN.md).
+**Next session: milestone 9, breeding** (prompt in `docs/prompts/milestone-9.md`, questions in DESIGN.md), unless Colin reorders. The four graphics sessions are done; what is left of the graphics plan is tuning from Colin's testing (every effect is a toggle and a number in `src/presets.ts`) and his PC and iPhone `?bench` tables, which are still to come. Graphics ideas not done: refraction through glass, cave rock-pillar backdrops, hand-placed shine lines, more bioluminescent detail on the shelf.
 - **Left over from the walkable base:** more detail in the machine rooms (feeder, press, filter, sorter, crane), line code plates indoors, and a sound for the lines and machines. Do these alongside a later milestone if Colin asks.
 - **The harpoon:** decoration on the Crest diver for now; use its design for later tools and weapons.
 
@@ -1066,6 +1221,16 @@ Where things are (on foot):
 - the hand-off: `src/main.ts` (`enterBase`, `exitBase`, `peekOut`, `backInside`, `simBase`, `interiorFrame`).
 
 ## Problems and open questions
+
+- **Graphics session G2, to check after Colin plays:** the caves are darker behind pillars (by design, see above); the shadow march is not yet measured on a GPU; moving things that are not in the bake (the kelp wall, the boom gate, creatures, the sub's hull) do not cast shadows; the interior's walls cast but its doors and gratings do not. Lights other than the diver's lamp and the sub's still pass through rock (moss, anemones, lures): that is deliberate for now (small radius), and the list is one flag, `shadow: true`, per light.
+
+- **Graphics session G1, to check after Colin measures:**
+  - **No real GPU numbers exist yet.** The cloud has none. Colin's PC (RTX 5080) and iPhone numbers from `?bench` are the first real ones; until then the High cost review in the G1 section is a plan, not a measurement.
+  - **Ultra's "Smooth edges" (MSAA on the half-float picture)** replaced the canvas MSAA. It looked right in screenshots but is untested for cost on a real GPU. If it costs more than the old canvas MSAA did, switch `hdrMsaa` off in `presets.ts` for Ultra and consider an FXAA step in the final pass instead.
+  - **The 8-bit fallback** (devices that cannot render to half-float) was forced and ran in the cloud, but not on an older iPhone. It has no tone mapping by design.
+  - **Tuning numbers (all single values):** bloom strength, threshold and steps in `presets.ts`; the tone-map knee (0.72, `shoulder` in the final shader in `src/fx/post.ts`); the per-zone grades (`GRADES` in `post.ts`); grain in `presets.ts`. Bloom was kept subtle on purpose (the glow layer was already doing the soft halos).
+  - **The interior's grapple ring** is drawn inside the post pass (it is part of the interior's own scene), so it is tone-mapped and can bloom slightly. The world's scanner, build grid and collect rings are after post.
+  - **Benchmark scenes use fixed positions** (`BENCH_SCENES` in `src/dev/bench.ts`). If the world or the basin changes a lot, re-check them with `?bench&still&scene=N`.
 
 - **The walkable base, part 2, to check after Colin plays:**
   - the ceiling lines when a base is big: lines crossing or overlapping (four lanes, `% 4` in `BaseHooks`' constructor), and long routes through many rooms;

@@ -571,7 +571,7 @@ export function inCaveTunnel(x: number, y: number): boolean {
 
 /**
  * Bake how much daylight reaches each spot ("sky visibility"), into a small
- * greyscale image covering the whole world. 1 = open water under the sun,
+ * image covering the whole world (red = daylight, green = solid, for lamp shadows). 1 = open water under the sun,
  * lower = shaded by rock above. It is blurred so the shadows are soft.
  * The lighting shader reads it every frame, so shadows cost nothing at runtime.
  */
@@ -581,6 +581,8 @@ export function bakeSkyVisibility(cell: number, blurPasses: number): HTMLCanvasE
   const w = Math.ceil(WORLD_SPAN / cell);
   const h = Math.ceil(WORLD_H / cell);
   const vis = new Float32Array(w * h);
+  // Graphics session G2: which cells are rock, steel or sand, for the lamp's shadows (stored in the green channel, unblurred).
+  const occ = new Uint8Array(w * h);
   for (let i = 0; i < w; i++) {
     const x = WORLD_X0 + (i + 0.5) * cell;
     let rock = 0;
@@ -589,6 +591,7 @@ export function bakeSkyVisibility(cell: number, blurPasses: number): HTMLCanvasE
       const solid = isSolid(x, y);
       // Light enters a surface slightly, so the top of a rock is fully lit.
       vis[j * w + i] = Math.exp(-rock / 70);
+      if (solid) occ[j * w + i] = 255;
       if (solid) rock += cell;
       // Deep inside the cave nothing gets through.
       else if (x > CAVE.x0 && x < CAVE.x1 - 120 && y > caveTop(x) - 10 && y < caveBottom(x) + 10) rock += cell * 0.4;
@@ -622,7 +625,7 @@ export function bakeSkyVisibility(cell: number, blurPasses: number): HTMLCanvasE
   for (let k = 0; k < w * h; k++) {
     const v = Math.round(Math.min(1, Math.max(0, vis[k])) * 255);
     img.data[k * 4] = v;
-    img.data[k * 4 + 1] = v;
+    img.data[k * 4 + 1] = occ[k];
     img.data[k * 4 + 2] = v;
     img.data[k * 4 + 3] = 255;
   }

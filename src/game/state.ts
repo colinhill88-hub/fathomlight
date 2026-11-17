@@ -347,6 +347,8 @@ export interface SaveData {
 }
 
 const KEY = 'fathomlight.save.v1';
+/** ?bench in the URL runs the graphics benchmark (src/dev/bench.ts). It must never read or write the real save. */
+const BENCH_RUN = typeof location !== 'undefined' && new URLSearchParams(location.search).has('bench');
 /** Where the milestone 3-4 site sits in the milestone 5 grid (OLD_SITE in src/game/base.ts). */
 const SITE_SHIFT = { gx: 47, gy: 11 };
 
@@ -405,6 +407,7 @@ export function freshSave(spawnX: number, spawnY: number): SaveData {
 
 export function loadSave(spawnX: number, spawnY: number): { data: SaveData; loaded: boolean } {
   const fresh = freshSave(spawnX, spawnY);
+  if (BENCH_RUN) return { data: fresh, loaded: false };
   try {
     const raw = localStorage.getItem(KEY);
     if (!raw) return { data: fresh, loaded: false };
@@ -482,6 +485,7 @@ export function loadSave(spawnX: number, spawnY: number): { data: SaveData; load
 
 export function writeSave(d: SaveData): boolean {
   d.savedAt = Date.now();
+  if (BENCH_RUN) return true;
   try {
     localStorage.setItem(KEY, JSON.stringify(d));
     return true;
@@ -491,6 +495,7 @@ export function writeSave(d: SaveData): boolean {
 }
 
 export function clearSave(): void {
+  if (BENCH_RUN) return;
   try {
     localStorage.removeItem(KEY);
   } catch {

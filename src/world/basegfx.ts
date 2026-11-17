@@ -234,6 +234,9 @@ interface PieceArt {
   lamp: { x: number; y: number };
   /** Dome glass sheen, drawn over the diver. */
   sheen?: Graphics;
+  /** G4: a slow reflection streak that drifts across the dome glass (moved every frame), and how far it travels. */
+  streak?: Graphics;
+  streakSpan?: number;
   /** Storage fill gauge (redrawn as the pod fills). */
   gauge?: Graphics;
   gaugeBox?: { x: number; y: number; w: number; h: number };
@@ -405,8 +408,15 @@ function drawDome(n: number): PieceArt {
   sheen.stroke({ color: 0xffffff, width: 2.5, alpha: 0.4, cap: 'round' });
   sheen.poly(domePts).fill({ color: PAL.glass, alpha: 0.12 });
   sheen.circle(cx + 50, drumTop - 70, 3).fill({ color: 0xffffff, alpha: 0.35 });
+  // G4: a pale slanted band that slides slowly across the glass (clipped to the dome).
+  const streak = new Graphics();
+  streak.poly([-14, drumTop - ry - 6, 6, drumTop - ry - 6, -22, drumTop + 4, -42, drumTop + 4]).fill({ color: 0xffffff, alpha: 0.16 });
+  streak.poly([14, drumTop - ry - 6, 20, drumTop - ry - 6, -8, drumTop + 4, -14, drumTop + 4]).fill({ color: 0xffffff, alpha: 0.1 });
+  const clip = new Graphics().poly(domePts).fill({ color: 0xffffff });
+  sheen.addChild(clip, streak);
+  streak.mask = clip;
 
-  return { body, windows, windowGlow, lamp: { x: cx, y: drumTop - ry - 20 }, sheen };
+  return { body, windows, windowGlow, lamp: { x: cx, y: drumTop - ry - 20 }, sheen, streak, streakSpan: rx * 2.6 };
 }
 
 function drawCorridor(n: number, rot: number): PieceArt {
@@ -1291,6 +1301,8 @@ interface Spark {
 export class BaseView {
   readonly view = new Container();
   readonly front = new Container();
+  /** G4: strength of the dome glass streak (0 = off). Set by the game each frame. */
+  glassStreak = 1;
   readonly emissive = new Container();
   readonly glow = new Container();
   readonly lights: PointLight[] = [];
@@ -1533,6 +1545,13 @@ export class BaseView {
             }
           }
           if (l.art.rotor) l.art.rotor.rotation += dt * (f.run && l.powered ? 2.4 : 0);
+        }
+        if (l.art.streak) {
+          // Slow: a pass across the dome every twenty seconds or so, then a pause.
+          const span = l.art.streakSpan ?? 200;
+          const t = ((time * 0.05 + l.phase) % 1) * 1.6;
+          l.art.streak.x = t < 1 ? t * span : span * 2;
+          l.art.streak.alpha = this.glassStreak;
         }
         const st = l.art.station;
         if (st && !l.frame) {
