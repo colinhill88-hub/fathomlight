@@ -2,6 +2,7 @@ import { perf } from '../dev/perf';
 import { BlurFilter, Container, Graphics, RenderTexture, Renderer, Sprite, Text } from 'pixi.js';
 import type { Light } from '../fx/lighting';
 import { Walker } from '../actors/walker';
+import { deckTread, lampFixture, rivet } from './detail';
 import { InteriorLighting } from './light';
 import { mulberry32, WORLD_SEED } from '../rng';
 
@@ -469,11 +470,26 @@ export class Interior {
     g.rect(0, 0, PW, PH).fill({ color: 0x06141a });
     for (let y = 0; y < PH; y += 80) g.rect(0, y, PW, 80).fill({ color: 0x0b2630, alpha: 0.5 * Math.max(0, 1 - y / PH) });
     for (let i = 0; i < (PW * PH) / 14000; i++) g.circle(rand() * PW, rand() * PH, 0.6 + rand() * 1.4).fill({ color: 0x9ec8c8, alpha: 0.08 + rand() * 0.12 });
+    // Far off in the black water: the basin's rock floor and the base's own legs, barely there.
+    {
+      let x = 0;
+      const ridge: number[] = [0, PH];
+      while (x <= PW) {
+        ridge.push(x, PH - 70 - rand() * 90);
+        x += 60 + rand() * 80;
+      }
+      ridge.push(PW, PH);
+      g.poly(ridge).fill({ color: 0x0a1c22, alpha: 0.9 });
+      for (let lx = 200 + rand() * 300; lx < PW; lx += 500 + rand() * 400) {
+        g.rect(lx - 7, PH * 0.45, 14, PH * 0.55).fill({ color: 0x0b2028, alpha: 0.85 });
+        for (let y = PH * 0.5; y < PH; y += 90) g.moveTo(lx - 7, y).lineTo(lx + 7, y + 45).stroke({ color: 0x0e2a33, width: 2, alpha: 0.8 });
+      }
+    }
     const addLamp = (x: number, y: number, zone: number) => {
-      g.roundRect(x - 16, y - 4, 32, 8, 3).fill({ color: 0x2a2f33 });
-      g.rect(x - 16, y - 4, 32, 2).fill({ color: 0x9aa6ad });
-      const core = new Graphics().roundRect(x - 13, y + 1, 26, 3, 1.5).fill({ color: 0xf4ffd8 });
-      const halo = new Graphics().ellipse(x, y + 10, 46, 16).fill({ color: 0xe8f0c0 });
+      lampFixture(g, x, y);
+      const core = new Graphics().roundRect(x - 14, y + 2, 28, 3, 1.5).fill({ color: 0xf4ffd8 });
+      // The halo sits on the lamp itself (it used to hang below it, like a smudge in mid-air).
+      const halo = new Graphics().ellipse(x, y + 4, 30, 8).fill({ color: 0xe8f0c0 });
       this.emissiveCam.addChild(core);
       this.glowCam.addChild(halo);
       this.lamps.push({ light: { x, y: y + 30, radius: 330, intensity: 0, color: [0.95, 0.97, 0.86], haze: 0.03 }, core, halo, zone });
@@ -510,10 +526,18 @@ export class Interior {
             g.rect(x, y, T + 0.5, 2).fill({ color: 0xdfe7ec, alpha: 0.7 });
             g.rect(x, y + 7, T + 0.5, 2).fill({ color: 0x15191c });
             e.rect(x, y + 13, T + 0.5, 1.6).fill({ color: 0xc9a13a, alpha: 0.75 });
-            for (let k = 5; k < T; k += 10) g.rect(x + k, y + 2.5, 5, 2).fill({ color: 0x2a2f33, alpha: 0.8 });
+            deckTread(g, x, T + 0.5, y + 1.5);
+            // Under the deck: the plate's edge and its bolts.
+            g.rect(x, y + 16, T + 0.5, 1).fill({ color: 0x3e464b });
+            if (tx % 2 === 0) rivet(g, x + 20, y + 24, 1.1);
           }
-          // Ceilings and walls facing a room: a dark lip.
-          if (open(0, 1)) g.rect(x, y + T - 5, T + 0.5, 5).fill({ color: 0x14181b });
+          // Ceilings and walls facing a room: a dark lip with a bolted strip.
+          if (open(0, 1)) {
+            g.rect(x, y + T - 5, T + 0.5, 5).fill({ color: 0x14181b });
+            g.rect(x, y + T - 9, T + 0.5, 4).fill({ color: 0x353d42 });
+            rivet(g, x + 10, y + T - 7, 1);
+            rivet(g, x + 30, y + T - 7, 1);
+          }
           if (open(1, 0)) g.rect(x + T - 4, y, 4, T + 0.5).fill({ color: 0x1b1f22 });
           if (open(-1, 0)) g.rect(x, y, 4, T + 0.5).fill({ color: 0x3a4146 });
           if (rand() < 0.08) g.rect(x + 6 + rand() * 24, y + 14, 8, 1).fill({ color: 0x3e464b });

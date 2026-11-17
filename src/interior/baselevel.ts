@@ -1,4 +1,5 @@
 import { Graphics, Text } from 'pixi.js';
+import { DC, bolts, ceilingBeam, flangeRect, floorGrime, hazard, pipeRun, pipeUp, rivet, skirting, wallPanels } from './detail';
 import type { Light } from '../fx/lighting';
 import { T, type InteriorAct, type InteriorHooks } from './interior';
 import { BaseLayout, collarsOf, isDone, PieceKind, PIECES, pieceCode, Placed, shapeOf } from '../game/base';
@@ -664,23 +665,22 @@ export class BaseHooks implements InteriorHooks {
     const b = this.box(r);
     const id = r.piece.id;
     const code = pieceCode(this.ctx.layout, r.piece);
-    // Back wall: charcoal panels, seams and a gold power line.
-    g.rect(b.ox, b.oy, b.ow, b.oh).fill({ color: COL.wall });
-    for (let y = b.oy; y < b.oy + b.oh; y += 80)
-      for (let x = b.ox; x < b.ox + b.ow; x += 120) {
-        g.rect(x + 2, y + 2, 116, 76).fill({ color: rand() < 0.5 ? COL.wallLight : COL.wall, alpha: 0.6 });
-        g.rect(x, y, 120, 2).fill({ color: COL.seam, alpha: 0.7 });
-      }
+    // Back wall: bevelled, riveted charcoal plates with vents, hatches and fittings (interior art pass).
+    wallPanels(g, b.ox, b.oy, b.ow, b.oh, rand);
+    // A conduit along the wall, under the line lanes, where the machines leave the wall clear.
+    const conduit = r.kind === 'storage' || r.kind === 'sorter' || r.kind === 'lab' || r.kind === 'workshop' || r.kind === 'filter' || r.kind === 'dock';
     for (let k = 0; k < r.h; k++) {
       const f = b.floor(k);
-      // Skirting along each floor, and a gold line at waist height.
-      g.rect(b.ox, f - 16, b.ow, 16).fill({ color: COL.wallDark });
-      g.rect(b.ox, f - 16, b.ow, 2).fill({ color: COL.chromeDark });
+      const ceil = k === 0 ? b.oy : b.floor(k - 1) + T;
+      // Grime gathers along the floor; a skirting plate; a gold line at waist height.
+      floorGrime(g, b.ox, b.ow, f, rand);
+      skirting(g, b.ox, b.ow, f);
       e.rect(b.ox, f - 92, b.ow, 1.6).fill({ color: COL.gold, alpha: 0.55 });
       for (let x = b.ox + 40; x < b.ox + b.ow - 40; x += 150) trace(e, x, f - 92, 90, rand, 0.45);
-      // Ceiling lamps, one per cell.
-      const ceil = k === 0 ? b.oy : b.floor(k - 1) + T;
-      for (let c = 0; c < r.w; c++) addLamp((r.tx0 + c * CW + 5.5) * T, ceil + 6, id);
+      if (conduit && f - ceil > 180) pipeRun(g, b.ox, b.ox + b.ow, ceil + 66, 3.5, DC.steel, DC.chrome, rand);
+      // The ceiling beam with its cables, and a lamp hung under it in each cell.
+      ceilingBeam(g, b.ox, b.ow, ceil, rand);
+      for (let c = 0; c < r.w; c++) addLamp((r.tx0 + c * CW + 5.5) * T, ceil + 16, id);
     }
     // The room's stencil code, high on the back wall.
     if (r.kind !== 'corridor') addText(sign(code, b.ox + 70, b.oy + 26, 13));
@@ -733,6 +733,8 @@ export class BaseHooks implements InteriorHooks {
         g.circle(ax, ay, 10).fill({ color: COL.chrome });
         e.circle(ax, ay, 44).stroke({ color: COL.lime, width: 2, alpha: 0.6 });
         addText(sign('AIRLOCK', ax, ay - 70, 10));
+        hazard(g, ax - 60, bot - 6, 120, 6);
+        for (const [hx, hy] of [[-40, -40], [40, -40], [-40, 40], [40, 40]]) rivet(g, ax + hx, ay + hy, 1.6);
         // Bunk on the left.
         g.roundRect(b.ox + 70, bot - 40, 120, 18, 4).fill({ color: COL.chromeDark });
         g.roundRect(b.ox + 74, bot - 50, 112, 12, 4).fill({ color: 0x4a5258 });
@@ -745,6 +747,11 @@ export class BaseHooks implements InteriorHooks {
         g.rect(cx2 - 50, bot - 70, 100, 3).fill({ color: COL.chrome });
         g.rect(cx2 - 42, bot - 62, 38, 24).fill({ color: 0x0c1418 });
         g.rect(cx2 + 4, bot - 62, 38, 24).fill({ color: 0x0c1418 });
+        // Screen bezels, a row of keys and the console's bolted side panels.
+        g.rect(cx2 - 43, bot - 63, 40, 26).stroke({ color: DC.chromeDark, width: 1.4 });
+        g.rect(cx2 + 3, bot - 63, 40, 26).stroke({ color: DC.chromeDark, width: 1.4 });
+        for (let i = 0; i < 8; i++) g.rect(cx2 - 40 + i * 10, bot - 30, 7, 4).fill({ color: i % 3 ? 0x4a5258 : 0x6f8a1e });
+        bolts(g, cx2 - 46, bot - 18, cx2 + 46, bot - 18, 23, 1);
         this.screens.push({ x: cx2, y: bot - 60, radius: 180, intensity: 0.45, color: [0.7, 0.95, 0.4], zone: id } as Light);
         break;
       }
@@ -777,14 +784,18 @@ export class BaseHooks implements InteriorHooks {
         }
         const sx = b.ox + b.ow - 12;
         g.rect(sx - 9, b.oy, 18, b.oh).fill({ color: COL.wallDark });
-        e.rect(sx - 4, b.oy, 8, b.oh).fill({ color: 0xffc040, alpha: 0.9 });
-        gl.rect(sx - 10, b.oy, 20, b.oh).fill({ color: 0xffb030, alpha: 0.35 });
+        // (Toned down in the interior art pass: it bloomed harder than anything else in the room.)
+        e.rect(sx - 3, b.oy, 6, b.oh).fill({ color: 0xe8b040, alpha: 0.75 });
+        gl.rect(sx - 8, b.oy, 16, b.oh).fill({ color: 0xffb030, alpha: 0.14 });
         for (let y = b.oy + 30; y < b.oy + b.oh; y += 70) g.rect(sx - 12, y, 24, 10).fill({ color: COL.chrome });
         // Lower level: the generator housing, with lime grille vents.
         g.roundRect(b.ox + 110, bot - 120, b.ow - 140, 120, 6).fill({ color: COL.wallDark });
         g.rect(b.ox + 110, bot - 120, b.ow - 140, 4).fill({ color: COL.chrome });
         for (let i = 0; i < 6; i++) g.rect(b.ox + 124, bot - 106 + i * 14, b.ow - 168, 7).fill({ color: COL.lime, alpha: 0.55 });
         gl.rect(b.ox + 120, bot - 110, b.ow - 160, 84).fill({ color: COL.lime, alpha: 0.2 });
+        flangeRect(g, b.ox + 110, bot - 120, b.ow - 140, 120, 6);
+        // Cable trunking from the generator up to the window's hub.
+        pipeUp(g, b.ox + 140, b.floor(0) + T, bot - 120, 5, COL.chromeDark, COL.chrome);
         this.screens.push({ x: b.cx + 30, y: bot - 70, radius: 200, intensity: 0.5, color: [0.75, 1, 0.3], zone: id } as Light);
         break;
       }
@@ -796,7 +807,14 @@ export class BaseHooks implements InteriorHooks {
           g.rect(b.ox + 16, sy, b.ow - 32, 5).fill({ color: COL.chrome });
           g.rect(b.ox + 16, sy + 5, b.ow - 32, 2).fill({ color: COL.seam });
         }
-        for (const x of [b.ox + 18, b.ox + b.ow - 24]) g.rect(x, bot - 150, 6, 150).fill({ color: COL.chromeDark });
+        for (const x of [b.ox + 18, b.ox + b.ow - 24]) {
+          g.rect(x, bot - 150, 6, 150).fill({ color: COL.chromeDark });
+          for (let y = bot - 144; y < bot - 6; y += 9) g.rect(x + 2, y, 2, 4).fill({ color: DC.grime });
+        }
+        // Diagonal bracing behind the shelves, and a stripe where the forklift path ends.
+        g.moveTo(b.ox + 24, bot - 46).lineTo(b.ox + 70, bot - 132).moveTo(b.ox + b.ow - 24, bot - 46).lineTo(b.ox + b.ow - 70, bot - 132).stroke({ color: DC.chromeDark, width: 2, alpha: 0.7 });
+        hazard(g, b.ox + 16, bot - 6, 40, 6);
+        hazard(g, b.ox + b.ow - 56, bot - 6, 40, 6);
         if (r.kind === 'sorter') addText(sign('SORTING BAYS', b.ox + b.ow - 90, b.oy + 26, 9, 0xc6f03a, 0.7));
         break;
       }
@@ -814,6 +832,10 @@ export class BaseHooks implements InteriorHooks {
         // Vertical frame bars every few metres.
         for (let x = t.x + 160; x < t.x + t.w - 40; x += 160) g.rect(x - 4, t.y - 14, 8, t.h + 28).fill({ color: COL.chromeDark });
         gl.roundRect(t.x + 20, t.y + 20, t.w - 40, t.h - 40, 30).fill({ color: 0x1a8080, alpha: 0.12 });
+        // The frame is bolted all round; a level scale by the glass.
+        bolts(g, t.x - 7, t.y - 7, t.x + t.w + 7, t.y - 7, 26, 1.2);
+        bolts(g, t.x - 7, t.y + t.h + 7, t.x + t.w + 7, t.y + t.h + 7, 26, 1.2);
+        for (let y = t.y + 10; y < t.y + t.h - 10; y += 12) g.rect(t.x - 12, y, y % 36 < 12 ? 7 : 4, 1.4).fill({ color: COL.chromeHi, alpha: 0.6 });
         // A railing in front.
         for (let k = 0; k < r.h; k++) {
           const f = b.floor(k);
@@ -832,6 +854,20 @@ export class BaseHooks implements InteriorHooks {
         g.roundRect(b.cx - 30, bot - 70, 60, 70, 6).fill({ color: COL.wallDark });
         g.circle(b.cx, bot - 40, 16).fill({ color: COL.chrome });
         g.rect(b.ox + 90, bot - 120, b.ow - 140, 8).fill({ color: COL.chromeDark });
+        // Column bands and caps, the pump motor's cooling fins, and the pipes into the columns.
+        for (const x of [b.ox + 50, b.ox + b.ow - 90]) {
+          for (const y of [bot - 130, bot - 80, bot - 30]) g.rect(x - 6, y, 52, 5).fill({ color: COL.chromeDark });
+          g.roundRect(x - 2, bot - 164, 44, 12, 4).fill({ color: COL.chrome });
+          rivet(g, x + 6, bot - 158, 1.2);
+          rivet(g, x + 34, bot - 158, 1.2);
+          for (let y = bot - 140; y < bot - 14; y += 10) g.rect(x + 3, y, 3, 1.2).fill({ color: COL.lime, alpha: 0.3 });
+        }
+        for (let i = 0; i < 6; i++) g.rect(b.cx - 22 + i * 8, bot - 66, 3, 14).fill({ color: DC.grime });
+        g.circle(b.cx, bot - 40, 9).fill({ color: COL.chromeDark });
+        g.circle(b.cx, bot - 40, 3).fill({ color: COL.chrome });
+        pipeRun(g, b.ox + 94, b.cx - 30, bot - 46, 4, DC.copper, DC.copperHi, rand);
+        pipeRun(g, b.cx + 30, b.ox + b.ow - 94, bot - 46, 4, DC.copper, DC.copperHi, rand);
+        hazard(g, b.cx - 30, bot - 6, 60, 6);
         break;
       }
       case 'feeder': {
@@ -841,6 +877,20 @@ export class BaseHooks implements InteriorHooks {
         g.rect(b.ox + 80, f0 - 150, b.ow - 110, 5).fill({ color: COL.chrome });
         g.roundRect(b.ox + 80, bot - 150, b.ow - 110, 150, 10).fill({ color: COL.chrome });
         g.roundRect(b.ox + 88, bot - 142, b.ow - 126, 134, 8).fill({ color: 0x1a2a1c });
+        // Hopper ribs and a chute down to the vat; the vat's bolted bands and a sight window.
+        for (let i = 1; i < 5; i++) {
+          const yy = f0 - 150 + i * 22;
+          const inset = (i * 22 * 40) / 110;
+          g.rect(b.ox + 80 + inset, yy, b.ow - 110 - inset * 2, 3).fill({ color: COL.chromeDark });
+        }
+        pipeUp(g, b.cx + 20, f0 - 40, bot - 150, 6, COL.chromeDark, COL.chrome);
+        for (const yy of [bot - 110, bot - 50]) {
+          g.rect(b.ox + 82, yy, b.ow - 114, 5).fill({ color: COL.chromeDark });
+          bolts(g, b.ox + 90, yy + 2.5, b.ox + b.ow - 40, yy + 2.5, 30, 1);
+        }
+        g.roundRect(b.ox + b.ow - 80, bot - 96, 18, 40, 4).fill({ color: 0x2a4a22 });
+        g.roundRect(b.ox + b.ow - 80, bot - 96, 18, 40, 4).stroke({ color: COL.chrome, width: 2 });
+        hazard(g, b.ox + 80, bot - 6, b.ow - 110, 6);
         addText(sign('MASH', b.ox + 80 + (b.ow - 110) / 2, bot - 160, 9, 0xc6f03a, 0.7));
         break;
       }
@@ -853,6 +903,20 @@ export class BaseHooks implements InteriorHooks {
         g.rect(px - 70, bot - 26, 140, 26).fill({ color: COL.wallDark });
         g.rect(px - 70, bot - 26, 140, 4).fill({ color: COL.gold, alpha: 0.8 });
         for (let k = 0; k < 4; k++) g.rect(b.ox + b.ow - 170, bot - 20 - k * 30, 130, 4).fill({ color: COL.chrome });
+        // Ribbed columns, two hydraulic cylinders on the crosshead, a bolted bed and a warning stripe.
+        for (const cx of [px - 73, px + 73]) {
+          for (let y = b.oy + 40; y < bot - 30; y += 22) g.rect(cx - 7, y, 14, 2).fill({ color: COL.chrome, alpha: 0.5 });
+          g.rect(cx - 7, b.oy + 32, 2, bot - b.oy - 60).fill({ color: COL.chromeHi, alpha: 0.25 });
+        }
+        for (const cx of [px - 40, px + 40]) {
+          g.roundRect(cx - 9, b.oy + 32, 18, 42, 4).fill({ color: COL.chromeDark });
+          g.rect(cx - 9, b.oy + 32, 4, 42).fill({ color: COL.chrome, alpha: 0.5 });
+          g.rect(cx - 11, b.oy + 70, 22, 4).fill({ color: COL.chrome });
+        }
+        bolts(g, px - 82, b.oy + 21, px + 82, b.oy + 21, 20, 1.4);
+        bolts(g, px - 64, bot - 12, px + 64, bot - 12, 16, 1.2);
+        hazard(g, px - 70, bot - 30, 140, 4);
+        for (let k = 0; k < 4; k++) g.rect(b.ox + b.ow - 170, bot - 16 - k * 30, 130, 1.5).fill({ color: DC.grime, alpha: 0.7 });
         break;
       }
       case 'dock': {
@@ -866,13 +930,33 @@ export class BaseHooks implements InteriorHooks {
           g.circle(x, f0 - 36, 7).stroke({ color: COL.chrome, width: 3 });
         }
         addText(sign('MOON POOL', b.cx, f0 + 28, 11, 0x9ae0e0, 0.6));
+        // The gantry's bolted beam, winch drums, and stripes along the catwalk's edge.
+        bolts(g, b.ox + 46, b.oy + 15, b.ox + b.ow - 46, b.oy + 15, 30, 1.3);
+        for (const x of [b.cx - 120, b.cx + 120]) {
+          g.circle(x, b.oy + 30, 9).fill({ color: COL.chromeDark });
+          g.circle(x, b.oy + 30, 5).fill({ color: COL.chrome });
+        }
+        hazard(g, b.ox, f0 - 6, b.ow, 4);
         break;
       }
       case 'lab': {
         // A scanner table with a lime hologram, and wall screens.
         g.roundRect(b.cx - 70, bot - 50, 140, 50, 6).fill({ color: COL.wallDark });
         g.rect(b.cx - 70, bot - 50, 140, 4).fill({ color: COL.chrome });
-        for (const x of [b.ox + 20, b.ox + b.ow - 80]) g.rect(x, b.oy + 50, 60, 40).fill({ color: 0x0c1418 });
+        for (const x of [b.ox + 20, b.ox + b.ow - 80]) {
+          g.rect(x, b.oy + 50, 60, 40).fill({ color: 0x0c1418 });
+          g.rect(x - 3, b.oy + 47, 66, 46).stroke({ color: COL.chromeDark, width: 2.4 });
+          g.rect(x + 26, b.oy + 93, 8, 10).fill({ color: COL.chromeDark });
+        }
+        // Drawers under the scanner table, and sample racks on the wall.
+        for (let i = 0; i < 3; i++) {
+          g.rect(b.cx - 62 + i * 44, bot - 40, 38, 30).stroke({ color: DC.bevelLo, width: 1.2 });
+          g.rect(b.cx - 49 + i * 44, bot - 28, 12, 3).fill({ color: COL.chrome });
+        }
+        for (let i = 0; i < 6; i++) {
+          g.roundRect(b.ox + 110 + i * 12, b.oy + 64, 6, 20, 3).fill({ color: [0x6f8a1e, 0x2a7080, 0xb06a3a][i % 3], alpha: 0.8 });
+        }
+        g.rect(b.ox + 104, b.oy + 82, 78, 4).fill({ color: COL.chromeDark });
         this.screens.push({ x: b.cx, y: bot - 80, radius: 220, intensity: 0.55, color: [0.7, 1, 0.35], zone: id } as Light);
         break;
       }
@@ -882,7 +966,19 @@ export class BaseHooks implements InteriorHooks {
         g.rect(b.cx - 140, bot - 44, 280, 4).fill({ color: COL.chrome });
         g.rect(b.cx - 10, b.oy, 20, 30).fill({ color: COL.chromeDark });
         for (let k = 0; k < 5; k++) g.rect(b.ox + 30 + k * 18, b.oy + 50, 4, 40 + (k % 2) * 14).fill({ color: COL.chrome });
-        break;
+        // A pegboard of tools (a wrench, a hammer, a saw), the bench's vice and drawers.
+        g.rect(b.ox + b.ow - 180, b.oy + 40, 140, 90).fill({ color: 0x3a3428 });
+        for (let y = b.oy + 48; y < b.oy + 126; y += 10) for (let x = b.ox + b.ow - 172; x < b.ox + b.ow - 44; x += 10) g.circle(x, y, 1).fill({ color: DC.grime });
+        const tx = b.ox + b.ow - 160;
+        g.rect(tx, b.oy + 52, 4, 46).fill({ color: COL.chrome });
+        g.circle(tx + 2, b.oy + 52, 6).stroke({ color: COL.chrome, width: 3 });
+        g.rect(tx + 34, b.oy + 56, 4, 44).fill({ color: 0x6a4a2e });
+        g.rect(tx + 26, b.oy + 52, 20, 9).fill({ color: COL.chromeDark });
+        g.poly([tx + 66, b.oy + 54, tx + 104, b.oy + 54, tx + 104, b.oy + 66, tx + 66, b.oy + 78]).fill({ color: COL.chrome });
+        g.rect(tx + 100, b.oy + 52, 8, 16).fill({ color: COL.red, alpha: 0.85 });
+        g.roundRect(b.cx + 90, bot - 60, 34, 16, 3).fill({ color: COL.chromeDark });
+        g.rect(b.cx + 100, bot - 74, 14, 14).fill({ color: COL.chrome });
+        for (let i = 0; i < 4; i++) g.rect(b.cx - 130 + i * 50, bot - 30, 40, 22).stroke({ color: DC.bevelLo, width: 1.2 });
       }
       case 'recomp': {
         // A pressure chamber: a chrome cylinder with gold bands and a round door, lime light inside.
@@ -894,7 +990,20 @@ export class BaseHooks implements InteriorHooks {
         g.circle(cx, (b.oy + bot) / 2, 30).fill({ color: COL.glassSea });
         this.screens.push({ x: cx, y: (b.oy + bot) / 2, radius: 160, intensity: 0.5, color: [0.75, 1, 0.4], zone: id } as Light);
         g.roundRect(b.ox + 40, bot - 80, 60, 80, 4).fill({ color: COL.wallDark });
-        break;
+        // The door's locking wheel, bolts round the bands, gauges on the control box.
+        const dy = (b.oy + bot) / 2;
+        g.circle(cx, dy, 46).stroke({ color: COL.chromeDark, width: 3 });
+        for (let i = 0; i < 12; i++) {
+          const a = (i / 12) * Math.PI * 2;
+          rivet(g, cx + Math.cos(a) * 36, dy + Math.sin(a) * 36, 1.6);
+        }
+        for (const y of [b.oy + 54, bot - 36]) bolts(g, cx - 84, y, cx + 84, y, 21, 1.1);
+        for (const yy of [bot - 64, bot - 40]) {
+          g.circle(b.ox + 58, yy, 7).fill({ color: COL.chrome });
+          g.circle(b.ox + 58, yy, 5).fill({ color: 0xd8d4c4 });
+          g.moveTo(b.ox + 58, yy).lineTo(b.ox + 61, yy - 3).stroke({ color: COL.red, width: 1 });
+        }
+        pipeUp(g, b.ox + 86, b.oy + 20, bot - 80, 4, DC.copper, DC.copperHi);
       }
       case 'crane': {
         // Upper level: the gantry beam and trolley. Lower: the cradle where salvage is broken down.
@@ -905,6 +1014,14 @@ export class BaseHooks implements InteriorHooks {
         g.rect(b.cx - 1.5, b.oy + 72, 3, f0 - b.oy - 100).fill({ color: COL.chromeDark });
         g.roundRect(b.cx - 120, bot - 30, 240, 30, 6).fill({ color: COL.wallDark });
         g.rect(b.cx - 120, bot - 30, 240, 4).fill({ color: COL.gold, alpha: 0.8 });
+        // The trolley's wheels and motor, a hook block, the cradle's jaws and a stripe round it.
+        for (const x of [b.cx - 20, b.cx + 20]) g.circle(x, b.oy + 44, 5).fill({ color: COL.chrome });
+        g.rect(b.cx - 26, b.oy + 50, 52, 3).fill({ color: DC.grime, alpha: 0.8 });
+        g.roundRect(b.cx - 10, f0 - 30, 20, 16, 3).fill({ color: COL.chrome });
+        g.arc(b.cx, f0 - 8, 8, 0, Math.PI).stroke({ color: COL.chromeDark, width: 3.5 });
+        for (const x of [b.cx - 110, b.cx + 96]) g.rect(x, bot - 52, 14, 22).fill({ color: COL.chromeDark });
+        bolts(g, b.cx - 112, bot - 20, b.cx + 112, bot - 20, 28, 1.2);
+        hazard(g, b.cx - 120, bot - 6, 240, 6);
         break;
       }
     }
