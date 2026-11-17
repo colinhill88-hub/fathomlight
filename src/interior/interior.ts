@@ -14,12 +14,12 @@ import { mulberry32, WORLD_SEED } from '../rng';
  */
 
 export const T = 40;
-const GRAVITY = 1900;
-const MAX_FALL = 950;
-const WALK = 270;
-const ACCEL_GROUND = 2200;
-const ACCEL_AIR = 1200;
-const JUMP_V = 660;
+export const GRAVITY = 1900;
+export const MAX_FALL = 950;
+export const WALK = 270;
+export const ACCEL_GROUND = 2200;
+export const ACCEL_AIR = 1200;
+export const JUMP_V = 660;
 const COYOTE = 0.1;
 const BUFFER = 0.13;
 const HALF_W = 13;
@@ -30,7 +30,7 @@ const GRAPPLE_PULL = 760;
 const VENT_CYCLE = 3.2;
 const VENT_BURST = 1.0;
 /** Climbing speed on a ladder (the base on foot). */
-const CLIMB = 210;
+export const CLIMB = 210;
 /** The lighting shader adds up at most this many lights; the nearest win. */
 const MAX_LIGHTS = 16;
 
@@ -250,6 +250,10 @@ export class Interior {
     w.visor = 0;
     w.visorTarget = 1;
     w.face = 1;
+    w.onGround = true;
+    w.pose = 'stand';
+    // Just in through the hatch or the airlock: stand up from a crouch, then lift the face plate.
+    w.arrive(9);
     this.lastSafe = { x: w.x, y: w.y };
     this.cam.x = w.x - 400;
     this.cam.y = w.y - 400;
@@ -283,6 +287,9 @@ export class Interior {
     w.vx = w.vy = 0;
     w.face = face;
     w.visor = w.visorTarget = 1;
+    w.onGround = true;
+    w.pose = 'stand';
+    w.arrive();
     this.lastSafe = { x, y };
     this.climbing = false;
     this.grapple = null;
@@ -698,9 +705,15 @@ export class Interior {
     } else this.progress = 0;
     if (!inp.collect) this.needRelease = false;
     this.holdKey = act?.key ?? '';
+    // Holding Collect: going out shuts the face plate first; anything else, the near hand works at it.
+    const leaving = act?.key === 'exit' || act?.key === 'airlock';
+    const holding = !!act && act.key !== 'grapple' && inp.collect && w.onGround && this.progress > 0;
+    w.visorTarget = holding && leaving ? 0 : 1;
+    w.working += ((holding && !leaving ? 1 : 0) - w.working) * Math.min(1, dt * 10);
     this.label = act ? act.label : info || null;
 
     // ---- Movement ----
+    if (!this.grapple) w.hangTo = null;
     if (this.grapple) this.updateGrapple(dt, inp, jumpPressed);
     else if (this.climbing) this.updateClimb(dt, inp, jumpPressed, ev);
     else this.updateWalk(dt, inp, jumpPressed, ev);
@@ -915,6 +928,7 @@ export class Interior {
     }
     w.onGround = false;
     w.pose = g.phase === 'fly' ? 'jump' : 'hang';
+    w.hangTo = this.grapple ? a : null;
     if (!this.grapple) this.fallFrom = w.y;
   }
 
@@ -960,7 +974,7 @@ export class Interior {
     }
     if (this.grapple) {
       const a = this.anchors[this.grapple.to];
-      const hand = { x: w.x + w.face * 4, y: w.y - HEIGHT - 18 };
+      const hand = w.hand();
       const k2 = this.grapple.phase === 'fly' ? Math.min(1, this.grapple.t / GRAPPLE_FLY) : 1;
       o.moveTo(hand.x, hand.y).lineTo(hand.x + (a.x - hand.x) * k2, hand.y + (a.y - hand.y) * k2).stroke({ color: 0xd8c890, width: 2 });
     }
@@ -969,9 +983,11 @@ export class Interior {
       this.hooks.animate(d, de, this.time);
     }
     // Lights: lamps (with power), the emergency lamps, and the helmet lamp's beam.
-    const head = w.head();
-    this.headLamp.x = head.x + w.face * 10;
-    this.headLamp.y = head.y;
+    // The beam starts at the shoulder lamp (the same lamp as the diver's).
+    w.lampOn = this.lampOn;
+    const lamp = w.lampPoint();
+    this.headLamp.x = lamp.x;
+    this.headLamp.y = lamp.y;
     this.headLamp.dirX = w.face * 0.97;
     this.headLamp.dirY = 0.24;
     this.headLamp.intensity = this.lampOn ? 1.6 : 0;

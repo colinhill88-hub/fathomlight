@@ -3017,6 +3017,8 @@ async function boot(): Promise<void> {
       interior.reload(level.map, baseHooks);
       if (!interior.standable(interior.walker.x, interior.walker.y)) interior.place(baseHooks.spawn.x, baseHooks.spawn.y, 1);
     }
+    // The same dive bag as in the water, swinging at the hip.
+    interior.walker.load = bagLoad(save);
     const evs: InteriorEvent[] = interior.update(dt, { moveX: s.moveX, moveY: s.moveY, jump: s.jumpHeld, collect: s.collect, lamp: s.lamp }, paused);
     const maxO2 = maxOxygen(save);
     if (!paused) {

@@ -1,6 +1,7 @@
 import { Container, Graphics, Text } from 'pixi.js';
 import { isSolid } from '../world/terrain';
 import { mulberry32 } from '../rng';
+import { BREATH_OUT, Glance, Spring, breathShape } from './animkit';
 
 /**
  * The explorer, drawn entirely with code. The suit takes its inspiration
@@ -22,7 +23,8 @@ import { mulberry32 } from '../rng';
  * Local drawing space: facing right, origin at the middle of the torso.
  */
 
-const C = {
+/** The suit's colours, shared with the walker (the same person on foot). */
+export const C = {
   suit: 0x2c302f, // charcoal
   suitShade: 0x1a1d1d,
   suitLight: 0x4a504d,
@@ -46,15 +48,16 @@ const C = {
 };
 
 const rand = mulberry32(0xd1e5);
+const rngDefault = rand;
 
-function rivets(g: Graphics, pts: [number, number][], r = 1.1): void {
+export function rivets(g: Graphics, pts: [number, number][], r = 1.1): void {
   for (const [x, y] of pts) {
     g.circle(x, y, r).fill({ color: C.chromeDark });
     g.circle(x - 0.3, y - 0.4, r * 0.45).fill({ color: C.chromeHi, alpha: 0.85 });
   }
 }
 
-function scratches(g: Graphics, x0: number, y0: number, w: number, h: number, n: number, alpha = 0.22): void {
+export function scratches(g: Graphics, x0: number, y0: number, w: number, h: number, n: number, alpha = 0.22, rand = rngDefault): void {
   for (let i = 0; i < n; i++) {
     const x = x0 + rand() * w;
     const y = y0 + rand() * h;
@@ -67,7 +70,7 @@ function scratches(g: Graphics, x0: number, y0: number, w: number, h: number, n:
 }
 
 /** Faint engraved "circuit" panel lines, like etched brass trim on the suit. */
-function etching(g: Graphics, x0: number, y0: number, w: number, h: number, n: number): void {
+export function etching(g: Graphics, x0: number, y0: number, w: number, h: number, n: number, rand = rngDefault): void {
   for (let i = 0; i < n; i++) {
     let x = x0 + rand() * w;
     let y = y0 + rand() * h;
@@ -83,7 +86,7 @@ function etching(g: Graphics, x0: number, y0: number, w: number, h: number, n: n
 }
 
 /** Polished metal: base colour with bright and dark reflection bands. */
-function chromeBands(g: Graphics, x: number, y: number, w: number, h: number, r: number): void {
+export function chromeBands(g: Graphics, x: number, y: number, w: number, h: number, r: number): void {
   g.roundRect(x, y, w, h, r).fill({ color: C.chrome });
   g.roundRect(x + 1, y + h * 0.55, w - 2, h * 0.4, r * 0.6).fill({ color: C.chromeMid, alpha: 0.85 });
   g.roundRect(x + 2, y + h * 0.12, w - 4, h * 0.16, h * 0.08).fill({ color: C.chromeHi, alpha: 0.75 });
@@ -91,7 +94,7 @@ function chromeBands(g: Graphics, x: number, y: number, w: number, h: number, r:
 }
 
 /** A limb segment drawn along +x from its joint. */
-function segment(len: number, thick: number, color: number, shade: number): Graphics {
+export function segment(len: number, thick: number, color: number, shade: number): Graphics {
   const g = new Graphics();
   g.roundRect(-thick * 0.45, -thick / 2, len + thick * 0.9, thick, thick / 2).fill({ color });
   g.roundRect(-thick * 0.3, thick * 0.05, len + thick * 0.6, thick * 0.42, thick * 0.2).fill({
@@ -271,7 +274,7 @@ function buildTorso(): Container {
 }
 
 /** Ribbed hose: a curve with closely spaced light and dark rings across it. */
-function coiledHose(g: Graphics, pts: [number, number][], width: number): void {
+export function coiledHose(g: Graphics, pts: [number, number][], width: number): void {
   const [p0, p1, p2, p3] = pts;
   const at = (t: number): [number, number] => {
     const u = 1 - t;
@@ -308,7 +311,7 @@ function coiledHose(g: Graphics, pts: [number, number][], width: number): void {
  * A mesh dive bag clipped to the belt at the hip (milestone 3 follow-up).
  * Drawn full; the diver scales it with how much is in it.
  */
-function buildDiveBag(): Container {
+export function buildDiveBag(): Container {
   const c = new Container();
   const g = new Graphics();
   // Clip and strap from the belt.
@@ -331,7 +334,7 @@ function buildDiveBag(): Container {
   return c;
 }
 
-function buildShoulderLamp(): Graphics {
+export function buildShoulderLamp(): Graphics {
   const g = new Graphics();
   g.rect(33, 7, 3.5, 15).fill({ color: C.red }); // strap round the harness
   g.rect(33, 7, 3.5, 4).fill({ color: C.redShade, alpha: 0.6 });
@@ -343,7 +346,56 @@ function buildShoulderLamp(): Graphics {
   return g;
 }
 
-function buildHelmet(): Container {
+/** The helmet's glass outline as points (for splitting off the walker's lifting face plate). */
+function shellPoints(): number[] {
+  const pts: number[] = [];
+  const cubic = (p0: number[], p1: number[], p2: number[], p3: number[]) => {
+    for (let i = 1; i <= 12; i++) {
+      const t = i / 12;
+      const u = 1 - t;
+      pts.push(
+        u * u * u * p0[0] + 3 * u * u * t * p1[0] + 3 * u * t * t * p2[0] + t * t * t * p3[0],
+        u * u * u * p0[1] + 3 * u * u * t * p1[1] + 3 * u * t * t * p2[1] + t * t * t * p3[1],
+      );
+    }
+  };
+  pts.push(46, 15);
+  cubic([46, 15], [37, 4], [37, -18], [54, -25]);
+  cubic([54, -25], [66, -30], [81, -26], [87, -14]);
+  cubic([87, -14], [92, -4], [91, 8], [83, 15]);
+  for (let i = 1; i < 12; i++) {
+    const t = i / 12;
+    const u = 1 - t;
+    pts.push(u * u * 83 + 2 * u * t * 64 + t * t * 46, u * u * 15 + 2 * u * t * 21 + t * t * 15);
+  }
+  return pts;
+}
+
+/** Keep the part of a polygon on one side of the line x = cut (front: x >= cut). */
+function clipX(pts: number[], cut: number, front: boolean): number[] {
+  const out: number[] = [];
+  const n = pts.length / 2;
+  const inside = (x: number) => (front ? x >= cut : x <= cut);
+  for (let i = 0; i < n; i++) {
+    const ax = pts[i * 2];
+    const ay = pts[i * 2 + 1];
+    const bx = pts[((i + 1) % n) * 2];
+    const by = pts[((i + 1) % n) * 2 + 1];
+    if (inside(ax)) out.push(ax, ay);
+    if (inside(ax) !== inside(bx)) out.push(cut, ay + ((cut - ax) / (bx - ax)) * (by - ay));
+  }
+  return out;
+}
+
+/** Where the walker's face plate is hinged, in helmet space (it lifts up and forward about here). */
+export const PLATE_HINGE = { x: 70, y: -28 };
+
+/**
+ * The helmet. With `plate` (the walker), the front of the glass is a
+ * separate piece labelled 'plate' so the face plate can lift; drawn shut it
+ * looks the same as the diver's.
+ */
+export function buildHelmet(plate = false): Container {
   const c = new Container();
   const g = new Graphics();
   const shell = (q: Graphics) =>
@@ -356,7 +408,9 @@ function buildHelmet(): Container {
       .closePath();
 
   // Inside of the helmet: in shadow, so the glass reads as deep and tinted.
-  shell(g).fill({ color: 0x0e1a17, alpha: 0.55 });
+  // (On foot, only behind the face plate: with the plate up, the face is in the open air.)
+  if (plate) g.poly(clipX(shellPoints(), PLATE_HINGE.x, false)).fill({ color: 0x0e1a17, alpha: 0.55 });
+  else shell(g).fill({ color: 0x0e1a17, alpha: 0.55 });
   c.addChild(g);
   // The head is its own piece so it can turn a little inside the glass.
   const hd = new Graphics();
@@ -428,9 +482,28 @@ function buildHelmet(): Container {
   // the bottom of the helmet.
   f.moveTo(52, 13).quadraticCurveTo(64, 10.5, 77, 12.5).lineTo(79, 20).quadraticCurveTo(64, 22, 50, 19).closePath().fill({ color: C.suit });
   f.moveTo(52, 13).quadraticCurveTo(64, 10.5, 77, 12.5).stroke({ color: C.chrome, width: 1.6 });
-  // Tinted glass shell.
-  shell(f).fill({ color: C.visor, alpha: 0.3 });
-  shell(f).stroke({ color: C.visorEdge, width: 2, alpha: 0.95 });
+  // Tinted glass shell (on foot, only the back of it: the front is the face plate).
+  const CUT = PLATE_HINGE.x;
+  const pl = new Graphics();
+  if (plate) {
+    const pts = shellPoints();
+    const back = clipX(pts, CUT, false);
+    const front = clipX(pts, CUT, true);
+    f.poly(back).fill({ color: C.visor, alpha: 0.3 });
+    // Outline the back glass along the shell only, not along the cut where the plate meets it.
+    let k0 = 0;
+    for (let i = 0; i < back.length; i += 2) if (back[i] === CUT && back[(i + 2) % back.length] === CUT) k0 = (i + 2) % back.length;
+    f.moveTo(back[k0], back[k0 + 1]);
+    for (let j = 2; j < back.length; j += 2) f.lineTo(back[(k0 + j) % back.length], back[(k0 + j + 1) % back.length]);
+    f.stroke({ color: C.visorEdge, width: 2, alpha: 0.95 });
+    pl.poly(front).fill({ color: C.visor, alpha: 0.3 });
+    pl.poly(front).stroke({ color: C.visorEdge, width: 2, alpha: 0.95 });
+  } else {
+    shell(f).fill({ color: C.visor, alpha: 0.3 });
+    shell(f).stroke({ color: C.visorEdge, width: 2, alpha: 0.95 });
+  }
+  // The face plate's details go on the plate when it is a separate piece.
+  const fp = plate ? pl : f;
   // Thick glass catches more colour along its edges.
   f.moveTo(47, 12).bezierCurveTo(40, 2, 40, -16, 55, -22).stroke({ color: C.visor, width: 3, alpha: 0.55, cap: 'round' });
 
@@ -448,17 +521,23 @@ function buildHelmet(): Container {
 
   // Moulded rib down the side, and the face-plate frame.
   f.moveTo(55, -20).quadraticCurveTo(52, -4, 56, 12).stroke({ color: C.visorEdge, width: 1.4, alpha: 0.7 });
-  f.moveTo(82, -17).bezierCurveTo(87, -8, 87, 5, 81, 13).stroke({ color: C.visorEdge, width: 2, alpha: 0.9 });
+  fp.moveTo(82, -17).bezierCurveTo(87, -8, 87, 5, 81, 13).stroke({ color: C.visorEdge, width: 2, alpha: 0.9 });
 
   // Reflections.
   f.moveTo(60, -21).quadraticCurveTo(71, -26, 81, -18).stroke({ color: 0xf6ffe0, width: 2.4, alpha: 0.55, cap: 'round' });
-  f.circle(85, -9, 1.7).fill({ color: 0xffffff, alpha: 0.7 });
-  f.moveTo(87.5, -2).quadraticCurveTo(88, 3, 86, 8).stroke({ color: 0xffffff, width: 1.2, alpha: 0.35, cap: 'round' });
+  fp.circle(85, -9, 1.7).fill({ color: 0xffffff, alpha: 0.7 });
+  fp.moveTo(87.5, -2).quadraticCurveTo(88, 3, 86, 8).stroke({ color: 0xffffff, width: 1.2, alpha: 0.35, cap: 'round' });
 
 
   // Coiled breathing hose from the back unit, over the side of the helmet,
   // down to the regulator port on the chest.
   c.addChild(f);
+  if (plate) {
+    pl.label = 'plate';
+    pl.pivot.set(PLATE_HINGE.x, PLATE_HINGE.y);
+    pl.position.set(PLATE_HINGE.x, PLATE_HINGE.y);
+    c.addChild(pl);
+  }
   // The hose is its own piece (the Diver moves it to the body so it can sway a little).
   const hose = new Graphics();
   coiledHose(hose, [[44, -42], [60, -46], [59, -8], [51, 3]], 4.2);
@@ -538,10 +617,12 @@ export class Diver {
   private nearArm = buildArm(false);
   private farArm = buildArm(true);
   private face = 1; // 1 right, -1 left
-  private faceAnim = 1;
-  private faceVel = 0;
-  private pitch = 0;
-  private pitchVel = 0;
+  /** The facing mirror (a critically damped spring) and the body's angle. */
+  private faceS = new Spring(1);
+  private pitchS = new Spring(0);
+  private get pitch(): number {
+    return this.pitchS.x;
+  }
   private kick = 0;
   private time = 0;
   private boostTime = 0;
@@ -581,16 +662,11 @@ export class Diver {
   private bubblesDue = 0;
   private trickle = 0;
   /** The head inside the glass: where it is looking now, where it wants to look, and when it next glances. */
-  private headAng = 0;
-  private headVel = 0;
-  private glance = 0;
-  private glanceTimer = 2.5;
-  private blinkTimer = 3;
+  private headS = new Spring(0);
+  private glance = new Glance(rand);
   /** The dive bag hangs like a pendulum, the hose sways a little. */
-  private bagAng = 0;
-  private bagVel = 0;
-  private hoseAng = 0;
-  private hoseVel = 0;
+  private bagS = new Spring(0);
+  private hoseS = new Spring(0);
   private lastVx = 0;
   private plumeDrawn = false;
   /** Reused for lampPose so the per-frame lamp query makes no garbage. */
@@ -831,11 +907,7 @@ export class Diver {
     if (this.face !== prevFace) this.turn = 1;
     this.turn = Math.max(0, this.turn - dt * 1.6);
     // A critically damped spring: the turn eases in and out instead of starting at full speed.
-    {
-      const w = 13;
-      this.faceVel += (w * w * (this.face - this.faceAnim) - 2 * w * this.faceVel) * dt;
-      this.faceAnim += this.faceVel * dt;
-    }
+    this.faceS.step(this.face, 13, 1, dt);
 
     // Effort and boost, smoothed: kicks build up as the diver gets going and
     // die away slowly after letting go, so the diver glides to a stop.
@@ -862,8 +934,8 @@ export class Diver {
       if (this.breathUw >= 1) this.breathUw -= 1;
       const ph = this.breathUw;
       // In over the first 40%, then a longer breath out.
-      this.heave = (ph < 0.4 ? Math.sin((ph / 0.4) * Math.PI * 0.5) : Math.cos(((ph - 0.4) / 0.6) * Math.PI * 0.5)) * 0.55;
-      if (before < 0.4 && ph >= 0.4) {
+      this.heave = breathShape(ph) * 0.55;
+      if (before < BREATH_OUT && ph >= BREATH_OUT) {
         // The breath out: a burst from the regulator, then a short trickle.
         this.bubblesDue += 3 + Math.round(2 * this.drive + 2 * this.boostLvl);
         this.trickle = 0.7;
@@ -889,8 +961,7 @@ export class Diver {
       // A slightly soft spring: the body settles with a hint of follow-through, never a snap.
       const w = this.surfaced ? 9 : 5.5;
       const z = 0.82;
-      this.pitchVel += (w * w * (targetPitch - this.pitch) - 2 * z * w * this.pitchVel) * dt;
-      this.pitch += this.pitchVel * dt;
+      this.pitchS.step(targetPitch, w, z, dt);
     }
 
     // Breath fog on the glass clears slowly; drops of water run off.
@@ -910,7 +981,7 @@ export class Diver {
     // flex from the kick on the body, a breath rising and falling.
     const A = this.kickAmp;
     this.view.position.set(this.x, this.y);
-    const fa = this.faceAnim;
+    const fa = this.faceS.x;
     this.view.scale.x = Math.abs(fa) < 0.06 ? (fa < 0 ? -0.06 : 0.06) : fa;
     const chest = 1 + this.heave * 0.035;
     this.body.scale.set(Diver.SCALE * (1 + this.heave * 0.01), Diver.SCALE * chest);
@@ -937,7 +1008,7 @@ export class Diver {
     const ph = this.breathClock % 1;
     // In-breath over the first 40% of the cycle, then a slower breath out.
     const amp = this.breaths < 1 ? 1 : this.breaths < 3 ? 0.6 : 0.4;
-    this.heave = (ph < 0.4 ? Math.sin((ph / 0.4) * Math.PI * 0.5) : Math.cos(((ph - 0.4) / 0.6) * Math.PI * 0.5)) * amp;
+    this.heave = breathShape(ph) * amp;
     if (Math.floor(before + 0.6) !== Math.floor(this.breathClock + 0.6)) {
       // Crossed into the breath out.
       this.exhale = true;
@@ -957,28 +1028,18 @@ export class Diver {
    * around. An occasional blink.
    */
   private animateHead(dt: number, input: number): void {
-    this.glanceTimer -= dt;
-    if (this.glanceTimer <= 0) {
-      // Restrained: a look up, a look down, or back to straight ahead.
-      const r = rand();
-      this.glance = r < 0.35 ? -0.1 - rand() * 0.06 : r < 0.6 ? 0.06 + rand() * 0.05 : 0;
-      this.glanceTimer = 2.2 + rand() * 4;
-    }
+    // Restrained: a look up, a look down, or back to straight ahead (shared with the walker).
+    this.glance.update(dt);
     const still = (1 - this.swimBlend) * (this.working ? 0 : 1);
     // Looking where the body is going: a little further than the body's own angle.
-    const lead = Math.max(-0.12, Math.min(0.12, (this.pitchVel * 0.08) + Math.sin(this.pitch) * 0.08 * this.swimBlend));
-    let want = this.glance * still * (1 - input) + lead - this.boostLvl * 0.05 * (1 - this.turn);
+    const lead = Math.max(-0.12, Math.min(0.12, (this.pitchS.v * 0.08) + Math.sin(this.pitch) * 0.08 * this.swimBlend));
+    let want = this.glance.target * still * (1 - input) + lead - this.boostLvl * 0.05 * (1 - this.turn);
     if (this.surfaced) want = -0.05 - this.heave * 0.06;
     if (this.working) want = 0.1;
     want = Math.max(-0.17, Math.min(0.14, want));
     const w = 7;
-    this.headVel += (w * w * (want - this.headAng) - 2 * w * this.headVel) * dt;
-    this.headAng += this.headVel * dt;
-    this.headRig.rotation = this.headAng;
-
-    this.blinkTimer -= dt;
-    if (this.blinkTimer <= 0) this.blinkTimer = 2.5 + rand() * 4.5;
-    this.eyelid.visible = this.blinkTimer < 0.13;
+    this.headRig.rotation = this.headS.step(want, w, 1, dt);
+    this.eyelid.visible = this.glance.blinking;
   }
 
   /** The dive bag swings on its clip, the hose sways, the thruster plume. */
@@ -1009,20 +1070,18 @@ export class Diver {
       const target = -this.pitch * 0.6;
       const push = Math.max(-1, Math.min(1, ax / 600)) * 3 + Math.sin(this.kick * 2) * this.kickAmp * 2.5 * this.swimBlend;
       const w = 4.2 - 0.8 * Math.min(1, fill);
-      this.bagVel += (w * w * (target - this.bagAng) - 2 * 0.35 * w * this.bagVel + push) * dt;
-      this.bagAng += this.bagVel * dt;
-      this.bagAng = Math.max(-0.7, Math.min(0.7, this.bagAng));
-      this.diveBag.rotation = this.bagAng;
+      this.bagS.step(target, w, 0.35, dt, push);
+      this.bagS.x = Math.max(-0.7, Math.min(0.7, this.bagS.x));
+      this.diveBag.rotation = this.bagS.x;
     }
     {
       // The hose flexes a little with the head, the breath and sudden changes of speed.
-      const target = this.headAng * 0.25 + this.heave * 0.02 - boost * 0.02;
+      const target = this.headS.x * 0.25 + this.heave * 0.02 - boost * 0.02;
       const push = Math.max(-1, Math.min(1, ax / 800)) * 0.6;
       const w = 9;
-      this.hoseVel += (w * w * (target - this.hoseAng) - 2 * 0.4 * w * this.hoseVel + push) * dt;
-      this.hoseAng += this.hoseVel * dt;
-      this.hoseAng = Math.max(-0.06, Math.min(0.06, this.hoseAng));
-      this.hose.rotation = this.hoseAng;
+      this.hoseS.step(target, w, 0.4, dt, push);
+      this.hoseS.x = Math.max(-0.06, Math.min(0.06, this.hoseS.x));
+      this.hose.rotation = this.hoseS.x;
     }
   }
 

@@ -1,6 +1,7 @@
 import { Application, Container } from 'pixi.js';
 import { Diver } from '../actors/diver';
 import { groundY, isSolid } from '../world/terrain';
+import { walkerLab } from './walkerlab';
 
 /**
  * Animation lab: open animlab.html (on the play link, or with `npm run dev`).
@@ -49,6 +50,8 @@ async function main(): Promise<void> {
   const app = new Application();
   await app.init({ resizeTo: window, background: 0x0e3442, antialias: true, resolution: Math.min(2, devicePixelRatio), autoDensity: true });
   document.body.appendChild(app.canvas);
+  // ?walker (or ?compare): the explorer on foot (character animation session B).
+  if (params.has('walker') || params.has('compare')) return walkerLab(app, params);
 
   // Anchor in open water so collisions never touch the diver.
   const ax = 900;
