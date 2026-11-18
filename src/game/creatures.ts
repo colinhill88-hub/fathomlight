@@ -1,6 +1,6 @@
 import { BaseLayout, isDone, isTankKind, Placed } from './base';
 import { CreatureData, MaterialId, MATERIAL_ORDER, MATERIALS, PlantId, SaveData, SpeciesId, TankData } from './state';
-import { EAT_BELOW, MASH_FED, TRAY_CAP, trayCount, whorlMult } from './factory';
+import { EAT_BELOW, MASH_FED, NURSERY_TROUGH, TRAY_CAP, trayCount, whorlMult } from './factory';
 import { ensureTraits, inherit, RADIANT_MAKE, traitsOf, wildTraits, type Traits } from './traits';
 
 /**
@@ -519,6 +519,10 @@ export function hatcheries(layout: BaseLayout): Placed[] {
   return layout.pieces.filter((p) => p.kind === 'hatch' && isDone(p) && layout.powered.has(p.id));
 }
 /** How many eggs and young the base's Hatcheries can still take. */
+export function nurseryTroughCap(layout: BaseLayout): number {
+  return NURSERY_TROUGH * hatcheries(layout).length;
+}
+
 export function nurseryRoom(save: SaveData, layout: BaseLayout): number {
   return HATCH_CAP * hatcheries(layout).length - save.nursery.length;
 }
@@ -549,8 +553,28 @@ export function breedNote(save: SaveData, layout: BaseLayout, c: CreatureData): 
 
 function tickBreeding(save: SaveData, layout: BaseLayout, dt: number, ev: CareEvent[]): void {
   const hatch = hatcheries(layout);
-  // Eggs in a powered Hatchery hatch; the young wait there (they don't get hungry) until placed.
+  // Eggs in a powered Hatchery hatch. After milestone 12 (Colin) the young get hungry while they
+  // wait: they eat from the Hatcheries' trough (a feed pipe fills it), and starve like any creature.
   const hatchRate = hatch.length ? Math.max(...hatch.map((h) => layout.powerRate(h.id))) : 0;
+  for (const c of [...save.nursery]) {
+    if (c.stage !== 'young') continue;
+    c.fed = Math.max(0, c.fed - HUNGER_RATE * dt);
+    if (c.fed < EAT_BELOW && (save.nurseryMash ?? 0) > 0) {
+      const eat = Math.min(save.nurseryMash ?? 0, (EAT_BELOW + 0.03 - c.fed) / MASH_FED);
+      save.nurseryMash = (save.nurseryMash ?? 0) - eat;
+      c.fed = Math.min(1, c.fed + eat * MASH_FED);
+    }
+    if (c.fed < SICK_BELOW) {
+      const was = c.sickness;
+      c.sickness += dt / SICK_SECONDS;
+      if (was === 0) ev.push({ type: 'sick', c, why: 'hungry' });
+      if (c.sickness >= 1) {
+        save.nursery = save.nursery.filter((x) => x.id !== c.id);
+        save.dormant[c.species] = (save.dormant[c.species] ?? 0) + 1;
+        ev.push({ type: 'dormant', c });
+      }
+    } else if (c.sickness > 0) c.sickness = Math.max(0, c.sickness - dt / 90);
+  }
   if (hatch.length)
     for (const c of save.nursery) {
       if (c.stage !== 'egg') continue;

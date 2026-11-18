@@ -161,6 +161,119 @@ export const RESEARCH: Record<BlueprintId, ResearchDef> = {
     scans: ['cvlog'],
     seconds: 120,
   },
+  // ---- After milestone 12: the Hatchery's notes, suit attachments and sub modules ----
+  hatch: {
+    id: 'hatch',
+    name: 'Hatchery HX-1 blueprint',
+    text: 'Reads the Kestrel nursery log from the kelp caves: warm cradles that take the eggs a happy pair lays, and keep the young until they have a tank. Unlocks a build card.',
+    finds: ['nurserylog'],
+    scans: [],
+    seconds: 70,
+  },
+  satchel: {
+    id: 'satchel',
+    name: 'Specimen satchel blueprint',
+    text: 'From your scans of the shallows\' young creatures: a padded second jar for the belt, so a breeding pair comes home in one trip.',
+    finds: [],
+    scans: ['glowfin', 'puffcap', 'ray'],
+    seconds: 45,
+  },
+  flare: {
+    id: 'flare',
+    name: 'Flare launcher blueprint',
+    text: 'From your scans of the kelp caves and their black water: a wrist tube that fires quartz flares. Each burns for a minute and a half wherever it lands.',
+    finds: [],
+    scans: ['kcaves', 'blackwater'],
+    seconds: 55,
+  },
+  visor: {
+    id: 'visor',
+    name: 'Echo visor blueprint',
+    text: 'From your scans of an Echo whorl and the lumen moss: a lime band in the helmet glass that shows nearby materials and creatures through rock.',
+    finds: [],
+    scans: ['whorl', 'lumen'],
+    seconds: 60,
+  },
+  boots: {
+    id: 'boots',
+    name: 'Mag-boots blueprint',
+    text: 'From your scans of the race current and its anchor rings: weighted soles that grip the seabed, so on the bottom no current can push you.',
+    finds: [],
+    scans: ['race', 'ring'],
+    seconds: 60,
+  },
+  dart: {
+    id: 'dart',
+    name: 'Stun dart blueprint',
+    text: 'From your scans of a wreck lurker: a charge for the harpoon on your back that stuns a predator and sends it away (it shares the sonar\'s cooldown).',
+    finds: [],
+    scans: ['lurker', 'wreck'],
+    seconds: 60,
+  },
+  dash: {
+    id: 'dash',
+    name: 'TH-3 dash head blueprint',
+    text: 'From your scans of the caves\' cold surge: a third nozzle for the hip thruster. Double-tap Boost to dash, every few seconds.',
+    finds: [],
+    scans: ['surge'],
+    seconds: 65,
+  },
+  cowl: {
+    id: 'cowl',
+    name: 'Heat-shield cowl blueprint',
+    text: 'From your scans of the vent field and a chimney: a chrome cowl and shoulder cape that turn the vent plumes\' scalding heat away.',
+    finds: [],
+    scans: ['vents', 'chimney'],
+    seconds: 70,
+  },
+  booster: {
+    id: 'booster',
+    name: 'Afterburner AB-S blueprint',
+    text: 'From your scans of the race current and the flow vane: a second burner for KS-1. Boost is faster and burns three times as long. Fitted at the dock.',
+    finds: [],
+    scans: ['race', 'vane'],
+    seconds: 70,
+  },
+  ballast: {
+    id: 'ballast',
+    name: 'Ballast pod BP-S blueprint',
+    text: 'From your scans of the wreck shelf and its race: trim tanks that hold KS-1 steady, so currents barely move it. Fitted at the dock.',
+    finds: [],
+    scans: ['wshelf', 'race'],
+    seconds: 60,
+  },
+  tractor: {
+    id: 'tractor',
+    name: 'Tractor beam TB-S blueprint',
+    text: 'From your scans of an Echo whorl and the salvage: a lime beam that draws loose materials into KS-1 while you drive past. Fitted at the dock.',
+    finds: [],
+    scans: ['whorl', 'salvage'],
+    seconds: 75,
+  },
+  sdome: {
+    id: 'sdome',
+    name: 'Sonar dome SD-S blueprint',
+    text: "From the Corvina's log: a dome for KS-1's back that pings the water around it and marks every material within a long reach, through rock. Fitted at the dock.",
+    finds: [],
+    scans: ['cvlog'],
+    seconds: 70,
+  },
+  habitat: {
+    id: 'habitat',
+    name: 'Habitat pod HP-S blueprint',
+    text: 'From your scans of an air pocket and the Corvina: a pressurised pod with air scrubbers. Aboard, your own air refills and the sub\'s reserve barely falls. Fitted at the dock.',
+    finds: [],
+    scans: ['airpocket', 'corvina'],
+    seconds: 80,
+  },
+  drill: {
+    id: 'drill',
+    name: 'Drill nose DN-S blueprint',
+    text: "From your scans of the trench and the crushed probe: a cutting nose for KS-1 that bores through soft rock. A soft seam glints in the wall under the trench's rim. Fitted at the dock.",
+    finds: [],
+    scans: ['trench', 'probe'],
+    seconds: 90,
+  },
   lantern: {
     id: 'lantern',
     name: 'Choir lantern CL-1',
@@ -179,12 +292,18 @@ export const RESEARCH: Record<BlueprintId, ResearchDef> = {
   },
 };
 // (Milestone 11: the Choir lantern is given at first contact, never decoded in a Lab, so it isn't in RESEARCH_ORDER.)
-export const RESEARCH_ORDER: BlueprintId[] = ['light', 'gtank', 'sorter', 'relay', 'welder', 'tow', 'cutter', 'recomp', 'crane', 'sonar', 'thermal', 'psuit', 'revive', 'plating', 'psuit2', 'signal', 'resonator'];
+export const RESEARCH_ORDER: BlueprintId[] = ['light', 'satchel', 'gtank', 'sorter', 'relay', 'welder', 'tow', 'flare', 'visor', 'dash', 'cutter', 'hatch', 'recomp', 'crane', 'sonar', 'thermal', 'boots', 'dart', 'booster', 'ballast', 'tractor', 'sdome', 'habitat', 'psuit', 'revive', 'plating', 'psuit2', 'cowl', 'drill', 'signal', 'resonator'];
 /** Blueprints that unlock a base piece (build card) instead of Workshop gear. */
-export const PIECE_BLUEPRINTS: Partial<Record<BlueprintId, string>> = { gtank: 'gtank', sorter: 'sorter', recomp: 'recomp', crane: 'crane', revive: 'revive', signal: 'signal', thermal: 'thermal', lantern: 'lantern' };
+export const PIECE_BLUEPRINTS: Partial<Record<BlueprintId, string>> = { gtank: 'gtank', sorter: 'sorter', recomp: 'recomp', crane: 'crane', revive: 'revive', signal: 'signal', thermal: 'thermal', lantern: 'lantern', hatch: 'hatch' };
 /** Milestone 10: blueprints that are fitted elsewhere (the dock) or built later, not in the Workshop. */
 export const OTHER_BLUEPRINTS: Partial<Record<BlueprintId, string>> = {
   plating: 'Fit it to KS-1 at a Moon pool dock (the Dock panel).',
+  booster: 'Fit it to KS-1 at a Moon pool dock (the Dock panel).',
+  ballast: 'Fit it to KS-1 at a Moon pool dock (the Dock panel).',
+  tractor: 'Fit it to KS-1 at a Moon pool dock (the Dock panel).',
+  sdome: 'Fit it to KS-1 at a Moon pool dock (the Dock panel).',
+  habitat: 'Fit it to KS-1 at a Moon pool dock (the Dock panel).',
+  drill: 'Fit it to KS-1 at a Moon pool dock (the Dock panel).',
 };
 
 export interface GearDef {
@@ -204,7 +323,7 @@ export const GEAR: Record<GearId, GearDef> = {
     code: 'DL-1',
     job: 'A sealed, wide-beam lamp that replaces the shoulder lamp. Bright enough for the dark cave in the east cliff.',
     blueprint: 'light',
-    cost: { plate: 2, quartz: 2, copper: 1 },
+    cost: { plate: 2, quartz: 4, copper: 2 },
     seconds: 45,
   },
   cutter: {
@@ -249,7 +368,7 @@ export const GEAR: Record<GearId, GearDef> = {
     code: 'SN-1',
     job: 'Tap Scan to send a pulse (every 6 s): it reveals hollows hidden behind silt and rock, and sends lurkers nearby back into their dens for a while.',
     blueprint: 'sonar',
-    cost: { brass: 3, copper: 2, quartz: 2, plate: 1 },
+    cost: { brass: 5, copper: 2, quartz: 2, plate: 1 },
     seconds: 55,
   },
   psuit: {
@@ -258,7 +377,7 @@ export const GEAR: Record<GearId, GearDef> = {
     code: 'PS-1',
     job: 'A brass-ringed deep suit, safe to 60 m (the Kestrel suit: 30 m). Enough for the trench\'s upper ledges and its vent field.',
     blueprint: 'psuit',
-    cost: { brass: 6, plate: 4, resin: 2 },
+    cost: { brass: 8, plate: 4, resin: 2 },
     seconds: 80,
   },
   psuit2: {
@@ -267,7 +386,7 @@ export const GEAR: Record<GearId, GearDef> = {
     code: 'PS-2',
     job: 'The Fulmar crew\'s deep suit: vent-ore rings and a forged collar, safe to 110 m. The trench floor and the drowned station.',
     blueprint: 'psuit2',
-    cost: { ore: 6, brass: 4, plate: 4, quartz: 2 },
+    cost: { ore: 8, brass: 4, plate: 4, quartz: 2 },
     seconds: 100,
   },
   resonator: {
@@ -279,14 +398,79 @@ export const GEAR: Record<GearId, GearDef> = {
     cost: { ore: 6, quartz: 4, brass: 4, bloom: 1 },
     seconds: 160,
   },
+  // ---- After milestone 12: suit attachments ----
+  satchel: {
+    id: 'satchel',
+    name: 'Specimen satchel',
+    code: 'SJ-2',
+    job: 'A padded second jar on the belt: carry two young creatures (or eggs) at once, a whole breeding pair in one trip.',
+    blueprint: 'satchel',
+    cost: { fibre: 4, copper: 2, quartz: 2 },
+    seconds: 40,
+  },
+  flare: {
+    id: 'flare',
+    name: 'Flare launcher',
+    code: 'FX-1',
+    job: 'A tube on the wrist. Press Flare (F, or LT on a gamepad) to fire a flare ahead: it lands and burns for 90 s, lighting dark water. Each flare uses 1 quartz.',
+    blueprint: 'flare',
+    cost: { quartz: 4, copper: 2, moss: 2 },
+    seconds: 50,
+  },
+  visor: {
+    id: 'visor',
+    name: 'Echo visor',
+    code: 'EV-1',
+    job: 'A lime band in the helmet glass. Materials and young creatures within about 20 m show as marks, even through rock.',
+    blueprint: 'visor',
+    cost: { quartz: 4, copper: 2, moss: 3 },
+    seconds: 55,
+  },
+  dash: {
+    id: 'dash',
+    name: 'TH-3 dash head',
+    code: 'TH-3',
+    job: 'A third nozzle for the hip thruster. Double-tap Boost to dash a short way at once, every 3 seconds: out of a current, away from a bite.',
+    blueprint: 'dash',
+    cost: { plate: 3, copper: 3, moss: 2 },
+    seconds: 55,
+  },
+  boots: {
+    id: 'boots',
+    name: 'Mag-boots',
+    code: 'MB-1',
+    job: 'Weighted chrome soles. While you touch the seabed, currents hardly push you, so you can walk the floor under the race.',
+    blueprint: 'boots',
+    cost: { brass: 3, plate: 2, copper: 2 },
+    seconds: 55,
+  },
+  dart: {
+    id: 'dart',
+    name: 'Stun dart',
+    code: 'SD-1',
+    job: 'A charge for the harpoon. Press Dart (X, or RT on a gamepad) to fire at the nearest predator ahead: it is stunned and turns away for a while. Shares the sonar\'s 6 s cooldown.',
+    blueprint: 'dart',
+    cost: { brass: 3, plate: 2, copper: 2 },
+    seconds: 60,
+  },
+  cowl: {
+    id: 'cowl',
+    name: 'Heat-shield cowl',
+    code: 'HC-1',
+    job: 'A chrome cowl round the helmet and a cape over the shoulders. Vent plumes and chimneys scald a fifth as much.',
+    blueprint: 'cowl',
+    cost: { ore: 3, brass: 3, quartz: 2 },
+    seconds: 70,
+  },
 };
 /** Milestone 11 (Colin's choice): the resonator can only be tuned once all four fragments are decoded. */
 export function gearBlocker(save: SaveData, id: GearId): string | null {
+  if (id === 'dash' && save.kit.thruster < 2) return 'It fits the TH-2 thruster head. Find that first.';
   if (id === 'resonator' && save.signals.decoded.length < 4)
     return `It can only be tuned to the Choir's song once the Signal array has decoded all four fragments (${save.signals.decoded.length} of 4 so far).`;
   return null;
 }
-export const GEAR_ORDER: GearId[] = ['light', 'cutter', 'tow', 'welder', 'relay', 'sonar', 'psuit', 'psuit2', 'resonator'];
+export const GEAR_ORDER: GearId[] = ['light', 'satchel', 'cutter', 'tow', 'welder', 'relay', 'flare', 'visor', 'dash', 'sonar', 'boots', 'dart', 'psuit', 'psuit2', 'cowl', 'resonator'];
 /** Gear that is a kit you can build again and again (it isn't kept in save.gear). */
 export const KIT_GEAR: GearId[] = ['relay'];
 
@@ -302,6 +486,7 @@ export const FINDS: Record<FindId, { name: string; text: string }> = {
   hulllogs: { name: 'Fulmar probe hull logs', text: "The stress recorder from the crushed deep probe on the trench's first ledge: where its hull buckled, and why." },
   ps2plans: { name: 'PS-2 suit drawings', text: "Drawings from a Fulmar cargo pod in the cleft: her divers' deep suit." },
   resonplans: { name: 'Resonator drawings', text: "The Fulmar crew's drawings for a device that sings the Choir's patterns back." },
+  nurserylog: { name: 'Kestrel nursery log', text: 'A waterproof log from a sealed crate behind the kelp wall in the caves: how the first crew bred creatures in warm cradles.' },
 };
 
 /** The dive light (DL-1) against the shoulder lamp: reach, brightness and beam width. */

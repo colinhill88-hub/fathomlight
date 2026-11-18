@@ -226,7 +226,8 @@ export interface MachineData {
 }
 
 /** Modules that fit the submersible's slots (milestone 6; rules in src/game/sub.ts). */
-export type SubModule = 'cargo' | 'lights' | 'grabber';
+/** After milestone 12: six more modules (afterburner, sonar dome, tractor beam, ballast pod, habitat pod, drill nose). */
+export type SubModule = 'cargo' | 'lights' | 'grabber' | 'booster' | 'sdome' | 'tractor' | 'ballast' | 'habitat' | 'drill';
 
 /** The submersible KS-1 (milestone 6). There is one; it is built at a Moon pool dock. */
 export interface SubData {
@@ -261,11 +262,11 @@ export interface SubData {
 }
 
 /** Milestone 7: gear built in the Workshop (rules in src/game/gear.ts). */
-export type GearId = 'light' | 'cutter' | 'tow' | 'welder' | 'relay' | 'sonar' | 'psuit' | 'psuit2' | 'resonator';
+export type GearId = 'light' | 'cutter' | 'tow' | 'welder' | 'relay' | 'sonar' | 'psuit' | 'psuit2' | 'resonator' | 'dart' | 'flare' | 'boots' | 'satchel' | 'cowl' | 'visor' | 'dash';
 /** Blueprints the Lab decodes. Each one lets the Workshop build something, or unlocks a base piece. */
-export type BlueprintId = 'light' | 'cutter' | 'tow' | 'welder' | 'relay' | 'gtank' | 'sorter' | 'sonar' | 'psuit' | 'recomp' | 'crane' | 'revive' | 'psuit2' | 'plating' | 'signal' | 'resonator' | 'lantern' | 'thermal';
+export type BlueprintId = 'light' | 'cutter' | 'tow' | 'welder' | 'relay' | 'gtank' | 'sorter' | 'sonar' | 'psuit' | 'recomp' | 'crane' | 'revive' | 'psuit2' | 'plating' | 'signal' | 'resonator' | 'lantern' | 'thermal' | 'hatch' | 'dart' | 'flare' | 'boots' | 'satchel' | 'cowl' | 'visor' | 'dash' | 'booster' | 'sdome' | 'tractor' | 'ballast' | 'habitat' | 'drill';
 /** Data finds the diver brings back to the Lab (they weigh nothing). */
-export type FindId = 'recorder' | 'relaylog' | 'weldchip' | 'towcoil' | 'cache' | 'sonardata' | 'suitplans' | 'poolplans' | 'hulllogs' | 'ps2plans' | 'resonplans';
+export type FindId = 'recorder' | 'relaylog' | 'weldchip' | 'towcoil' | 'cache' | 'sonardata' | 'suitplans' | 'poolplans' | 'hulllogs' | 'ps2plans' | 'resonplans' | 'nurserylog';
 /** What a Lab or Workshop is busy with. */
 export interface StationJob {
   /** 'research:light' or 'build:light'. */
@@ -319,6 +320,10 @@ export interface SaveData {
   tankData: Record<string, TankData>;
   /** The specimen jar on the diver's belt. A blackout lets its creature swim home. */
   jar: JarData | null;
+  /** After milestone 12: the specimen satchel's second slot (it moves into the jar when the jar is emptied). */
+  jar2?: JarData | null;
+  /** After milestone 12: the soft rock seam in the trench wall, drilled open by KS-1's drill nose. */
+  seamOpen?: boolean;
   /**
    * The kit found out in the world (Colin, before milestone 11: the diver's kit
    * builds up as things are found). The specimen jar, and the hip thruster:
@@ -339,6 +344,8 @@ export interface SaveData {
    * Hatchery, and the young that hatched from them waiting to be placed.
    */
   nursery: CreatureData[];
+  /** After milestone 12: feed mash in the Hatcheries' shared trough (a feed pipe fills it, or a hand feed). */
+  nurseryMash?: number;
   /** Milestone 9: plant cuttings grown in a Kelp farm, used instead of materials when planting. */
   cuttings: Partial<Record<PlantId, number>>;
   /** Milestone 9: the wreck shelf's rusted locker, picked open by a grown tinker crab. */

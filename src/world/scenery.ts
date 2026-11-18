@@ -1193,6 +1193,16 @@ export class Scenery {
         g.moveTo(x + 18, y - 14).quadraticCurveTo(x + 40, y, x + 62, y - 2).stroke({ color: 0xb89a5a, width: 2.5 });
       }
       {
+        // After milestone 12: the nursery log's crate, with a warm egg stencilled on its lid.
+        const x = KC_FINDS.nurserylog.x;
+        const y = floor('nurserylog');
+        g.roundRect(x - 22, y - 20, 44, 20, 3).fill({ color: 0x4a545a });
+        g.rect(x - 22, y - 20, 44, 4).fill({ color: 0xc9a24a });
+        g.ellipse(x, y - 10, 5, 6.5).fill({ color: 0xffd890 });
+        g.ellipse(x - 1, y - 12, 2, 2.4).fill({ color: 0xfff4d0, alpha: 0.8 });
+        rustStreaks(g, x - 18, x + 18, y - 16, 4, 8);
+      }
+      {
         const x = KC_FINDS.cache.x;
         const y = floor('cache');
         g.roundRect(x - 40, y - 34, 80, 34, 4).fill({ color: 0x6a5a4c });

@@ -6,6 +6,7 @@ import {
   holdCount,
   missingText,
   MODULE_ORDER,
+  moduleKnown,
   MODULES,
   payFor,
   repairCost,
@@ -260,7 +261,7 @@ export class DockMode {
         if (!m) return `<div class="mod empty"><div><b>Slot ${i + 1}: empty</b><small>Fit a module from the list below.</small></div></div>`;
         return `<div class="mod"><div><b>${MODULES[m].name}</b> <small>${MODULES[m].code} · ${MODULES[m].job}</small></div><button type="button" class="act ${armed(m) ? 'armed' : ''}" data-act="unfit" data-id="${m}">${armed(m) ? 'Tap again' : 'Take off'}</button></div>`;
       }).join('');
-      const spare = MODULE_ORDER.filter((m) => !s.modules.includes(m));
+      const spare = MODULE_ORDER.filter((m) => !s.modules.includes(m) && moduleKnown(save, m));
       const fits = spare
         .map((m) => {
           const ok = haveFor(save, MODULES[m].cost) && s.modules.length < SUB_SLOTS;

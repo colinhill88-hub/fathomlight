@@ -38,6 +38,9 @@ export interface InputState {
   collect: boolean;
   /** True for the one frame Board / Exit was pressed (the submersible, milestone 6). */
   board: boolean;
+  /** After milestone 12: one frame each for the flare launcher (Z, LT) and the stun dart (X, RT). */
+  flare: boolean;
+  dart: boolean;
   /** Which kind of control was used last, so on-screen hints can match it. */
   lastDevice: 'touch' | 'keyboard' | 'mouse' | 'gamepad';
 }
@@ -46,7 +49,7 @@ const STICK_RADIUS = 56;
 const DEADZONE = 0.15;
 
 export class Input {
-  readonly state: InputState = { moveX: 0, moveY: 0, boost: false, jumpHeld: false, sprint: false, lamp: false, scan: false, scanTap: false, collect: false, board: false, lastDevice: 'keyboard' };
+  readonly state: InputState = { moveX: 0, moveY: 0, boost: false, jumpHeld: false, sprint: false, lamp: false, scan: false, scanTap: false, collect: false, board: false, flare: false, dart: false, lastDevice: 'keyboard' };
 
   private keys = new Set<string>();
   private boostQueued = false;
@@ -56,6 +59,8 @@ export class Input {
   private scanTapQueued = false;
   private collectButton = false;
   private boardQueued = false;
+  private flareQueued = false;
+  private dartQueued = false;
 
   // Touch stick.
   private stickId: number | null = null;
@@ -105,6 +110,8 @@ export class Input {
       if (k === 'l' || k === 'f') this.lampQueued = true;
       if (k === 'e' || k === 'q') this.scanTapQueued = true;
       if (k === 'v') this.boardQueued = true;
+      if (k === 'z') this.flareQueued = true;
+      if (k === 'x') this.dartQueued = true;
       if (k.startsWith('arrow') || k === ' ') e.preventDefault();
     });
     window.addEventListener('keyup', (e) => this.keys.delete(e.key.toLowerCase()));
@@ -190,6 +197,8 @@ export class Input {
     for (const ev of ['pointerup', 'pointercancel', 'pointerleave']) boostEl.addEventListener(ev, () => (this.boostButton = false));
     press('btn-lamp', () => (this.lampQueued = true));
     press('btn-sub', () => (this.boardQueued = true));
+    press('btn-flare', () => (this.flareQueued = true));
+    press('btn-dart', () => (this.dartQueued = true));
     // Scan is held, not tapped.
     const scanEl = document.getElementById('btn-scan')!;
     scanEl.addEventListener('pointerdown', (e) => {
@@ -298,6 +307,8 @@ export class Input {
       const pressed = (i: number) => btn(i) && !this.padPrev[i];
       if (pressed(0)) this.boostQueued = true;
       if (pressed(5)) this.boardQueued = true;
+      if (pressed(6)) this.flareQueued = true;
+      if (pressed(7)) this.dartQueued = true;
       if (pressed(3)) this.lampQueued = true;
       if (btn(1)) scan = true;
       if (pressed(1)) this.scanTapQueued = true;
@@ -312,7 +323,7 @@ export class Input {
     if (this._suspended) {
       x = y = 0;
       scan = collect = false;
-      this.boostQueued = this.lampQueued = this.scanTapQueued = this.boardQueued = false;
+      this.boostQueued = this.lampQueued = this.scanTapQueued = this.boardQueued = this.flareQueued = this.dartQueued = false;
     }
     this.state.moveX = x;
     this.state.moveY = y;
@@ -325,6 +336,9 @@ export class Input {
     this.state.collect = collect;
     this.state.board = this.boardQueued;
     this.boardQueued = false;
+    this.state.flare = this.flareQueued;
+    this.state.dart = this.dartQueued;
+    this.flareQueued = this.dartQueued = false;
     this.scanTapQueued = false;
     this.boostQueued = false;
     this.lampQueued = false;

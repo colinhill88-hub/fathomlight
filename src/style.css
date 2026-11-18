@@ -3448,3 +3448,35 @@ body.title-up #sub-marker {
   border: 1px solid rgba(198, 240, 58, 0.45);
   color: #e8ffb8;
 }
+
+/* After milestone 12: the flare launcher and stun dart buttons (shown once built). */
+#btn-flare,
+#btn-dart {
+  position: absolute;
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  border: 1px solid var(--ui-line);
+  background: var(--ui-bg);
+  color: #e8f4f2;
+  display: none;
+  align-items: center;
+  justify-content: center;
+}
+body.touch #btn-flare:not([hidden]),
+body.touch #btn-dart:not([hidden]) {
+  display: flex;
+}
+#btn-flare {
+  right: calc(var(--safe-right) + 176px);
+  bottom: calc(var(--safe-bottom) + 112px);
+}
+#btn-dart {
+  right: calc(var(--safe-right) + 128px);
+  bottom: calc(var(--safe-bottom) + 160px);
+}
+#btn-flare.pressed,
+#btn-dart.pressed {
+  background: var(--ui-accent);
+  color: #1d1a12;
+}

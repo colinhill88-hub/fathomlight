@@ -20,15 +20,15 @@ export interface FragmentDef {
   where: string;
   /** Different glow patterns the tanks must show before it can be read. */
   need: number;
-  /** After milestone 12 (Colin): one of those patterns must be shown by a creature bred at the base. */
-  bred?: boolean;
+  /** After milestone 12 (Colin): how many of those patterns must be shown by creatures bred at the base. */
+  bred?: number;
 }
 
 export const FRAGMENTS: FragmentDef[] = [
   { id: 'sig1', where: 'the relay buoy on the trench rim', need: 2 },
   { id: 'sig2', where: 'the cargo pod in the cleft', need: 4 },
-  { id: 'sig3', where: 'the Fulmar deep station', need: 6 },
-  { id: 'sig4', where: 'the Fulmar deep station', need: 8, bred: true },
+  { id: 'sig3', where: 'the Fulmar deep station', need: 6, bred: 1 },
+  { id: 'sig4', where: 'the Fulmar deep station', need: 8, bred: 2 },
 ];
 /** Seconds of decoding per fragment (with power). */
 export const DECODE_SECONDS = 150;
@@ -42,7 +42,13 @@ export function vocabulary(save: SaveData): number {
 
 /** Is there a grown creature bred at the base (2nd generation or later) in a tank? Its pattern is a word the base made itself. */
 export function hasBredWord(save: SaveData): boolean {
-  return save.creatures.some((c) => c.stage === 'grown' && (c.traits?.gen ?? 1) >= 2);
+  return bredWords(save) > 0;
+}
+/** Different glow patterns shown by grown creatures bred at the base. */
+export function bredWords(save: SaveData): number {
+  const words = new Set<string>();
+  for (const c of save.creatures) if (c.stage === 'grown' && (c.traits?.gen ?? 1) >= 2) words.add(`${c.species}:${c.traits?.pattern ?? 0}`);
+  return words.size;
 }
 
 export function hasArray(layout: BaseLayout): boolean {
@@ -68,7 +74,7 @@ export function tickSignals(save: SaveData, layout: BaseLayout, dt: number): Sig
   if (!f) return out;
   const have = vocabulary(save);
   if (have < f.need) return out;
-  if (f.bred && !hasBredWord(save)) return out;
+  if (f.bred && bredWords(save) < f.bred) return out;
   const rate = Math.max(0, ...layout.pieces.filter((p) => p.kind === 'signal' && isDone(p)).map((p) => layout.powerRate(p.id)));
   save.signals.progress = Math.min(1, save.signals.progress + (dt * rate) / DECODE_SECONDS);
   if (save.signals.progress >= 1) {
@@ -90,7 +96,7 @@ export function signalStatus(save: SaveData, layout: BaseLayout): string {
   const have = vocabulary(save);
   if (have < f.need)
     return `Signal array: the next fragment needs ${f.need} different glow patterns among your grown creatures (you have ${have}). Breed for new patterns.`;
-  if (f.bred && !hasBredWord(save))
-    return 'Signal array: this last fragment answers only to a pattern the base has made itself. Raise a creature bred at the Hatchery until it is grown.';
+  if (f.bred && bredWords(save) < f.bred)
+    return `Signal array: this fragment answers only to patterns the base has made itself: ${f.bred} different pattern${f.bred > 1 ? 's' : ''} among grown creatures bred at the Hatchery (you have ${bredWords(save)}).`;
   return `Signal array: decoding fragment ${FRAGMENTS.indexOf(f) + 1} · ${Math.round(save.signals.progress * 100)}% · about ${Math.ceil((1 - save.signals.progress) * DECODE_SECONDS)} s`;
 }

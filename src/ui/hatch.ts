@@ -1,7 +1,8 @@
 import { BaseLayout, pieceCode } from '../game/base';
-import { BREED_SECONDS, creaturesIn, HATCH_CAP, HATCH_SECONDS, hatcheries, pairsIn, SPECIES, SPECIES_ORDER, tankCapacity, tanks } from '../game/creatures';
+import { BREED_SECONDS, creaturesIn, HATCH_CAP, HATCH_SECONDS, hatcheries, nurseryTroughCap, pairsIn, SPECIES, SPECIES_ORDER, tankCapacity, tanks } from '../game/creatures';
 import { CreatureData, SaveData } from '../game/state';
 import { genText, isRare, traitsOf, traitText } from '../game/traits';
+import { MASH_PER_FIBRE } from '../game/factory';
 
 /**
  * The Hatchery panel (milestone 9). It opens indoors, at the Hatchery's
@@ -41,6 +42,7 @@ export class HatchPanel {
       if (act === 'close' || act === 'h-close') this.close();
       else if (act === 'h-tank') this.toTank(Number(el.dataset.id), Number(el.dataset.tank));
       else if (act === 'h-jar') this.toJar(Number(el.dataset.id));
+      else if (act === 'h-feed') this.handFeed();
     });
     window.addEventListener('keydown', (e) => {
       if (!this.active || e.repeat) return;
@@ -49,6 +51,20 @@ export class HatchPanel {
         e.preventDefault();
       }
     });
+  }
+
+  /** After milestone 12: a hand feed for the young: 1 kelp fibre, pressed into the trough as mash. */
+  private handFeed(): void {
+    const { save, layout } = this.deps;
+    const cap = nurseryTroughCap(layout);
+    if ((save.nurseryMash ?? 0) >= cap - 1) return this.deps.toast('The trough is full', 'warn');
+    if (save.bag.fibre + save.stored.fibre < 1) return this.deps.toast('Feeding the young takes 1 kelp fibre', 'warn');
+    if (save.bag.fibre > 0) save.bag.fibre--;
+    else save.stored.fibre--;
+    save.nurseryMash = Math.min(cap, (save.nurseryMash ?? 0) + MASH_PER_FIBRE);
+    this.deps.toast('The young crowd round the trough.');
+    this.deps.persist();
+    this.render(true);
   }
 
   open(pieceId: number): void {
@@ -139,7 +155,9 @@ export class HatchPanel {
             ? powered
               ? `hatching in about ${Math.max(1, Math.ceil((1 - c.growth) * HATCH_SECONDS))} s`
               : 'cooling: no power'
-            : 'hatched: choose a tank';
+            : c.sickness > 0.02
+              ? 'sick with hunger: feed the young, then choose a tank'
+              : `hatched: choose a tank · fed ${Math.round(c.fed * 100)}%`;
         const btns = tankList
           .map((tk) => {
             const n = creaturesIn(save, tk.id).length;
@@ -165,6 +183,7 @@ export class HatchPanel {
           ? `Laying: ${laying.join(', ')}. A pair lays about one egg every ${Math.round(BREED_SECONDS / 60)} minutes.`
           : 'No pairs laying. Two happy, grown creatures of one species in a tank make a breeding pair.'
       }</p>
+      <div class="row"><span class="note">Trough: ${Math.round(save.nurseryMash ?? 0)}/${nurseryTroughCap(layout)} L of mash. The young get hungry while they wait: a feed pipe from an auto feeder keeps it full.</span><button type="button" data-act="h-feed">Feed (1 fibre)</button></div>
       ${list.length ? `<div class="nest">${rows}</div>` : '<p class="note">The cradles are empty.</p>'}
       <p class="note">Young take their colour and glow pattern from one parent or the other. Now and then one is born different: a rare colour, or radiant (a brighter glow that makes a little more, and lights more of a dark passage).</p>`;
     if (force || html !== this.lastHtml) {

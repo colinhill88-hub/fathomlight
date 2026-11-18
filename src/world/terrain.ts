@@ -262,6 +262,8 @@ export const KC_FINDS = {
   weldchip: { x: 17060, from: 1320 },
   towcoil: { x: 17350, from: 860 },
   cache: { x: 19000, from: 1650 },
+  // After milestone 12: the Hatchery's notes, in the alcove behind the kelp wall (the cutter torch opens it).
+  nurserylog: { x: 15545, from: 1470 },
 } as const;
 /** Every open shape, for drawing. */
 export function caveShapes(): readonly CaveShape[] {

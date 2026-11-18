@@ -173,6 +173,8 @@ export const CUTTING_CAP = 3;
  * more farms) is built from it. Slower than fibre.
  */
 export const RESIN_SECONDS = 240;
+/** After milestone 12: mash the Hatcheries' shared trough holds, per Hatchery. */
+export const NURSERY_TROUGH = 12;
 
 // ---- Echo whorls ----
 export const WHORLS_PER_PIECE = 2;
@@ -500,6 +502,19 @@ export class Factory {
         const l = pipes[i];
         const fl = this.flow(l.id);
         const t = byId.get(l.to)!;
+        // After milestone 12: a feed pipe into a Hatchery fills the young's shared trough.
+        if (t.kind === 'hatch' && on(f) && isDone(t)) {
+          const capN = NURSERY_TROUGH * layout.pieces.filter((q) => q.kind === 'hatch' && isDone(q)).length;
+          const share = m.mash / (pipes.length - i);
+          const cap = (lineRate(l) / 60) * dt * pw(f);
+          const room = capN - (save.nurseryMash ?? 0);
+          const give = Math.max(0, Math.min(cap, room, share));
+          fl.busy += ((room > cap * 1.01 && share > cap * 1.01 ? 1 : 0) - fl.busy) * Math.min(1, dt / 20);
+          save.nurseryMash = (save.nurseryMash ?? 0) + give;
+          m.mash -= give;
+          fl.moved += give;
+          continue;
+        }
         if (!on(f) || !isTankKind(t.kind) || !isDone(t)) {
           fl.busy += (0 - fl.busy) * Math.min(1, dt / 20);
           continue;

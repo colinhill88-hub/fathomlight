@@ -701,6 +701,12 @@ async function boot(): Promise<void> {
       toast: 'Rope store notes taken! A Lab can decode the grapple line from them: it hooks anchor points and reels you in, faster than strong currents.',
       y: 0,
     },
+    nurserylog: {
+      research: 'hatch',
+      label: 'Take the Kestrel nursery log',
+      toast: 'The Kestrel nursery log! A Lab can decode it into the Hatchery HX-1: warm cradles that take the eggs a happy pair lays. The wild only spares two of each kind, so breeding is how a base grows.',
+      y: 0,
+    },
     cache: {
       research: 'cutter',
       label: 'Open the survey cache',
@@ -1457,7 +1463,7 @@ async function boot(): Promise<void> {
     // ---- Creature care: needs run on play time ----
     for (const ev of tickCare(save, layout, dt)) {
       const name = SPECIES[ev.c.species].name;
-      const where = `tank ${tankNumber(layout, ev.c.tank)}`;
+      const where = ev.c.tank < 0 ? "the Hatchery" : `tank ${tankNumber(layout, ev.c.tank)}`;
       // Milestone 9: breeding.
       if (ev.type === 'laid') {
         const tp = layout.pieces.find((q) => q.id === ev.parents[0].tank);

@@ -1,5 +1,5 @@
 import { BaseLayout, berthOf, isDone, Placed } from './base';
-import { MATERIAL_ORDER, MaterialId, MATERIALS, SaveData, SubData, SubModule } from './state';
+import { BlueprintId, MATERIAL_ORDER, MaterialId, MATERIALS, SaveData, SubData, SubModule } from './state';
 
 /**
  * The submersible KS-1 (milestone 6): the rules, with no drawing. The actor
@@ -21,7 +21,8 @@ export const SUB_BUILD_TIME = 60;
 /** Seconds of air in a full reserve (10 minutes). */
 export const SUB_AIR = 600;
 /** Module slots on the hull. */
-export const SUB_SLOTS = 3;
+/** After milestone 12: four slots (there are nine modules now, so the fit is a choice). */
+export const SUB_SLOTS = 4;
 /** Hull plating per quarter of the hull repaired. */
 export const REPAIR_PLATE_PER_QUARTER = 1;
 /**
@@ -40,6 +41,8 @@ export interface ModuleDef {
   code: string;
   job: string;
   cost: Partial<Record<MaterialId, number>>;
+  /** After milestone 12: a blueprint the Lab must decode before the dock offers it. */
+  blueprint?: BlueprintId;
 }
 
 export const MODULES: Record<SubModule, ModuleDef> = {
@@ -64,8 +67,62 @@ export const MODULES: Record<SubModule, ModuleDef> = {
     job: 'A folding claw under the bow. Hold Collect next to materials or young creatures to take them without climbing out.',
     cost: { plate: 3, copper: 2, scrap: 1 },
   },
+  // ---- After milestone 12 ----
+  booster: {
+    id: 'booster',
+    name: 'Afterburner',
+    code: 'AB-S',
+    job: 'A second burner under the stern. Boost is half again as fast and burns three times as long.',
+    cost: { plate: 3, brass: 3, copper: 2 },
+    blueprint: 'booster',
+  },
+  ballast: {
+    id: 'ballast',
+    name: 'Ballast pod',
+    code: 'BP-S',
+    job: 'Trim tanks under the keel. Currents and upwellings move KS-1 a fifth as much.',
+    cost: { plate: 3, scrap: 3, brass: 1 },
+    blueprint: 'ballast',
+  },
+  tractor: {
+    id: 'tractor',
+    name: 'Tractor beam',
+    code: 'TB-S',
+    job: 'A lime beam from the chin. Drive slowly past loose materials and it draws them into KS-1 by itself, one at a time.',
+    cost: { quartz: 3, moss: 2, plate: 2, copper: 2 },
+    blueprint: 'tractor',
+  },
+  sdome: {
+    id: 'sdome',
+    name: 'Sonar dome',
+    code: 'SD-S',
+    job: 'A dome on the back that pings every few seconds. Materials within about 25 m show as marks, through rock, while you drive.',
+    cost: { brass: 3, quartz: 2, plate: 2 },
+    blueprint: 'sdome',
+  },
+  habitat: {
+    id: 'habitat',
+    name: 'Habitat pod',
+    code: 'HP-S',
+    job: "A pressurised pod with air scrubbers. Aboard, your own air refills, and the sub's reserve falls a quarter as fast.",
+    cost: { plate: 4, quartz: 3, fibre: 3, resin: 2 },
+    blueprint: 'habitat',
+  },
+  drill: {
+    id: 'drill',
+    name: 'Drill nose',
+    code: 'DN-S',
+    job: 'A cutting nose that bores through soft rock. Hold Collect with the bow at a soft seam.',
+    cost: { brass: 4, plate: 4, ore: 2 },
+    blueprint: 'drill',
+  },
 };
-export const MODULE_ORDER: SubModule[] = ['cargo', 'lights', 'grabber'];
+export const MODULE_ORDER: SubModule[] = ['cargo', 'lights', 'grabber', 'booster', 'ballast', 'tractor', 'sdome', 'habitat', 'drill'];
+/** Is this module's blueprint decoded (or does it need none)? */
+export function moduleKnown(save: SaveData, m: SubModule): boolean {
+  const b = MODULES[m].blueprint;
+  return !b || save.blueprints.includes(b);
+}
 
 /** Carried first, then stored, as for base pieces. */
 export function haveFor(save: SaveData, cost: Partial<Record<MaterialId, number>>): boolean {
