@@ -11,6 +11,7 @@ import { loadShallowsArt, loadShallowsKelp, loadShallowsSeabed, ShallowsBackdrop
 import { loadPaintedDiver } from './art/paintedDiver';
 import { loadPaintedSuit } from './art/paintedSuit';
 import { loadForestMidground, loadForestOutcrop } from './art/forest';
+import { loadWreckShelfMidground } from './art/wreckShelf';
 import { initSettingsUI } from './ui';
 import { Input } from './input';
 import { Diver, type KitLook } from './actors/diver';
@@ -245,7 +246,7 @@ async function boot(): Promise<void> {
   if (BENCH) seedBenchSave(save);
 
   const useShallowsArt = urlq.get('art') === 'shallows';
-  const [shallowsArt, shallowsSeabed, shallowsKelp, paintedFace, paintedSuit, forestMidground, forestOutcrop] = await Promise.all([
+  const [shallowsArt, shallowsSeabed, shallowsKelp, paintedFace, paintedSuit, forestMidground, forestOutcrop, shelfMidground] = await Promise.all([
     useShallowsArt ? loadShallowsArt() : null,
     useShallowsArt && urlq.get('terrain') === 'painted' ? loadShallowsSeabed() : null,
     useShallowsArt && urlq.get('kelp') === 'painted' ? loadShallowsKelp() : null,
@@ -253,8 +254,9 @@ async function boot(): Promise<void> {
     urlq.get('suit') === 'painted' ? loadPaintedSuit() : undefined,
     urlq.get('forest') === 'painted' ? loadForestMidground() : undefined,
     urlq.get('forestTerrain') === 'painted' ? loadForestOutcrop() : undefined,
+    urlq.get('shelf') === 'painted' ? loadWreckShelfMidground() : undefined,
   ]);
-  const zoneBackdrop = new ZoneBackdrop(forestMidground);
+  const zoneBackdrop = new ZoneBackdrop(forestMidground, shelfMidground);
   zoneBackdrop.build();
   const shallowsBackdrop = shallowsArt ? new ShallowsBackdrop(shallowsArt) : null;
   let scenery = new Scenery(renderer, preset.detail, shallowsArt?.reef, shallowsSeabed ?? undefined, shallowsKelp ?? undefined, forestOutcrop);
