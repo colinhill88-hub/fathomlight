@@ -1,6 +1,6 @@
 import { Container, Graphics } from 'pixi.js';
 import { mulberry32 } from '../rng';
-import { C, accentBand, buildDiveBag, buildHelmet, buildShoulderLamp, chromeBands, coiledHose, etching, rimEdge, rivets, scratches, segment } from './diver';
+import { BRASS, BeltJar, C, FULL_KIT, JarLook, KitLook, PSUIT_TINT, accentBand, buildDiveBag, kitKey, mulColour, buildHelmet, buildShoulderLamp, chromeBands, coiledHose, etching, rimEdge, rivets, scratches, segment } from './diver';
 import { Glance, Spring, approach, batchAll, breathShape, clamp, smoothstep } from './animkit';
 
 /**
@@ -39,6 +39,12 @@ const BALL = 8;
 const UPPER = 15;
 const FORE = 15;
 const REACH = THIGH + SHIN - 0.4;
+/** How far into a sprint (0 at the jog, 270, to 1 at full sprint, 430). */
+function sprintOf(speed: number): number {
+  return Math.min(1, Math.max(0, (speed - 275) / 140));
+}
+/** The hands on the grapple line, above the feet (the interior's GRIP). */
+const SWING_GRIP = 100;
 /** Hip height standing (knees a little soft). */
 const STAND_HIP = -49.5;
 /** Torso space: origin at the pelvis, up is -y. */
@@ -254,12 +260,6 @@ function buildTorso(): Graphics {
   chromeBands(g, 6, -4, 6.5, 7, 2);
   scratches(g, -9, -32, 19, 30, 5, 0.22, rand);
   for (let i = 0; i < 5; i++) g.circle(-8 + rand() * 6, -10 + rand() * 12, 0.6 + rand() * 0.8).fill({ color: 0x5f7a3a, alpha: 0.45 });
-  // Hip thruster rig (as the diver's): a white housing with a lime nozzle pointing back.
-  g.roundRect(-20, -8, 13, 9, 3.5).fill({ color: 0xd8dde0 });
-  g.roundRect(-19, -7.4, 11, 2.4, 1.2).fill({ color: 0xffffff, alpha: 0.6 });
-  g.rect(-13, -8, 1.6, 9).fill({ color: 0x8e979c });
-  g.roundRect(-24, -7, 5, 7, 1.6).fill({ color: C.chromeDark });
-  g.circle(NOZZLE_X - 0.5, NOZZLE_Y, 3).fill({ color: C.visor, alpha: 0.9 });
   // Collar yoke: the chrome ring round the shoulders that seats the helmet.
   g.moveTo(-10.5, -31)
     .lineTo(-8.5, -38.5)
@@ -280,27 +280,92 @@ function buildTorso(): Graphics {
   return g;
 }
 
-/** Twin tanks and the harpoon on the back: origin where the pack meets the back. */
-function buildPack(): Graphics {
-  const g = new Graphics();
-  // Harpoon clipped behind the tanks: white stock, chrome barrel, spear tip above the shoulder.
-  g.moveTo(-15, 26).lineTo(-9, -42).stroke({ color: C.chromeDark, width: 1.5 });
-  g.poly([-9, -42, -11, -36.5, -7.4, -36.8]).fill({ color: C.chromeHi });
-  g.roundRect(-17.2, 4, 5, 18, 2.5).fill({ color: 0xd8dde0 });
-  g.moveTo(-15.4, 6).lineTo(-14.8, 20).stroke({ color: 0x8e979c, width: 0.8 });
-  // Twin oxygen tanks (the diver's): dark chrome, lime bands, valves and caps on top.
-  for (const [tx, shade] of [[-16, C.steelDark], [-10.5, C.chromeDark]] as const) {
-    g.roundRect(tx, -19, 9.5, 36, 4.75).fill({ color: shade });
-    g.roundRect(tx, -19, 9.5, 36, 4.75).stroke({ color: C.steelLight, width: 0.7, alpha: 0.5 });
-    g.rect(tx + 1.3, -22.4, 6.8, 1.2).fill({ color: C.chromeHi, alpha: 0.85 });
-    g.roundRect(tx + 1.8, -17, 2.2, 32, 1.1).fill({ color: 0x8e9aa2, alpha: 0.55 });
-    g.rect(tx, -3, 9.5, 3).fill({ color: C.visor, alpha: 0.9 });
-    g.rect(tx, 7, 9.5, 1.4).fill({ color: C.visor, alpha: 0.6 });
-    g.rect(tx + 2.7, -23, 4, 4.5).fill({ color: C.steelLight });
-    g.rect(tx + 1.3, -25, 6.8, 2.4).fill({ color: C.chromeDark });
-    scratches(g, tx + 1, -17, 7, 32, 2, 0.25, rand);
+/**
+ * The air tanks on the back, for this kit (before milestone 11 they are found
+ * one by one): a pony bottle at first, then one to four tanks, the newest
+ * furthest out. Origin where the pack meets the back.
+ */
+function drawPack(g: Graphics, kit: KitLook): void {
+  const n = Math.min(4, kit.tanks);
+  const tank = (tx: number, y0: number, y1: number, shade: number) => {
+    const h = y1 - y0;
+    g.roundRect(tx, y0, 9.5, h, 4.75).fill({ color: shade });
+    g.roundRect(tx, y0, 9.5, h, 4.75).stroke({ color: C.steelLight, width: 0.7, alpha: 0.5 });
+    g.rect(tx + 1.3, y0 - 3.4, 6.8, 1.2).fill({ color: C.chromeHi, alpha: 0.85 });
+    g.roundRect(tx + 1.8, y0 + 2, 2.2, h - 4, 1.1).fill({ color: 0x8e9aa2, alpha: 0.55 });
+    g.rect(tx, y0 + h * 0.44, 9.5, 3).fill({ color: C.visor, alpha: 0.9 });
+    if (h > 30) g.rect(tx, y0 + h * 0.72, 9.5, 1.4).fill({ color: C.visor, alpha: 0.6 });
+    g.rect(tx + 2.7, y0 - 4, 4, 4.5).fill({ color: C.steelLight });
+    g.rect(tx + 1.3, y0 - 6, 6.8, 2.4).fill({ color: C.chromeDark });
+    scratches(g, tx + 1, y0 + 2, 7, h - 4, 2, 0.25, rand);
+  };
+  if (n === 0) {
+    // The pony bottle: short, strapped high, its valve under the hose.
+    g.rect(-10, -6, 10, 2.4).fill({ color: C.rubber });
+    g.roundRect(-9.5, -20, 8.5, 18, 4.2).fill({ color: C.chromeDark });
+    g.roundRect(-8, -18, 2, 14, 1).fill({ color: 0x8e9aa2, alpha: 0.6 });
+    g.rect(-9.5, -12, 8.5, 2.4).fill({ color: C.visor, alpha: 0.8 });
+    g.rect(-7.3, -24, 4, 4.5).fill({ color: C.steelLight });
+    g.rect(-8.6, -26, 6.8, 2.4).fill({ color: C.chromeDark });
+    return;
   }
+  if (n >= 4) tank(-21.5, -19, 17, C.steelDark);
+  else if (n === 3) tank(-21.5, -9, 15, C.steelDark);
+  if (n >= 2) tank(-16, -19, 17, C.steelDark);
+  tank(-10.5, -19, 17, C.chromeDark);
+}
+
+/** The grapple harpoon clipped behind the tanks (only once the grapple line is built). */
+function drawPackSpear(g: Graphics, kit: KitLook): void {
+  const sx = kit.tanks >= 3 ? -5.5 : 0;
+  g.moveTo(-15 + sx, 26).lineTo(-9 + sx, -42).stroke({ color: C.chromeDark, width: 1.5 });
+  g.poly([-9 + sx, -42, -11 + sx, -36.5, -7.4 + sx, -36.8]).fill({ color: C.chromeHi });
+  g.roundRect(-17.2 + sx, 4, 5, 18, 2.5).fill({ color: 0xd8dde0 });
+  g.moveTo(-15.4 + sx, 6).lineTo(-14.8 + sx, 20).stroke({ color: 0x8e979c, width: 0.8 });
+  g.circle(-14.7 + sx, 24, 2).stroke({ color: 0xd8c890, width: 1.1 });
+}
+
+/** The hip thruster on foot (as the diver's): none, TH-1, or the twin-nozzle TH-2. Torso space. */
+function drawWalkerThruster(g: Graphics, level: number): void {
+  if (level === 1) {
+    g.roundRect(-20, -8, 13, 9, 3.5).fill({ color: 0xd8dde0 });
+    g.roundRect(-19, -7.4, 11, 2.4, 1.2).fill({ color: 0xffffff, alpha: 0.6 });
+    g.rect(-13, -8, 1.6, 9).fill({ color: 0x8e979c });
+    g.roundRect(-24, -7, 5, 7, 1.6).fill({ color: C.chromeDark });
+    g.circle(NOZZLE_X - 0.5, NOZZLE_Y, 3).fill({ color: C.visor, alpha: 0.9 });
+  } else if (level === 2) {
+    g.poly([-19, -9, -13, -13, -10, -13, -13, -9]).fill({ color: C.visor });
+    g.poly([-19, 2, -13, 6, -10, 6, -13, 2]).fill({ color: C.visor });
+    g.roundRect(-21, -9.5, 15, 12, 4).fill({ color: 0xd8dde0 });
+    g.roundRect(-20, -8.8, 13, 2.6, 1.2).fill({ color: 0xffffff, alpha: 0.6 });
+    g.rect(-14, -9.5, 2.2, 12).fill({ color: BRASS });
+    for (const y of [-6.5, -0.5]) {
+      g.roundRect(-25, y - 2.8, 5, 5.6, 1.6).fill({ color: C.chromeDark });
+      g.circle(NOZZLE_X - 1, y, 2.4).fill({ color: C.visor, alpha: 0.95 });
+    }
+  }
+}
+
+/** Brass rings (and a ribbed tube) on a limb segment, for the pressure suit. */
+function psuitLimb(len: number, w: number, tube: boolean): Graphics {
+  const g = new Graphics();
+  for (const x of [2, len - 3]) {
+    g.roundRect(x - 1.6, -w / 2 - 0.7, 3.2, w + 1.4, 1.2).fill({ color: BRASS });
+    g.rect(x - 1.6, -w / 2 - 0.7, 1, w + 1.4).fill({ color: 0xf0d890, alpha: 0.5 });
+  }
+  if (tube) coiledHose(g, [[3, -w / 2 + 1], [len * 0.35, -w / 2 - 1.6], [len * 0.65, -w / 2 - 1.6], [len - 4, -w / 2 + 1]], 2);
+  g.visible = false;
   return g;
+}
+
+/** The pressure suit on the torso: brass belt and collar bands, a chest plate, tubes to the chest. */
+function drawWalkerPsuit(g: Graphics): void {
+  g.rect(-11.5, -4, 24, 3).fill({ color: BRASS });
+  g.rect(-11.5, -27, 24, 2.4).fill({ color: BRASS });
+  g.rect(-11.5, -27, 24, 0.8).fill({ color: 0xf0d890, alpha: 0.6 });
+  g.roundRect(1, -21, 10, 13, 3).fill({ color: 0x8a6a28, alpha: 0.9 });
+  rivets(g, [[2.6, -19.4], [9.4, -19.4], [2.6, -9.6], [9.4, -9.6]], 0.7);
+  coiledHose(g, [[-11, -22], [-6, -14], [2, -8], [8, -6]], 2.2);
 }
 
 // ---------------------------------------------------------------------------
@@ -335,8 +400,26 @@ export class Walker {
   private farLeg = buildLeg(true);
   private nearArm = buildArm(false);
   private farArm = buildArm(true);
-  private torso = buildTorso();
-  private pack = buildPack();
+  private torsoG = buildTorso();
+  private torso = new Container();
+  private pack = new Container();
+  private packG = new Graphics();
+  private packSpear = new Graphics();
+  private thrusterG = new Graphics();
+  private psuitG = new Graphics();
+  private psuitBits: Graphics[] = [];
+  private tinted: { g: Graphics; base: number }[] = [];
+  /** The kit found so far (set from the save each frame): tanks, harpoon, thruster, pressure suit, jar. */
+  kit: KitLook = FULL_KIT;
+  private kitShown = '';
+  /**
+   * The harpoon (the grapple): on the back, being reached for, or in the hand
+   * (while it is fired and swung on). The interior sets it.
+   */
+  spear: 'back' | 'reach' | 'hand' = 'back';
+  /** While swinging on the grapple line: the body hangs along the line, at this angle (radians). */
+  swingAngle: number | null = null;
+  private swingRot = 0;
   private hose = new Graphics();
   private helmet = new Container();
   private headRig!: Container;
@@ -344,6 +427,9 @@ export class Walker {
   private plate!: Container;
   private lampC = new Container();
   private bag = buildDiveBag();
+  /** The specimen jar on the belt (set from the save each frame). */
+  jar: JarLook | null = null;
+  private beltJar = new BeltJar();
   private lampDot = new Graphics();
   private nozzleDot = new Graphics();
 
@@ -441,6 +527,35 @@ export class Walker {
     this.lampC.scale.set(0.55);
     this.bag.scale.set(0.5);
     this.bag.visible = false;
+    this.beltJar.view.scale.set(0.8);
+    this.torso.addChild(this.torsoG, this.psuitG, this.thrusterG);
+    this.pack.addChild(this.packSpear, this.packG);
+    drawWalkerPsuit(this.psuitG);
+    this.psuitG.visible = false;
+    for (const leg of [this.nearLeg, this.farLeg]) {
+      const a = psuitLimb(THIGH, 12, true);
+      const b = psuitLimb(SHIN, 10.5, false);
+      leg.thigh.addChildAt(a, 1);
+      leg.shin.addChildAt(b, 1);
+      this.psuitBits.push(a, b);
+    }
+    for (const arm of [this.nearArm, this.farArm]) {
+      const a = psuitLimb(UPPER, 9, true);
+      const b = psuitLimb(10.5, 8, false);
+      arm.upper.addChildAt(a, 1);
+      arm.fore.addChildAt(b, 1);
+      this.psuitBits.push(a, b);
+    }
+    const collect = (c: Container) => {
+      for (const ch of c.children) {
+        if (ch instanceof Graphics) {
+          if (!this.psuitBits.includes(ch)) this.tinted.push({ g: ch, base: ch.tint });
+        } else collect(ch);
+      }
+    };
+    for (const part of [this.nearLeg.thigh, this.farLeg.thigh, this.nearArm.upper, this.farArm.upper]) collect(part);
+    this.tinted.push({ g: this.torsoG, base: this.torsoG.tint });
+    this.applyKit();
     this.rig.addChild(
       this.farArm.upper,
       this.farLeg.thigh,
@@ -451,6 +566,7 @@ export class Walker {
       this.hose,
       this.lampC,
       this.nearLeg.thigh,
+      this.beltJar.view,
       this.nearArm.upper,
     );
     this.view.addChild(this.rig);
@@ -458,6 +574,22 @@ export class Walker {
     this.nozzleDot.circle(0, 0, 1.8).fill({ color: 0xe6ff80, alpha: 0.8 });
     this.lens.addChild(this.lampDot, this.nozzleDot);
     batchAll(this.view);
+  }
+
+  /** Redraw the kit when it changed (before milestone 11 it is found piece by piece). */
+  private applyKit(): void {
+    const key = kitKey(this.kit);
+    if (key === this.kitShown) return;
+    this.kitShown = key;
+    const k = this.kit;
+    drawPack(this.packG.clear(), k);
+    this.packSpear.clear();
+    if (k.spear) drawPackSpear(this.packSpear, k);
+    drawWalkerThruster(this.thrusterG.clear(), k.thruster);
+    this.nozzleDot.visible = k.thruster > 0;
+    this.psuitG.visible = k.psuit;
+    for (const b of this.psuitBits) b.visible = k.psuit;
+    for (const { g, base } of this.tinted) g.tint = k.psuit ? mulColour(base, PSUIT_TINT) : base;
   }
 
   // ---- Points other code reads (each returns the same object every call) ----
@@ -562,6 +694,14 @@ export class Walker {
     const sx = Math.abs(fa) < 0.3 ? (fa < 0 ? -0.3 : 0.3) : fa;
     this.view.scale.x = sx;
     this.view.position.set(this.x, this.y);
+    // Swinging on the grapple: the whole body turns about the hands to hang along the line.
+    const rotT = this.swingAngle ?? 0;
+    this.swingRot += (rotT - this.swingRot) * Math.min(1, dt * 14);
+    if (Math.abs(this.swingRot) > 0.002) {
+      const th = this.swingRot;
+      this.view.rotation = th;
+      this.view.position.set(this.x - SWING_GRIP * Math.sin(th), this.y - SWING_GRIP + SWING_GRIP * Math.cos(th));
+    } else this.view.rotation = 0;
     this.sxw = Math.abs(sx) < 0.35 ? (sx < 0 ? -0.35 : 0.35) : sx;
     const axL = ax * this.face;
     const vxL = this.vx * this.face;
@@ -574,7 +714,7 @@ export class Walker {
     // Breathing: slow standing, quicker walking and after effort.
     const speed = Math.abs(this.vx);
     const run = clamp((speed - 140) / 130, 0, 1);
-    const work = mode === 'ground' ? this.walkAmt * (0.4 + 0.6 * speed / 270) : mode === 'climb' ? this.climbMove : 0.3;
+    const work = mode === 'ground' ? this.walkAmt * (0.4 + 0.6 * Math.min(1, speed / 270) + 0.5 * sprintOf(speed)) : mode === 'climb' ? this.climbMove : 0.3;
     this.exert = clamp(this.exert + dt * (work * 0.06 - 0.025), 0, 1);
     const period = 3.8 - 1.4 * work - 1.2 * this.exert;
     this.breath = (this.breath + dt / period) % 1;
@@ -756,10 +896,14 @@ export class Walker {
 
     if (this.gaitOn) {
       this.gaitRamp = approach(this.gaitRamp, 1, 2.4, dt);
-      const D = (60 + 0.33 * speed) * (0.62 + 0.38 * this.gaitRamp);
-      const beta = 0.64 - 0.3 * run;
+      // Sprinting (Shift, after the terrain pass): past the jog the stride keeps
+      // lengthening, the cadence quickens, the feet barely touch and the knees come high.
+      const spr = sprintOf(speed);
+      const jog = Math.min(speed, 270);
+      const D = (60 + 0.33 * jog + 0.45 * (speed - jog)) * (0.62 + 0.38 * this.gaitRamp);
+      const beta = 0.64 - 0.3 * run - 0.1 * spr;
       this.phase = (this.phase + (speed * dt) / D) % 1;
-      const lift = 4 + 6 * run + (3 * speed) / 270;
+      const lift = 4 + 6 * run + (3 * jog) / 270 + 8 * spr;
       for (let i = 0; i < 2; i++) {
         const f = this.feet[i];
         const psi = (this.phase + i * 0.5) % 1;
@@ -789,7 +933,7 @@ export class Walker {
           this.plantedAnkle(f, (f.wx - this.x) / sxw, roll);
         } else {
           // The footfall: ahead of the hip, not further than the leg reaches comfortably.
-          const land = this.x + face * Math.min(beta * D * 0.42, 21);
+          const land = this.x + face * Math.min(beta * D * 0.42, 21 + 5 * spr);
           // The foot leaves at once (so it never trails out of reach) and slows into the footfall.
           const wx = f.liftX + (land - f.liftX) * (1 - Math.pow(1 - s, 1.7));
           f.tx = (wx - this.x) / sxw;
@@ -802,9 +946,9 @@ export class Walker {
       // jogging sinks into it. Twice per stride.
       const c = Math.cos(Math.PI * 4 * (this.phase - beta / 2));
       // A heavy suit: the knees stay a little softer walking.
-      hipY += (1.5 + run) * this.walkAmt + c * (-(1 - run) * (1 + (1.6 * speed) / 270) + run * 3) * this.walkAmt;
-      lean = 0.05 + 0.11 * (speed / 270) * this.walkAmt;
-      look = 0.035;
+      hipY += (1.5 + run + 0.4 * spr) * this.walkAmt + c * (-(1 - run) * (1 + (1.6 * jog) / 270) + run * 3 + spr * 1.5) * this.walkAmt;
+      lean = 0.05 + (0.11 * (jog / 270) + 0.2 * spr) * this.walkAmt;
+      look = 0.035 - 0.03 * spr;
     } else {
       // Standing: settle each foot under the hip with a small step when it is out of place.
       this.stepCool = Math.max(0, this.stepCool - dt);
@@ -1115,6 +1259,19 @@ export class Walker {
       tp(-3, 0, this.bag);
       this.bag.rotation = this.bagS.x;
     }
+    // The specimen jar hangs at the front of the belt and swings with the same pendulum.
+    this.applyKit();
+    this.packSpear.visible = this.kit.spear && this.spear !== 'hand';
+    this.beltJar.set(this.kit.jar ? this.jar : null, this.time, this.kit.jar);
+    if (this.kit.jar) {
+      if (!this.bag.visible) {
+        const jig = mode === 'ground' ? Math.sin(this.phase * Math.PI * 4) * this.walkAmt * 3 : 0;
+        this.bagS.step(0, 6, 0.3, dt, -clamp(axL, -3000, 3000) * 0.004 + jig);
+        this.bagS.clamp(-0.7, 0.7);
+      }
+      tp(1, -1, this.beltJar.view);
+      this.beltJar.view.rotation = this.bagS.x * 0.8;
+    }
     // Unlit dots: the lamp lens and the thruster nozzle.
     this.toWorld(LENS_X + 1, LENS_Y - chest * 0.5, this.lampOut);
     this.lampDot.position.set(this.lampOut.x, this.lampOut.y);
@@ -1173,11 +1330,13 @@ export class Walker {
       let ikx = NaN;
       let iky = 0;
       if (mode === 'ground') {
-        const A = (0.14 + 0.36 * (speed / 270)) * this.walkAmt;
+        const spr = sprintOf(speed);
+        // Sprinting, the arms pump hard from the shoulder with the elbows bent near square.
+        const A = (0.14 + 0.36 * Math.min(1, speed / 270) + 0.32 * spr) * this.walkAmt;
         const ph = Math.cos(this.phase * Math.PI * 2);
         const swing = (i === 0 ? -1 : 1) * A * ph;
-        sw = sw * (1 - this.walkAmt) + swing + 0.06 * this.walkAmt;
-        el = el + (0.25 + 0.6 * run) * this.walkAmt + Math.max(0, swing) * 0.4;
+        sw = sw * (1 - this.walkAmt) + swing + (0.06 + 0.1 * spr) * this.walkAmt;
+        el = el + (0.25 + 0.6 * run + 0.45 * spr) * this.walkAmt + Math.max(0, swing) * (0.4 + 0.3 * spr);
         // Idle: the arms hang and move a little with the breath.
         sw += (1 - this.walkAmt) * this.heave * 0.03;
         if (this.working > 0 && i === 0 && !this.gaitOn) {
@@ -1210,6 +1369,22 @@ export class Walker {
       } else {
         ikx = this.climbHand[i * 2];
         iky = this.climbHand[i * 2 + 1];
+      }
+      // The grapple (before milestone 11): the near hand reaches back over the shoulder for the
+      // harpoon on the pack, then aims it at the ring.
+      if (i === 0 && mode !== 'hang' && mode !== 'climb') {
+        if (this.spear === 'reach') {
+          const tx = -17;
+          const ty = -27;
+          ikx = this.px + tx * c - ty * s;
+          iky = this.py + tx * s + ty * c;
+        } else if (this.spear === 'hand' && this.hangTo) {
+          const dx = (this.hangTo.x - (this.x + shx * this.view.scale.x)) * this.face;
+          const dy = this.hangTo.y - (this.y + shy);
+          const d = Math.hypot(dx, dy) || 1;
+          ikx = shx + (dx / d) * 29;
+          iky = shy + (dy / d) * 29;
+        }
       }
       if (!Number.isNaN(ikx)) {
         this.solve(shx, shy, ikx, iky, UPPER, FORE, -1);

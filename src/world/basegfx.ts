@@ -479,6 +479,14 @@ function drawShaft(n: number): PieceArt {
   const windows = new Graphics();
   const windowGlow = new Graphics();
   const c = CELL / 2;
+  // Side tubes through the top and bottom cells (Colin, after the terrain pass):
+  // the shaft branches sideways near each end, not only up and down.
+  const sides = body.addChild(new Graphics());
+  for (const k of [0, 2]) {
+    tubeH(sides, 0, CELL, c + k * CELL, 0);
+    flangeV(sides, 9, c + k * CELL, TUBE + 14, 12);
+    flangeV(sides, CELL - 9, c + k * CELL, TUBE + 14, 12);
+  }
   for (let k = 0; k < 3; k++) {
     const cell = drawCorridor(n, 1, false);
     cell.body.y = k * CELL;
@@ -568,9 +576,11 @@ function drawTurbine(n: number): PieceArt {
   const windowGlow = new Graphics();
   const cx = W / 2;
   const hubY = H / 2 - 6;
-  // Collar stubs through the base of the column.
+  // Collar stubs through the column, on both levels (the upper pair after the terrain pass).
   tubeH(g, 0, 16, H - CELL / 2, 1);
   tubeH(g, W - 16, W, H - CELL / 2, 1);
+  tubeH(g, 0, 16, CELL / 2, 1);
+  tubeH(g, W - 16, W, CELL / 2, 1);
   // Side clamps.
   for (const sx of [10, W - 26]) {
     g.roundRect(sx, hubY - 34, 16, 68, 4).fill({ color: PAL.steelDark });

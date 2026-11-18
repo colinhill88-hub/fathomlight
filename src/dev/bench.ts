@@ -138,6 +138,8 @@ export function seedBenchSave(save: SaveData): void {
   for (const t of placed.filter((p) => p.kind === 'tank' || p.kind === 'gtank')) for (const store of nearest(t, 'storage').slice(0, 1)) add('belt', t, store);
   save.nextLineId = lineId;
   save.gear = ['light'];
+  // The kit found along the way (before milestone 11): the jar and the first thruster, as a mid-game diver.
+  save.kit = { jar: true, thruster: 1 };
   save.lampOn = true;
   save.drone = 'active';
   save.tips = ['basefoot', 'onfoot', 'wshelf'];

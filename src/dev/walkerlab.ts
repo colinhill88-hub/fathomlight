@@ -4,7 +4,7 @@ import { WalkerOld } from './walker_old';
 
 const OLD = new URLSearchParams(location.search).has('old');
 import { Diver } from '../actors/diver';
-import { ACCEL_AIR, ACCEL_GROUND, CLIMB, GRAVITY, JUMP_V, MAX_FALL, WALK } from '../interior/interior';
+import { ACCEL_AIR, ACCEL_GROUND, CLIMB, GRAVITY, JUMP_V, MAX_FALL, SPRINT, WALK } from '../interior/interior';
 
 /**
  * The walker's half of the animation lab (character animation session B):
@@ -24,6 +24,8 @@ interface WSeg {
   t: number;
   /** Stick, -1..1. */
   x: number;
+  /** Sprint held (Shift). */
+  sprint?: boolean;
   /** Jump held for this segment (pressed at its start). */
   jump?: boolean;
   /** Standing on a ledge this high, with its edge just ahead. */
@@ -43,6 +45,8 @@ export const WALK_SCRIPT: WSeg[] = [
   { name: 'slow walk (stick 0.3)', t: 4, x: 0.3 },
   { name: 'walk (stick 0.6)', t: 3.5, x: 0.6 },
   { name: 'full speed', t: 3, x: 1 },
+  { name: 'sprint (Shift)', t: 3, x: 1, sprint: true },
+  { name: 'back to the jog', t: 1.5, x: 1 },
   { name: 'stop', t: 2.5, x: 0 },
   { name: 'set off and turn', t: 1.2, x: 1 },
   { name: 'turn around (walking)', t: 3, x: -1 },
@@ -85,6 +89,14 @@ class Sim {
     this.world.addChild(this.g, this.w.view, this.w.lens);
     this.w.visor = this.w.visorTarget = 1;
     this.w.onGround = true;
+    // ?jar=glowfin (or crab-young, puffcap-egg...) hangs a filled specimen jar on the belt.
+    const jq = new URLSearchParams(location.search).get('jar');
+    if (jq) this.w.jar = { species: jq.split('-')[0] as 'glowfin', stage: (jq.split('-')[1] ?? 'grown') as 'grown' };
+    const kq = new URLSearchParams(location.search).get('kit');
+    if (kq) {
+      const [t, sp, j, th, ps] = kq.split(',').map(Number);
+      this.w.kit = { tanks: t || 0, spear: !!sp, jar: !!j, thruster: (th === 2 ? 2 : th === 1 ? 1 : 0) as 0 | 1 | 2, psuit: !!ps };
+    }
   }
 
   private floorAt(x: number): number {
@@ -174,7 +186,7 @@ class Sim {
     }
     if (this.ladderX !== null && s.climb === undefined && w.onGround) this.ladderX = null;
     // The interior's updateWalk, without walls.
-    const target = s.x * WALK;
+    const target = s.x * (s.sprint ? SPRINT : WALK);
     const a = w.onGround ? ACCEL_GROUND : ACCEL_AIR;
     if (Math.abs(target - w.vx) < a * dt) w.vx = target;
     else w.vx += Math.sign(target - w.vx) * a * dt;

@@ -28,9 +28,19 @@ function surfaceAt(x: number, from = 0): number {
 
 interface Spot {
   id: string;
-  kind: ReefMaterial | 'tank' | 'whorl';
+  kind: ReefMaterial | 'tank' | 'whorl' | KitFind;
   x: number;
   y: number;
+}
+
+/** Kit found out in the world (Colin, before milestone 11): the specimen jar and the hip thrusters. */
+export type KitFind = 'jar' | 'thruster' | 'thruster2';
+function isKit(k: Spot['kind']): k is KitFind {
+  return k === 'jar' || k === 'thruster' || k === 'thruster2';
+}
+/** Has this kit find been picked up? */
+export function kitFound(save: SaveData, k: KitFind): boolean {
+  return k === 'jar' ? save.kit.jar : save.kit.thruster >= (k === 'thruster' ? 1 : 2);
 }
 
 const SPOTS: Spot[] = (() => {
@@ -44,8 +54,10 @@ const SPOTS: Spot[] = (() => {
   // kept creatures, which make materials, matter more. 39 spots became 28.
   // Four more after milestone 7b (Colin: early scrap was too slow), appended so
   // saved ids (scrap-0 … scrap-7) keep their places.
-  add('scrap', [3960, 4040, 4210, 4290, 4930, 7420, [6120, 760], 2890, 2050, 3620, 5600, 6560]);
-  add('copper', [520, 1260, 2660, 3400, 4460, 7120, [6330, 760]]);
+  // The grotto's scrap and copper sit well clear of the glowfin egg clutches (6040, 6390) after
+  // the terrain pass (Colin: a nodule right beside the eggs was hard to take).
+  add('scrap', [3960, 4040, 4210, 4290, 4930, 7420, [6215, 760], 2890, 2050, 3620, 5600, 6560]);
+  add('copper', [520, 1260, 2660, 3400, 4460, 7120, [5860, 760]]);
   // quartz-0 moved from the old west wall (now the basin) to the top of the cliff.
   add('quartz', [372, 2220, 3140, 4720, 5310, 6020, 6420]);
   add('fibre', [1650, 1910, 2560, 3300, 6960, 7900]);
@@ -72,6 +84,14 @@ const SPOTS: Spot[] = (() => {
   s.push({ id: 'whorl-grotto', kind: 'whorl', x: 16330, y: surfaceAt(16330, 1600) - 9 });
   // Milestone 7 part 2: the fourth, behind the kelp wall in the caves (the cutter torch opens it).
   s.push({ id: 'tank-kwall', kind: 'tank', x: 15545, y: surfaceAt(15545, 1500) - 12 });
+  // The kit, found piece by piece (Colin, before milestone 11). Appended last so the
+  // random draws for everything above stay the same.
+  // The specimen jar: dropped by the old anchor in the coral garden, before the first creatures.
+  s.push({ id: 'kit-jar', kind: 'jar', x: 2770, y: surfaceAt(2770) - 6 });
+  // The TH-1 hip thruster: in the sand at the foot of the survey beacon, at the drop-off.
+  s.push({ id: 'kit-thruster', kind: 'thruster', x: 5090, y: surfaceAt(5090) - 7 });
+  // The TH-2 thruster head (a bigger boost): deep in the kelp forest, by a holdfast.
+  s.push({ id: 'kit-thruster2', kind: 'thruster2', x: 13760, y: surfaceAt(13760) - 8 });
   return s;
 })();
 
@@ -130,6 +150,37 @@ function drawTank(g: Graphics): void {
     g.moveTo(x, -2).lineTo(x + R(-1, 1), R(2, 6)).stroke({ color: 0x8a3a20, width: 1, alpha: 0.6 });
   }
   for (let i = 0; i < 5; i++) g.circle(R(-15, 12), R(3, 6), R(1, 2)).fill({ color: 0x5e7a3c, alpha: 0.8 });
+}
+
+function drawJarFind(g: Graphics): void {
+  // The specimen jar, on its side in the sand: glass, a chrome lid and its belt clip.
+  g.ellipse(0, 6, 13, 3).fill({ color: 0x000000, alpha: 0.2 });
+  g.roundRect(-10, -6, 18, 12, 4).fill({ color: 0x2e5a62, alpha: 0.6 });
+  g.roundRect(-10, -6, 18, 12, 4).stroke({ color: 0xc8eef2, width: 1, alpha: 0.9 });
+  g.rect(-8, -4, 12, 1.6).fill({ color: 0xffffff, alpha: 0.45 });
+  g.roundRect(8, -7, 4, 14, 1.5).fill({ color: 0x4d5d77 });
+  g.rect(8, -7, 1.2, 14).fill({ color: 0xd6e0ee, alpha: 0.7 });
+  g.rect(-1, -6, 2, 12).fill({ color: 0xe0a02a, alpha: 0.8 });
+  g.rect(12, -1.5, 5, 3).fill({ color: 0xb3302a });
+}
+
+function drawThrusterFind(g: Graphics, mk2 = false): void {
+  // A hip thruster, half buried: white housing, chrome mount and the lime nozzle.
+  g.ellipse(0, 7, mk2 ? 20 : 16, 3).fill({ color: 0x000000, alpha: 0.2 });
+  const w = mk2 ? 30 : 24;
+  g.roundRect(-w / 2, -6, w, 12, 5).fill({ color: 0xd8dde0 });
+  g.roundRect(-w / 2 + 2, -5, w - 4, 3, 1.5).fill({ color: 0xffffff, alpha: 0.6 });
+  g.rect(-1, -6, 2, 12).fill({ color: 0x8e979c });
+  g.roundRect(-w / 2 - 6, -4.5, 8, 9, 2).fill({ color: 0x2c3647 });
+  g.circle(-w / 2 - 6, 0, 4).fill({ color: 0xc6f03a, alpha: 0.9 });
+  if (mk2) {
+    // TH-2: a second nozzle, lime fins and a brass ring.
+    g.roundRect(-w / 2 - 4, -11, 7, 6, 2).fill({ color: 0x2c3647 });
+    g.circle(-w / 2 - 4, -8, 2.6).fill({ color: 0xc6f03a, alpha: 0.9 });
+    g.poly([w / 2 - 6, -6, w / 2 + 4, -12, w / 2 + 2, -6]).fill({ color: 0xc6f03a });
+    g.poly([w / 2 - 6, 6, w / 2 + 4, 12, w / 2 + 2, 6]).fill({ color: 0xc6f03a });
+    g.rect(4, -6, 3, 12).fill({ color: 0xc9a13a });
+  }
 }
 
 function drawBag(g: Graphics): void {
@@ -195,6 +246,9 @@ const DRAW: Record<Spot['kind'], (g: Graphics) => void> = {
   fibre: drawFibre,
   tank: drawTank,
   whorl: () => undefined,
+  jar: drawJarFind,
+  thruster: (g) => drawThrusterFind(g),
+  thruster2: (g) => drawThrusterFind(g, true),
 };
 
 interface Item {
@@ -238,6 +292,7 @@ export type PickupEvent =
   | { type: 'material'; kind: ReefMaterial; x: number; y: number }
   | { type: 'tank'; id: string }
   | { type: 'whorl'; id: string }
+  | { type: 'kit'; what: KitFind }
   | { type: 'bag'; items: Partial<Record<MaterialId, number>> };
 
 export class Pickups {
@@ -275,7 +330,7 @@ export class Pickups {
       this.view.addChild(view);
       this.emissive.addChild(glint);
       this.items.push({ spot, view, glint, present: true, pull: 0, phase: rand() * 10 });
-      if (spot.kind === 'tank' || spot.kind === 'whorl' || spot.kind === 'bloom') {
+      if (spot.kind === 'tank' || spot.kind === 'whorl' || spot.kind === 'bloom' || isKit(spot.kind)) {
         // A faint warm light makes the hidden tanks findable in the dark;
         // a whorl's own cold light gives it away.
         const l: PointLight =
@@ -338,9 +393,10 @@ export class Pickups {
     for (const it of this.items) {
       const { spot } = it;
       const isWhorl = spot.kind === 'whorl';
-      // Air tanks and whorls are picked up by touch, once.
-      const isTank = spot.kind === 'tank' || isWhorl;
-      const found = (id: string) => (isWhorl ? save.whorls.includes(id) : save.tanks.includes(id));
+      // Air tanks, whorls and the kit are picked up by touch, once.
+      const kit = isKit(spot.kind) ? spot.kind : null;
+      const isTank = spot.kind === 'tank' || isWhorl || !!kit;
+      const found = (id: string) => (kit ? kitFound(save, kit) : isWhorl ? save.whorls.includes(id) : save.tanks.includes(id));
       const taken = isTank ? found(spot.id) : spot.id in save.taken;
       if (!isTank && taken && now - save.taken[spot.id] > regrowSeconds(spot.kind)) delete save.taken[spot.id];
       const gone = isTank ? found(spot.id) : spot.id in save.taken;
@@ -397,7 +453,11 @@ export class Pickups {
       if (isTank) {
         if (dist < 46) {
           it.pull = 0.0001;
-          if (isWhorl) {
+          if (kit) {
+            if (kit === 'jar') save.kit.jar = true;
+            else save.kit.thruster = Math.max(save.kit.thruster, kit === 'thruster' ? 1 : 2) as 1 | 2;
+            events.push({ type: 'kit', what: kit });
+          } else if (isWhorl) {
             save.whorls.push(spot.id);
             events.push({ type: 'whorl', id: spot.id });
           } else {

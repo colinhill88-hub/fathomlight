@@ -9,7 +9,7 @@ import { MarineSnow, SnowLight } from './scene/particles';
 import { ZoneBackdrop } from './scene/zonebackdrop';
 import { initSettingsUI } from './ui';
 import { Input } from './input';
-import { Diver } from './actors/diver';
+import { Diver, type KitLook } from './actors/diver';
 import { Glowfin } from './actors/glowfin';
 import { Bubbles } from './fx/bubbles';
 import { Light, Lighting } from './fx/lighting';
@@ -24,7 +24,7 @@ import {
   caveTop,
   boom,
   FOREST,
-  SLED_X,
+  RECORDER_X,
   GROTTO,
   groundY,
   inCaveTunnel,
@@ -57,6 +57,7 @@ import {
   WRECK_SHELF,
   WRECKS,
   SPAWN,
+  START,
   WORLD_H,
   WORLD_SPAN,
   WORLD_W,
@@ -205,7 +206,7 @@ async function boot(): Promise<void> {
   const overlayCam = new Container();
 
   // Progress from the last visit (or a fresh start at the Kestrel buoy).
-  const loaded = loadSave(SPAWN.x, SPAWN.y);
+  const loaded = loadSave(START.x, START.y);
   const save: SaveData = loaded.data;
   if (BENCH) seedBenchSave(save);
 
@@ -943,6 +944,15 @@ async function boot(): Promise<void> {
     return null;
   }
   let lastViewW = 1000;
+  /** What the diver's kit looks like: the gear found and built so far, carried on the body. */
+  function kitLook(): KitLook {
+    return { tanks: save.tanks.length, spear: hasGear(save, 'tow'), jar: save.kit.jar, thruster: save.kit.thruster, psuit: hasGear(save, 'psuit') };
+  }
+  let noThrusterAt = -99;
+  /** The SLED 2 recorder still lies out on the sand (not taken, decoded or being decoded). */
+  function recorderOut(): boolean {
+    return !save.finds.includes('recorder') && !save.blueprints.includes('light') && !hasGear(save, 'light') && !Object.values(save.jobs).some((j) => j.id === 'research:light');
+  }
   /** Text for the jar chip. */
   function jarText(): string | null {
     const j = save.jar;
@@ -1734,7 +1744,11 @@ async function boot(): Promise<void> {
 
     // The dive bag's weight slows the diver (no sinking through a dome's floor).
     diver.load = bagLoad(save);
-    diver.noSink = false;
+    diver.jar = save.jar;
+    diver.kit = kitLook();
+    // Planning in build view (or reading a panel out here): the diver treads water where they are
+    // instead of sinking with the bag's weight (Colin, after the terrain pass).
+    diver.noSink = build.active || care.active || dockUI.active || station.active;
     if (boarding) {
       // Climbing into the sub: swim to the hatch, then down through it.
       boarding.t += dt;
@@ -1785,7 +1799,14 @@ async function boot(): Promise<void> {
         grapple = null;
         scenery.setTow(null);
       }
-    } else if (!aboard) diver.update(dt, inControl ? s.moveX : 0, inControl ? s.moveY : 0, inControl && s.boost, inControl && s.lamp);
+    } else if (!aboard) {
+      // The boost needs the hip thruster, found at the survey beacon (before milestone 11).
+      if (inControl && s.boost && save.kit.thruster === 0 && time - noThrusterAt > 6) {
+        noThrusterAt = time;
+        hud.toast('No thruster to boost with yet. A Kestrel survey left a spare hip thruster somewhere near its beacon, at the drop-off.', 'warn');
+      }
+      diver.update(dt, inControl ? s.moveX : 0, inControl ? s.moveY : 0, inControl && s.boost && save.kit.thruster > 0, inControl && s.lamp);
+    }
 
     // Breaking the surface: a splash, then breath vapour with each breath out.
     const [hx, hy] = diver.helmetPoint();
@@ -2074,7 +2095,7 @@ async function boot(): Promise<void> {
     // Wild creatures: the specimen jar takes the Collect button when one is in reach.
     const wt = wildlife.target;
     const wtKnown = !!wt && save.scans.includes(SPECIES[wt.species].scan);
-    const wildOk = !!wt && wtKnown && !save.jar && !diver.surfaced && !atDrone;
+    const wildOk = !!wt && wtKnown && save.kit.jar && !save.jar && !diver.surfaced && !atDrone;
     for (const ev of wildlife.update(dt, time, reachPt.x, reachPt.y, Math.hypot(diver.vx, diver.vy), aboard ? sub.thrust > 0 : diver.boosting, save, collectHeld && wildOk, camX - 200, camX + lastViewW + 200)) {
       save.jar = { species: ev.species, stage: ev.stage, traits: wildlife.traitsOf(ev.id) };
       drone.cheer();
@@ -2090,12 +2111,17 @@ async function boot(): Promise<void> {
       persist();
     }
     const wildTarget = wildlife.target && !atDrone && !diver.surfaced ? wildlife.target : null;
-    if (wildTarget && collectHeld && !wildOk && time - fullWarnAt > 4) {
+    // A creature the jar can't take (full, or not scanned yet) never hides a material in reach
+    // (Colin, after the terrain pass: the grotto's nodules sat under the glowfin eggs).
+    const wildBlocks = !!wildTarget && (wildOk || !pickups.target);
+    if (wildTarget && wildBlocks && collectHeld && !wildOk && time - fullWarnAt > 4) {
       fullWarnAt = time;
       hud.toast(
-        !save.scans.includes(SPECIES[wildTarget.species].scan)
-          ? `Scan the ${SPECIES[wildTarget.species].name.toLowerCase()} first, to learn how to keep it`
-          : 'The specimen jar is full. Put its creature in a tank first.',
+        !save.kit.jar
+          ? 'Nothing to carry it in. A Kestrel specimen jar was lost by the old anchor in the coral garden.'
+          : !save.scans.includes(SPECIES[wildTarget.species].scan)
+            ? `Scan the ${SPECIES[wildTarget.species].name.toLowerCase()} first, to learn how to keep it`
+            : 'The specimen jar is full. Put its creature in a tank first.',
         'warn',
       );
     }
@@ -2106,7 +2132,7 @@ async function boot(): Promise<void> {
       hud.toast(`Dive bag full (${bagLimits(save).max} kg). Unload at a storage pod to carry more.`, 'warn');
     }
     // The sub's grabber arm reaches further than a diver's hand (after milestone 7b: Colin found it hard to line up).
-    for (const ev of pickups.update(dt, time, reachPt.x, reachPt.y, save, collectHeld && !atDrone && !bagFull && !wildTarget, speed, grab ? GRAB_REACH : undefined)) {
+    for (const ev of pickups.update(dt, time, reachPt.x, reachPt.y, save, collectHeld && !atDrone && !bagFull && !wildBlocks, speed, grab ? GRAB_REACH : undefined)) {
       if (ev.type === 'material') {
         save.bag[ev.kind]++;
         sound.pickup(ev.kind);
@@ -2118,6 +2144,18 @@ async function boot(): Promise<void> {
         sound.find('tank');
         hud.toast(`Air tank upgrade! Dive time +${TANK_BONUS} s`, 'big');
         drone.cheer();
+      } else if (ev.type === 'kit') {
+        sound.find('tank');
+        drone.cheer();
+        hud.refreshInventory();
+        hud.toast(
+          ev.what === 'jar'
+            ? 'A specimen jar! It clips to your belt. Scan a creature to learn how to keep it, then hold Collect by an egg or a youngster to ease it in.'
+            : ev.what === 'thruster'
+              ? 'A TH-1 hip thruster! It clips to your belt: Boost (Shift, Space or the Boost button) fires a short burst through the water.'
+              : 'A TH-2 thruster head! Twin nozzles and a longer burn: your boost is faster and carries further.',
+          'big',
+        );
       } else if (ev.type === 'whorl') {
         sound.find('whorl');
         drone.cheer();
@@ -2192,15 +2230,11 @@ async function boot(): Promise<void> {
       });
     }
     scenery.setGrappleMark(grappleTarget >= 0 ? ANCHORS[grappleTarget] : null, time);
+    scenery.setRecorder(recorderOut(), Math.abs(diver.x - RECORDER_X) < 260 && Math.abs(diver.y - groundY(RECORDER_X)) < 260, time);
     if (!otherTarget && blackout === 0 && inControl && !diver.surfaced && !aboard) {
-      const rx = SLED_X - 20;
-      const ry = groundY(SLED_X) - 44;
-      const recNeeded =
-        save.scans.includes('sled') &&
-        !save.finds.includes('recorder') &&
-        !save.blueprints.includes('light') &&
-        !Object.values(save.jobs).some((j) => j.id === 'research:light');
-      if (recNeeded && Math.hypot(diver.x - rx, diver.y - ry) < 120)
+      const rx = RECORDER_X;
+      const ry = groundY(RECORDER_X) - 22;
+      if (recorderOut() && Math.hypot(diver.x - rx, diver.y - ry) < 80)
         holdAct = {
           key: 'recorder',
           label: 'Unclip the SLED 2 recorder',
@@ -2537,10 +2571,12 @@ async function boot(): Promise<void> {
         fullWarnAt = time;
         hud.toast(`To repair the drone you need ${missing.join(' and ')} more`, 'warn');
       }
-    } else if (wildTarget) {
+    } else if (wildTarget && wildBlocks) {
       const sp = SPECIES[wildTarget.species];
       hud.setCollect(
-        !save.scans.includes(sp.scan)
+        !save.kit.jar
+          ? 'No specimen jar yet'
+          : !save.scans.includes(sp.scan)
           ? `Unknown creature: scan it first`
           : save.jar
             ? 'Specimen jar full'
@@ -2939,8 +2975,8 @@ async function boot(): Promise<void> {
         save.tips.push('onfoot');
         hud.toast(
           input.state.lastDevice === 'touch'
-            ? 'Inside the Corvina: dry, and dark. The stick walks, Boost jumps (hold for higher; down + Boost drops through a grating). When a ring is marked, tap Collect to fire the grapple; jump to swing off it.'
-            : 'Inside the Corvina: dry, and dark. A/D walk, Space or Shift jumps (hold for higher; S + jump drops through a grating). When a ring is marked, tap C to fire the grapple; jump to swing off it.',
+            ? 'Inside the Corvina: dry, and dark. The stick walks, Boost jumps (hold for higher; down + Boost drops through a grating). When a ring is marked, tap Collect to fire the grapple and swing: the stick pumps the swing and climbs the line, Boost lets go and flies on.'
+            : 'Inside the Corvina: dry, and dark. A/D walk, hold Shift to sprint, Space jumps (hold for higher; S + jump drops through a grating). When a ring is marked, tap C to fire the grapple and swing: A/D pump the swing, W/S climb the line, Space lets go and flies on.',
           'big',
         );
       }, 900);
@@ -2998,10 +3034,18 @@ async function boot(): Promise<void> {
       boardSub(false);
       persist();
     },
-    tune: (id) => peekOut('build', null, id),
+    whorlsFitted: (id) => save.fitted[String(id)] ?? 0,
     whorlsFree: () => whorlsFree(save),
+    fitWhorl: (id, step) => {
+      const p = layout.pieces.find((q) => q.id === id);
+      if (!p) return;
+      build.fitWhorlOn(p, step);
+      sound.clip();
+      persist();
+    },
+    // Before milestone 11 (Colin): the lift car carries you, instead of a jump cut.
     lift: (x, y) => {
-      interior.place(x, y, interior.walker.face);
+      interior.startRide(x, y);
       sound.clamps(true);
     },
     // Milestone 9 (Colin): tending stays indoors. The camera eases in on the tank
@@ -3010,7 +3054,12 @@ async function boot(): Promise<void> {
       care.setAvailable(id);
       care.open(id);
     },
-    station: (id) => peekOut('station', id),
+    // The Lab and Workshop panel opens indoors too (Colin, after the terrain pass):
+    // the camera frames the room and the walker waits while it is open.
+    station: (id) => {
+      station.setAvailable(id);
+      station.open(id);
+    },
     dock: (id) => peekOut('dock', id),
     build: () => peekOut('build', null),
     exit: (id) => exitBase(id),
@@ -3096,12 +3145,13 @@ async function boot(): Promise<void> {
       const n = SPECIES_ORDER.reduce((a, k) => a + (save.dormant[k] ?? 0), 0);
       if (save.bag.bloom + save.stored.bloom < 1)
         return { ok: false, text: `Revival pool: ${n} dormant · each waking needs a glowing bloom (they grow only where no lamp has ever shone)` };
+      if (!save.kit.jar) return { ok: false, text: 'Revival pool: the woken creature needs a specimen jar to go into' };
       if (save.jar) return { ok: false, text: 'Revival pool: empty your specimen jar first (the woken creature goes into it)' };
       return { ok: true, text: `Wake a dormant ${SPECIES[sp].name.toLowerCase()} (1 glowing bloom)` };
     },
     revive: () => {
       const sp = SPECIES_ORDER.find((k) => (save.dormant[k] ?? 0) > 0);
-      if (!sp || save.jar || !payCost(save, { bloom: 1 })) return;
+      if (!sp || save.jar || !save.kit.jar || !payCost(save, { bloom: 1 })) return;
       save.dormant[sp] = (save.dormant[sp] ?? 0) - 1;
       const c = { id: save.nextCreatureId++, species: sp, tank: -1, stage: 'young' as const, growth: 0, fed: 0.7, comfort: 0.5, sickness: 0, make: 0, traits: wildTraits() };
       save.jar = { species: sp, stage: 'young', keep: c, traits: c.traits };
@@ -3132,7 +3182,7 @@ async function boot(): Promise<void> {
         hud.toast(
           input.state.lastDevice === 'touch'
             ? 'Inside the base: dry air, and everything is used from in here. Walk with the stick, push up or down at a ladder to climb, and hold Collect at a console, a storage rack or a tank window.'
-            : 'Inside the base: dry air, and everything is used from in here. A/D walk, W/S climb ladders, and hold C at a console, a storage rack or a tank window.',
+            : 'Inside the base: dry air, and everything is used from in here. A/D walk (hold Shift to sprint), Space jumps, W/S climb ladders, and hold C at a console, a storage rack or a tank window.',
           'big',
         );
       }, 900);
@@ -3212,6 +3262,9 @@ async function boot(): Promise<void> {
     }
     // The same dive bag as in the water, swinging at the hip.
     interior.walker.load = bagLoad(save);
+    interior.walker.jar = save.jar;
+    interior.walker.kit = kitLook();
+    interior.canGrapple = hasGear(save, 'tow');
     // Tending a tank indoors: the walker waits at the window while the panel is open.
     // Milestone 9: the Hatchery's panel frames its cradles the same way.
     if (inside === 'base' && care.active && care.tankId !== null && baseHooks) {
@@ -3220,17 +3273,23 @@ async function boot(): Promise<void> {
     } else if (inside === 'base' && hatchPanel.active && hatchPanel.pieceId !== null && baseHooks) {
       const f = baseHooks.roomFocus(hatchPanel.pieceId);
       interior.focus = f ? { ...f, panelPx: Math.min(360, cssW * 0.44) + 24 } : null;
+    } else if (inside === 'base' && station.active && station.pieceId !== null && baseHooks) {
+      const f = baseHooks.roomFocus(station.pieceId);
+      interior.focus = f ? { ...f, panelPx: Math.min(380, cssW * 0.46) + 24 } : null;
     } else {
       interior.focus = null;
       if (care.available !== null && !care.active) care.setAvailable(null);
+      if (station.available !== null && !station.active) station.setAvailable(null);
     }
     if (inside !== 'base' && hatchPanel.active) hatchPanel.close();
+    if (inside !== 'base' && station.active) station.close();
     care.update(dt);
     hatchPanel.update(dt);
-    const frozen = care.active || hatchPanel.active;
+    station.update(dt);
+    const frozen = care.active || hatchPanel.active || station.active;
     const evs: InteriorEvent[] = interior.update(
       dt,
-      frozen ? { moveX: 0, moveY: 0, jump: false, collect: false, lamp: false } : { moveX: s.moveX, moveY: s.moveY, jump: s.jumpHeld, collect: s.collect, lamp: s.lamp },
+      frozen ? { moveX: 0, moveY: 0, jump: false, collect: false, lamp: false } : { moveX: s.moveX, moveY: s.moveY, jump: s.jumpHeld, sprint: s.sprint, collect: s.collect, lamp: s.lamp },
       paused,
     );
     const maxO2 = maxOxygen(save);

@@ -11,6 +11,7 @@
  *        the round buttons on the right are Boost, Lamp, Scan (tap or hold)
  *        and Collect (hold; it appears only next to a material).
  * Keyboard: WASD or arrow keys to swim, Shift or Space to boost, L or F for the lamp,
+ *           (on foot: Space jumps, hold Shift to sprint),
  *           E or Q to scan (tap or hold), hold C or R to collect.
  * Mouse: hold the left button to swim towards the pointer, right-click to boost.
  * Gamepad: left stick to swim, A to boost, Y for the lamp, B to scan, hold X to collect.
@@ -28,6 +29,8 @@ export interface InputState {
   boost: boolean;
   /** After milestone 8 part 2: the boost / jump control is held down (for jumping on foot). */
   jumpHeld: boolean;
+  /** On foot: the sprint control is held (Shift, or the pad's left bumper / stick click). */
+  sprint: boolean;
   lamp: boolean;
   scan: boolean;
   scanTap: boolean;
@@ -42,7 +45,7 @@ const STICK_RADIUS = 56;
 const DEADZONE = 0.15;
 
 export class Input {
-  readonly state: InputState = { moveX: 0, moveY: 0, boost: false, jumpHeld: false, lamp: false, scan: false, scanTap: false, collect: false, board: false, lastDevice: 'keyboard' };
+  readonly state: InputState = { moveX: 0, moveY: 0, boost: false, jumpHeld: false, sprint: false, lamp: false, scan: false, scanTap: false, collect: false, board: false, lastDevice: 'keyboard' };
 
   private keys = new Set<string>();
   private boostQueued = false;
@@ -57,6 +60,8 @@ export class Input {
   private stickId: number | null = null;
   private stickOrigin = { x: 0, y: 0 };
   private stickVec = { x: 0, y: 0 };
+  /** Touch: the thumb dragged well past the stick's rim (sprints on foot). */
+  private stickFar = false;
   private stickBase: HTMLElement;
   private stickKnob: HTMLElement;
 
@@ -143,6 +148,7 @@ export class Input {
         let dx = e.clientX - this.stickOrigin.x;
         let dy = e.clientY - this.stickOrigin.y;
         const len = Math.hypot(dx, dy);
+        this.stickFar = len > STICK_RADIUS * 1.5;
         if (len > STICK_RADIUS) {
           dx *= STICK_RADIUS / len;
           dy *= STICK_RADIUS / len;
@@ -234,6 +240,7 @@ export class Input {
   private releaseStick(): void {
     this.stickId = null;
     this.stickVec = { x: 0, y: 0 };
+    this.stickFar = false;
     this.stickBase.classList.remove('active');
     this.stickKnob.classList.remove('active');
   }
@@ -269,7 +276,9 @@ export class Input {
 
     let scan = this.scanButton || k.has('e') || k.has('q');
     let collect = this.collectButton || k.has('c') || k.has('r');
-    let jumpHeld = this.boostButton || k.has('shift') || k.has(' ');
+    // On foot, Space jumps and Shift sprints (Colin, after the terrain pass). In the water both still boost.
+    let jumpHeld = this.boostButton || k.has(' ');
+    let sprint = k.has('shift') || (this.stickId !== null && this.stickFar);
 
     // Gamepad (first connected pad).
     const pads = navigator.getGamepads?.() ?? [];
@@ -293,6 +302,7 @@ export class Input {
       if (pressed(1)) this.scanTapQueued = true;
       if (btn(2)) collect = true;
       if (btn(0)) jumpHeld = true;
+      if (btn(4) || btn(10)) sprint = true;
       if (pressed(0) || pressed(2) || pressed(3)) this.state.lastDevice = 'gamepad';
       this.padPrev = pad.buttons.map((b) => b.pressed);
       break;
@@ -307,6 +317,7 @@ export class Input {
     this.state.moveY = y;
     this.state.boost = this.boostQueued;
     this.state.jumpHeld = jumpHeld && !this._suspended;
+    this.state.sprint = sprint && !this._suspended;
     this.state.lamp = this.lampQueued;
     this.state.scan = scan;
     this.state.scanTap = this.scanTapQueued;

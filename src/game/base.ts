@@ -141,7 +141,19 @@ export const PIECES: Record<PieceKind, PieceDef> = {
     job: 'Turns the reef current into power for every piece joined to it.',
     cost: { scrap: 2, copper: 4, fibre: 1 },
     buildTime: 28,
-    shapes: [{ w: 1, h: 2, collars: [{ cx: 0, cy: 0, dir: 'L' }, { cx: 0, cy: 0, dir: 'R' }] }],
+    // Doorways on both levels: the upper pair (after the terrain pass) joins pieces to the top deck.
+    shapes: [
+      {
+        w: 1,
+        h: 2,
+        collars: [
+          { cx: 0, cy: 0, dir: 'L' },
+          { cx: 0, cy: 0, dir: 'R' },
+          { cx: 0, cy: 1, dir: 'L' },
+          { cx: 0, cy: 1, dir: 'R' },
+        ],
+      },
+    ],
   },
   storage: {
     kind: 'storage',
@@ -340,10 +352,23 @@ export const PIECES: Record<PieceKind, PieceDef> = {
   shaft: {
     kind: 'shaft',
     name: 'Riser shaft',
-    job: 'A walkable shaft three cells tall, with collars at the top and bottom: one piece instead of three upright corridors, and a little cheaper.',
+    job: 'A walkable shaft three cells tall, with collars at the top and bottom, and on both sides of its top and bottom cells: one piece instead of three upright corridors, and a little cheaper.',
     cost: { scrap: 5, fibre: 2 },
     buildTime: 24,
-    shapes: [{ w: 1, h: 3, collars: [{ cx: 0, cy: 0, dir: 'D' }, { cx: 0, cy: 2, dir: 'U' }] }],
+    shapes: [
+      {
+        w: 1,
+        h: 3,
+        collars: [
+          { cx: 0, cy: 0, dir: 'D' },
+          { cx: 0, cy: 2, dir: 'U' },
+          { cx: 0, cy: 0, dir: 'L' },
+          { cx: 0, cy: 0, dir: 'R' },
+          { cx: 0, cy: 2, dir: 'L' },
+          { cx: 0, cy: 2, dir: 'R' },
+        ],
+      },
+    ],
   },
   junction: {
     kind: 'junction',

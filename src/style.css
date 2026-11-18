@@ -351,9 +351,21 @@ body.touch .desk-only {
   z-index: 10;
 }
 
+/* The dive watch's size (Colin, before milestone 11: small on a 1440p monitor). Phones keep 108 px. */
+:root {
+  --watch: 108px;
+}
+@media (min-height: 820px) and (min-width: 1100px) and (hover: hover) and (pointer: fine) {
+  :root {
+    --watch: clamp(108px, 11vh, 176px);
+  }
+}
+body.touch {
+  --watch: 108px;
+}
 #watch {
-  width: 108px;
-  height: 108px;
+  width: var(--watch);
+  height: var(--watch);
   filter: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.45));
 }
 
@@ -1896,10 +1908,10 @@ body.touch #btn-sub.ready {
 
 #sub-chip {
   position: fixed;
-  top: calc(var(--safe-top) + 124px);
+  top: calc(var(--safe-top) + var(--watch) + 16px);
   left: calc(var(--safe-left) + 10px);
   display: none;
-  width: 108px;
+  width: var(--watch);
   padding: 5px 9px;
   border-radius: 10px;
   background: var(--ui-bg);
@@ -2498,7 +2510,7 @@ body.docking #station-btn {
 /* Milestone 8: suit integrity, under the dive watch (the sub's chip takes this place while aboard). */
 #suit-bar {
   position: fixed;
-  top: calc(var(--safe-top) + 122px);
+  top: calc(var(--safe-top) + var(--watch) + 14px);
   left: calc(var(--safe-left) + 10px);
   display: none;
   align-items: center;
@@ -2856,4 +2868,54 @@ body.on-foot #hint {
   #build-tools {
     bottom: calc(var(--safe-bottom) + 78px + var(--bar-extra));
   }
+}
+
+/* PC: arrow buttons at either end of the scrolling card row (hidden with touch). */
+.bar-row {
+  position: relative;
+  display: flex;
+  max-width: 100%;
+  min-width: 0;
+}
+.bar-row .bar-cards {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.bar-arrow {
+  position: absolute;
+  top: 50%;
+  z-index: 2;
+  width: 34px;
+  height: 52px;
+  margin-top: -26px;
+  border-radius: 12px;
+  border: 1px solid var(--ui-line);
+  background: rgba(16, 38, 58, 0.92);
+  color: var(--ui-text);
+  font-family: inherit;
+  font-size: 28px;
+  line-height: 1;
+  cursor: pointer;
+  display: none;
+}
+.bar-arrow.prev {
+  left: 2px;
+}
+.bar-arrow.next {
+  right: 2px;
+}
+.bar-arrow.show {
+  display: block;
+}
+.bar-arrow:hover {
+  border-color: #ffc070;
+}
+body.touch .bar-arrow {
+  display: none;
+}
+.bar-cards {
+  cursor: grab;
+}
+body.touch .bar-cards {
+  cursor: auto;
 }
