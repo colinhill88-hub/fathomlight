@@ -582,7 +582,7 @@ function tickBreeding(save: SaveData, layout: BaseLayout, dt: number, ev: CareEv
       if (c.growth >= 1) {
         c.stage = 'young';
         c.growth = 0;
-        c.fed = 0.8;
+        c.fed = 1;
         ev.push({ type: 'nursery-hatched', c });
       }
     }

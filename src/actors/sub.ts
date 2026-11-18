@@ -258,6 +258,7 @@ export class Sub {
     this.drawHull();
     this.drawCockpit();
     this.drawModules();
+    this.drawExtras();
     this.body.addChild(this.dents, this.domeCrack);
     this.drawDamage();
     this.body.addChild(this.frameMask);
@@ -535,6 +536,105 @@ export class Sub {
     this.lightsG.visible = this.lightsE.visible = this.lightsGlow.visible = mods.includes('lights');
     this.arm.visible = mods.includes('grabber');
     this.hasFlood = mods.includes('lights');
+    // After milestone 12: the six new modules.
+    this.afterburner = mods.includes('booster');
+    this.boosterG.visible = this.boosterE.visible = this.afterburner;
+    this.ballastG.visible = mods.includes('ballast');
+    this.tractorG.visible = this.tractorE.visible = mods.includes('tractor');
+    this.domeG.visible = this.domeE.visible = mods.includes('sdome');
+    this.habitatG.visible = this.habitatE.visible = mods.includes('habitat');
+    this.drillG.visible = mods.includes('drill');
+  }
+
+  /** After milestone 12: hull tiers that show on the hull: brass depth plating, then the Choir's pale stone after contact. */
+  setLook(plating: boolean, choir: boolean): void {
+    this.platingG.visible = plating;
+    this.choirG.visible = this.choirE.visible = choir;
+  }
+
+  /** The drill bit spins while drilling. */
+  drilling = false;
+  /** Is the afterburner fitted? */
+  afterburner = false;
+  private boosterG = new Graphics();
+  private boosterE = new Graphics();
+  private ballastG = new Graphics();
+  private tractorG = new Graphics();
+  private tractorE = new Graphics();
+  private domeG = new Graphics();
+  private domeE = new Graphics();
+  private habitatG = new Graphics();
+  private habitatE = new Graphics();
+  private drillG = new Graphics();
+  private drillSpin = new Graphics();
+  private platingG = new Graphics();
+  private choirG = new Graphics();
+  private choirE = new Graphics();
+
+  /** After milestone 12: draw the new modules and hull tiers once. */
+  private drawExtras(): void {
+    // Hull tiers first, under the modules: riveted brass plates over the sides...
+    const pl = this.platingG;
+    for (const [x0, w] of [[-86, 26], [-56, 30], [-22, 28], [10, 30], [44, 26]] as const) {
+      pl.roundRect(x0, -14, w, 18, 2).fill({ color: 0x7e6430, alpha: 0.75 });
+      pl.roundRect(x0, -14, w, 3, 1.5).fill({ color: 0xd8b868, alpha: 0.35 });
+      rivets(pl, x0 + 3, -9, x0 + w - 3, -9, 3);
+      rivets(pl, x0 + 3, 1, x0 + w - 3, 1, 3);
+    }
+    // ...and after contact, pale Choir stone along the spine and keel, set with the Choir's colours.
+    const ch = this.choirG;
+    ch.poly([-90, -20, -50, -32, 0, -31, 30, -26, 0, -27, -50, -28]).fill({ color: 0xc8cce0, alpha: 0.9 });
+    ch.poly([-60, 30, 0, 36, 60, 32, 0, 33]).fill({ color: 0xc8cce0, alpha: 0.9 });
+    for (const [x, y, c] of [[-60, -27, 0x5ff0ff], [-30, -29, 0xa27cff], [0, -29, 0xff5ad8], [-20, 33, 0x5ff0ff], [20, 33, 0xa27cff]] as const) {
+      this.choirE.circle(x, y, 2.2).fill({ color: c, alpha: 0.95 });
+      this.choirE.circle(x, y, 6).fill({ color: c, alpha: 0.25 });
+    }
+    // Afterburner: a second ring nozzle above the main one.
+    const b = this.boosterG;
+    b.roundRect(HX0 - 12, -38, 30, 18, 8).fill({ color: PAL.hullDark });
+    b.roundRect(HX0 - 12, -38, 30, 4, 2).fill({ color: PAL.hullHi, alpha: 0.6 });
+    b.roundRect(HX0 - 14, -40, 5, 22, 2.5).fill({ color: PAL.chrome });
+    b.ellipse(HX0 - 15, -29, 4, 8).fill({ color: 0x0a0e10 });
+    this.boosterE.ellipse(HX0 - 15, -29, 3, 6.5).stroke({ color: PAL.lime, width: 1.8 });
+    // Ballast pod: twin trim tanks strapped under the keel.
+    const bl = this.ballastG;
+    for (const x0 of [-70, 4]) {
+      bl.roundRect(x0, HY1 + 14, 52, 11, 5.5).fill({ color: PAL.hullHi });
+      bl.roundRect(x0 + 2, HY1 + 15, 48, 3, 1.5).fill({ color: 0xffffff, alpha: 0.12 });
+      for (const sx of [x0 + 10, x0 + 40]) bl.rect(sx, HY1 + 12, 3, 15).fill({ color: PAL.chrome });
+      bl.rect(x0 + 22, HY1 + 17, 8, 5).fill({ color: 0xa8402e });
+    }
+    // Tractor beam: a lime emitter lens in the chin.
+    const tr = this.tractorG;
+    tr.roundRect(84, 18, 22, 12, 5).fill({ color: PAL.hullDark });
+    tr.circle(98, 24, 5).fill({ color: PAL.chrome });
+    this.tractorE.circle(98, 24, 3.4).fill({ color: PAL.lime });
+    this.tractorE.circle(98, 24, 8).fill({ color: PAL.lime, alpha: 0.3 });
+    // Sonar dome: a small glass dome on the back, behind the hatch, with a sweep inside.
+    const d = this.domeG;
+    d.roundRect(-46, HY0 - 8, 24, 6, 2).fill({ color: PAL.chrome });
+    d.moveTo(-44, HY0 - 7).arc(-34, HY0 - 7, 10, Math.PI, 0).closePath().fill({ color: 0x0e1a1c, alpha: 0.9 });
+    d.moveTo(-44, HY0 - 7).arc(-34, HY0 - 7, 10, Math.PI, 0).stroke({ color: PAL.chrome, width: 1.4 });
+    // Habitat pod: a pressurised cabin on the back between the fin and the canopy, with lit ports.
+    const h = this.habitatG;
+    h.roundRect(-82, HY0 - 22, 52, 20, 9).fill({ color: PAL.hullHi });
+    h.roundRect(-80, HY0 - 21, 48, 5, 2.5).fill({ color: 0xffffff, alpha: 0.1 });
+    h.rect(-56, HY0 - 22, 2, 20).fill({ color: 0xb08a2a });
+    for (const px of [-72, -44]) {
+      h.circle(px, HY0 - 12, 4.5).fill({ color: PAL.chrome });
+      h.circle(px, HY0 - 12, 3).fill({ color: 0x0c1012 });
+      this.habitatE.circle(px, HY0 - 12, 2.6).fill({ color: 0xffd98a, alpha: 0.9 });
+    }
+    // Drill nose: a chrome cone with cutting flutes, past the bow.
+    const dr = this.drillG;
+    dr.poly([HX1 + 2, -6, HX1 + 40, 5, HX1 + 2, 16]).fill({ color: PAL.chrome });
+    dr.poly([HX1 + 2, -6, HX1 + 40, 5, HX1 + 8, 2]).fill({ color: PAL.chromeHi, alpha: 0.6 });
+    dr.roundRect(HX1 - 4, -8, 9, 26, 3).fill({ color: PAL.hullDark });
+    dr.addChild(this.drillSpin);
+    this.body.addChild(pl, ch, b, bl, tr, d, h, dr);
+    this.eBody.addChild(this.choirE, this.boosterE, this.tractorE, this.domeE, this.habitatE);
+    this.setLook(false, false);
+    for (const g of [b, bl, tr, d, h, dr, this.boosterE, this.tractorE, this.domeE, this.habitatE]) g.visible = false;
   }
   private hasFlood = false;
 
@@ -572,7 +672,7 @@ export class Sub {
    */
   update(dt: number, inp: SubUpdate): number {
     this.time += dt;
-    if (inp.boost && inp.piloted) this.thrust = Sub.BURST;
+    if (inp.boost && inp.piloted) this.thrust = Sub.BURST * (this.afterburner ? 3 : 1);
     this.thrust = Math.max(0, this.thrust - dt);
     let impact = 0;
     if (inp.hold) {
@@ -583,7 +683,7 @@ export class Sub {
       this.vx *= 1 - k;
       this.vy *= 1 - k;
     } else {
-      const top = this.thrust > 0 ? Sub.BOOST : Sub.CRUISE;
+      const top = this.thrust > 0 ? Sub.BOOST * (this.afterburner ? 1.5 : 1) : Sub.CRUISE;
       const mx = inp.piloted ? inp.moveX : 0;
       const my = inp.piloted ? inp.moveY : 0;
       const push = Math.min(1, Math.hypot(mx, my));
@@ -742,6 +842,29 @@ export class Sub {
         ex.poly([nx, ny - h, nx - L, ny, nx, ny + h]).fill({ color: PAL.lime, alpha: 0.55 * this.burn });
         ex.poly([nx, ny - h * 0.45, nx - L * 0.6, ny, nx, ny + h * 0.45]).fill({ color: 0xf4ffd0, alpha: 0.8 * this.burn });
         eg.ellipse(nx - L * 0.4, ny, L * 0.6 + 8, h * 1.8).fill({ color: PAL.lime, alpha: 0.45 * this.burn });
+      }
+    }
+    // After milestone 12: the afterburner's own plume, the sonar dome's sweep and the drill's flutes.
+    if (this.afterburner && this.burn > 0.02 && this.thrust > 0) {
+      const L = 90 * this.burn * (0.85 + 0.15 * Math.sin(this.time * 37));
+      ex.poly([HX0 - 18, -36, HX0 - 18 - L, -29, HX0 - 18, -22]).fill({ color: PAL.lime, alpha: 0.6 });
+      ex.poly([HX0 - 18, -32, HX0 - 18 - L * 0.6, -29, HX0 - 18, -26]).fill({ color: 0xf4ffd0, alpha: 0.85 });
+      eg.ellipse(HX0 - 18 - L * 0.4, -29, L * 0.6 + 8, 12).fill({ color: PAL.lime, alpha: 0.4 });
+    }
+    if (this.domeE.visible) {
+      const de = this.domeE.clear();
+      const a = Math.PI + ((this.time * 2) % 1) * Math.PI;
+      de.moveTo(-34, HY0 - 7).lineTo(-34 + Math.cos(a) * 9, HY0 - 7 + Math.sin(a) * 9).stroke({ color: 0x5fe0ff, width: 1.6 });
+      de.circle(-34, HY0 - 7, 2).fill({ color: 0x5fe0ff });
+    }
+    if (this.drillG.visible) {
+      const sp = this.drillSpin.clear();
+      const k = (this.time * (this.drilling ? 14 : 1.5)) % 1;
+      for (let i = 0; i < 4; i++) {
+        const u = (i + k) / 4;
+        const x = HX1 + 4 + u * 34;
+        const hw = 11 * (1 - u);
+        sp.moveTo(x, 5 - hw).lineTo(x + 4, 5 + hw).stroke({ color: PAL.hullDark, width: 1.4, alpha: 0.8 });
       }
     }
     const back = this.faceAnim >= 0 ? -1 : 1;

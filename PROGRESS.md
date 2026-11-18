@@ -1741,6 +1741,53 @@ Colin's answers after reading the breeding and farm analysis. All built:
 - Its size and collision didn't change, so it drives exactly as before.
 - Screenshots: `docs/art/milestone12/sub-new.png`, `sub-boost.png`.
 
+### After milestone 12 part 1: pacing, suit attachments and sub modules (2026-11-18)
+Colin: "Do all of that new stuff." Everything proposed after the pacing pass is built.
+
+**Pacing**
+1. **The Hatchery needs a blueprint** (`hatch` in `RESEARCH`, the `nurserylog` find). The **Kestrel nursery log** lies in a crate in the kelp caves' alcove, behind the kelp wall the cutter torch opens (`KC_FINDS.nurserylog`). A Lab decodes it (70 s).
+2. **Young in the Hatchery get hungry** (`tickBreeding` in `src/game/creatures.ts`). They share one trough (`save.nurseryMash`, 12 L per Hatchery). A **feed pipe** from an auto feeder fills it (the Hatchery now takes one pipe in), or **Feed (1 fibre)** at its console. Unfed, a youngster sickens and goes dormant like any creature. They hatch full, which gives about 17 minutes. A one-time tip explains this.
+3. **Housing costs more:** the creature tank adds 2 copper; the Grand tank adds 3 brass.
+4. **Each zone's gear needs a bigger batch of its materials:** dive light 4 quartz and 2 copper (was 2 and 1), sonar 5 brass (was 3), PS-1 8 brass (was 6), PS-2 8 vent ore (was 6).
+5. **Bred patterns for the later fragments** (`FRAGMENTS`, `bredWords` in `src/game/signals.ts`): fragment 3 needs 1 pattern shown by a grown creature bred at the base, and fragment 4 needs 2.
+
+**Suit attachments** (Lab research, then a Workshop build; all in `GEAR`/`RESEARCH` in `src/game/gear.ts`). Each shows on the swimming diver (`applyKit` in `src/actors/diver.ts`; preview with `animlab.html?kit=2,1,1,2,0,0,1,1,1,1,1,1`):
+| Gear | Researched from scans of | Does | Looks |
+| --- | --- | --- | --- |
+| Specimen satchel SJ-2 | glowfin, puffcap, ray | A second jar slot (`save.jar2`, which moves into the jar when it's emptied) | A padded pouch beside the jar |
+| Flare launcher FX-1 | kelp caves, black water | **Z**, LT or the flame button: a flare flies ahead, sinks, lands and burns 90 s with its own red light (1 carried quartz each, six at most) | A tube on the near forearm |
+| Echo visor EV-1 | Echo whorl, lumen moss | Lime marks on materials and amber marks on young creatures within about 20 m, through rock | A lime band across the helmet glass |
+| TH-3 dash head | the caves' surge (needs TH-2) | Double-tap Boost to dash, every 3 s | A third, upturned nozzle |
+| Mag-boots MB-1 | race, anchor ring | On the seabed, currents push you an eighth as much | Chrome soles with lime studs |
+| Stun dart SD-1 | lurker, wreck | **X**, RT or the dart button: hits the nearest predator ahead (lurker or trench hunter) and sends it away. Shares the sonar's 6 s cooldown (a miss recharges in 1.5 s) | (the harpoon already on the pack) |
+| Heat-shield cowl HC-1 | vent field, chimney | Vent plumes and the chimney scald a fifth as much | A chrome rim round the helmet and a shoulder plate |
+
+The Flare and Dart buttons show on touch screens once each is built. Visual effects are in `src/world/gearfx.ts`. The new parts don't show on the walker (on foot) yet.
+
+**Sub modules** (`MODULES` in `src/game/sub.ts`; Lab research, then fitted at a dock). **KS-1 now has 4 slots** (was 3), with nine modules to choose from:
+| Module | Researched from | Does | Looks |
+| --- | --- | --- | --- |
+| Afterburner AB-S | race, flow vane | Boost 1.5× faster and 3× longer | A second ring nozzle above the main one, with its own plume |
+| Ballast pod BP-S | wreck shelf, race | The race moves KS-1 a fifth as much | Twin trim tanks under the keel |
+| Tractor beam TB-S | Echo whorl, salvage | Driving slowly, it draws the nearest loose material within 4 m into the sub, one every 1.2 s | A lime lens in the chin, and a beam |
+| Sonar dome SD-S | the Corvina's log | Teal marks on materials within about 25 m, through rock | A small glass dome on the back with a sweep |
+| Habitat pod HP-S | air pocket, Corvina | The sub's air reserve falls a quarter as fast | A pressurised pod on the back with lit ports |
+| Drill nose DN-S | trench, crushed probe | Bores the soft rock seam (below) | A chrome drill cone past the bow, spinning while it drills |
+
+**The drill seam** (`SEAM`, `seam` in `src/world/terrain.ts`; art `buildSeam` in `scenery.ts`): a band of pale, glinting soft rock in the sheer wall under the trench rim (the face of the first ledge, about 28 m). With the drill fitted, put the bow at it and hold Collect (3 s): it opens into a sub-sized tunnel and a **sealed grotto** with 2 glowing blooms, 2 vent ore and an Echo whorl (`seam-*` and `whorl-seam` in `pickups.ts`, hidden until it's open). Without the drill, the banner says what it needs. Saved as `save.seamOpen`.
+
+**Hull tiers** (`setLook` in `src/actors/sub.ts`): with depth plating DP-S, brass plates show along the hull. After first contact, pale Choir stone with cyan, violet and magenta gems lines the spine and keel.
+
+**Also fixed:** a diver saved inside the sonar's hidden room or the drill grotto was pushed out onto the rock above on loading (the passages opened a frame too late).
+
+**Tested** (headless Chromium; software graphics, so game time runs slow):
+- Type check and production build; no console errors on a fresh start through the title screen.
+- **Rules (run against the game's code):** unfed young sicken and go dormant; a feed pipe from a feeder into a Hatchery is accepted; fragments need 2/4/6/8 patterns with 0/0/1/2 bred.
+- **The seam:** KS-1 at the wall with the drill fitted. The banner said "hold Collect to drill it", drilling went 8% → 42% → 75%, then it opened. Inside, the tractor beam took 2 vent ore and a bloom by itself.
+- **On foot in the grotto:** a flare used 1 quartz and burned in the tunnel; the dart fired; the visor marked the grotto's materials.
+- **Screenshots** (`docs/art/milestone12/`): `suit-attachments.png`, `seam-grotto-flare.png`, `sub-modules-a.png` (afterburner, ballast, sonar dome, drill, brass plating) and `sub-modules-b.png` (habitat, tractor beam, Choir stone).
+- **Not tested by hand:** the dash's feel, mag-boots in the race, the cowl in the plumes, the satchel catching a second creature, and all of it on the phone.
+
 ## Next
 
 **Next session: more polish** (Colin wants more before the Steam build). Ideas to choose from:

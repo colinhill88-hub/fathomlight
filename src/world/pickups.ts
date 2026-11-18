@@ -1,6 +1,6 @@
 import { Container, Graphics } from 'pixi.js';
 import { mulberry32, WORLD_SEED } from '../rng';
-import { isSolid, CREVICE_X, caveBottom, groundY, WALL_NOOK, WORLD_H } from './terrain';
+import { isSolid, CREVICE_X, caveBottom, groundY, WALL_NOOK, WORLD_H, SEAM, seam } from './terrain';
 import { WhorlArt } from './whorl';
 import { MATERIALS, MaterialId, ReefMaterial, regrowSeconds, SaveData, DroppedBag } from '../game/state';
 import type { PointLight } from './scenery';
@@ -100,6 +100,13 @@ const SPOTS: Spot[] = (() => {
   s.push({ id: 'kit-thruster', kind: 'thruster', x: 5090, y: surfaceAt(5090) - 7 });
   // The TH-2 thruster head (a bigger boost): deep in the kelp forest, by a holdfast.
   s.push({ id: 'kit-thruster2', kind: 'thruster2', x: 13760, y: surfaceAt(13760) - 8 });
+  // After milestone 12: the sealed grotto behind the drill seam (hidden until it is bored open).
+  const floorOf = (x: number) => SEAM.room.y + SEAM.room.ry * Math.sqrt(Math.max(0, 1 - ((x - SEAM.room.x) / SEAM.room.rx) ** 2));
+  s.push({ id: 'seam-bloom-0', kind: 'bloom', x: 26760, y: floorOf(26760) - 8 });
+  s.push({ id: 'seam-bloom-1', kind: 'bloom', x: 26965, y: floorOf(26965) - 8 });
+  s.push({ id: 'seam-ore-0', kind: 'ore', x: 26860, y: floorOf(26860) - 6 });
+  s.push({ id: 'seam-ore-1', kind: 'ore', x: 27040, y: floorOf(27040) - 6 });
+  s.push({ id: 'whorl-seam', kind: 'whorl', x: 26690, y: floorOf(26690) - 9 });
   return s;
 })();
 
@@ -418,7 +425,9 @@ export class Pickups {
       const found = (id: string) => (kit ? kitFound(save, kit) : isWhorl ? save.whorls.includes(id) : save.tanks.includes(id));
       const taken = isTank ? found(spot.id) : spot.id in save.taken;
       if (!isTank && taken && now - save.taken[spot.id] > regrowSeconds(spot.kind)) delete save.taken[spot.id];
-      const gone = isTank ? found(spot.id) : spot.id in save.taken;
+      // The drill seam's grotto stays sealed (and its finds hidden) until KS-1 bores it open.
+      const sealed = (spot.id.startsWith('seam-') || spot.id === 'whorl-seam') && !seam.open;
+      const gone = sealed || (isTank ? found(spot.id) : spot.id in save.taken);
       const art = this.whorls.get(spot.id);
       if (art) {
         art.setPosition(it.view.x, it.view.y);
@@ -614,6 +623,26 @@ export class Pickups {
   }
 
   /** Where pickups of a kind lie (the scanner uses these). */
+  /** After milestone 12: loose materials lying out now (for the Echo visor, the sonar dome and the tractor beam). */
+  materials(): { id: string; kind: ReefMaterial; x: number; y: number }[] {
+    const out: { id: string; kind: ReefMaterial; x: number; y: number }[] = [];
+    for (const it of this.items) {
+      const k = it.spot.kind;
+      if (!it.present || it.pull > 0 || k === 'tank' || k === 'whorl' || isKit(k)) continue;
+      out.push({ id: it.spot.id, kind: k as ReefMaterial, x: it.spot.x, y: it.spot.y });
+    }
+    return out;
+  }
+
+  /** After milestone 12: the tractor beam takes a material at once (it slides into the sub). */
+  tractorTake(id: string, save: SaveData): ReefMaterial | null {
+    const it = this.items.find((q) => q.spot.id === id);
+    if (!it || !it.present || it.pull > 0) return null;
+    it.pull = 0.0001;
+    save.taken[id] = save.playSeconds;
+    return it.spot.kind as ReefMaterial;
+  }
+
   static spotsOf(kind: Spot['kind']): { x: number; y: number }[] {
     return SPOTS.filter((s) => s.kind === kind).map((s) => ({ x: s.x, y: s.y }));
   }

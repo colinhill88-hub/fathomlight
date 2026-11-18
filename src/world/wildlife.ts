@@ -138,6 +138,11 @@ export class Wildlife {
     this.glow.addChild(this.eyeHalo);
   }
 
+  /** After milestone 12: young creatures and eggs you could collect, for the Echo visor. */
+  youngSpots(): { x: number; y: number }[] {
+    return this.all.filter((w) => w.collectible && w.present).map((w) => ({ x: w.x, y: w.y }));
+  }
+
   /** Milestone 9: the traits of a wild creature (so the one you catch looks the same in the tank). */
   traitsOf(id: string): Traits | undefined {
     const w = this.all.find((q) => q.id === id);

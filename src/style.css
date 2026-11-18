@@ -3472,8 +3472,8 @@ body.touch #btn-dart:not([hidden]) {
   bottom: calc(var(--safe-bottom) + 112px);
 }
 #btn-dart {
-  right: calc(var(--safe-right) + 128px);
-  bottom: calc(var(--safe-bottom) + 160px);
+  right: calc(var(--safe-right) + 186px);
+  bottom: calc(var(--safe-bottom) + 170px);
 }
 #btn-flare.pressed,
 #btn-dart.pressed {
