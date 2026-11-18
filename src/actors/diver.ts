@@ -38,10 +38,59 @@ export interface KitLook {
   thruster: 0 | 1 | 2;
   /** The pressure suit: 0 the Kestrel suit, 1 PS-1, 2 PS-2 (milestone 10). */
   psuit: 0 | 1 | 2;
+  /** Milestone 11: the alien resonator, a crystal hoop on the pack and a ringed bracer on the near forearm. */
+  resonator?: boolean;
 }
-export const FULL_KIT: KitLook = { tanks: 2, spear: true, jar: true, thruster: 1, psuit: 0 };
+export const FULL_KIT: KitLook = { tanks: 2, spear: true, jar: true, thruster: 1, psuit: 0, resonator: false };
 export function kitKey(k: KitLook): string {
-  return `${Math.min(4, k.tanks)}${+k.spear}${+k.jar}${k.thruster}${k.psuit}`;
+  return `${Math.min(4, k.tanks)}${+k.spear}${+k.jar}${k.thruster}${k.psuit}${+!!k.resonator}`;
+}
+/** The Choir's own colours (DESIGN.md: only the Choir and its technology show them). */
+export const CHOIR = [0x5ff0ff, 0xa27cff, 0xff5ad8];
+/** A Choir colour drifting through cyan, violet and magenta (t in seconds). */
+export function choirColour(t: number): number {
+  const f = ((t % 3) + 3) % 3;
+  const i = Math.floor(f);
+  const k = f - i;
+  const a = CHOIR[i];
+  const b = CHOIR[(i + 1) % 3];
+  const ch = (s: number) => Math.round(((a >> s) & 255) * (1 - k) + ((b >> s) & 255) * k);
+  return (ch(16) << 16) | (ch(8) << 8) | ch(0);
+}
+/**
+ * Milestone 11: the resonator's hoop, drawn on the pack (cx, cy its centre, r
+ * its radius): a forged brass ring holding a pale tuned crystal on four
+ * spokes, with two thin swept fins behind it like the Choir's ribbons.
+ */
+export function drawResonatorHoop(g: Graphics, cx: number, cy: number, r: number, finDir: number): void {
+  // The fins: thin brass blades sweeping back, edged pale.
+  for (const s of [-1, 1]) {
+    g.moveTo(cx - finDir * r * 0.3, cy + s * r * 0.5)
+      .quadraticCurveTo(cx - finDir * r * 1.6, cy + s * r * 1.1, cx - finDir * r * 2.6, cy + s * r * 0.5)
+      .quadraticCurveTo(cx - finDir * r * 1.5, cy + s * r * 0.75, cx - finDir * r * 0.3, cy + s * r * 0.2)
+      .fill({ color: 0x8a6a2a });
+    g.moveTo(cx - finDir * r * 0.4, cy + s * r * 0.45).quadraticCurveTo(cx - finDir * r * 1.6, cy + s * r * 1.05, cx - finDir * r * 2.5, cy + s * r * 0.52).stroke({ color: 0xf0d890, width: 0.6, alpha: 0.6 });
+  }
+  g.circle(cx, cy, r).stroke({ color: BRASS, width: Math.max(1.6, r * 0.28) });
+  g.circle(cx, cy, r + r * 0.14).stroke({ color: BRASS_DARK, width: 0.6 });
+  g.circle(cx, cy, r * 0.86).stroke({ color: 0xf0d890, width: 0.5, alpha: 0.6 });
+  for (let k = 0; k < 4; k++) {
+    const a = (k / 4) * Math.PI * 2 + Math.PI / 4;
+    g.moveTo(cx + Math.cos(a) * r * 0.85, cy + Math.sin(a) * r * 0.85).lineTo(cx + Math.cos(a) * r * 0.32, cy + Math.sin(a) * r * 0.32).stroke({ color: BRASS_DARK, width: 0.9 });
+  }
+  // The crystal itself (its light is drawn unlit on top).
+  g.poly([cx, cy - r * 0.42, cx + r * 0.3, cy, cx, cy + r * 0.42, cx - r * 0.3, cy]).fill({ color: 0xc8d8e8 });
+  // A short mount down to the pack.
+  g.rect(cx - 1, cy + r, 2, r * 0.5).fill({ color: BRASS_DARK });
+}
+/** The resonator's bracer on a forearm (len long, w wide, in the forearm's space). */
+export function drawResonatorBracer(g: Graphics, len: number, w: number): void {
+  g.roundRect(len * 0.18, -w / 2 - 1.2, len * 0.55, w + 2.4, 2.5).fill({ color: 0x6a5222 });
+  g.roundRect(len * 0.18, -w / 2 - 1.2, len * 0.55, 1.4, 0.7).fill({ color: 0xf0d890, alpha: 0.5 });
+  for (const x of [len * 0.24, len * 0.66]) g.rect(x - 0.8, -w / 2 - 1.2, 1.6, w + 2.4).fill({ color: BRASS });
+  // A small crystal ring set in it.
+  g.circle(len * 0.45, 0, w * 0.32).stroke({ color: BRASS, width: 1.1 });
+  g.circle(len * 0.45, 0, w * 0.16).fill({ color: 0xc8d8e8 });
 }
 /** Multiply two colours (a tint over a tint). */
 export function mulColour(a: number, b: number): number {
@@ -110,7 +159,11 @@ function drawDiverBack(g: Graphics, kit: KitLook): void {
     g.moveTo(-28, y - 2).lineTo(-2, y - 2).stroke({ color: 0x8e979c, width: 1 });
     g.circle(-33, y, 2.6).stroke({ color: 0xd8c890, width: 1.4 }); // the line reel
   }
+  // Milestone 11: the resonator's hoop rides on top of the pack.
+  if (kit.resonator) drawResonatorHoop(g, RESON_BACK.x, Math.min(top, -27) + RESON_BACK.dy, 8, 1);
 }
+/** Where the resonator's crystal sits on the swimmer's pack (x, and height above the topmost tank). */
+const RESON_BACK = { x: 6, dy: -15 };
 
 /** The pressure suit's brass: collar rings, a chest plate and tubes from the pack (torso space). */
 function drawDiverPsuitTorso(g: Graphics): void {
@@ -817,6 +870,12 @@ export class Diver {
   /** The glowing lens of the shoulder lamp, drawn without lighting so it shines. */
   readonly lens = new Graphics();
   readonly lensGlow = new Graphics();
+  /** Milestone 11: the resonator's crystal light (unlit) and its halo, in world space. */
+  readonly resonDot = new Graphics();
+  readonly resonGlow = new Graphics();
+  /** 0..1: the resonator is singing (set by the game). */
+  singing = 0;
+  private bracers: Graphics[] = [];
 
   x = 300;
   y = 300;
@@ -955,6 +1014,13 @@ export class Diver {
       arm.upper.addChildAt(a, 1);
       arm.fore.addChildAt(b, 1);
       this.psuitBits.push(a, b);
+      if (arm === this.nearArm) {
+        const br = new Graphics();
+        drawResonatorBracer(br, 14, 9);
+        br.visible = false;
+        arm.fore.addChild(br);
+        this.bracers.push(br);
+      }
       const pl = ps2Plate(17, 10);
       arm.upper.addChildAt(pl, 2);
       this.ps2Bits.push(pl);
@@ -1011,6 +1077,7 @@ export class Diver {
 
     this.lens.circle(0, 0, 2.4).fill({ color: 0xfff3d0 });
     this.lensGlow.circle(0, 0, 14).fill({ color: 0xffe9b0, alpha: 0.9 });
+    this.resonDot.visible = this.resonGlow.visible = false;
     batchAll(this.view);
   }
 
@@ -1044,12 +1111,37 @@ export class Diver {
       t.rect(-6, 9.5, 8, 3).fill({ color: C.chromeDark });
       t.rect(-6, 15.5, 8, 3).fill({ color: C.chromeDark });
     }
+    for (const b of this.bracers) b.visible = !!k.resonator;
     this.psuitTorso.visible = k.psuit > 0;
     for (const b of this.psuitBits) b.visible = k.psuit > 0;
     this.ps2Torso.visible = k.psuit === 2;
     for (const b of this.ps2Bits) b.visible = k.psuit === 2;
     const tint = k.psuit === 2 ? PSUIT2_TINT : PSUIT_TINT;
     for (const { g, base } of this.tinted) g.tint = k.psuit ? mulColour(base, tint) : base;
+  }
+
+  /** Milestone 11: the resonator's crystal, lit in the Choir's colours (brighter while it sings). */
+  private placeResonator(): void {
+    const on = !!this.kit.resonator && this.view.visible;
+    this.resonDot.visible = this.resonGlow.visible = on;
+    if (!on) return;
+    const n = Math.min(4, this.kit.tanks);
+    const top = n >= 3 ? -49 : n === 2 ? -38 : -27;
+    const [x, y] = this.toWorld(RESON_BACK.x * 0.88, Math.min(top, -27) + RESON_BACK.dy);
+    const c = choirColour(this.time * (0.5 + this.singing * 2));
+    const s = this.singing;
+    const pulse = 0.5 + 0.5 * Math.sin(this.time * (2 + s * 9));
+    this.resonDot.clear().circle(0, 0, 2 + s * 1.6).fill({ color: 0xf4fbff }).circle(0, 0, 3.4 + s * 2).fill({ color: c, alpha: 0.55 });
+    this.resonGlow.clear().circle(0, 0, 10 + s * 26 + pulse * 4 * s).fill({ color: c, alpha: 0.35 + s * 0.5 });
+    this.resonDot.position.set(x, y);
+    this.resonGlow.position.set(x, y);
+    this.resonDot.alpha = this.view.alpha;
+    this.resonGlow.alpha = this.view.alpha * (0.55 + 0.25 * pulse);
+  }
+
+  /** Where the resonator's crystal is in the world (the song's rings start here). */
+  resonPoint(): { x: number; y: number } {
+    return { x: this.resonDot.x, y: this.resonDot.y };
   }
 
   /** The middle of the helmet, in world space (for breath vapour and the surface splash). */
@@ -1480,6 +1572,7 @@ export class Diver {
       this.diveBag.rotation = this.bagS.x;
     }
     this.applyKit();
+    this.placeResonator();
     this.beltJar.set(this.kit.jar ? this.jar : null, this.time, this.kit.jar);
     this.beltJar.view.rotation = this.bagS.x * 0.8;
     {

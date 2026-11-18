@@ -1,6 +1,6 @@
 import { BaseLayout, isDone, pieceCode, Placed } from '../game/base';
 import { MATERIAL_ORDER, MaterialId, SaveData } from '../game/state';
-import { FINDS, GEAR, GEAR_ORDER, jobOf, jobRunning, jobSecondsLeft, KIT_GEAR, OTHER_BLUEPRINTS, PIECE_BLUEPRINTS, RESEARCH, RESEARCH_ORDER, researchBlocker } from '../game/gear';
+import { FINDS, GEAR, GEAR_ORDER, gearBlocker, jobOf, jobRunning, jobSecondsLeft, KIT_GEAR, OTHER_BLUEPRINTS, PIECE_BLUEPRINTS, RESEARCH, RESEARCH_ORDER, researchBlocker } from '../game/gear';
 import { payCost } from '../game/creatures';
 import { haveFor, missingText } from '../game/sub';
 import { MATERIAL_ICONS } from './hud';
@@ -131,6 +131,8 @@ export class StationMode {
     if (!p || !g || jobOf(save, p) || (save.gear.includes(g.id) && !KIT_GEAR.includes(g.id))) return;
     if (!layout.powered.has(p.id)) return this.deps.toast('The Workshop needs power: join it to a current turbine', 'warn');
     if (!save.blueprints.includes(g.blueprint)) return this.deps.toast('Decode its blueprint in a Lab first', 'warn');
+    const block = gearBlocker(save, g.id);
+    if (block) return this.deps.toast(block, 'warn');
     if (jobRunning(save, `build:${g.id}`)) return this.deps.toast('Another Workshop is already building that', 'warn');
     if (!payCost(save, g.cost)) return this.deps.toast(`The ${g.name.toLowerCase()} still needs ${missingText(save, g.cost)}`, 'warn');
     save.jobs[String(p.id)] = { id: `build:${g.id}`, progress: 0 };
@@ -216,9 +218,10 @@ export class StationMode {
           if (!save.blueprints.includes(g.blueprint) && id !== 'light') return '';
           const known = save.blueprints.includes(g.blueprint);
           const busy = !!j || jobRunning(save, `build:${id}`);
-          const ok = known && haveFor(save, g.cost) && powered && !busy;
+          const block = known ? gearBlocker(save, id) : null;
+          const ok = known && !block && haveFor(save, g.cost) && powered && !busy;
           const kits = KIT_GEAR.includes(id) && save.relayKits ? ` <b>${save.relayKits} carried, ready to plant.</b>` : '';
-          return `<div class="mod"><div><b>${known ? `${g.name} ${g.code}` : 'Unknown gear'}</b><small>${known ? g.job + kits : 'Decode a blueprint in a Lab to build this.'}</small>${
+          return `<div class="mod"><div><b>${known ? `${g.name} ${g.code}` : 'Unknown gear'}</b><small>${known ? (block ? `<b>${block}</b> ` : '') + g.job + kits : 'Decode a blueprint in a Lab to build this.'}</small>${
             known ? `<div class="costs">${costChips(save, g.cost)}<span class="cost">${g.seconds} s</span></div>` : ''
           }</div><button type="button" class="act" data-act="make" data-id="${id}" ${ok ? '' : 'disabled'}>Build</button></div>`;
         }).join('');

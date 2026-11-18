@@ -1,0 +1,146 @@
+import type { Graphics } from 'pixi.js';
+import type { Light } from '../fx/lighting';
+import type { InteriorOptions } from './interior';
+
+/**
+ * Milestone 11: the heart of the sanctum, explored on foot (Colin's choice:
+ * swim down through the sanctum, then a dry interior). The Choir keeps air in
+ * its heart, as if it expected visitors who breathe. One tile is 40 units.
+ *
+ *  - The upper hall: in through the glowing arch (S), east along a walkway,
+ *    and over a chasm of light on three rings of light (grapple and swing).
+ *  - The lift (U, G, L): a disc of stone riding a column of light down the
+ *    east side, always powered.
+ *  - The lower hall: west from the lift to a song-lock (Q), sung open at its
+ *    plinth (1), then a second swing back over the chasm, above its pool of
+ *    light (falling in only lifts you back to where you last stood).
+ *  - The Choir's chamber, under the upper walkway: a tall room with ledges of
+ *    light, and the plinth where you answer the Choir (9).
+ *
+ * The map is built by code (carved rooms in solid stone) so its shape is easy
+ * to change.
+ */
+export const HEART_W = 90;
+export const HEART_H = 34;
+/** The middle of the Choir's chamber, where the Choir rises (level units). */
+export const CHOIR_AT = { x: 14 * 40, y: 19 * 40 };
+
+export const HEART_MAP: string[] = (() => {
+  const g: string[][] = Array.from({ length: HEART_H }, () => Array.from({ length: HEART_W }, () => '#'));
+  const carve = (c0: number, c1: number, r0: number, r1: number, ch = ' ') => {
+    for (let r = r0; r <= r1; r++) for (let c = c0; c <= c1; c++) g[r][c] = ch;
+  };
+  const put = (c: number, r: number, ch: string) => (g[r][c] = ch);
+  // The upper hall and the walkway, west to east.
+  carve(1, 82, 1, 8);
+  // The chasm, down to its pool of light.
+  carve(29, 52, 9, 29);
+  carve(29, 52, 30, 31, '~');
+  // The Choir's chamber under the upper walkway, opening onto the chasm low down.
+  carve(1, 27, 12, 27);
+  carve(28, 28, 19, 27);
+  // The lower hall, from the chasm east to the lift.
+  carve(53, 82, 19, 27);
+  // The lift: call stones (U), gates (G) and the shaft (L) up the east side.
+  put(82, 8, 'U');
+  put(82, 27, 'U');
+  for (const r of [6, 7, 8, 25, 26, 27]) put(83, r, 'G');
+  for (let r = 6; r <= 27; r++) for (let c = 84; c <= 86; c++) put(c, r, 'L');
+  // In by the arch.
+  put(3, 8, 'S');
+  // Rings of light over the chasm: high for the upper crossing, low for the lower one.
+  for (const c of [34, 41, 48]) put(c, 3, 'o');
+  for (const c of [31, 38, 45]) put(c, 20, 'o');
+  // The song-lock across the lower hall, and its plinth.
+  carve(60, 60, 19, 27, 'Q');
+  put(64, 27, '1');
+  // Ledges of light in the Choir's chamber, and the plinth where you answer.
+  carve(3, 7, 22, 22, '=');
+  carve(20, 24, 22, 22, '=');
+  carve(10, 17, 16, 16, '=');
+  put(13, 27, '9');
+  return g.map((r) => r.join(''));
+})();
+
+/**
+ * The Choir as it rises in its chamber: rings and ribbons of living light.
+ * The contact (src/main.ts) sets how far it has risen and which colour it is
+ * singing; this draws it and lights the room.
+ */
+export class ChoirForm {
+  /** 0 not there .. 1 fully risen. */
+  rise = 0;
+  /** The colour it sings now (0 cyan, 1 violet, 2 magenta, 3 pale gold) and how strongly (0..1). */
+  note = -1;
+  noteK = 0;
+  /** The ending: it opens out and fills the room. */
+  bloom = 0;
+  private light: Light = { x: CHOIR_AT.x, y: CHOIR_AT.y, radius: 900, intensity: 0, color: [0.6, 0.6, 1], haze: 0.12 };
+  static readonly COLOURS = [0x5ff0ff, 0xa27cff, 0xff5ad8, 0xffe7a0];
+
+  draw(_d: Graphics, de: Graphics, t: number): void {
+    const k = this.rise;
+    if (k <= 0.001) {
+      this.light.intensity = 0;
+      return;
+    }
+    const x = CHOIR_AT.x;
+    const y = CHOIR_AT.y + (1 - k) * 220;
+    const C = ChoirForm.COLOURS;
+    const sing = this.note >= 0 ? this.noteK : 0;
+    const big = 1 + this.bloom * 0.8 + sing * 0.15;
+    // Rings: tilted, turning slowly, each its own colour; the singing colour flares.
+    for (let i = 0; i < 6; i++) {
+      const r = (60 + i * 34) * big * (0.6 + 0.4 * k);
+      const tilt = 0.25 + 0.2 * Math.sin(t * 0.3 + i);
+      const rot = t * (0.15 + i * 0.05) * (i % 2 ? -1 : 1);
+      const c = C[i % 3];
+      const on = this.note === i % 3 ? sing : 0;
+      const pts: number[] = [];
+      for (let a = 0; a <= 32; a++) {
+        const ang = (a / 32) * Math.PI * 2;
+        const px = Math.cos(ang) * r;
+        const py = Math.sin(ang) * r * tilt;
+        pts.push(x + px * Math.cos(rot) - py * Math.sin(rot), y + px * Math.sin(rot) + py * Math.cos(rot));
+      }
+      de.poly(pts, true).stroke({ color: c, width: 1.6 + on * 3, alpha: (0.35 + 0.5 * on) * k });
+    }
+    // Ribbons trailing down from it, waving.
+    for (let i = 0; i < 7; i++) {
+      const bx = x + (i - 3) * 28 * big;
+      const c = C[i % 3];
+      de.moveTo(bx, y + 20);
+      for (let s = 1; s <= 10; s++) de.lineTo(bx + Math.sin(t * 1.3 + i + s * 0.6) * (8 + s * 2), y + 20 + s * 24 * k * big);
+      de.stroke({ color: this.note === i % 3 ? C[this.note] : c, width: 2, alpha: 0.5 * k });
+    }
+    // The core.
+    const core = this.note >= 0 && sing > 0.05 ? C[this.note] : 0xe8f0ff;
+    de.circle(x, y, (26 + sing * 18 + this.bloom * 40) * k).fill({ color: core, alpha: 0.35 + 0.3 * sing });
+    de.circle(x, y, (10 + sing * 6) * k).fill({ color: 0xf8fcff, alpha: 0.95 });
+    const col = this.note >= 0 && sing > 0.05 ? C[this.note] : 0xb0b8ff;
+    this.light.x = x;
+    this.light.y = y;
+    this.light.color = [((col >> 16) & 255) / 255, ((col >> 8) & 255) / 255, (col & 255) / 255];
+    this.light.intensity = (0.9 + 1.2 * sing + this.bloom) * k;
+  }
+
+  lights(): Light[] {
+    return this.light.intensity > 0 ? [this.light] : [];
+  }
+}
+
+export function heartOptions(choir: ChoirForm): InteriorOptions {
+  return {
+    labels: {
+      '1': 'Sing to the song-lock',
+      '9': 'Answer the Choir',
+    },
+    style: 'sanctum',
+    powered: true,
+    gates: { Q: '1' },
+    plainFinds: true,
+    exitLabel: 'Go back out through the arch',
+    animate: (d, de, t) => choir.draw(d, de, t),
+    lights: () => choir.lights(),
+  };
+}

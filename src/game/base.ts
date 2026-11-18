@@ -80,7 +80,7 @@ export const SITE = (() => {
 /** How many cells of the site are open water. */
 export const OPEN_CELLS = OPEN.filter(Boolean).length;
 
-export type PieceKind = 'dome' | 'corridor' | 'turbine' | 'storage' | 'tank' | 'filter' | 'feeder' | 'press' | 'dock' | 'lab' | 'workshop' | 'gtank' | 'sorter' | 'recomp' | 'crane' | 'hatch' | 'farm' | 'revive' | 'shaft' | 'junction' | 'bracket' | 'signal';
+export type PieceKind = 'dome' | 'corridor' | 'turbine' | 'storage' | 'tank' | 'filter' | 'feeder' | 'press' | 'dock' | 'lab' | 'workshop' | 'gtank' | 'sorter' | 'recomp' | 'crane' | 'hatch' | 'farm' | 'revive' | 'shaft' | 'junction' | 'bracket' | 'signal' | 'lantern';
 /** Creature tanks of either size (milestone 7 part 2 added the Grand tank). */
 export function isTankKind(k: PieceKind): boolean {
   return k === 'tank' || k === 'gtank';
@@ -399,6 +399,27 @@ export const PIECES: Record<PieceKind, PieceDef> = {
       },
     ],
   },
+  // Milestone 11: the Choir's gift after contact. A power source like a turbine, but it needs no current.
+  lantern: {
+    kind: 'lantern',
+    name: 'Choir lantern',
+    job: "A seed of the Choir's light in a ring of pale stone. It powers every piece joined to it, like a current turbine, anywhere on the site, and lights the base in the Choir's colours.",
+    cost: { quartz: 4, ore: 2, bloom: 1 },
+    buildTime: 30,
+    blueprint: 'lantern',
+    shapes: [
+      {
+        w: 1,
+        h: 1,
+        collars: [
+          { cx: 0, cy: 0, dir: 'L' },
+          { cx: 0, cy: 0, dir: 'R' },
+          { cx: 0, cy: 0, dir: 'U' },
+          { cx: 0, cy: 0, dir: 'D' },
+        ],
+      },
+    ],
+  },
   bracket: {
     kind: 'bracket',
     name: 'Cliff bracket',
@@ -428,7 +449,7 @@ export const PIECES: Record<PieceKind, PieceDef> = {
     ],
   },
 };
-export const PIECE_ORDER: PieceKind[] = ['dome', 'corridor', 'turbine', 'storage', 'tank', 'filter', 'feeder', 'press', 'dock', 'lab', 'workshop', 'gtank', 'sorter', 'recomp', 'crane', 'hatch', 'farm', 'revive', 'signal', 'shaft', 'junction', 'bracket'];
+export const PIECE_ORDER: PieceKind[] = ['dome', 'corridor', 'turbine', 'storage', 'tank', 'filter', 'feeder', 'press', 'dock', 'lab', 'workshop', 'gtank', 'sorter', 'recomp', 'crane', 'hatch', 'farm', 'revive', 'signal', 'lantern', 'shaft', 'junction', 'bracket'];
 /** Each sorting pod's bay for every material. */
 export const SORT_BAY = 12;
 
@@ -542,7 +563,7 @@ export class BaseLayout {
     // Frames still being welded neither work nor pass power on.
     this.powered.clear();
     const done = new Set(pieces.filter(isDone).map((p) => p.id));
-    const queue = pieces.filter((p) => p.kind === 'turbine' && done.has(p.id)).map((p) => p.id);
+    const queue = pieces.filter((p) => (p.kind === 'turbine' || p.kind === 'lantern') && done.has(p.id)).map((p) => p.id);
     for (const id of queue) this.powered.add(id);
     while (queue.length) {
       const id = queue.shift()!;
@@ -677,6 +698,7 @@ const CODE_PREFIX: Record<PieceKind, string> = {
   junction: 'JX-',
   bracket: 'BR-',
   signal: 'SA-',
+  lantern: 'CL-',
 };
 
 /** A piece's stencil code, as painted on it: CT-1, AF-2, PP-1, TANK 3. Pieces are numbered per kind in build order. */

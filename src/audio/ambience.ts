@@ -23,6 +23,8 @@ export interface ZoneMix {
   shelf: number;
   /** Milestone 10: the trench. */
   trench: number;
+  /** Milestone 11: the sanctum. */
+  sanctum: number;
 }
 
 interface Layer {
@@ -145,9 +147,9 @@ export class Ambience {
       g.setTargetAtTime(level * 0.35, t + 1.8, 1.4);
     }
     // The deep hum: pitch drops a little per zone.
-    const hum = Math.min(1, 0.15 + depth) * (mix.basin * 0.8 + mix.forest * 1 + mix.cave * 0.7 + mix.shelf * 1.2 + mix.trench * 1.5) + 0.1 * depth * mix.shallows;
+    const hum = Math.min(1, 0.15 + depth) * (mix.basin * 0.8 + mix.forest * 1 + mix.cave * 0.7 + mix.shelf * 1.2 + mix.trench * 1.5 + mix.sanctum * 0.9) + 0.1 * depth * mix.shallows;
     this.drone.gain.gain.setTargetAtTime((surfaced ? 0 : 0.16 * hum) * q, t, 2);
-    const root = 55 * mix.shallows + 49 * mix.basin + 41.2 * mix.forest + 36.7 * mix.cave + 34.6 * mix.shelf + 27.5 * mix.trench;
+    const root = 55 * mix.shallows + 49 * mix.basin + 41.2 * mix.forest + 36.7 * mix.cave + 34.6 * mix.shelf + 27.5 * mix.trench + 36.7 * mix.sanctum;
     this.drone.oscs[0].frequency.setTargetAtTime(root, t, 3);
     this.drone.oscs[1].frequency.setTargetAtTime(root, t, 3);
     this.drone.oscs[2].frequency.setTargetAtTime(root * 1.498, t, 3);
@@ -196,6 +198,12 @@ export class Ambience {
       } else if (Math.random() < 0.5) audio.metal({ freq: 70 + Math.random() * 40, gain: 0.03, decay: 2.4, bus: 'ambience', send: 0.9, pan });
       else for (let k = 0; k < 3; k++) audio.thump({ t: audio.now + k * 0.9, freq: 46, gain: 0.04, bus: 'ambience', send: 0.6, pan });
       this.nextEvent = 4 + Math.random() * 6;
+    } else if (pick(mix.sanctum)) {
+      // The sanctum: soft glassy chimes far off, in fifths, like light becoming sound.
+      const base = [293.7, 440, 587.3, 659.3][Math.floor(Math.random() * 4)];
+      for (let k = 0; k < 3; k++)
+        audio.tone({ t: audio.now + k * 0.45, freq: base * [1, 1.5, 2][k], dur: 2.6, attack: 0.05, gain: 0.025, type: 'sine', bus: 'ambience', send: 1, pan: pan * (1 - k * 0.3) });
+      this.nextEvent = 3 + Math.random() * 4;
     } else if (pick(mix.cave)) {
       this.drip(pan);
       if (Math.random() < 0.4) this.drip(pan * 0.5, 0.25 + Math.random() * 0.4);

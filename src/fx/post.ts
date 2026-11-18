@@ -27,6 +27,8 @@ export interface ZoneWeights {
   shelf: number;
   /** Milestone 10. */
   trench: number;
+  /** Milestone 11: the Choir's colours take over. */
+  sanctum: number;
 }
 
 /** Can this device render into a half-float picture? Checked on a scratch context, so the game's own is untouched. */
@@ -251,6 +253,8 @@ const GRADES: Record<keyof ZoneWeights | 'interior', Grade> = {
   shelf: { tint: [0.96, 1.01, 1.01], exposure: 1.0, sat: 0.7, contrast: 1.08, lift: [0.006, 0.014, 0.014] },
   // Milestone 10: cold blue-black, low saturation, a touch more contrast.
   trench: { tint: [0.9, 0.98, 1.08], exposure: 1.0, sat: 0.62, contrast: 1.1, lift: [0.002, 0.008, 0.014] },
+  // Milestone 11: the sanctum. Richer colour, a lifted violet floor and a little more light: awe, not dread.
+  sanctum: { tint: [0.98, 0.96, 1.08], exposure: 1.08, sat: 1.15, contrast: 1.04, lift: [0.01, 0.006, 0.022] },
   // Near black.
   cave: { tint: [0.97, 1.0, 1.02], exposure: 0.98, sat: 0.84, contrast: 1.05, lift: [0.002, 0.006, 0.01] },
   // Dry steel and lamplight.
@@ -260,7 +264,7 @@ const GRADES: Record<keyof ZoneWeights | 'interior', Grade> = {
 export function gradeFor(zone: ZoneWeights | null): Grade {
   if (!zone) return GRADES.interior;
   const out: Grade = { tint: [0, 0, 0], exposure: 0, sat: 0, contrast: 0, lift: [0, 0, 0] };
-  for (const k of ['shallows', 'basin', 'forest', 'cave', 'shelf', 'trench'] as const) {
+  for (const k of ['shallows', 'basin', 'forest', 'cave', 'shelf', 'trench', 'sanctum'] as const) {
     const w = zone[k];
     const g = GRADES[k];
     for (let i = 0; i < 3; i++) {

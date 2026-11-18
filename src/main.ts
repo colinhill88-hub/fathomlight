@@ -76,6 +76,9 @@ import {
   TR_LANTERNJAWS,
   TR_STALKERS,
   TR_SPIDERS,
+  SANCTUM,
+  sanctum,
+  inSanctum,
 } from './world/terrain';
 import { DeepHunters } from './actors/deep';
 import { FULMAR_MAP, FULMAR_OPTS } from './interior/fulmar';
@@ -128,6 +131,10 @@ import { Interior, InteriorEvent } from './interior/interior';
 import { CORVINA_MAP } from './interior/corvina';
 import { BaseCtx, BaseHooks, baseSignature, buildBaseLevel } from './interior/baselevel';
 import { SCAN_ENTRIES } from './game/scanner';
+import { CHOIR_AT, ChoirForm, HEART_MAP, heartOptions } from './interior/sanctum';
+import { Contact, type ContactWord } from './ui/contact';
+import { markSeen, ZoneMap } from './ui/zonemap';
+import { PATTERNS } from './game/traits';
 import { initSoundUI } from './ui/sound';
 
 declare const __BUILD_ID__: string;
@@ -322,6 +329,11 @@ async function boot(): Promise<void> {
     { id: 'lanternjaw', points: () => hunters.points('lanternjaw') },
     { id: 'stalker', points: () => hunters.points('stalker') },
     { id: 'spider', points: () => hunters.points('spider') },
+    // Milestone 11: the sanctum.
+    { id: 'sdoor', points: () => scenery.sanctum.scanPoints.sdoor },
+    { id: 'shall', points: () => (sanctum.door ? scenery.sanctum.scanPoints.shall : []) },
+    { id: 'slock', points: () => scenery.sanctum.scanPoints.slock.filter((_, i) => !sanctum.locks[i]) },
+    { id: 'sheart', points: () => scenery.sanctum.scanPoints.sheart },
   );
   const surfaceFx = new SurfaceFx();
 
@@ -416,8 +428,8 @@ async function boot(): Promise<void> {
       scenery.over,
     );
     frontCam.addChild(scenery.front);
-    emissiveCam.addChild(scenery.emissive, baseView.emissive, tankLife.emissive, pickups.emissive, wildlife.emissive, escort.emissive, lurkers.emissive, hunters.emissive, sub.emissive, drone.emissive, ...fish.map((f) => f.lure), diver.lens, surfaceFx.view);
-    glowCam.addChild(scenery.glow, baseView.glow, tankLife.glow, pickups.glow, wildlife.glow, escort.glow, lurkers.glow, hunters.glow, sub.glow, drone.glow, ...fish.map((f) => f.halo), diver.lensGlow);
+    emissiveCam.addChild(scenery.emissive, baseView.emissive, tankLife.emissive, pickups.emissive, wildlife.emissive, escort.emissive, lurkers.emissive, hunters.emissive, sub.emissive, drone.emissive, ...fish.map((f) => f.lure), diver.lens, diver.resonDot, surfaceFx.view);
+    glowCam.addChild(scenery.glow, baseView.glow, tankLife.glow, pickups.glow, wildlife.glow, escort.glow, lurkers.glow, hunters.glow, sub.glow, drone.glow, ...fish.map((f) => f.halo), diver.lensGlow, diver.resonGlow);
   }
   populate();
 
@@ -429,7 +441,23 @@ async function boot(): Promise<void> {
   hdrRoot.addChild(interior.view);
   const worldLayers = [water.view, backdrop.view, zoneBackdrop.view, lighting.view, emissiveCam, glowSprite, snow.view, overlayCam];
   /** Which interior you're on foot in, if any. */
-  let inside: 'corvina' | 'base' | 'fulmar' | null = null;
+  let inside: 'corvina' | 'base' | 'fulmar' | 'sanctum' | null = null;
+  /** Milestone 11: the Choir in the sanctum's heart, and first contact (the ending). */
+  const choir = new ChoirForm();
+  const contact = new Contact(choir);
+  /** Milestone 11: the Signal array's zone map (opened at its console). */
+  const zoneMap = new ZoneMap();
+  let seenClock = 0;
+  // Saves from before the zone map: map the zones already reached.
+  if (!save.mapSeen) {
+    const reached = (x0: number, x1: number) => {
+      for (let x = x0; x < x1; x += 250) markSeen(save, x, 0);
+    };
+    reached(-5600, 9000);
+    if (save.gear.includes('light')) reached(8600, 19300);
+    if (save.scans.includes('wshelf') || save.gear.includes('tow')) reached(19300, 27000);
+    if (save.scans.includes('trench')) reached(26800, 33000);
+  }
   /** The walkable base: the dome you came in by, and the level built from the layout. */
   let baseDome: number | null = null;
   let baseHooks: BaseHooks | null = null;
@@ -976,7 +1004,7 @@ async function boot(): Promise<void> {
   let lastViewW = 1000;
   /** What the diver's kit looks like: the gear found and built so far, carried on the body. */
   function kitLook(): KitLook {
-    return { tanks: save.tanks.length, spear: hasGear(save, 'tow'), jar: save.kit.jar, thruster: save.kit.thruster, psuit: hasGear(save, 'psuit2') ? 2 : hasGear(save, 'psuit') ? 1 : 0 };
+    return { tanks: save.tanks.length, spear: hasGear(save, 'tow'), jar: save.kit.jar, thruster: save.kit.thruster, psuit: hasGear(save, 'psuit2') ? 2 : hasGear(save, 'psuit') ? 1 : 0, resonator: hasGear(save, 'resonator') };
   }
   let noThrusterAt = -99;
   /** The SLED 2 recorder still lies out on the sand (not taken, decoded or being decoded). */
@@ -1050,6 +1078,8 @@ async function boot(): Promise<void> {
   const diverLimit = () => (hasGear(save, 'psuit2') ? CRUSH.ps2 : hasGear(save, 'psuit') ? CRUSH.ps1 : CRUSH.kestrel);
   const subLimit = () => (save.sub?.plating ? CRUSH.plated : CRUSH.sub);
   let crushClock = 0;
+  /** Milestone 11: whether the Choir gates are drawn (after contact). */
+  let gatesShown = false;
   let crushWarnDiver = false;
   let crushWarnSub = false;
   /** Is the diver (or the sub) past its crush depth right now? For the banner. */
@@ -1063,8 +1093,8 @@ async function boot(): Promise<void> {
   function persist(): void {
     if (blackout > 0) return; // save once the diver is back at the buoy
     const outAt = inside === 'base' || peek ? baseOutside() : null;
-    save.x = outAt ? outAt.x : inside === 'corvina' ? CV_HATCH.x : inside === 'fulmar' ? FULMAR_HATCH.x : diver.x;
-    save.y = outAt ? outAt.y : inside === 'corvina' ? CV_HATCH.y - 70 : inside === 'fulmar' ? FULMAR_HATCH.y - 70 : diver.y;
+    save.x = outAt ? outAt.x : inside === 'corvina' ? CV_HATCH.x : inside === 'fulmar' ? FULMAR_HATCH.x : inside === 'sanctum' ? SANCTUM.heart.x : diver.x;
+    save.y = outAt ? outAt.y : inside === 'corvina' ? CV_HATCH.y - 70 : inside === 'fulmar' ? FULMAR_HATCH.y - 70 : inside === 'sanctum' ? SANCTUM.heart.y - 70 : diver.y;
     save.lampOn = diver.lampOn;
     if (save.sub) {
       save.sub.x = sub.x;
@@ -1279,7 +1309,9 @@ async function boot(): Promise<void> {
               ? `${g.name} ${g.code} built! You wear it from now on: rated to 60 m instead of 30. The trench's upper ledges are in reach.`
               : ev.id === 'psuit2'
                 ? `${g.name} ${g.code} built! Rated to 110 m: the trench floor, and the drowned station, are in reach.`
-                : `${g.name} ${g.code} built!`,
+                : ev.id === 'resonator'
+                  ? `${g.name} ${g.code} built! Its hoop rides on your pack and its bracer on your arm, humming in colours nothing on the reef makes. The fourth fragment said: down and east, past the trench floor. Look for a door at the floor's far end.`
+                  : `${g.name} ${g.code} built!`,
           'big',
         );
       }
@@ -1442,7 +1474,7 @@ async function boot(): Promise<void> {
     setTimeout(() => bench.start(performance.now()), 2500);
   }
   // Zone weights for the colour grade, eased so crossing a boundary never pops.
-  const zoneNow: ZoneWeights = { shallows: 1, basin: 0, forest: 0, cave: 0, shelf: 0, trench: 0 };
+  const zoneNow: ZoneWeights = { shallows: 1, basin: 0, forest: 0, cave: 0, shelf: 0, trench: 0, sanctum: 0 };
   let zoneEased = false;
   function drawPost(deltaMS: number): void {
     const dt = Math.min(deltaMS / 1000, 0.1);
@@ -1450,7 +1482,7 @@ async function boot(): Promise<void> {
     const target = zoneMix(at.x, at.y);
     const k = zoneEased ? 1 - Math.exp(-2.5 * dt) : 1;
     zoneEased = true;
-    for (const z of ['shallows', 'basin', 'forest', 'cave', 'shelf', 'trench'] as const) zoneNow[z] += (target[z] - zoneNow[z]) * k;
+    for (const z of ['shallows', 'basin', 'forest', 'cave', 'shelf', 'trench', 'sanctum'] as const) zoneNow[z] += (target[z] - zoneNow[z]) * k;
     post.update({
       time,
       cssW,
@@ -1808,10 +1840,25 @@ async function boot(): Promise<void> {
     scenery.setLocker(save.lockerOpen);
     for (const sv of SALVAGE) if (sv.id in save.salvageTaken && save.playSeconds - save.salvageTaken[sv.id] > SALVAGE_REGROW && save.sub?.salvage !== sv.id) delete save.salvageTaken[sv.id];
     scenery.setSalvage(save.salvageTaken);
+    // Milestone 11: the zone map fills in where you swim (or drive).
+    seenClock -= dt;
+    if (seenClock <= 0) {
+      seenClock = 0.5;
+      markSeen(save, aboard ? sub.x : diver.x);
+    }
     // Milestone 10: the trench's state.
     cleft.open = save.cleftOpen;
     scenery.trench.setCleft(save.cleftOpen);
     scenery.trench.setFulmar(save.fulmar.open);
+    // Milestone 11: the sanctum's doors and the Choir gates.
+    if (sanctum.door !== save.sanctum.door) scenery.sanctum.setDoor(save.sanctum.door);
+    if (sanctum.locks.some((l, i) => l !== save.sanctum.locks[i])) scenery.sanctum.setLocks(save.sanctum.locks);
+    sanctum.door = save.sanctum.door;
+    sanctum.locks = [...save.sanctum.locks];
+    if (gatesShown !== save.sanctum.contact) {
+      gatesShown = save.sanctum.contact;
+      scenery.sanctum.setGates(gatesShown);
+    }
     if (diver.x > 15800 && diver.x < 17200) scenery.updateKelpCaves(time, surge);
     scenery.setKelpCaves(save.brackets, save.kelpCut);
     kelpWall.cut = save.kelpCut;
@@ -2130,7 +2177,8 @@ async function boot(): Promise<void> {
       if (!aboard) {
         const dM = Math.max(0, diver.y - SURFACE_Y + 6) / WU_PER_METRE;
         const lim = diverLimit();
-        const cr = crushRate(dM, lim);
+        // Milestone 11: the Choir's water in the sanctum holds no weight.
+        const cr = inSanctum(diver.x, diver.y) ? 0 : crushRate(dM, lim);
         if (cr > 0) {
           crushing = 'diver';
           save.suit = Math.max(0, save.suit - cr * dt);
@@ -2693,6 +2741,51 @@ async function boot(): Promise<void> {
           };
         else holdAct = { key: 'fulmarenter', label: 'Climb down into the Fulmar', seconds: 0.8, done: () => enterFulmar() };
       }
+      // ---- Milestone 11: the sanctum ----
+      const hasReson = hasGear(save, 'resonator');
+      const singAt = (key: string, label: string, done: () => void) => ({ key, label, seconds: 3, done });
+      // The door in the trench floor: the resonator sings it open.
+      if (!save.sanctum.door && near({ x: SANCTUM.door.x, y: SANCTUM.door.y - 50 }, 150)) {
+        if (hasReson)
+          holdAct = singAt('sing-door', 'Sing to the door with the resonator', () => {
+            save.sanctum.door = true;
+            drone.cheer();
+            sound.find('bag');
+            hud.showReading(
+              'The door opens',
+              "The hoop on your pack starts to hum, then to sing: a pattern of light, rings inside rings, cyan into violet. The grooves in the stone take it up, brighter and brighter, until the whole disc is ringing like a struck glass.\n\nThen it parts. Petals of stone fold back into the rock, and below them a shaft falls away into a soft light that is not your lamp.",
+              'The way down is open. Inside, the water holds no weight: no crush depth.',
+            );
+          });
+        else
+          infoAct = save.scans.includes('sdoor')
+            ? save.signals.decoded.length >= 4
+              ? 'The door hears only its own song: build the alien resonator in a Workshop.'
+              : "A door of pale stone. It doesn't open to touch. Decode the Choir's fragments: they speak of a door."
+            : 'A disc of pale stone in the floor, leaking light. Scan it.';
+      }
+      // The song-locks across the narrows.
+      SANCTUM.locks.forEach((l, i) => {
+        if (save.sanctum.locks[i] || Math.abs(diver.x - l.x) > 150 || Math.abs(diver.y - l.y) > l.r + 60) return;
+        if (hasReson)
+          holdAct = singAt(`sing-lock${i}`, 'Sing to the song-lock', () => {
+            save.sanctum.locks[i] = true;
+            drone.cheer();
+            sound.find('bag');
+            hud.toast(i === 0 ? 'The lens of light shivers, sings back, and folds itself away into the stone. The great hall lies beyond.' : 'The second lock sings with you and parts. The way down to the deepest pool is open.', 'big');
+          });
+        else infoAct = 'A song-lock: it parts only for the resonator.';
+      });
+      // The heart's arch, on the deep pool's floor.
+      if (near({ x: SANCTUM.heart.x, y: SANCTUM.heart.y - 60 }, 120))
+        holdAct = { key: 'heartenter', label: 'Go in through the glowing arch', seconds: 1, done: () => enterHeart() };
+      // The Choir gates (after contact): home, and back.
+      if (save.sanctum.contact) {
+        if (near({ x: SANCTUM.gate.x, y: SANCTUM.gate.y }, 120))
+          holdAct = { key: 'gatehome', label: 'Step through the Choir gate (home)', seconds: 1.2, done: () => choirGate(true) };
+        if (near({ x: SANCTUM.homeGate.x, y: SANCTUM.homeGate.y - 110 }, 130))
+          holdAct = { key: 'gatesanctum', label: 'Step through the Choir gate (to the sanctum)', seconds: 1.2, done: () => choirGate(false) };
+      }
       // Planting an air relay on open seabed, away from the base and the caves.
       if (save.relayKits > 0) {
         const gyHere = groundY(Math.max(WORLD_X0, Math.min(WORLD_W, diver.x)));
@@ -2789,6 +2882,13 @@ async function boot(): Promise<void> {
         persist();
       }
     } else holdProgress = Math.max(0, holdProgress - dt * 0.5);
+    // Milestone 11: the resonator sings while you hold Collect at a door, and the song spreads in rings.
+    {
+      const singing = !!holdAct && holdAct.key.startsWith('sing') && collectHeld ? 1 : 0;
+      diver.singing += (singing - diver.singing) * Math.min(1, dt * 4);
+      if (diver.singing > 0.02 && !aboard) scenery.sanctum.song = { ...diver.resonPoint(), k: Math.min(1, holdProgress * 1.2) };
+      else scenery.sanctum.song = null;
+    }
     boomT += ((save.boomOpen ? 1 : 0) - boomT) * Math.min(1, dt * 0.8);
     scenery.setBoom(boomT > 0.995 ? 1 : boomT);
     race.vane = save.vane;
@@ -3144,14 +3244,15 @@ async function boot(): Promise<void> {
 
     const depthM = Math.max(0, diver.y - SURFACE_Y + 6) / WU_PER_METRE;
     if (domeAir || subAir) diveTime = 0;
-    watch.draw(performance.now(), save.oxygen, maxO2, atSurface ? 0 : depthM, diveTime, atSurface, { kg, ...lim }, save.suit, aboard ? subLimit() : diverLimit());
+    watch.draw(performance.now(), save.oxygen, maxO2, atSurface ? 0 : depthM, diveTime, atSurface, { kg, ...lim }, save.suit, aboard ? subLimit() : inSanctum(diver.x, diver.y) ? 999 : diverLimit());
     // The suit bar under the watch: once the wreck shelf has been reached, or whenever the suit is damaged.
     const suitShown = !aboard && (save.tips.includes('wshelf') || save.suit < 0.995);
     hud.setSuit(save.suit, suitShown);
     // Milestone 10: the crush-depth chip, near the trench or near the limit.
     {
       const lim = diverLimit();
-      hud.setDepthLimit(!aboard && blackout === 0 && (diver.x > TRENCH.x0 - 900 || depthM > lim - 8) ? lim : null, depthM, suitShown ? 156 : 122);
+      const held = inSanctum(diver.x, diver.y);
+      hud.setDepthLimit(!aboard && blackout === 0 && !held && (diver.x > TRENCH.x0 - 900 || depthM > lim - 8) ? lim : null, depthM, suitShown ? 156 : 122);
     }
     if (pickups.bagPos) {
       const p = pickups.bagPos;
@@ -3297,6 +3398,84 @@ async function boot(): Promise<void> {
     camCX = diver.x;
     camCY = diver.y;
     sound.hatchCue(false);
+    persist();
+  }
+
+  // ---- Milestone 11: the heart of the sanctum, on foot, and first contact ----
+  function enterHeart(): void {
+    // Contact left unfinished (the game closed mid-song): the plinth waits again.
+    if (!save.sanctum.contact) save.sanctum.taken = save.sanctum.taken.filter((t) => t !== '9');
+    interior.enter(HEART_MAP, { breakers: [], taken: save.sanctum.taken }, null, heartOptions(choir));
+    inside = 'sanctum';
+    goOnFoot();
+    sound.hatchCue(true);
+    if (!save.tips.includes('heartin'))
+      setTimeout(() => {
+        save.tips.push('heartin');
+        hud.toast(
+          'Through the arch, the water simply stops: dry air, cool and faintly sweet, and pale stone lit from inside. A chasm of light runs across the hall, with rings of light above it. Somewhere below, something is waiting.',
+          'big',
+        );
+      }, 900);
+    persist();
+  }
+  function exitHeart(at: { x: number; y: number } = { x: SANCTUM.heart.x, y: SANCTUM.heart.y - 70 }): void {
+    interior.leave();
+    inside = null;
+    backToWater();
+    diver.x = at.x;
+    diver.y = at.y;
+    diver.vx = 0;
+    diver.vy = -40;
+    diver.surfaced = false;
+    camCX = diver.x;
+    camCY = diver.y;
+    sound.hatchCue(false);
+    persist();
+  }
+  /** The patterns your grown creatures show (the Choir's words), named for the answer pads. */
+  function contactWords(): ContactWord[] {
+    const seen = new Set<string>();
+    const out: ContactWord[] = [];
+    for (const c of save.creatures) {
+      if (c.stage !== 'grown') continue;
+      const p = c.traits?.pattern ?? 0;
+      const key = `${c.species}:${p}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      const sp = c.species.charAt(0).toUpperCase() + c.species.slice(1);
+      out.push({ name: `${sp} · ${PATTERNS[c.species]?.[p] ?? 'glow'}` });
+    }
+    return out;
+  }
+  function startContact(): void {
+    contact.start(contactWords(), () => {
+      save.sanctum.contact = true;
+      if (!save.scans.includes('contact')) save.scans.push('contact');
+      if (!save.blueprints.includes('lantern')) save.blueprints.push('lantern');
+      // The Choir carries you out to its gate in the antechamber.
+      exitHeart({ x: SANCTUM.gate.x - 150, y: SANCTUM.gate.y + 20 });
+      hud.showReading(
+        "The Choir's gifts",
+        "You come to yourself floating in the antechamber, the resonator still warm on your back. Where the water was empty, a ring of light now stands: a Choir gate. It carries you home to the Kestrel, and its twin by the buoy brings you back here.\n\nAnd in your mind, clear as a drawing, the shape of a Choir lantern: a seed of its light that powers the base anywhere on the site, no current needed. Its build card is in build mode now.\n\nThe game goes on. There is a whole ocean of creatures still to raise.",
+        'First contact is in your scanner log.',
+      );
+      persist();
+    });
+  }
+  /** Step through a Choir gate: home to the Kestrel buoy, or back to the sanctum. */
+  function choirGate(home: boolean): void {
+    if (save.sub?.aboard) return;
+    const to = home ? { x: SANCTUM.homeGate.x + 160, y: SANCTUM.homeGate.y - 120 } : { x: SANCTUM.gate.x - 160, y: SANCTUM.gate.y };
+    diver.x = to.x;
+    diver.y = to.y;
+    diver.vx = diver.vy = 0;
+    diver.surfaced = false;
+    camCX = diver.x;
+    camCY = diver.y;
+    shake = Math.min(1, shake + 0.3);
+    sound.find('bag');
+    hud.toast(home ? 'Light folds round you, and opens on the Kestrel shelf.' : 'Light folds round you, and opens in the sanctum\'s antechamber.', 'big');
     persist();
   }
 
@@ -3464,16 +3643,16 @@ async function boot(): Promise<void> {
       persist();
     },
     // ---- Milestone 10: the Signal array ----
+    // Milestone 11: the console opens the zone map, which also reads the decoded fragments.
     signalLabel: () => {
-      const latest = save.signals.decoded[save.signals.decoded.length - 1];
       const status = signalStatus(save, layout);
-      if (latest) return { ok: true, text: `Read fragment ${save.signals.decoded.length} · ${status.replace(/^Signal array: /, '')}` };
-      return { ok: false, text: status };
+      return { ok: true, text: `Open the zone map · ${status.replace(/^Signal array: /, '')}` };
     },
     signalRead: () => {
-      const latest = save.signals.decoded[save.signals.decoded.length - 1];
-      const e = latest ? SCAN_ENTRIES.find((x) => x.id === latest) : null;
-      if (e) hud.showReading(e.name, e.text, 'Kept in your scanner log.');
+      zoneMap.show(save, { x: baseOutside().x, y: baseOutside().y }, (id) => {
+        const e = SCAN_ENTRIES.find((x) => x.id === id);
+        if (e) hud.showReading(e.name, e.text, 'Kept in your scanner log.');
+      });
     },
     signalProgress: () => (nextFragment(save) && save.signals.progress > 0 ? save.signals.progress : -1),
     storedFrac: () => {
@@ -3562,10 +3741,11 @@ async function boot(): Promise<void> {
     input.suspended = false;
     input.update();
     const s = input.state;
-    const paused = hud.reading;
+    const paused = hud.reading || zoneMap.open;
     // The interior reads her state straight from the save, so they never drift apart.
     if (inside === 'corvina') interior.syncState(save.corvina.breakers, save.corvina.taken ?? []);
     if (inside === 'fulmar') interior.syncState(save.fulmar.breakers, save.fulmar.taken);
+    if (inside === 'sanctum') interior.syncState([], save.sanctum.taken);
     if (inside === 'base' && baseHooks && baseHooks.level.signature !== baseSignature(layout)) {
       // A piece finished or was taken down while you were inside: rebuild the rooms around you.
       const level = buildBaseLevel(layout);
@@ -3593,6 +3773,9 @@ async function boot(): Promise<void> {
     } else if (inside === 'base' && station.active && station.pieceId !== null && baseHooks) {
       const f = baseHooks.roomFocus(station.pieceId);
       interior.focus = f ? { ...f, panelPx: Math.min(380, cssW * 0.46) + 24 } : null;
+    } else if (inside === 'sanctum' && contact.active) {
+      // First contact: the camera draws back to frame the Choir's chamber.
+      interior.focus = { x: CHOIR_AT.x, y: CHOIR_AT.y + 60, h: 1000, panelPx: 0 };
     } else {
       interior.focus = null;
       if (care.available !== null && !care.active) care.setAvailable(null);
@@ -3603,7 +3786,13 @@ async function boot(): Promise<void> {
     care.update(dt);
     hatchPanel.update(dt);
     station.update(dt);
-    const frozen = care.active || hatchPanel.active || station.active;
+    contact.update(dt);
+    const frozen = care.active || hatchPanel.active || station.active || contact.active;
+    // The resonator sings at the song-lock, and while you answer the Choir.
+    {
+      const want = Math.max(contact.singing, interior.label === 'Sing to the song-lock' && s.collect ? 1 : 0);
+      interior.walker.singing += (want - interior.walker.singing) * Math.min(1, dt * 5);
+    }
     const evs: InteriorEvent[] = interior.update(
       dt,
       frozen ? { moveX: 0, moveY: 0, jump: false, collect: false, lamp: false } : { moveX: s.moveX, moveY: s.moveY, jump: s.jumpHeld, sprint: s.sprint, collect: s.collect, lamp: s.lamp },
@@ -3635,8 +3824,15 @@ async function boot(): Promise<void> {
     for (const e of evs) {
       if (e.type === 'exit') {
         if (inside === 'fulmar') exitFulmar();
+        else if (inside === 'sanctum') exitHeart();
         else exitCorvina();
         return;
+      } else if (e.type === 'find' && inside === 'sanctum') {
+        if (e.id === '1') {
+          sound.find('bag');
+          hud.toast('The resonator sings, the lens of light sings back, and the song-lock folds itself away.', 'big');
+        } else if (e.id === '9') startContact();
+        persist();
       } else if (e.type === 'breaker' && inside === 'fulmar') {
         sound.clip();
         const left = save.fulmar.breakers.filter((b) => !b).length;
@@ -3729,7 +3925,7 @@ async function boot(): Promise<void> {
     hud.setSubChip(null);
     hud.setBoard(null);
     hud.setJar(jarText());
-    const soundAt = inside === 'base' ? baseOutside() : inside === 'fulmar' ? { x: FULMAR_HATCH.x, y: FULMAR_HATCH.y + 120 } : { x: CV_HATCH.x, y: CV_HATCH.y + 120 };
+    const soundAt = inside === 'base' ? baseOutside() : inside === 'sanctum' ? { x: SANCTUM.heart.x, y: SANCTUM.heart.y - 100 } : inside === 'fulmar' ? { x: FULMAR_HATCH.x, y: FULMAR_HATCH.y + 120 } : { x: CV_HATCH.x, y: CV_HATCH.y + 120 };
     sound.update({
       dt,
       x: soundAt.x,
@@ -3849,6 +4045,10 @@ async function boot(): Promise<void> {
     interior,
     enterCorvina: () => enterCorvina(),
     enterFulmar: () => enterFulmar(),
+    enterHeart: () => enterHeart(),
+    contact,
+    choirGate: (home: boolean) => choirGate(home),
+    zoneMap: () => zoneMap.show(save, { x: diver.x, y: diver.y }, () => {}),
     hunters,
     enterBase: (id: number) => enterBase(id),
     baseHooks: () => baseHooks,

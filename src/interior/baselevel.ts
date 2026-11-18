@@ -1035,6 +1035,18 @@ export class BaseHooks implements InteriorHooks {
         }
         break;
       }
+      case 'lantern': {
+        // Milestone 11: the Choir lantern's room. A ring of pale stone on the back wall holds the seed of light.
+        g.circle(b.cx, b.oy + 62, 34).fill({ color: 0xb8c0d8 });
+        g.circle(b.cx, b.oy + 62, 34).stroke({ color: COL.chromeDark, width: 3 });
+        for (const r of [28, 22]) g.circle(b.cx, b.oy + 62, r).stroke({ color: 0x5a5e78, width: 1.2 });
+        g.circle(b.cx, b.oy + 62, 17).fill({ color: 0x14102c });
+        e.circle(b.cx, b.oy + 62, 14).fill({ color: 0xa27cff, alpha: 0.7 });
+        e.circle(b.cx, b.oy + 62, 8).fill({ color: 0x5ff0ff, alpha: 0.9 });
+        e.circle(b.cx, b.oy + 62, 3).fill({ color: 0xf4fbff });
+        gl.circle(b.cx, b.oy + 62, 50).fill({ color: 0xa27cff, alpha: 0.4 });
+        break;
+      }
       case 'junction': {
         // A hub chamber: a chrome ring on the back wall with arrows to the four ways out, and a gold trace.
         g.circle(b.cx, b.oy + 62, 30).fill({ color: COL.chrome });

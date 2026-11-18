@@ -2961,3 +2961,229 @@ body.touch .bar-cards {
 body.on-foot #depth-chip {
   display: none;
 }
+
+/* Milestone 11: first contact. A caption over the scene, four answer pads, then the credits. */
+#contact {
+  position: fixed;
+  inset: 0;
+  z-index: 45;
+  pointer-events: none;
+  font-family: Georgia, 'Times New Roman', serif;
+  color: #eef0ff;
+}
+#contact .contact-caption {
+  position: absolute;
+  top: calc(var(--safe-top) + 18px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(620px, calc(100% - 32px));
+  text-align: center;
+  font-size: 17px;
+  line-height: 1.45;
+  text-shadow: 0 2px 12px rgba(10, 6, 30, 0.9);
+  opacity: 0;
+}
+#contact .contact-caption.show {
+  animation: contact-fade 1.2s ease forwards;
+}
+@keyframes contact-fade {
+  from { opacity: 0; transform: translateX(-50%) translateY(6px); }
+  to { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+#contact .contact-pads {
+  position: absolute;
+  left: 50%;
+  bottom: calc(var(--safe-bottom) + 16px);
+  transform: translateX(-50%);
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  width: min(640px, calc(100% - 32px));
+  pointer-events: auto;
+}
+#contact .contact-pad {
+  position: relative;
+  min-height: 76px;
+  border-radius: 14px;
+  border: 1px solid color-mix(in srgb, var(--c) 70%, transparent);
+  background: rgba(16, 12, 40, 0.72);
+  color: #eef0ff;
+  font: 12px/1.25 -apple-system, system-ui, sans-serif;
+  padding: 8px 6px 6px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  opacity: 0.55;
+  transition: opacity 0.4s, transform 0.15s;
+  touch-action: manipulation;
+}
+#contact.answering .contact-pad {
+  opacity: 1;
+}
+#contact .contact-pad:disabled {
+  cursor: default;
+}
+#contact .contact-pad i {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 3px solid var(--c);
+  box-shadow: 0 0 14px var(--c);
+}
+#contact .contact-pad small {
+  position: absolute;
+  top: 4px;
+  right: 7px;
+  color: #9a98c0;
+}
+#contact .contact-pad.lit {
+  animation: contact-lit 0.9s ease;
+}
+@keyframes contact-lit {
+  0% { background: color-mix(in srgb, var(--c) 55%, rgba(16, 12, 40, 0.72)); transform: scale(1.06); }
+  100% { background: rgba(16, 12, 40, 0.72); transform: scale(1); }
+}
+#contact .contact-pad.gone {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 2s;
+}
+#contact.credits {
+  pointer-events: auto;
+}
+#contact .contact-credits {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at 50% 40%, rgba(40, 24, 90, 0.75), rgba(4, 3, 14, 0.96));
+  animation: contact-dark 3s ease forwards;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+@keyframes contact-dark {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+#contact .roll {
+  position: absolute;
+  top: 100%;
+  width: min(560px, calc(100% - 32px));
+  text-align: center;
+  animation: contact-roll 26s linear forwards;
+}
+@keyframes contact-roll {
+  from { transform: translateY(0); }
+  to { transform: translateY(calc(-100vh - 60%)); }
+}
+#contact .roll h1 {
+  font-size: 34px;
+  letter-spacing: 0.3em;
+  font-weight: normal;
+  background: linear-gradient(90deg, #5ff0ff, #a27cff, #ff5ad8);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  margin: 0 0 8px;
+}
+#contact .roll p {
+  margin: 6px 0;
+  font-size: 16px;
+  line-height: 1.5;
+  color: #dcdcf4;
+}
+#contact .roll p.gap {
+  margin-top: 34px;
+}
+#contact .contact-go {
+  position: absolute;
+  bottom: calc(var(--safe-bottom) + 18px);
+  min-height: 48px;
+  min-width: 200px;
+  border-radius: 12px;
+  border: 1px solid #a27cff;
+  background: rgba(20, 14, 50, 0.8);
+  color: #eef0ff;
+  font-size: 16px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 1.2s;
+  cursor: pointer;
+}
+#contact .contact-go.show {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* Milestone 11: the Signal array's zone map. */
+#zone-map {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  background: rgba(4, 10, 12, 0.6);
+  padding: calc(var(--safe-top) + 10px) calc(var(--safe-right) + 12px) calc(var(--safe-bottom) + 10px) calc(var(--safe-left) + 12px);
+}
+#zone-map .zm-card {
+  max-width: 100%;
+  max-height: 100%;
+  overflow-y: auto;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(162, 124, 255, 0.55);
+  background: #141a1e;
+  color: var(--ui-text);
+  font: 13px/1.4 -apple-system, system-ui, sans-serif;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6);
+}
+#zone-map .zm-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+#zone-map .zm-head span {
+  color: var(--ui-dim);
+  flex: 1;
+}
+#zone-map .x {
+  min-width: 44px;
+  min-height: 44px;
+  border-radius: 10px;
+  border: 1px solid var(--ui-line);
+  background: transparent;
+  color: var(--ui-text);
+  font-size: 16px;
+  cursor: pointer;
+}
+#zone-map canvas {
+  display: block;
+  border-radius: 8px;
+}
+#zone-map .zm-note {
+  margin: 8px 0;
+  color: var(--ui-dim);
+}
+#zone-map .zm-frags {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 8px;
+}
+#zone-map .zm-frag {
+  min-height: 44px;
+  border-radius: 10px;
+  border: 1px solid rgba(162, 124, 255, 0.5);
+  background: rgba(30, 22, 60, 0.6);
+  color: var(--ui-text);
+  font-size: 13px;
+  text-align: left;
+  padding: 6px 10px;
+  cursor: pointer;
+}
+#zone-map .zm-frag:disabled {
+  opacity: 0.45;
+  cursor: default;
+}

@@ -107,6 +107,22 @@ export interface InteriorOptions {
   labels?: Record<string, string>;
   /** A sign painted above one find (its letter), e.g. 'SURVEY LAB' over '1'. */
   sign?: { ch: string; text: string };
+  /**
+   * Milestone 11: the sanctum's heart. 'sanctum' draws pale luminous stone in
+   * the Choir's colours instead of a rusting wreck; it is always powered (its
+   * lift runs on light), falling into its light pool ('~') only puts you back
+   * where you last stood, and doors (by letter) open once a find is taken.
+   */
+  style?: 'wreck' | 'sanctum';
+  powered?: boolean;
+  gates?: Record<string, string>;
+  /** Moving art and lights of the level's own (the Choir rising, in the heart). */
+  animate?: (d: Graphics, de: Graphics, time: number) => void;
+  lights?: () => Light[];
+  /** Finds that need no 'taken' marker drawn (they are drawn by the level's own art). */
+  plainFinds?: boolean;
+  /** The Collect label at the way out (S). */
+  exitLabel?: string;
 }
 const CORVINA_LABELS: Record<string, string> = {
   '1': 'Take the sonar test logs',
@@ -261,7 +277,16 @@ export class Interior {
   }
 
   get power(): boolean {
+    if (this.opts.powered) return true;
     return this.state.breakers.length > 0 && this.state.breakers.every(Boolean);
+  }
+  private get sanctum(): boolean {
+    return this.opts.style === 'sanctum' && !this.hooks;
+  }
+  /** Milestone 11: a door letter shut until its find is taken. */
+  private gateShut(c: string): boolean {
+    const f = this.opts.gates?.[c];
+    return !!f && !this.state.taken.includes(f);
   }
 
   /** Graphics session G2 settings for the lighting here (set by the game from the preset and the Settings toggles). */
@@ -284,7 +309,7 @@ export class Interior {
   /** Solid for everything (steel, crates, a shut powered door). */
   private solidTile(tx: number, ty: number): boolean {
     const c = this.ch(tx, ty);
-    return c === '#' || c === 'c' || c === 'X' || c === 'P' || c === 'G' || (c === 'D' && !this.power);
+    return c === '#' || c === 'c' || c === 'X' || c === 'P' || c === 'G' || (c === 'D' && !this.power) || this.gateShut(c);
   }
   /** A ladder tile ('H'). Its top tile holds you up like a grating. */
   private ladder(tx: number, ty: number): boolean {
@@ -314,6 +339,7 @@ export class Interior {
   enter(map: string[], state: InteriorState, hooks: InteriorHooks | null = null, opts: InteriorOptions | null = null): void {
     if (opts) this.opts = opts;
     else if (!hooks) this.opts = { labels: CORVINA_LABELS, sign: { ch: '1', text: 'SURVEY LAB' } };
+    else this.opts = {};
     if (this.hooks && this.hooks !== hooks) this.hooks.detach?.();
     this.hooks = hooks;
     hooks?.attach?.(this.actorLit, this.actorEm, this.actorGlow);
@@ -437,6 +463,11 @@ export class Interior {
     const base = this.hooks?.style === 'base';
     if (base) {
       this.buildBaseStatic(g, e, gl, rand);
+      this.shownKey = '';
+      return;
+    }
+    if (this.sanctum) {
+      this.buildSanctumStatic(g, e, gl, rand);
       this.shownKey = '';
       return;
     }
@@ -676,6 +707,133 @@ export class Interior {
     this.hooks!.decorate(g, e, gl, addLamp, addText, 'front');
   }
 
+  /**
+   * Milestone 11: the sanctum's heart. Pale, nacre-smooth stone lit from
+   * inside by veins of cyan, violet and magenta; ledges of solid light; rings
+   * of light to grapple; a pool of light at the bottom of its chasm; a lift
+   * shaft that is a column of light. Crystal lamps glow in the ceilings.
+   */
+  private buildSanctumStatic(g: Graphics, e: Graphics, gl: Graphics, rand: () => number): void {
+    const PW = this.W * T;
+    const PH = this.H * T;
+    const R = (a: number, b: number) => a + rand() * (b - a);
+    const CH = [0x5ff0ff, 0xa27cff, 0xff5ad8];
+    // Far back: a violet dark, with great faint rings and drifting motes.
+    g.rect(0, 0, PW, PH).fill({ color: 0x0e0c22 });
+    for (let y = 0; y < PH; y += 80) g.rect(0, y, PW, 80).fill({ color: 0x1a1640, alpha: 0.5 * Math.sin((y / PH) * Math.PI) });
+    for (let i = 0; i < 7; i++) {
+      const x = R(0, PW);
+      const y = R(PH * 0.2, PH * 0.8);
+      const r = R(120, 320);
+      g.ellipse(x, y, r * 0.35, r).stroke({ color: 0x2a2858, width: R(6, 14), alpha: 0.7 });
+      e.ellipse(x, y, r * 0.35 - 4, r - 4).stroke({ color: CH[i % 3], width: 1, alpha: 0.25 });
+    }
+    for (let i = 0; i < (PW * PH) / 9000; i++) e.circle(R(0, PW), R(0, PH), R(0.6, 1.6)).fill({ color: CH[i % 3], alpha: R(0.15, 0.45) });
+    const solid = (tx: number, ty: number) => this.solidTileStatic(tx, ty);
+    for (let ty = 0; ty < this.H; ty++)
+      for (let tx = 0; tx < this.W; tx++) {
+        const c = this.map[ty][tx];
+        const x = tx * T;
+        const y = ty * T;
+        if (c === '#') {
+          g.rect(x, y, T + 0.5, T + 0.5).fill({ color: 0x5a5e7a });
+          if (rand() < 0.4) g.ellipse(x + R(8, 32), y + R(8, 32), R(6, 14), R(3, 7)).fill({ color: 0x7a7e9c, alpha: 0.5 });
+          // Faces onto the air: a nacre lip and a glowing seam.
+          if (!solid(tx, ty - 1)) {
+            g.rect(x, y, T + 0.5, 7).fill({ color: 0xc8cce0 });
+            g.rect(x, y + 7, T + 0.5, 2).fill({ color: 0x3a3c58 });
+            e.rect(x, y + 11, T + 0.5, 1.4).fill({ color: CH[(tx >> 2) % 3], alpha: 0.6 });
+          }
+          if (!solid(tx, ty + 1)) {
+            g.rect(x, y + T - 5, T + 0.5, 5).fill({ color: 0x3a3c58 });
+            e.rect(x, y + T - 8, T + 0.5, 1).fill({ color: CH[(tx >> 3) % 3], alpha: 0.35 });
+          }
+          if (!solid(tx - 1, ty)) g.rect(x, y, 4, T + 0.5).fill({ color: 0x9a9eb8 });
+          if (!solid(tx + 1, ty)) g.rect(x + T - 4, y, 4, T + 0.5).fill({ color: 0x3a3c58 });
+          // A vein here and there.
+          if (rand() < 0.07) {
+            let vx = x + R(4, 36);
+            let vy = y + R(4, 36);
+            e.moveTo(vx, vy);
+            for (let k = 0; k < 3; k++) {
+              vx += R(-10, 10);
+              vy += R(-10, 10);
+              e.lineTo(vx, vy);
+            }
+            e.stroke({ color: CH[Math.floor(rand() * 3)], width: 1, alpha: 0.6 });
+          }
+        } else if (c === '=') {
+          // A ledge of solid light.
+          e.roundRect(x, y, T + 0.5, 6, 3).fill({ color: 0xc8f4ff, alpha: 0.85 });
+          gl.rect(x, y - 4, T + 0.5, 14).fill({ color: 0x5ff0ff, alpha: 0.45 });
+        } else if (c === '~') {
+          g.rect(x, y, T + 0.5, T + 0.5).fill({ color: 0x2a1a5a });
+          if (this.ch(tx, ty - 1) !== '~') {
+            e.rect(x, y, T + 0.5, 4).fill({ color: 0xe8dcff, alpha: 0.9 });
+            gl.rect(x, y - 30, T + 0.5, 60).fill({ color: 0xa27cff, alpha: 0.5 });
+          }
+        } else if (c === 'o') {
+          e.circle(x + T / 2, y + T / 2, 10).stroke({ color: 0xc8f4ff, width: 3 });
+          gl.circle(x + T / 2, y + T / 2, 22).fill({ color: 0x5ff0ff, alpha: 0.5 });
+        } else if (c === 'S') {
+          // The glowing arch you came in by.
+          g.moveTo(x - 20, y + T).lineTo(x - 20, y - 40).quadraticCurveTo(x + T / 2, y - 100, x + T + 20, y - 40).lineTo(x + T + 20, y + T).closePath().fill({ color: 0x14102c });
+          e.moveTo(x - 20, y + T).lineTo(x - 20, y - 40).quadraticCurveTo(x + T / 2, y - 100, x + T + 20, y - 40).lineTo(x + T + 20, y + T).stroke({ color: 0x5ff0ff, width: 2.4 });
+          gl.ellipse(x + T / 2, y, 60, 70).fill({ color: 0xa27cff, alpha: 0.4 });
+        } else if (c === 'L') {
+          // The lift's shaft: a column of light.
+          g.rect(x, y, T + 0.5, T + 0.5).fill({ color: 0x1c1846 });
+          if (this.ch(tx - 1, ty) !== 'L') e.rect(x + 3, y, 2, T + 0.5).fill({ color: 0x5ff0ff, alpha: 0.6 });
+          if (this.ch(tx + 1, ty) !== 'L') e.rect(x + T - 5, y, 2, T + 0.5).fill({ color: 0x5ff0ff, alpha: 0.6 });
+          if (this.ch(tx - 1, ty) === 'L' && this.ch(tx + 1, ty) === 'L') gl.rect(x, y, T + 0.5, T + 0.5).fill({ color: 0x5ff0ff, alpha: 0.18 });
+        } else if (c === 'G') {
+          g.rect(x + 2, y, T - 4, T + 0.5).fill({ color: 0x1c1846 });
+        } else if (c === 'U') {
+          // A call stone: a short pillar with a crystal.
+          g.roundRect(x + 8, y + T - 34, 16, 34, 4).fill({ color: 0x9a9eb8 });
+          g.roundRect(x - 2, y + T - 8, T + 4, 8, 2).fill({ color: 0xc8cce0 });
+        } else if (c >= '1' && c <= '9') {
+          // A plinth of pale stone with a ring of light on top.
+          g.roundRect(x - 6, y + T - 26, T + 12, 26, 5).fill({ color: 0x9a9eb8 });
+          g.roundRect(x - 6, y + T - 26, T + 12, 5, 3).fill({ color: 0xc8cce0 });
+          e.ellipse(x + T / 2, y + T - 30, 14, 4).stroke({ color: c === '9' ? 0xff5ad8 : 0xa27cff, width: 2 });
+          gl.ellipse(x + T / 2, y + T - 34, 30, 16).fill({ color: c === '9' ? 0xff5ad8 : 0xa27cff, alpha: 0.5 });
+        }
+      }
+    // Crystal lamps in the ceilings, always lit.
+    for (let ty = 1; ty < this.H; ty++)
+      for (let tx = 3; tx < this.W - 2; tx += 9) {
+        if (!solid(tx, ty - 1) || solid(tx, ty) || '~LG'.includes(this.map[ty][tx])) continue;
+        const x = tx * T + T / 2;
+        const y = ty * T + 2;
+        const col = CH[(tx + ty) % 3];
+        g.poly([x - 10, y, x + 10, y, x, y + 14]).fill({ color: 0x9a9eb8 });
+        const core = new Graphics().poly([x - 5, y + 2, x + 5, y + 2, x, y + 12]).fill({ color: 0xf4fbff });
+        const halo = new Graphics().ellipse(x, y + 10, 36, 20).fill({ color: col });
+        this.emissiveCam.addChild(core);
+        this.glowCam.addChild(halo);
+        const rgb: [number, number, number] = [((col >> 16) & 255) / 255, ((col >> 8) & 255) / 255, (col & 255) / 255];
+        this.lamps.push({ light: { x, y: y + 24, radius: 340, intensity: 0, color: rgb, haze: 0.06 }, core, halo, zone: 0 });
+      }
+  }
+
+  /** Milestone 11: the sanctum's doors (song-locks) and the pool's shimmer, each frame. */
+  private animateSanctum(d: Graphics, de: Graphics): void {
+    void d;
+    const t = this.time;
+    for (let ty = 0; ty < this.H; ty++)
+      for (let tx = 0; tx < this.W; tx++) {
+        const c = this.map[ty][tx];
+        if (!this.opts.gates?.[c]) continue;
+        const x = tx * T;
+        const y = ty * T;
+        if (this.gateShut(c)) {
+          de.rect(x + 10, y, T - 20, T + 0.5).fill({ color: 0xa27cff, alpha: 0.55 + 0.15 * Math.sin(t * 2.2 + ty) });
+          de.rect(x + 17, y, 6, T + 0.5).fill({ color: 0xe8dcff, alpha: 0.7 });
+        } else if (this.ch(tx, ty - 1) !== c) de.rect(x + 6, y, T - 12, 3).fill({ color: 0xa27cff, alpha: 0.6 });
+      }
+  }
+
   private drawLadder(g: Graphics, x: number, y: number): void {
     g.rect(x + 7, y, 4, T + 0.5).fill({ color: 0xaeb9c0 });
     g.rect(x + T - 11, y, 4, T + 0.5).fill({ color: 0x8e9aa2 });
@@ -713,7 +871,7 @@ export class Interior {
       b.circle(x + T - 11, y + 13, 3).fill({ color: on ? 0x9ae070 : 0xd8492e });
     }
     const tk = this.takenG.clear();
-    for (const s of this.spots) {
+    for (const s of this.opts.plainFinds ? [] : this.spots) {
       if (!isFind(s.ch) || this.state.taken.includes(s.ch)) continue;
       const x = s.x;
       const y = s.y - 18;
@@ -790,7 +948,7 @@ export class Interior {
     for (const s of this.spots) {
       const idx = s.ch === 'B' ? bi++ : -1;
       if (!near(s)) continue;
-      if (s.ch === 'S') act = { key: 'exit', label: 'Climb out through the hatch', seconds: 0.8, done: () => ev.push({ type: 'exit' }) };
+      if (s.ch === 'S') act = { key: 'exit', label: this.opts.exitLabel ?? 'Climb out through the hatch', seconds: 0.8, done: () => ev.push({ type: 'exit' }) };
       else if (s.ch === 'B' && !this.state.breakers[idx])
         act = {
           key: 'b' + idx,
@@ -901,7 +1059,8 @@ export class Interior {
       }
     }
     if (this.ch(Math.floor(w.x / T), Math.floor((w.y - 10) / T)) === '~') {
-      ev.push({ type: 'hurt', amount: 0.1, why: 'bilge' });
+      // The sanctum's pool of light only lifts you back out; the bilge stings.
+      if (!this.sanctum) ev.push({ type: 'hurt', amount: 0.1, why: 'bilge' });
       w.x = this.lastSafe.x;
       w.y = this.lastSafe.y;
       w.vx = w.vy = 0;
@@ -1343,8 +1502,14 @@ export class Interior {
         const gx = (u.tx + 1) * T;
         const top = u.y - 3 * T;
         const h = 3 * T * (1 - open);
-        for (let b = 0; b < 4; b++) f.rect(gx + 6 + b * 8, top, 3, h).fill({ color: 0x8a8e90 });
-        f.rect(gx + 2, top + h - 5, T - 4, 5).fill({ color: 0xc9a24a });
+        if (this.sanctum) {
+          // A curtain of light that draws up like a veil.
+          de.rect(gx + 8, top, T - 16, h).fill({ color: 0x5ff0ff, alpha: 0.35 });
+          de.rect(gx + 18, top, 4, h).fill({ color: 0xe8fbff, alpha: 0.6 });
+        } else {
+          for (let b = 0; b < 4; b++) f.rect(gx + 6 + b * 8, top, 3, h).fill({ color: 0x8a8e90 });
+          f.rect(gx + 2, top + h - 5, T - 4, 5).fill({ color: 0xc9a24a });
+        }
         // The call panel's lamp: green when the car waits here.
         const here = this.carY !== null && Math.abs(this.carY - u.y) < 2;
         de.circle(u.x - T / 2 + 12, u.y - 26, 3).fill({ color: !this.power ? 0x3a2020 : here ? 0x9ae070 : 0xd8902e });
@@ -1356,6 +1521,18 @@ export class Interior {
     const half = width / 2;
     const ch = 3 * T - 10;
     const top = floorY - ch;
+    if (this.sanctum) {
+      // The sanctum's lift: a disc of pale stone riding the column of light, with a ring of light round it.
+      d.ellipse(carX, floorY + 2, half + 6, 8).fill({ color: 0x9a9eb8 });
+      f.ellipse(carX, floorY - 1, half + 2, 5).fill({ color: 0xc8cce0 });
+      de.ellipse(carX, floorY + 6, half, 4).stroke({ color: 0x5ff0ff, width: 2, alpha: 0.9 });
+      de.ellipse(carX, floorY - 40, half - 8, 50).stroke({ color: 0xa27cff, width: 1.2, alpha: 0.25 + 0.5 * this.carLit });
+      this.carLight.x = carX;
+      this.carLight.y = floorY - 30;
+      this.carLight.color = [0.5, 0.8, 1];
+      this.carLight.intensity = 0.6 + 0.6 * this.carLit;
+      return;
+    }
     // The cable up to the head of the shaft.
     d.moveTo(carX, shaftTop).lineTo(carX, top - 6).stroke({ color: 0x8e979c, width: 2 });
     // Back of the car: a dark cage wall with ribs, the roof and the floor.
@@ -1375,6 +1552,7 @@ export class Interior {
     de.roundRect(carX - 7, top - 3, 14, 4, 1.5).fill({ color: lit > 0.05 ? 0xfff0c8 : 0x4a4e50, alpha: 0.4 + 0.6 * lit });
     this.carLight.x = carX;
     this.carLight.y = top + 14;
+    this.carLight.color = [1, 0.92, 0.7];
     this.carLight.intensity = 1.2 * lit;
   }
 
@@ -1445,6 +1623,8 @@ export class Interior {
     }
     this.front.clear();
     if (this.grapple) this.drawGrapple(this.grapple);
+    if (this.sanctum) this.animateSanctum(d, de);
+    if (this.opts.animate) this.opts.animate(d, de, this.time);
     if (this.hooks) {
       de.clear();
       this.hooks.animate(d, de, this.time);
@@ -1469,7 +1649,7 @@ export class Interior {
     // The nearest lights win (the shader adds up at most MAX_LIGHTS).
     const cx = this.cam.x + viewW / 2;
     const cy = this.cam.y + viewH / 2;
-    const pool = [this.carLight, ...this.lamps.map((l) => l.light), ...(this.hooks ? this.hooks.lights() : this.power ? [] : this.emergency)].filter(
+    const pool = [this.carLight, ...this.lamps.map((l) => l.light), ...(this.hooks ? this.hooks.lights() : this.power ? [] : this.emergency), ...(this.opts.lights ? this.opts.lights() : [])].filter(
       (l) => l.intensity > 0 && Math.abs(l.x - cx) < viewW / 2 + l.radius && Math.abs(l.y - cy) < viewH / 2 + l.radius,
     );
     pool.sort((a, b) => Math.hypot(a.x - cx, a.y - cy) - Math.hypot(b.x - cx, b.y - cy));
@@ -1485,7 +1665,7 @@ export class Interior {
       viewH,
       cssW: this.cssW,
       cssH: this.cssH,
-      ambient: this.hooks ? [0.3, 0.32, 0.34] : this.power ? [0.46, 0.44, 0.42] : [0.16, 0.17, 0.2],
+      ambient: this.hooks ? [0.3, 0.32, 0.34] : this.sanctum ? [0.26, 0.25, 0.38] : this.power ? [0.46, 0.44, 0.42] : [0.16, 0.17, 0.2],
       lights,
       shadowLights: this.look.shadowLights,
       shadowSteps: this.look.shadowSteps,

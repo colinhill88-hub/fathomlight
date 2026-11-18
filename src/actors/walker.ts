@@ -1,6 +1,6 @@
 import { Container, Graphics } from 'pixi.js';
 import { mulberry32 } from '../rng';
-import { BRASS, BeltJar, C, FULL_KIT, JarLook, KitLook, PSUIT2_TINT, PSUIT_TINT, accentBand, buildDiveBag, kitKey, mulColour, buildHelmet, buildShoulderLamp, chromeBands, coiledHose, etching, rimEdge, rivets, scratches, segment } from './diver';
+import { BRASS, BeltJar, C, choirColour, drawResonatorBracer, drawResonatorHoop, FULL_KIT, JarLook, KitLook, PSUIT2_TINT, PSUIT_TINT, accentBand, buildDiveBag, kitKey, mulColour, buildHelmet, buildShoulderLamp, chromeBands, coiledHose, etching, rimEdge, rivets, scratches, segment } from './diver';
 import { Glance, Spring, approach, batchAll, breathShape, clamp, smoothstep } from './animkit';
 
 /**
@@ -307,8 +307,11 @@ function drawPack(g: Graphics, kit: KitLook): void {
     g.rect(-9.5, -12, 8.5, 2.4).fill({ color: C.visor, alpha: 0.8 });
     g.rect(-7.3, -24, 4, 4.5).fill({ color: C.steelLight });
     g.rect(-8.6, -26, 6.8, 2.4).fill({ color: C.chromeDark });
+    if (kit.resonator) drawResonatorHoop(g, -6, -36, 6.5, 1);
     return;
   }
+  // Milestone 11: the resonator's hoop stands above the tanks.
+  if (kit.resonator) drawResonatorHoop(g, -13, -33, 6.5, 1);
   if (n >= 4) tank(-21.5, -19, 17, C.steelDark);
   else if (n === 3) tank(-21.5, -9, 15, C.steelDark);
   if (n >= 2) tank(-16, -19, 17, C.steelDark);
@@ -453,6 +456,11 @@ export class Walker {
   private beltJar = new BeltJar();
   private lampDot = new Graphics();
   private nozzleDot = new Graphics();
+  /** Milestone 11: the resonator's crystal light (unlit), and its bracer on the near forearm. */
+  private resonDot = new Graphics();
+  private bracer = new Graphics();
+  /** 0..1: the resonator is singing (set by the game). */
+  singing = 0;
 
   // ---- Animation state (plain numbers and springs; nothing is made per frame) ----
   private time = 0;
@@ -571,6 +579,10 @@ export class Walker {
       arm.upper.addChildAt(a, 1);
       arm.fore.addChildAt(b, 1);
       this.psuitBits.push(a, b);
+      if (arm === this.nearArm) {
+        drawResonatorBracer(this.bracer, 10.5, 8);
+        arm.fore.addChild(this.bracer);
+      }
       const pl = ps2Plate(UPPER, 9);
       arm.upper.addChildAt(pl, 2);
       this.ps2Bits.push(pl);
@@ -601,7 +613,7 @@ export class Walker {
     this.view.addChild(this.rig);
     this.lampDot.circle(0, 0, 2.2).fill({ color: 0xfff6d8 });
     this.nozzleDot.circle(0, 0, 1.8).fill({ color: 0xe6ff80, alpha: 0.8 });
-    this.lens.addChild(this.lampDot, this.nozzleDot);
+    this.lens.addChild(this.lampDot, this.nozzleDot, this.resonDot);
     batchAll(this.view);
   }
 
@@ -616,6 +628,7 @@ export class Walker {
     if (k.spear) drawPackSpear(this.packSpear, k);
     drawWalkerThruster(this.thrusterG.clear(), k.thruster);
     this.nozzleDot.visible = k.thruster > 0;
+    this.bracer.visible = this.resonDot.visible = !!k.resonator;
     this.psuitG.visible = k.psuit > 0;
     for (const b of this.psuitBits) b.visible = k.psuit > 0;
     this.ps2G.visible = k.psuit === 2;
@@ -1310,6 +1323,26 @@ export class Walker {
     this.lampDot.alpha = this.lampOn ? 1 : 0.25;
     this.toWorld(NOZZLE_X, NOZZLE_Y, this.tmp);
     this.nozzleDot.position.set(this.tmp.x, this.tmp.y);
+    if (this.kit.resonator) {
+      const n = Math.min(4, this.kit.tanks);
+      this.toWorld(PACK_X + (n === 0 ? -6 : -13), PACK_Y + (n === 0 ? -36 : -33) - chest * 0.5 + this.packS.x, this.tmp);
+      const sg = this.singing;
+      const c = choirColour(this.time * (0.5 + sg * 2));
+      const pulse = 0.5 + 0.5 * Math.sin(this.time * (2 + sg * 9));
+      this.resonDot
+        .clear()
+        .circle(0, 0, 7 + sg * 22 + pulse * 3 * sg)
+        .fill({ color: c, alpha: 0.12 + 0.3 * sg })
+        .circle(0, 0, 3 + sg * 1.5)
+        .fill({ color: c, alpha: 0.6 })
+        .circle(0, 0, 1.6 + sg)
+        .fill({ color: 0xf4fbff });
+      this.resonDot.position.set(this.tmp.x, this.tmp.y);
+    }
+  }
+  /** Where the resonator's crystal is (world space). */
+  resonPoint(): { x: number; y: number } {
+    return { x: this.resonDot.x, y: this.resonDot.y };
   }
 
   private placeLegs(dt: number): void {

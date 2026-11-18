@@ -498,6 +498,42 @@ function drawShaft(n: number): PieceArt {
   return { body, windows, windowGlow, lamp: { x: c + 22, y: CELL * 3 - 26 } };
 }
 
+/**
+ * Milestone 11: the Choir lantern. Tubes through all four edges meet a ring of
+ * pale Choir stone holding a seed of its light (the only Choir colours on the
+ * base: cyan, violet and magenta), lit only when it is finished.
+ */
+function drawLantern(n: number): PieceArt {
+  const body = new Container();
+  const g = body.addChild(new Graphics());
+  const windows = new Graphics();
+  const windowGlow = new Graphics();
+  const c = CELL / 2;
+  tubeH(g, 0, CELL, c, 0);
+  tubeV(g, 0, CELL, c, 0);
+  const D = TUBE + 14;
+  flangeV(g, 9, c, D, 12);
+  flangeV(g, CELL - 9, c, D, 12);
+  flangeH(g, c, 9, D, 12);
+  flangeH(g, c, CELL - 9, D, 12);
+  // The stone ring, nacre pale with grooves, set in a chrome collar.
+  g.circle(c, c, 40).fill({ color: PAL.chrome });
+  g.circle(c, c, 40).stroke({ color: PAL.steelDark, width: 2 });
+  g.circle(c, c, 35).fill({ color: 0xb8c0d8 });
+  for (const r of [30, 24]) g.circle(c, c, r).stroke({ color: 0x5a5e78, width: 1.2 });
+  g.circle(c, c, 19).fill({ color: 0x14102c });
+  windows.circle(c, c, 16).fill({ color: 0xa27cff, alpha: 0.75 });
+  windows.circle(c, c, 10).fill({ color: 0x5ff0ff, alpha: 0.9 });
+  windows.circle(c, c, 4).fill({ color: 0xf4fbff });
+  for (let k = 0; k < 6; k++) {
+    const a = (k / 6) * Math.PI * 2;
+    windows.circle(c + Math.cos(a) * 27, c + Math.sin(a) * 27, 1.8).fill({ color: k % 2 ? 0xff5ad8 : 0x5ff0ff, alpha: 0.85 });
+  }
+  windowGlow.circle(c, c, 44).fill({ color: 0xa27cff, alpha: 0.5 });
+  body.addChild(stencil(`CL-${n}`, c, c + 50, 6));
+  return { body, windows, windowGlow, lamp: { x: CELL - 26, y: 26 } };
+}
+
 /** A cross junction: tubes through all four edges meeting at a chrome-ringed hub. */
 function drawJunction(n: number): PieceArt {
   const body = new Container();
@@ -1445,6 +1481,7 @@ export function drawPiece(kind: PieceKind, n: number, rot: number, seed: number)
   if (kind === 'corridor') return drawCorridor(n, rot);
   if (kind === 'shaft') return drawShaft(n);
   if (kind === 'junction') return drawJunction(n);
+  if (kind === 'lantern') return drawLantern(n);
   if (kind === 'bracket') return drawBracket(n, rot);
   if (kind === 'turbine') return drawTurbine(n);
   if (kind === 'tank') return drawTank(n);
@@ -1586,7 +1623,7 @@ export class BaseView {
       for (const w of l.whorls) this.dropWhorl(w);
       this.live.delete(id);
     }
-    const counts: Record<PieceKind, number> = { dome: 0, corridor: 0, turbine: 0, storage: 0, tank: 0, filter: 0, feeder: 0, press: 0, dock: 0, lab: 0, workshop: 0, gtank: 0, sorter: 0, recomp: 0, crane: 0, hatch: 0, farm: 0, revive: 0, shaft: 0, junction: 0, bracket: 0, signal: 0 };
+    const counts: Record<PieceKind, number> = { dome: 0, corridor: 0, turbine: 0, storage: 0, tank: 0, filter: 0, feeder: 0, press: 0, dock: 0, lab: 0, workshop: 0, gtank: 0, sorter: 0, recomp: 0, crane: 0, hatch: 0, farm: 0, revive: 0, shaft: 0, junction: 0, bracket: 0, signal: 0, lantern: 0 };
     for (const p of [...layout.pieces].sort((a, b) => a.id - b.id)) {
       counts[p.kind]++;
       if (this.live.has(p.id)) continue;

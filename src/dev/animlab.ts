@@ -68,8 +68,8 @@ async function main(): Promise<void> {
     // ?kit=tanks,spear,jar,thruster,psuit (e.g. kit=0,0,0,0,0 for a new game, kit=4,1,1,2,1 for everything).
     const kq = params.get('kit');
     if (kq) {
-      const [t, sp, j, th, ps] = kq.split(',').map(Number);
-      d.kit = { tanks: t || 0, spear: !!sp, jar: !!j, thruster: (th === 2 ? 2 : th === 1 ? 1 : 0) as 0 | 1 | 2, psuit: (ps === 2 ? 2 : ps === 1 ? 1 : 0) as 0 | 1 | 2 };
+      const [t, sp, j, th, ps, rs] = kq.split(',').map(Number);
+      d.kit = { tanks: t || 0, spear: !!sp, jar: !!j, thruster: (th === 2 ? 2 : th === 1 ? 1 : 0) as 0 | 1 | 2, psuit: (ps === 2 ? 2 : ps === 1 ? 1 : 0) as 0 | 1 | 2, resonator: !!rs };
     }
     d.x = ax;
     d.y = ay;

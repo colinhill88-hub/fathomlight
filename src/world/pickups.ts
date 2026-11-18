@@ -87,7 +87,8 @@ const SPOTS: Spot[] = (() => {
   add('ore', [28620, 29080, 29540, 29760, 30010, 30250, 30430, [29150, 3990]]);
   s.push({ id: 'bloom-cleft', kind: 'bloom', x: 28810, y: surfaceAt(28810, 3960) - 5 });
   s.push({ id: 'bloom-floor0', kind: 'bloom', x: 30860, y: surfaceAt(30860, 6000) - 5 });
-  s.push({ id: 'bloom-floor1', kind: 'bloom', x: 32380, y: surfaceAt(32380, 6000) - 5 });
+  // (Milestone 11: moved west from 32380, where the sanctum's door is now: a material in reach takes Collect first.)
+  s.push({ id: 'bloom-floor1', kind: 'bloom', x: 31120, y: surfaceAt(31120, 6000) - 5 });
   // Milestone 7 part 2: the fourth, behind the kelp wall in the caves (the cutter torch opens it).
   s.push({ id: 'tank-kwall', kind: 'tank', x: 15545, y: surfaceAt(15545, 1500) - 12 });
   // The kit, found piece by piece (Colin, before milestone 11). Appended last so the
