@@ -88,6 +88,12 @@ export class AudioEngine {
   brown!: AudioBuffer;
   /** Runs once the context exists (the ambience and music build their graphs). */
   private readyFns: (() => void)[] = [];
+  /** Every builder, kept so a fresh context can be rebuilt after iOS breaks the old one. */
+  private builders: (() => void)[] = [];
+  /** Counts up each time the context is replaced; voices with stored audio times reset on a change. */
+  epoch = 0;
+  /** A gesture asked the context to resume; if it still is not running at the next gesture, replace it. */
+  private resumeAsked = false;
   private hidden = false;
   private blackout = 0;
   private meter: AnalyserNode | null = null;
@@ -112,6 +118,7 @@ export class AudioEngine {
   }
 
   onReady(fn: () => void): void {
+    this.builders.push(fn);
     if (this.ctx) fn();
     else this.readyFns.push(fn);
   }
@@ -121,19 +128,38 @@ export class AudioEngine {
     const kick = () => this.unlock();
     for (const ev of ['pointerdown', 'pointerup', 'touchend', 'keydown', 'click'])
       window.addEventListener(ev, kick, { capture: true, passive: true });
-    document.addEventListener('visibilitychange', () => {
+    // After milestone 10 (Colin lost the sound on his iPhone): a home-screen app on iOS does not always
+    // fire visibilitychange when it comes back, so 'pageshow' and 'focus' count as coming back too, and a
+    // tap re-reads document.hidden instead of trusting a stale flag (which kept the game muted for good).
+    const seen = () => {
       this.hidden = document.hidden;
       if (!this.ctx) return;
       if (document.hidden) void this.ctx.suspend().catch(() => {});
       else void this.ctx.resume().catch(() => {});
       this.applyFader(0.05);
-    });
+    };
+    document.addEventListener('visibilitychange', seen);
+    window.addEventListener('pageshow', seen);
+    window.addEventListener('focus', seen);
   }
 
   /** Create or resume the context. Must run inside a gesture on iOS. */
   unlock(): void {
+    const wasHidden = this.hidden;
+    this.hidden = document.hidden;
     if (this.hidden) return;
+    if (wasHidden) this.applyFader(0.05);
     this.applySession();
+    // iOS can leave a context 'interrupted' or suspended for good (after a call, Siri or another app's
+    // audio): resume() then never takes. If a resume asked for at the last tap did not work, start afresh.
+    if (this.ctx && this.ctx.state !== 'running' && this.resumeAsked) {
+      const old = this.ctx;
+      this.ctx = null;
+      this.meter = null;
+      void old.close().catch(() => {});
+      this.readyFns = [...this.builders];
+      this.epoch++;
+    }
     if (!this.ctx) {
       const Ctor = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
       if (!Ctor) return;
@@ -153,7 +179,15 @@ export class AudioEngine {
       this.readyFns = [];
       for (const f of fns) f();
     }
-    if (this.ctx.state !== 'running') void this.ctx.resume().catch(() => {});
+    if (this.ctx.state !== 'running') {
+      this.resumeAsked = true;
+      void this.ctx
+        .resume()
+        .then(() => {
+          if (this.ctx?.state === 'running') this.resumeAsked = false;
+        })
+        .catch(() => {});
+    } else this.resumeAsked = false;
   }
 
   private applySession(): void {

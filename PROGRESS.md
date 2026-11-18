@@ -1,6 +1,6 @@
 # Fathomlight progress
 
-Last updated: 2026-11-17, **milestone 9 (breeding) deployed**, with Colin's two creature fixes (the same creatures indoors, and tending without leaving the base). Next is **milestone 10, the deep** (prompt in `docs/prompts/milestone-10.md`).
+Last updated: 2026-11-17, **milestone 10 (the deep) deployed**: the trench, crush depth, PS-2 and depth plating, three trench predators, the cinder snail key, the drowned Fulmar station and the Signal array's story fragments. Then merged with the three passes built alongside it (the stepped build trench, Colin's notes, and the kit found piece by piece). Next is **milestone 11, contact** (prompt in `docs/prompts/milestone-11.md`).
 
 Play link: https://colinhill88-hub.github.io/fathomlight/ (live; first successful deploy 2026-11-14)
 
@@ -1360,9 +1360,163 @@ Colin's feedback first (after the walker and the interior art pass): the animati
 - Wild glowfin, puffcap and ray colours in the world changed slightly (their traits now pick their look).
 - **Mixed tanks (Colin's long-term goal):** breeding pairs are counted per species in a tank, so a mixed tank of two pairs breeds both. Tank upgrades and new partner species are still to plan.
 
+### Milestone 10: the deep (2026-11-17)
+**Feedback on milestone 9:** "Everything looks good. Let's keep going." Nothing was flagged, so nothing needed fixing first.
+
+**Colin's choices** (asked before building):
+- **Major site:** a drowned deep station on the trench floor, explored on foot like the Corvina.
+- **Crush depth:** the Kestrel suit is safe to 30 m, PS-1 to 60 m and PS-2 to 110 m. The sub KS-1 is safe to 45 m, or 120 m with depth plating. Past the limit, integrity drains at 2% a second, doubling for every 5 m deeper.
+- **Predators:** an angler and a stalker, plus a large deep-sea spider (Colin's addition).
+- **Creature key:** a new trench creature.
+
+**The trench** (`TRENCH`, `trenchGround` in `src/world/terrain.ts`; art in `src/world/trenchgfx.ts`, which `Scenery` owns)
+- The world's east wall is gone. The wreck shelf now ends at a rim, and the trench steps down beyond it. The world grew from 27,200 to 33,000 units wide (`WORLD_W`) and from 1,980 to 7,700 units deep (`WORLD_H`).
+  - **26800–27350, the rim** (about 22 m): a toppled relay buoy, FULMAR RELAY 4, with the first pattern spool.
+  - **27350–28350, ledge A** (about 33 m): the crushed deep probe FULMAR DP-2, whose stress recorder leads to depth plating.
+  - **28350–29350, ledge B** (about 44 m): just within KS-1's 45 m.
+  - **29350–30450, ledge C, the vent field** (about 55 m):
+    - four mineral chimneys with glowing seams and shimmering plumes of scalding water, which lift you and burn the suit (9% a second at the vent mouth);
+    - vent ore;
+    - cinder snails;
+    - the **cleft**, a side cave into the rock under ledge B, sealed by a young chimney.
+  - **30450–30650, the deep drop** to the floor.
+  - **30650–32500, the floor** (about 98 m), with the **Fulmar deep station**.
+  - **32500–33000**, the trench's east wall, up to the surface.
+- **The look:** grey sediment on the flats; sea lilies, glass sponges, tube worms and brittle stars; warm pinprick bioluminescence that thickens with depth.
+- **The water** fades to near black from about 40 m (`waterColor` in `src/fx/shared.ts`). The lighting bake darkens the trench further with depth. The trench has its own colour grade, a cold blue-black at low saturation (`GRADES.trench` in `src/fx/post.ts`).
+- **Sound:** its own music (A1, very sparse, a minor second against the root) and ambience (far-off pressure groans, slow deep pulses), plus a metal groan when crushing (`creak`).
+- **Faster load:** the lighting bake skips the solid rock under the shallows and only blurs the rows that matter, so the much taller world costs little more to load.
+
+**Crush depth** (`CRUSH`, `crushRate` in `terrain.ts`; the rules are in `src/main.ts`, search "crush depth")
+- Past the rated depth, the suit loses integrity: 2% a second at the limit, doubling for every 5 m deeper. The game shows:
+  - a groan and a shudder;
+  - a red flash on the suit bar;
+  - a banner, and a one-off warning toast.
+- **The depth chip** under the suit bar (`#depth-chip`) shows the rated depth ("MAX 60 m") near the trench. It turns amber within 5 m of the limit and red ("CRUSH") past it. The watch's depth digits turn amber and then flash red as well.
+- **The sub:** past 45 m (or 120 m when plated), the hull loses integrity at the same rate. At 0 the existing breach rules apply: you bail out, and the crew winches KS-1 home. The sub chip shows "depth 43/45 m" in the trench.
+
+**Gear** (`src/game/gear.ts`)
+
+| What | From | Lab | Cost | Job |
+| --- | --- | --- | --- | --- |
+| Pressure suit PS-1 (existing) | Corvina drawings | 140 s | 6 brass, 4 plating, 2 resin; 80 s | now does its job: safe to 60 m |
+| Pressure suit PS-2 | drawings in the cleft's cargo pod | 150 s | 6 vent ore, 4 brass, 4 plating, 2 quartz; 100 s | safe to 110 m |
+| Depth plating DP-S | the probe's stress recorder, plus a scan of the trench | 110 s | 6 plating, 4 vent ore, 3 brass (fitted at the dock) | KS-1 safe to 120 m |
+| Signal array SA-1 (base piece) | scans of the trench, the vent field and the Corvina's log | 120 s | see below | reads pattern spools |
+| Alien resonator | drawings in the Fulmar's array room | 160 s | none yet | blueprint only; built in milestone 11 |
+
+- **Depth plating is a hull refit, not a module.** It has its own "Hull refit" row in the Dock panel and takes no slot, so the cargo bay, floodlights and grabber can all stay fitted.
+- **The Lab** hides the trench's research until the trench has been scanned.
+
+**Vent ore** (`ore`, 3.5 kg, "Chip off", 3.2 s): the trench's material. There are eight spots on ledges B and C (one is in the rock under ledge B, by the cleft's mouth). Grown cinder snails make it too. There are also three more glowing blooms: one in the cleft and two on the trench floor.
+
+**The predators** (`src/actors/deep.ts`; homes `TR_LANTERNJAWS`, `TR_STALKERS`, `TR_SPIDERS` in `terrain.ts`)
+- They are built so that no lamp setting is safe from all three. All of them ignore the sub. A sonar pulse drives all three off for a while.
+- **Lanternjaw** (six, hanging in open water). A heavy, dark-bodied hunter with an underslung jaw full of needle teeth, a small reflective eye and a long-stalked amber lure.
+  - With your lamp on, it notices you within 520 units and drifts towards the light (it never strays more than 420 units from home).
+  - Within 120 units it snaps: a 0.28 s burst that bites for 30%. Then it goes home and rests.
+  - With the lamp off, it only notices you within 150 units.
+- **Pale stalker** (three: on ledge B, in the deep drop, on the floor). A long, pale, ribbon-finned body that follows the head's path, with eyes that glow back at the lamp.
+  - It follows you at the edge of the light: about 400 units off, behind and above.
+  - It strikes if you stay still for 2.6 s or go dark for 1.1 s. The strike bites for 30%.
+  - Moving with your lamp on keeps it at bay.
+- **Abyssal strider** (four, walking the ledges and the floor). A deep-sea spider about as wide as a diver is tall.
+  - Eight jointed legs that plant and step, banded pale and rust, a slender body with a proboscis and a tubercle of four eyes.
+  - It is drawn to your lamp within 650 units and walks over at 78 units a second. Within 150 units it rears up and its front legs close (25%), then it backs off for about 4 s.
+  - With the lamp off, it loses interest after 1.6 s.
+- **Sonar:** a pulse within 800 units drives all three off: the lanternjaw folds its lure and goes home, the stalker flees, the strider scuttles away.
+
+**The cinder snail** (`snail`; the new trench creature and the key)
+- **Looks:** a coiled iron shell with ember-glowing seams, and an iron-scaled foot that ripples as it creeps.
+- **In the wild:** it lives on the vent field. There is one grown adult and two young you can coax into the jar (after scanning one).
+- **Keeping it:** it likes lumen moss and others of its kind; tinker crabs pick at its scales.
+  - **Grown, it makes vent ore**, so a snail tank is a renewable source of the trench's material.
+- **Traits:**
+  - colours: iron, bronze, ash, and the rare ember gold;
+  - glow patterns: seam glow, foot lights, spiral glow.
+- **The key:** with a grown cinder snail in your jar, hold Collect at the sealed chimney over the cleft ("Let the cinder snail graze the chimney", 4 s). It grazes the chimney away, then climbs back into the jar.
+  - **In the cleft:** a Fulmar cargo pod holding the **PS-2 drawings** and the second pattern spool.
+  - **The sequence:** catch a young snail on the vent field (PS-1 reaches it), raise it at home, then bring it back.
+
+**The Fulmar deep station** (outside: `FULMAR`, `fulmarTop` in `terrain.ts`; inside: `src/interior/fulmar.ts`)
+- **Outside:** a long riveted module, a crushed listening dome, a tilted side module, a leaning antenna mast and slumped cables. One amber emergency lamp still blinks by the airlock hatch on top.
+  - To get in: wind the hatch open (2.6 s), then climb down.
+  - It sits at about 98 m, so you need PS-2 to reach it.
+- **Inside:** a dry level on foot, 100 × 36 tiles, using the Corvina's system. The interior code now takes per-level find labels and a sign (`InteriorOptions`), any digit as a find, and draws ladders in wrecks.
+  - **The top deck:**
+    - the airlock;
+    - the listening room under the dome, with the crew's **listening log** (a story fragment; it opens in the reading panel and stays in the log);
+    - a steam leak;
+    - the lift's top;
+    - a powered door to the **array room**, which holds the last pattern spool and the **resonator drawings**.
+  - **The crew deck:**
+    - bunks with the comms pattern spool;
+    - a breaker;
+    - a step too tall to jump (grapple up);
+    - a gap over the machine hall (grapple across);
+    - steam vents;
+    - a supply locker (3 vent ore, 2 brass, 1 glowing bloom);
+    - a ladder up to the top deck.
+  - **The machine hall:** steel islands over flooded bilge, crossed by grappling the rings overhead. It has two more breakers and the lift's bottom. A ladder climbs from its west island to the crew deck, so you can't get stuck down there.
+  - **Power:** all three breakers bring the emergency power back (`save.fulmar`), which lights the lamps, runs the lift and opens the array room door.
+
+**The Signal array and the story** (`src/game/signals.ts`; piece `signal` in `src/game/base.ts`)
+- **Signal array SA-1:** 2 × 2. It costs 6 vent ore, 6 quartz, 4 brass, 4 plating and 4 copper, and takes 55 s to weld. Its blueprint is decoded in a Lab.
+  - **Outside:** a brass dish on a mast, receiver rods and a decoder window.
+  - **Inside:** a big round pattern screen in a brass ring and receiver racks. The screen shows slow amber rings while listening, and the Choir's colours while it decodes.
+- **The four pattern spools:**
+  - the rim's relay buoy;
+  - the cleft's cargo pod;
+  - the Fulmar's comms rack;
+  - the Fulmar's array room.
+- **How decoding works:** a powered array decodes the spools one at a time in the order you found them, 150 s each. Following DESIGN.md ("raising glowing creatures is how the player learns that language"), each one needs enough "words" first. A word is a different glow pattern among the grown creatures in your tanks, where each species-and-pattern pair counts once. The four spools need **2, 4, 6 and 8** words, so breeding for new patterns is the way forward.
+- **Reading a fragment:** a decoded fragment becomes an Artefact in the scanner log. At the array's console inside the base, hold Collect to read the latest one in the reading panel.
+- **The fragments** (an arc towards contact):
+  1. "Held light": the Choir has seen divers' lamps and wonders what holds them.
+  2. "Grown light": it answers light that someone raised.
+  3. "Below the cold": an invitation down and east, past the trench floor.
+  4. "The door": the door below hears only its own song, which matches the resonator drawings.
+- **The listening log** tells the Fulmar crew's story: eleven years listening, and lamps answered by lights. They worked out that every glowing creature is a word the Choir knows. They drew the resonator, then left when the hull began to weep.
+- **"Maps zones"** (DESIGN.md's other job for the array) is not built yet. See open questions.
+
+**Also**
+- **New scanner entries:** the trench, the Fulmar relay buoy, the crushed deep probe, the vent field, the sealed chimney, the cinder snail, the lanternjaw, the pale stalker, the abyssal strider, the Fulmar deep station, the Fulmar's listening log, and the four signal fragments. That makes 15 entries.
+- **The scanner log** has a new "The trench" section: which suit you wear and its depth, the sub's rating, the cleft, and the spools found and decoded.
+- **Fixed on the way:** zone weights for the colour grade and the sound added up to 2 in the trench (the kelp forest's weight came back as the shelf's faded), which doubled the exposure. Now the forest fades with the shelf's raw weight.
+- **The benchmark** has a new scene, 7, "Trench vent field, lamp on". It was appended, so `scene=6` still means the base interior. The bench base now ends with a corridor and a Signal array.
+
+**Tested** (headless Chromium in the cloud, with no GPU. The game ran at about a quarter of real speed there, so the timings below are in game seconds):
+- **Build:** type check and production build pass. No console errors.
+- **Screenshots:** the rim, the vent field, the floor and the station; the three predators in the lamp; the open cleft; and the Fulmar inside.
+- **Crush depth:**
+  - With the Kestrel suit at 40 m, the suit drained and the chip read "CRUSH 30 m".
+  - With PS-1 at 40 m, there was no damage.
+- **Predators** (simulated 15–20 s each):
+  - A lanternjaw with your lamp on warned and bit once; with the lamp off, it did nothing.
+  - A stalker following a moving, lit diver never struck; still or dark, it struck once.
+  - A strider with your lamp on bit; with the lamp off, it did nothing.
+  - A sonar pulse stopped all of them.
+- **Hold actions**, scripted with a real key held:
+  - the buoy spool;
+  - the probe recorder;
+  - the chimney (blocked without a snail; grazed away with a grown one in the jar);
+  - the PS-2 drawings and the cleft spool;
+  - the station hatch and climbing in.
+- **Inside the Fulmar:** the three breakers gave power, and the resonator drawings could be taken from the array room.
+- **The Signal array:** blocked at 0 words; decoded fragment 1 in 150 s with 2 words; asked for 4 words for fragment 2; stopped without power.
+- **Not tested on a real iPhone or Colin's PC.**
+
+### After milestone 10: sound lost on the iPhone
+- **Colin:** the audio had gone on his phone.
+- **Two weak spots fixed in `src/audio/engine.ts`:**
+  - **A missed "visible again".** A home-screen app on iOS does not always fire `visibilitychange` when it comes back. The engine kept a stale "hidden" flag, which held the master fader at zero and made it ignore taps. Now `pageshow` and `focus` count as coming back, and every tap re-reads `document.hidden`.
+  - **A broken audio context.** After a call, Siri or another app's audio, iOS can leave the context interrupted so that `resume()` never takes. If a resume asked for on one tap hasn't worked by the next tap, the engine closes the old context and builds a fresh one, inside that tap. Music, ambience and effects rebuild with it (`epoch`; the music and the cue timers reset their clocks).
+- **Settings, Sound** now names the state when sound is paused. When it's running on an iPhone, it reminds you that the ring/silent switch mutes the game unless "Plays with the silent switch on" is chosen.
+- **Tested** in headless Chromium: a context forced into the stuck state came back with sound on the next key press, and a stale hidden flag cleared on the next tap. Not tested on the iPhone itself.
+
 ## Next
 
-**Next session: milestone 10, the deep** (prompt in `docs/prompts/milestone-10.md`): pressure suit tiers, sub depth plating, the trench zone and the Signal array story fragments. Milestone 9 left the glowing bloom and the Revival pool ready for the deep zones (more blooms there), and the creature keys are a pattern to reuse (a creature that opens something in the trench). The four graphics sessions are done; what is left of the graphics plan is tuning from Colin's testing (every effect is a toggle and a number in `src/presets.ts`) and his PC and iPhone `?bench` tables, which are still to come. Graphics ideas not done: refraction through glass, cave rock-pillar backdrops, hand-placed shine lines, more bioluminescent detail on the shelf.
+**Next session: milestone 11, contact** (prompt in `docs/prompts/milestone-11.md`): the alien resonator (its blueprint is decoded from the Fulmar's drawings; the Workshop build and its materials are still to decide), the sanctum and the ending. The fourth signal fragment points the way: down and east, past the trench floor, to a door that hears only its own song. Also to decide then: the Signal array's "maps zones" job, and the late-game power sources (DESIGN.md, power as a mechanic). The graphics plan is done apart from tuning from Colin's testing and his `?bench` tables (now with a trench scene, 7).
 - **Left over from the walkable base:** line code plates indoors, and a sound for the lines and machines (the machine-room detail was done in the interior art pass). Do these alongside a later milestone if Colin asks.
 - **The harpoon:** decoration on the Crest diver for now; use its design for later tools and weapons.
 
@@ -1376,6 +1530,17 @@ Where things are (on foot):
 - milestone 9: traits `src/game/traits.ts`, breeding in `src/game/creatures.ts` (bottom), the Hatchery panel `src/ui/hatch.ts`, the glowfin escort `src/actors/escort.ts`, indoor tanks via `TankLife` in `BaseHooks` (`attach`, `tick`, `tankFocus`, `roomFocus`).
 
 ## Problems and open questions
+
+- **Milestone 10, to check after Colin plays:**
+  - **Crush numbers:** `CRUSH`, `CRUSH_RATE` (2%/s) and `CRUSH_DOUBLE` (5 m) in `src/world/terrain.ts`. With PS-1 the floor (98 m) kills in a second or two, on purpose; PS-2 is needed there.
+  - **Predators** (top of each class in `src/actors/deep.ts`): lanternjaw notice 520 lit / 150 dark, snap 120, bite 30%; stalker keeps 400 off, strikes after 2.6 s still or 1.1 s dark, bite 30%; strider notices 650 lit, walks 78/s, grabs 150, 25%. Whether three predator kinds plus crush depth is too much at once on the floor.
+  - **Vent plumes** lift (240) and scald (up to 9%/s). The chimney over the cleft also scalds at its mouth.
+  - **Signal fragments** need 2/4/6/8 different glow patterns among grown creatures (`FRAGMENTS` in `src/game/signals.ts`), 150 s each. Eight needs real breeding (or the cinder snail's three patterns).
+  - **Costs:** PS-2, DP-S (`DEPTH_PLATING_COST` in `src/ui/dock.ts`), the Signal array; vent ore weight (3.5 kg) and its eight spots.
+  - **The Signal array's "maps zones" job** (DESIGN.md) is not built. Proposal for milestone 11: decoded fragments mark the way to the sanctum on a simple zone map in the array's console.
+  - **Frame rate in the trench** on the iPhone: three kinds of predators draw every frame when on screen (far ones idle). The lighting bake is taller (about 4,850 × 960 cells): check the first load time on the phone.
+  - **The cleft's rock** lit by the lamp looks flat from inside; it may want the kelp caves' wall treatment later.
+  - The trench's research is hidden in the Lab until the trench is scanned.
 
 - **Graphics session G2, to check after Colin plays:** the caves are darker behind pillars (by design, see above); the shadow march is not yet measured on a GPU; moving things that are not in the bake (the kelp wall, the boom gate, creatures, the sub's hull) do not cast shadows; the interior's walls cast but its doors and gratings do not. Lights other than the diver's lamp and the sub's still pass through rock (moss, anemones, lures): that is deliberate for now (small radius), and the list is one flag, `shadow: true`, per light.
 
@@ -1540,3 +1705,16 @@ Where things are (on foot):
 - **Lifts ride, no more teleport.** The Corvina's lift now has a real shaft at the east end of the ship (map: `L` shaft, `G` gates; the upper stop moved from the entry deck into the survey lab's east end, which opens onto it; the hold's breaker moved four tiles west). Hold Collect at a stop: the car is called if it's at the other end, the gate slides up, you step in, the gate shuts, the car's lamp comes on and it runs along the shaft with you in it, then the far gate opens and you step out. The base's long-climb lifts carry you in a car between their ends the same way.
 - **Dive watch on a PC:** sized by `--watch` (108 px; on a big screen with a mouse it grows with the window height, about 158 px at 1440p). The suit bar and sub chip under it follow.
 - **To look at:** whether the swing's pump and the let-go flight feel right in the Corvina's hold (`SWING_PUMP`, `SWING_CLIMB`, the hop on release), and the lift's speed (240 units a second).
+
+## Merging milestone 10 with the kit passes (2026-11-18)
+
+Milestone 10 (on `claude/jolly-cray-gets18`) and the three passes above were built side by side from the same commit. Merged together, with these fixes where they meet:
+
+- **The Fulmar's lift rides a real shaft**, like the Corvina's now. Its two stops were in different columns (top deck col 66, machine hall col 96); now both are at col 94, with gates (G) and a shaft (L) up the station's east side (`src/interior/fulmar.ts`). The top stop is at the array room's east end: the lift only runs with power, which also opens the array room's door, so it skips nothing. The hall's east platform reaches 4 tiles further west (cols 91 to 98) to hold the bottom stop; the gap you grapple across to it is 7 tiles (was 11), with the same ring.
+- **Entering a wreck resets its lift** (the car waits at the lowest stop), so the Corvina's car position never carries over into the Fulmar.
+- **PS-2 has its own look**: the kit's `psuit` is now a level (0 Kestrel suit, 1 PS-1, 2 PS-2). PS-2 adds to PS-1 a deeper bronze cast, riveted armour plates on the thighs and upper arms, a second pair of pressure tubes, a riveted back plate and a lit pressure gauge on the chest (`drawDiverPs2Torso`, `ps2Plate` in `src/actors/diver.ts`; the walker's twins in `src/actors/walker.ts`). `animlab.html?kit=2,1,1,1,2` previews it.
+- **The cinder snail in the belt jar**: iron-grey shell with an ember-lit spiral.
+- **The crush-depth chip** follows the dive watch's size (`--watch`), like the suit bar.
+- Styles: both sides' new blocks are kept (the build bar's arrows, the crush-depth chip).
+
+**Tested:** type check and production build; in a headless browser, the Fulmar lift from the machine hall to the array room (the call, gates, ride and step-out), and the PS-1 and PS-2 looks on the swimmer and the walker. **Not tested on a real iPhone or PC.**

@@ -16,6 +16,9 @@ import {
   SUB_SLOTS,
 } from '../game/sub';
 import { MATERIAL_ICONS } from './hud';
+import { CRUSH } from '../world/terrain';
+/** Milestone 10: what depth plating DP-S costs to fit. */
+export const DEPTH_PLATING_COST: Partial<Record<MaterialId, number>> = { plate: 6, ore: 4, brass: 3 };
 import type { SubModule } from '../game/state';
 
 /**
@@ -78,6 +81,7 @@ export class DockMode {
       else if (act === 'repair') this.repair();
       else if (act === 'fit') this.fit(el.dataset.id as SubModule);
       else if (act === 'unfit') this.unfit(el.dataset.id as SubModule);
+      else if (act === 'plating') this.plating();
       else if (act === 'close') this.close();
     });
     window.addEventListener('keydown', (e) => {
@@ -173,6 +177,20 @@ export class DockMode {
     this.render(true);
   }
 
+  /** Milestone 10: depth plating DP-S, a hull refit (it takes no module slot). */
+  private plating(): void {
+    const s = this.berthed();
+    const save = this.deps.save;
+    if (!s || s.plating || !save.blueprints.includes('plating')) return;
+    if (!payFor(save, DEPTH_PLATING_COST)) return this.deps.toast(`Depth plating still needs ${missingText(save, DEPTH_PLATING_COST)}`, 'warn');
+    s.plating = true;
+    this.deps.subChanged();
+    this.deps.refreshInventory();
+    this.deps.toast(`Depth plating DP-S bolted on: KS-1 is rated to ${CRUSH.plated} m now (it was ${CRUSH.sub} m).`, 'big');
+    this.deps.persist();
+    this.render(true);
+  }
+
   private unfit(m: SubModule): void {
     const s = this.berthed();
     if (!s || !s.modules.includes(m)) return;
@@ -260,7 +278,15 @@ export class DockMode {
         ${s.hull <= 0 ? '<p class="why">The hull is breached: it must be repaired before anyone can take it out.</p>' : ''}
         <h3>Module slots (${s.modules.length}/${SUB_SLOTS})</h3>
         ${slots}
-        ${fits ? `<h3>Modules to fit</h3>${fits}` : '<p class="ok">Every module available so far is fitted. Deeper zones will bring more (sonar, depth plating).</p>'}
+        ${fits ? `<h3>Modules to fit</h3>${fits}` : '<p class="ok">Every module available so far is fitted.</p>'}
+        <h3>Hull refit</h3>
+        ${
+          s.plating
+            ? `<div class="mod"><div><b>Depth plating</b> <small>DP-S · fitted: rated to ${CRUSH.plated} m</small></div></div>`
+            : save.blueprints.includes('plating')
+              ? `<div class="mod"><div><b>Depth plating</b><small>DP-S · a bolted second skin of plate and vent ore. Takes KS-1 from ${CRUSH.sub} m to ${CRUSH.plated} m. Uses no slot.</small><div class="costs">${costChips(save, DEPTH_PLATING_COST)}</div></div><button type="button" class="act" data-act="plating" ${haveFor(save, DEPTH_PLATING_COST) ? '' : 'disabled'}>Fit</button></div>`
+              : `<p>KS-1's hull is rated to ${CRUSH.sub} m. Depth plating would take it deeper: its design is somewhere in the trench.</p>`
+        }
         <p>${s.aboard ? 'You are aboard: tap Exit (V) to climb out, or drive off.' : 'Swim up to the sub and tap Board (V) to take it out.'}</p>`;
     }
     const html = `<div class="head"><b>${code} · Moon pool dock</b><span>${powered ? 'powered' : 'no power'}</span>

@@ -62,6 +62,8 @@ export const BENCH_SCENES: BenchScene[] = [
   { id: 'caves', name: 'Kelp caves, black chamber', x: 17960, y: 1650, face: 1, lamp: true, zoom: 1, sway: 60 },
   { id: 'shelf', name: 'Wreck shelf, by the Corvina', x: CORVINA.x0 - 240, y: 230, floor: true, face: 1, lamp: true, zoom: 1, sway: 100 },
   { id: 'base', name: 'Base interior, ceiling lines', x: 0, y: 0, face: 1, lamp: true, zoom: 1, interior: true, sway: 0 },
+  // Milestone 10 (appended, so the scene numbers above keep their meaning).
+  { id: 'trench', name: 'Trench vent field, lamp on', x: 29700, y: 150, floor: true, face: 1, lamp: true, zoom: 1, sway: 100 },
 ];
 
 /** Where a scene's diver sits (the seabed offset resolved). */
@@ -84,6 +86,8 @@ const SEQUENCE: PieceKind[] = [
   'corridor', 'turbine', 'corridor', 'tank', 'corridor', 'press', 'corridor', 'storage', 'corridor', 'gtank', 'filter',
   'corridor', 'feeder', 'corridor', 'lab', 'corridor', 'tank',
   'junction', 'shaft', 'junction', 'bracket',
+  // Milestone 10.
+  'corridor', 'signal',
 ];
 
 /**

@@ -1,6 +1,6 @@
 import { Container, Graphics } from 'pixi.js';
 import { mulberry32, WORLD_SEED } from '../rng';
-import { groundY, isSolid, WORLD_W } from './terrain';
+import { groundY, isSolid, WORLD_H, WORLD_W } from './terrain';
 import { Critter } from '../actors/critters';
 import type { Traits } from '../game/traits';
 import { REGROW_SECONDS, SaveData, SpeciesId } from '../game/state';
@@ -24,8 +24,8 @@ const rand = mulberry32(WORLD_SEED ^ 0x7c3e);
 const R = (a: number, b: number) => a + rand() * (b - a);
 
 function floorAt(x: number, from: number): number {
-  for (let y = from; y < 1980; y += 2) if (isSolid(x, y)) return y;
-  return 1980;
+  for (let y = from; y < WORLD_H; y += 2) if (isSolid(x, y)) return y;
+  return WORLD_H;
 }
 
 interface Wild {
@@ -125,6 +125,10 @@ export class Wildlife {
     add({ id: 'shrimp-adult', species: 'shrimp', stage: 'grown', collectible: false, homeX: 12880, homeY: groundY(12880) - 70, range: 120, size: 1.6 });
     add({ id: 'shrimp-0', species: 'shrimp', stage: 'young', collectible: true, homeX: 11080, homeY: groundY(11080) - 50, range: 90, size: 1.2 });
     add({ id: 'shrimp-1', species: 'shrimp', stage: 'young', collectible: true, homeX: 13980, homeY: groundY(13980) - 50, range: 90, size: 1.2 });
+    // Milestone 10: cinder snails creeping over the vent field in the trench, grazing the chimneys.
+    add({ id: 'snail-adult', species: 'snail', stage: 'grown', collectible: false, homeX: 30000, homeY: groundY(30000) - 7, range: 160, size: 1.5 });
+    add({ id: 'snail-0', species: 'snail', stage: 'young', collectible: true, homeX: 29740, homeY: groundY(29740) - 7, range: 90, size: 1.2 });
+    add({ id: 'snail-1', species: 'snail', stage: 'young', collectible: true, homeX: 30250, homeY: groundY(30250) - 7, range: 90, size: 1.2 });
     for (const w of this.all) {
       w.x = w.homeX + R(-30, 30);
       w.y = w.stage === 'egg' ? w.homeY : w.homeY + R(-20, 20);
@@ -180,8 +184,8 @@ export class Wildlife {
       if (w.species === 'ray') {
         // Rays keep low over the grass.
         w.ty = gy - (w.stage === 'grown' ? R(70, 130) : R(36, 80));
-      } else if (w.species === 'crab') {
-        // Crabs walk the floor.
+      } else if (w.species === 'crab' || w.species === 'snail') {
+        // Crabs (and cinder snails) walk the floor.
         w.ty = gy - 8;
         break;
       } else if (w.species === 'shrimp') w.ty = gy - R(24, 110);
@@ -253,7 +257,7 @@ export class Wildlife {
         }
         let ax = w.tx - w.x;
         let ay = w.ty - w.y;
-        let speed = w.species === 'puffcap' ? 22 : w.species === 'crab' ? (w.stage === 'grown' ? 30 : 24) : w.stage === 'grown' ? 60 : 48;
+        let speed = w.species === 'puffcap' ? 22 : w.species === 'snail' ? 10 : w.species === 'crab' ? (w.stage === 'grown' ? 30 : 24) : w.stage === 'grown' ? 60 : 48;
         // Kelp forest creatures are curious but wary: they edge closer to a
         // diver who keeps still, and keep a little distance.
         const forest = w.species === 'crab' || w.species === 'shrimp';
@@ -272,8 +276,8 @@ export class Wildlife {
         if (w.scared > 0 && fd < 320) {
           ax = fdx;
           ay = fdy * 0.6;
-          speed = w.species === 'puffcap' ? 70 : w.species === 'crab' ? 110 : 170;
-          if (w.species === 'crab') ay = 0;
+          speed = w.species === 'puffcap' ? 70 : w.species === 'snail' ? 18 : w.species === 'crab' ? 110 : 170;
+          if (w.species === 'crab' || w.species === 'snail') ay = 0;
         } else if (w === this.findTarget() && held && diverSpeed < STILL_SPEED && w.collectible) {
           // Being coaxed: it drifts calmly towards the diver.
           ax = dx - w.x;
@@ -286,10 +290,10 @@ export class Wildlife {
         w.vy += ((ay / l2) * speed * (w.species === 'puffcap' ? 0.8 : 0.5) - w.vy) * k;
         const nx = w.x + w.vx * dt;
         const ny = w.y + w.vy * dt;
-        if (w.species === 'crab') {
+        if (w.species === 'crab' || w.species === 'snail') {
           // Walk along the floor.
           w.x = Math.max(w.homeX - w.range - 200, Math.min(w.homeX + w.range + 200, nx));
-          w.y = groundY(w.x) - 8;
+          w.y = groundY(w.x) - (w.species === 'snail' ? 6 : 8);
           w.vy = 0;
         } else if (!isSolid(nx, ny + 6) && ny > 60) {
           w.x = nx;

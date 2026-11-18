@@ -43,14 +43,27 @@ import { mulberry32, WORLD_SEED } from '../rng';
  * 21900 - 27000 the wreck shelf: twilight, about 22 m down, silt and wreckage,
  *               two small sealed wrecks, wreck lurkers in dens, brass fittings,
  *               and the great sealed wreck of the Corvina (the major site, part 2)
+ *
+ * Milestone 10 opened the world's east wall into the trench (TRENCH below):
+ * 26800 - 27350 the rim, where the shelf ends (an old relay buoy lies toppled)
+ * 27350 - 28350 ledge A, about 33 m (a crushed deep probe)
+ * 28350 - 29350 ledge B, about 44 m (the KS-1 hull is safe to 45 m)
+ * 29350 - 30450 ledge C, the vent field, about 55 m: chimneys, vent ore,
+ *               cinder snails; a cleft into the rock under ledge B, sealed
+ *               by a mineral chimney a grown cinder snail grazes away
+ * 30450 - 30650 the deep drop
+ * 30650 - 32500 the trench floor, about 98 m, and the drowned Fulmar deep
+ *               station (the major site, an interior on foot)
+ * 32500 - 33000 the trench's east wall, up to the surface
  */
 
 /** West edge of the world (milestone 5 added the basin west of the old wall). */
 export const WORLD_X0 = -5600;
-export const WORLD_W = 27200;
+export const WORLD_W = 33000;
 /** Width of the whole world, from WORLD_X0 to WORLD_W. */
 export const WORLD_SPAN = WORLD_W - WORLD_X0;
-export const WORLD_H = 1980;
+/** Milestone 10: the trench goes down to about 100 m. */
+export const WORLD_H = 7700;
 export const WU_PER_METRE = 75;
 
 /** Where the diver starts, and comes back to after blacking out: the Kestrel buoy at the surface. */
@@ -406,6 +419,95 @@ export const LURKER_DENS = [
   { x: 25330, dir: 1 },
 ];
 
+/*
+ * Milestone 10: the trench (Colin's choices: a drowned deep station as the
+ * major site; crush depth 30 m for the Kestrel suit, 60 m for PS-1, 110 m for
+ * PS-2; the sub 45 m, or 120 m with depth plating). It is a heightfield like
+ * the rest of the seabed: the shelf ends at a rim, then three ledges step
+ * down, then a sheer drop to the floor. One side cave (the cleft) is carved
+ * into the rock under ledge B, opening onto the vent field.
+ */
+export const TRENCH = { x0: 26800, x1: 32550, rimX: 27300, ledgeA: 27350, ledgeB: 28350, ledgeC: 29350, drop: 30500, floorX: 30650 };
+/** Ledge heights (world units below the surface). */
+export const TRENCH_Y = { rim: 1660, a: 2450, b: 3290, c: 4150, floor: 7380 };
+function trenchGround(x: number): number {
+  let y = TRENCH_Y.rim + Math.sin(x * 0.0043) * 9;
+  y += (TRENCH_Y.a + smooth((x - 27400) / 900) * 60 + Math.sin(x * 0.0071 + 1) * 12 - y) * smooth((x - 27300) / 120);
+  y += (TRENCH_Y.b + Math.sin(x * 0.0063 + 2) * 14 - bump(x, 28900, 90, 30) - y) * smooth((x - 28300) / 110);
+  y += (TRENCH_Y.c + Math.sin(x * 0.0081 + 3) * 10 - bump(x, 29700, 60, 40) - bump(x, 30150, 70, 50) - y) * smooth((x - 29300) / 110);
+  y += (TRENCH_Y.floor + Math.sin(x * 0.0029) * 26 + Math.sin(x * 0.011 + 1) * 8 - y) * smooth((x - 30470) / 130);
+  // The trench's east wall, up to just under the surface at the end of the world.
+  y += (300 - y) * smooth((x - 32560) / 220);
+  return y;
+}
+/** Crush depths in metres (Colin's numbers). */
+export const CRUSH = { kestrel: 30, ps1: 60, ps2: 110, sub: 45, plated: 120 };
+/** Damage per second at the limit; it doubles for every CRUSH_DOUBLE metres deeper. */
+export const CRUSH_RATE = 0.02;
+export const CRUSH_DOUBLE = 5;
+/** Integrity lost per second, at a depth (m) against a limit (m). 0 above the limit. */
+export function crushRate(depthM: number, limitM: number): number {
+  if (depthM <= limitM) return 0;
+  return CRUSH_RATE * Math.pow(2, (depthM - limitM) / CRUSH_DOUBLE);
+}
+/** The toppled relay buoy on the rim, the crushed deep probe on ledge A. */
+export const TR_BUOY = { x: 27080 };
+export const TR_PROBE = { x: 27880 };
+/** Hot vent chimneys on the vent field: scalding water rises above each one. */
+export const TR_VENTS = [
+  { x: 29620, h: 120 },
+  { x: 29880, h: 80 },
+  { x: 30130, h: 150 },
+  { x: 30360, h: 95 },
+];
+/** The cleft: a tunnel west into the rock under ledge B, and the chamber at its end. */
+export const CLEFT = {
+  tunnel: cap(29450, 4096, 52, 29120, 4058, 46),
+  room: ell(28950, 4032, 165, 86),
+  /** The mineral chimney that seals the mouth (a grown cinder snail grazes it away). */
+  plug: { x0: 29372, x1: 29452, y0: 4024, y1: 4162 },
+  x: 29412,
+  y: 4100,
+};
+export const cleft = { open: false };
+/** Finds in the cleft's chamber. */
+export const CLEFT_FINDS = { plans: { x: 28880 }, spool: { x: 29040 } };
+/** The drowned Fulmar deep station on the trench floor. Its airlock hatch is on top of the main module. */
+export const FULMAR = { x0: 31250, x1: 32160, mainX1: 31900, hatchX: 31720, domeX: 31470 };
+/** The top of the station's hull at x (or Infinity where there is none). */
+export function fulmarTop(x: number): number {
+  if (x < FULMAR.x0 || x > FULMAR.x1) return Infinity;
+  const f = TRENCH_Y.floor + 10;
+  let top = x < FULMAR.mainX1 ? f - 250 : f - 165 - (x - FULMAR.mainX1) * 0.12;
+  // Round shoulders at each end.
+  top += 40 * (1 - smooth((x - FULMAR.x0) / 60)) + 40 * smooth((x - (FULMAR.x1 - 50)) / 50);
+  // The listening dome, crushed in on one side.
+  const dx = (x - FULMAR.domeX) / 120;
+  if (Math.abs(dx) < 1) top = Math.min(top, f - 250 - 95 * Math.sqrt(1 - dx * dx) * (dx > 0.2 ? 0.75 : 1));
+  return top;
+}
+export const FULMAR_HATCH = { x: FULMAR.hatchX, y: 0 };
+/** Predators of the trench (src/actors/deep.ts): where each one lives. */
+export const TR_LANTERNJAWS = [
+  { x: 27950, y: 2150 },
+  { x: 28950, y: 2950 },
+  { x: 30000, y: 3700 },
+  { x: 30950, y: 5300 },
+  { x: 31700, y: 6450 },
+  { x: 30900, y: 6950 },
+];
+export const TR_STALKERS = [
+  { x0: 28450, x1: 29300, y0: 2900, y1: 3200 },
+  { x0: 30550, x1: 31300, y0: 4600, y1: 6400 },
+  { x0: 30700, x1: 32400, y0: 6700, y1: 7250 },
+];
+export const TR_SPIDERS = [
+  { x0: 28600, x1: 29250 },
+  { x0: 29480, x1: 30420 },
+  { x0: 30750, x1: 31220 },
+  { x0: 32180, x1: 32480 },
+];
+
 function forestFloor(x: number): number {
   let y = 1290 + Math.sin(x * 0.0017) * 28 + Math.sin(x * 0.0041 + 1) * 14;
   y -= bump(x, 11150, 260, 80) + bump(x, 12850, 220, 110) + bump(x, 13850, 200, 60);
@@ -419,7 +521,8 @@ function eastGround(x: number): number {
   y += (260 - y) * smooth((x - 14800) / 420);
   // Milestone 8: the shelf edge and the wreck shelf beyond, and the world's east wall.
   y += (shelfFloor(x) - y) * smooth((x - 19300) / 430);
-  y += (300 - y) * smooth((x - 26880) / 260);
+  // Milestone 10: the shelf breaks off into the trench.
+  if (x > 26600) y += (trenchGround(x) - y) * smooth((x - 26600) / 200);
   return y;
 }
 
@@ -594,6 +697,12 @@ export function isSolid(x: number, y: number): boolean {
     const c = corvinaSolid(x, y);
     if (c !== null) return c;
   }
+  // Milestone 10: the drowned station is solid; the cleft is open once its chimney is grazed away.
+  if (x > 31200 && x < 32200 && y >= fulmarTop(x)) return true;
+  if (x > 28700 && x < 29520 && y > 3920 && y < 4200) {
+    if (!cleft.open && x > CLEFT.plug.x0 && x < CLEFT.plug.x1 && y > CLEFT.plug.y0 && y < CLEFT.plug.y1) return true;
+    if (inShape(CLEFT.tunnel, x, y) || inShape(CLEFT.room, x, y)) return false;
+  }
   if (hidden.open && x > 19370 && x < 19840 && y > 1460 && (inShape(HIDDEN.tunnel, x, y) || inShape(HIDDEN.room, x, y))) return false;
   if (y >= groundY(x)) return !inCave(x, y) && !inKelpCaves(x, y);
   if (y > 540 && y < 780 && x > 5690 && x < 6880 && inPolygon(x, y, LEDGE)) return true;
@@ -622,8 +731,15 @@ export function bakeSkyVisibility(cell: number, blurPasses: number): HTMLCanvasE
   for (let i = 0; i < w; i++) {
     const x = WORLD_X0 + (i + 0.5) * cell;
     let rock = 0;
+    // Milestone 10: west of the trench there is nothing but rock below the shelf, so skip the tests there.
+    const deepRock = x < TRENCH.x0 - 300 ? 2300 : Infinity;
     for (let j = 0; j < h; j++) {
       const y = (j + 0.5) * cell;
+      if (y > deepRock) {
+        vis[j * w + i] = 0;
+        occ[j * w + i] = 255;
+        continue;
+      }
       const solid = isSolid(x, y);
       // Light enters a surface slightly, so the top of a rock is fully lit.
       vis[j * w + i] = Math.exp(-rock / 70);
@@ -635,19 +751,23 @@ export function bakeSkyVisibility(cell: number, blurPasses: number): HTMLCanvasE
       else if (x > 9650 && y > 40) rock += cell * 0.055 * smooth((x - 9650) / 450) * (1 - 0.5 * smooth((x - 14700) / 400)) * (1 - smooth((x - 19200) / 300));
       // Milestone 8: the wreck shelf is twilight, dimmer the deeper it gets.
       if (x > 19200 && y > 300 && !solid) rock += cell * 0.03 * smooth((x - 19200) / 600);
+      // Milestone 10: the trench gets darker still with depth.
+      if (x > TRENCH.x0 && y > 1700 && !solid) rock += cell * 0.02 * smooth((y - 1700) / 1500);
     }
   }
   // Soft shadow edges: repeated small box blurs approximate a smooth blur.
   const tmp = new Float32Array(w * h);
+  const trenchI = Math.floor((TRENCH.x0 - 400 - WORLD_X0) / cell);
+  const shallowJ = Math.min(h, Math.ceil(2400 / cell));
   for (let pass = 0; pass < blurPasses; pass++) {
     for (let j = 0; j < h; j++)
-      for (let i = 0; i < w; i++) {
+      for (let i = j < shallowJ ? 0 : trenchI; i < w; i++) {
         let s = 0;
         for (let k = -2; k <= 2; k++) s += vis[j * w + Math.min(w - 1, Math.max(0, i + k))];
         tmp[j * w + i] = s / 5;
       }
     for (let j = 0; j < h; j++)
-      for (let i = 0; i < w; i++) {
+      for (let i = j < shallowJ ? 0 : trenchI; i < w; i++) {
         let s = 0;
         for (let k = -2; k <= 2; k++) s += tmp[Math.min(h - 1, Math.max(0, j + k)) * w + i];
         vis[j * w + i] = s / 5;
@@ -675,5 +795,7 @@ for (const r of RINGS) r.y = groundY(r.x) - 120;
 // Milestone 8 part 2: the Corvina's stern bollard and deck hatch sit on her deck.
 CV_BOLLARD.y = cvDeckY(CV_BOLLARD.x) - 22;
 CV_HATCH.y = cvDeckY(CV_HATCH.x);
+// Milestone 10: the Fulmar's airlock hatch sits on top of her main module.
+FULMAR_HATCH.y = fulmarTop(FULMAR_HATCH.x);
 /** Every point the grapple can hook: the race's rings, the Corvina's bollard and her hold's beam hooks. */
 export const ANCHORS: { x: number; y: number }[] = [...RINGS];

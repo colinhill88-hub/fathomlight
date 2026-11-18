@@ -80,7 +80,7 @@ export const SITE = (() => {
 /** How many cells of the site are open water. */
 export const OPEN_CELLS = OPEN.filter(Boolean).length;
 
-export type PieceKind = 'dome' | 'corridor' | 'turbine' | 'storage' | 'tank' | 'filter' | 'feeder' | 'press' | 'dock' | 'lab' | 'workshop' | 'gtank' | 'sorter' | 'recomp' | 'crane' | 'hatch' | 'farm' | 'revive' | 'shaft' | 'junction' | 'bracket';
+export type PieceKind = 'dome' | 'corridor' | 'turbine' | 'storage' | 'tank' | 'filter' | 'feeder' | 'press' | 'dock' | 'lab' | 'workshop' | 'gtank' | 'sorter' | 'recomp' | 'crane' | 'hatch' | 'farm' | 'revive' | 'shaft' | 'junction' | 'bracket' | 'signal';
 /** Creature tanks of either size (milestone 7 part 2 added the Grand tank). */
 export function isTankKind(k: PieceKind): boolean {
   return k === 'tank' || k === 'gtank';
@@ -348,6 +348,16 @@ export const PIECES: Record<PieceKind, PieceDef> = {
     blueprint: 'revive',
     shapes: [{ w: 2, h: 1, collars: [{ cx: 0, cy: 0, dir: 'L' }, { cx: 1, cy: 0, dir: 'R' }] }],
   },
+  // Milestone 10: the trench's piece (DESIGN.md: the Signal array maps zones and decodes alien signals).
+  signal: {
+    kind: 'signal',
+    name: 'Signal array',
+    job: "A listening dish and pattern decoder. It reads the Choir's light patterns off spools found in the trench, one at a time, once your grown creatures show enough different glow patterns (the Choir's words).",
+    cost: { ore: 6, quartz: 6, brass: 4, plate: 4, copper: 4 },
+    buildTime: 55,
+    blueprint: 'signal',
+    shapes: [{ w: 2, h: 2, collars: [{ cx: 0, cy: 0, dir: 'L' }, { cx: 1, cy: 0, dir: 'R' }] }],
+  },
   // After milestone 9 (Colin's terrain pass): structure for building up and down the stepped trench.
   shaft: {
     kind: 'shaft',
@@ -418,7 +428,7 @@ export const PIECES: Record<PieceKind, PieceDef> = {
     ],
   },
 };
-export const PIECE_ORDER: PieceKind[] = ['dome', 'corridor', 'turbine', 'storage', 'tank', 'filter', 'feeder', 'press', 'dock', 'lab', 'workshop', 'gtank', 'sorter', 'recomp', 'crane', 'hatch', 'farm', 'revive', 'shaft', 'junction', 'bracket'];
+export const PIECE_ORDER: PieceKind[] = ['dome', 'corridor', 'turbine', 'storage', 'tank', 'filter', 'feeder', 'press', 'dock', 'lab', 'workshop', 'gtank', 'sorter', 'recomp', 'crane', 'hatch', 'farm', 'revive', 'signal', 'shaft', 'junction', 'bracket'];
 /** Each sorting pod's bay for every material. */
 export const SORT_BAY = 12;
 
@@ -666,6 +676,7 @@ const CODE_PREFIX: Record<PieceKind, string> = {
   shaft: 'SH-',
   junction: 'JX-',
   bracket: 'BR-',
+  signal: 'SA-',
 };
 
 /** A piece's stencil code, as painted on it: CT-1, AF-2, PP-1, TANK 3. Pieces are numbered per kind in build order. */

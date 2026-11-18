@@ -2919,3 +2919,45 @@ body.touch .bar-arrow {
 body.touch .bar-cards {
   cursor: auto;
 }
+/* Milestone 10: the crush-depth chip under the suit bar. */
+#depth-chip {
+  position: fixed;
+  top: calc(var(--safe-top) + var(--watch) + 48px);
+  left: calc(var(--safe-left) + 10px);
+  display: none;
+  align-items: center;
+  gap: 6px;
+  width: var(--watch);
+  box-sizing: border-box;
+  padding: 4px 8px;
+  border-radius: 10px;
+  background: var(--ui-bg);
+  border: 1px solid var(--ui-line);
+  color: #dfeccb;
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+  z-index: 10;
+}
+#depth-chip.show {
+  display: flex;
+}
+#depth-chip span {
+  opacity: 0.7;
+  letter-spacing: 0.08em;
+}
+#depth-chip b {
+  margin-left: auto;
+}
+#depth-chip.near {
+  color: #e0a040;
+}
+#depth-chip.crush {
+  color: #ff8a70;
+  border-color: #d8492e;
+  animation: suit-pulse 0.6s ease-in-out infinite;
+}
+body.on-foot #depth-chip {
+  display: none;
+}

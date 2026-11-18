@@ -262,6 +262,96 @@ export const SCAN_ENTRIES: ScanEntry[] = [
     name: 'Wreck lurker',
     category: 'Creature',
     text: 'A long, spined hunter that waits in dens under wreckage with a glowing lure over its head. It never chases: it warns (lure flaring, eyes shining), lunges, then pulls back and rests. Give its den a wide berth, or pass while it rests. It notices a lit lamp from further away.',
+  },  // ---- Milestone 10: the trench ----
+  {
+    id: 'trench',
+    name: 'The trench',
+    category: 'Place',
+    text: 'Past the wreck shelf the seabed breaks off into a trench: ledge after ledge into the black, then a sheer drop to a floor nearly 100 m down. Each suit has a crush depth (the Kestrel suit 30 m, PS-1 60 m); past it the pressure crumples the suit, faster the deeper. The sub\'s hull is rated to 45 m.',
+  },
+  {
+    id: 'sigbuoy',
+    name: 'Fulmar relay buoy',
+    category: 'Wreckage',
+    text: 'A relay buoy toppled on the trench rim, stencilled FULMAR RELAY 4. It once passed messages up from something far below. A pattern spool is still clipped in its recorder.',
+  },
+  {
+    id: 'probe',
+    name: 'Crushed deep probe',
+    category: 'Wreckage',
+    text: 'A pressure sphere in a steel frame, FULMAR DP-2, crumpled in on one side where its hull gave way. Its stress recorder may say why: the start of a design for a stronger hull.',
+  },
+  {
+    id: 'vents',
+    name: 'The vent field',
+    category: 'Place',
+    text: 'Mineral chimneys on the trench\'s third ledge, glowing at their seams and breathing scalding water. Stay out of the plumes. The crust around them is vent ore, and cinder snails graze it.',
+  },
+  {
+    id: 'chimney',
+    name: 'Sealed chimney',
+    category: 'Place',
+    text: 'A young chimney has grown across the mouth of a cleft in the ledge wall, hot and brittle-hard: the cutter only shatters the surface and the crust grows back. Cinder snails graze chimneys like this down to nothing.',
+  },
+  {
+    id: 'snail',
+    name: 'Cinder snail',
+    category: 'Creature',
+    text: 'A snail with an iron-scaled foot and a coiled iron shell, its seams glowing like embers. It creeps over the vent chimneys grazing their crust. Keep: likes lumen moss and others of its kind; tinker crabs pick at its scales. Grown, it sheds vent ore, and it can graze a chimney away.',
+  },
+  {
+    id: 'lanternjaw',
+    name: 'Lanternjaw',
+    category: 'Creature',
+    text: 'A big, dark-bodied hunter that hangs still in open water with an amber lure. A lit lamp draws it in: it drifts towards the light and snaps. Lamp off, it barely notices you. A sonar pulse makes it fold its lure and sink away.',
+  },
+  {
+    id: 'stalker',
+    name: 'Pale stalker',
+    category: 'Creature',
+    text: 'A long pale shape that follows a diver at the very edge of the lamp\'s reach. It hates light in its eyes: while your lamp is on and you keep moving, it only follows. Stop, or switch your lamp off, and it strikes. A sonar pulse drives it off.',
+  },
+  {
+    id: 'spider',
+    name: 'Abyssal strider',
+    category: 'Creature',
+    text: 'A deep-sea spider as wide as a diver is tall, walking the ledges on long jointed legs. It is drawn to light: with your lamp on it comes, slowly and steadily, and grabs. In the dark it loses interest. A sonar pulse sends it scuttling.',
+  },
+  {
+    id: 'fulmar',
+    name: 'Fulmar deep station',
+    category: 'Wreckage',
+    text: 'A deep station on the trench floor: a long module, a crushed listening dome and a dead antenna mast. Its crew lived down here for years, listening to the lights. One amber lamp still blinks by the airlock hatch on top.',
+  },
+  {
+    id: 'fulmarlog',
+    name: "The Fulmar's listening log",
+    category: 'Artefact',
+    text: "Eleven years on the trench floor. The lights came every night at first: rings of cyan and violet rising past the dome, too slow for any animal. We answered with our lamps, and they answered back, changed. They are not speaking to us so much as with the light itself: every glowing creature down here is a word they know. We built an array to read them, and from their patterns drew a ring that sings them back. Then the hull began to weep, and we went up. The resonator drawings are in the array room. Whoever comes next: grow light, don't only carry it.",
+  },
+  {
+    id: 'sig1',
+    name: 'Signal fragment 1: held light',
+    category: 'Artefact',
+    text: 'Decoded by the Signal array from the relay buoy\'s spool: SMALL LIGHTS · FALLING · HELD, NOT GROWN · WHO HOLDS THEM? The Choir has seen divers\' lamps coming down. It does not know what holds them.',
+  },
+  {
+    id: 'sig2',
+    name: 'Signal fragment 2: grown light',
+    category: 'Artefact',
+    text: 'Decoded from the cleft\'s spool: SMALL LIGHT · GROWN · GIVEN · ANSWER. The pattern matches the glow of creatures raised in tanks, played back slower. The array\'s best guess: it saw light that someone raised, and is answering it.',
+  },
+  {
+    id: 'sig3',
+    name: 'Signal fragment 3: below the cold',
+    category: 'Artefact',
+    text: 'Decoded from the Fulmar\'s first spool: BELOW THE COLD · THE OLD SONG · ROOMS OF LIGHT · COME. Repeated three times, with a bearing pattern pointing down and east, past the trench floor.',
+  },
+  {
+    id: 'sig4',
+    name: 'Signal fragment 4: the door',
+    category: 'Artefact',
+    text: 'Decoded from the Fulmar\'s last spool: THE DOOR HEARS ONLY ITS OWN SONG · CARRY THE SONG · WE WAIT. The array matches it to the Fulmar\'s resonator drawings: their ring would sing exactly this pattern.',
   },
 ];
 

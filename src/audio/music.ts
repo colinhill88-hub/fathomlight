@@ -19,7 +19,7 @@ import { audio } from './engine';
  * Nothing here uses cyan/violet "Choir" sounds yet: those come with the sanctum.
  */
 
-export type MusicZone = 'shallows' | 'basin' | 'forest' | 'cave' | 'shelf';
+export type MusicZone = 'shallows' | 'basin' | 'forest' | 'cave' | 'shelf' | 'trench';
 
 interface Profile {
   /** MIDI note of the pad root. */
@@ -118,6 +118,24 @@ const PROFILES: Record<MusicZone, Profile> = {
     padGain: 0.045,
     tension: [6, 1],
   },
+  // Milestone 10: the trench. Lowest of all, very sparse, a minor second rubbing against the root.
+  trench: {
+    root: 33, // A1
+    scale: [0, 1, 3, 6, 7, 10],
+    chords: [
+      [0, 7, 13],
+      [1, 6, 12],
+      [-2, 5, 13],
+    ],
+    lo: -5,
+    hi: 8,
+    bright: 420,
+    beat: 1.7,
+    density: 0.1,
+    chimes: 0.12,
+    padGain: 0.05,
+    tension: [1, 6],
+  },
   cave: {
     root: 40,
     scale: [0, 3, 5, 7, 10],
@@ -191,9 +209,19 @@ export class Music {
     } else if (this.restFor > 15) this.left = Math.min(this.left, 2 + Math.random() * 3);
   }
 
+  private epoch = 0;
   update(dt: number): void {
     if (!this.ready || !audio.running) return;
     const now = audio.now;
+    if (this.epoch !== audio.epoch) {
+      // A fresh audio context (its clock starts again at 0): forget voices and times from the old one.
+      this.epoch = audio.epoch;
+      this.pads = [];
+      this.playing = false;
+      this.left = 2;
+      this.chordAt = 0;
+      this.noteAt = 0;
+    }
     const P = PROFILES[this.zone];
     this.left -= dt;
     if (!this.playing) {
