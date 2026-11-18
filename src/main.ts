@@ -10,6 +10,7 @@ import { ZoneBackdrop } from './scene/zonebackdrop';
 import { loadShallowsArt, loadShallowsKelp, loadShallowsSeabed, ShallowsBackdrop } from './art/shallows';
 import { loadPaintedDiver } from './art/paintedDiver';
 import { loadPaintedSuit } from './art/paintedSuit';
+import { loadForestMidground } from './art/forest';
 import { initSettingsUI } from './ui';
 import { Input } from './input';
 import { Diver, type KitLook } from './actors/diver';
@@ -216,8 +217,6 @@ async function boot(): Promise<void> {
 
   const water = new Water(mask);
   const backdrop = new Backdrop();
-  const zoneBackdrop = new ZoneBackdrop();
-  zoneBackdrop.build();
   // G3: a soft blur for the near foreground kelp (Ultra).
   const dofBlur = new BlurFilter({ strength: 2, quality: 2 });
   const lighting = new Lighting(litRT, mask);
@@ -246,13 +245,16 @@ async function boot(): Promise<void> {
   if (BENCH) seedBenchSave(save);
 
   const useShallowsArt = urlq.get('art') === 'shallows';
-  const [shallowsArt, shallowsSeabed, shallowsKelp, paintedFace, paintedSuit] = await Promise.all([
+  const [shallowsArt, shallowsSeabed, shallowsKelp, paintedFace, paintedSuit, forestMidground] = await Promise.all([
     useShallowsArt ? loadShallowsArt() : null,
     useShallowsArt && urlq.get('terrain') === 'painted' ? loadShallowsSeabed() : null,
     useShallowsArt && urlq.get('kelp') === 'painted' ? loadShallowsKelp() : null,
     urlq.get('diver') === 'painted' ? loadPaintedDiver() : undefined,
     urlq.get('suit') === 'painted' ? loadPaintedSuit() : undefined,
+    urlq.get('forest') === 'painted' ? loadForestMidground() : undefined,
   ]);
+  const zoneBackdrop = new ZoneBackdrop(forestMidground);
+  zoneBackdrop.build();
   const shallowsBackdrop = shallowsArt ? new ShallowsBackdrop(shallowsArt) : null;
   let scenery = new Scenery(renderer, preset.detail, shallowsArt?.reef, shallowsSeabed ?? undefined, shallowsKelp ?? undefined);
   const pickups = new Pickups();

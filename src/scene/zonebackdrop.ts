@@ -1,7 +1,7 @@
-import { Container, Graphics } from 'pixi.js';
+import { Container, Graphics, Sprite, type Texture } from 'pixi.js';
 import { mulberry32 } from '../rng';
 import { waterColor } from '../fx/shared';
-import { BASIN_EAST, BASIN_WEST, FOREST, WRECK_SHELF, groundY } from '../world/terrain';
+import { BASIN_EAST, BASIN_WEST, FOREST, WRECK_SHELF, groundY, smooth } from '../world/terrain';
 
 /**
  * Graphics session G3: zone-aware mid-ground silhouettes. The generic sine
@@ -17,6 +17,12 @@ import { BASIN_EAST, BASIN_WEST, FOREST, WRECK_SHELF, groundY } from '../world/t
 
 const PARALLAX = 0.5;
 const REF_DEPTH = 260;
+const FOREST_PLATE_CENTER = 12360;
+const FOREST_PLATE_WIDTH = 2200;
+const FOREST_PILOT_START = 11020;
+const FOREST_PILOT_END = 13680;
+const FOREST_FADE = 420;
+const forestReferenceFog = waterColor(1175);
 
 interface Zone {
   c: Container;
@@ -24,6 +30,7 @@ interface Zone {
   x1: number;
   /** 0 = water colour, 1 = full rock colour. */
   strength: number;
+  plate?: Sprite;
 }
 
 function toHex([r, g, b]: [number, number, number]): number {
@@ -117,6 +124,8 @@ export class ZoneBackdrop {
   readonly view = new Container();
   private zones: Zone[] = [];
 
+  constructor(private readonly forestMidground?: Texture) {}
+
   build(): void {
     this.view.removeChildren().forEach((c) => c.destroy({ children: true }));
     this.zones = [];
@@ -128,7 +137,9 @@ export class ZoneBackdrop {
       c.addChild(g);
       c.visible = false;
       this.view.addChild(c);
-      this.zones.push({ c, x0, x1, strength });
+      const zone: Zone = { c, x0, x1, strength };
+      this.zones.push(zone);
+      return zone;
     };
     // The basin: boulders now and then, an arch every so often.
     mk(BASIN_WEST, BASIN_EAST, 0.34, (g) => {
@@ -139,12 +150,21 @@ export class ZoneBackdrop {
       }
     });
     // The kelp forest: ranks of distant kelp from the floor towards the surface.
-    mk(FOREST.x0, FOREST.x1, 0.3, (g) => {
+    const forest = mk(FOREST.x0, FOREST.x1, 0.3, (g) => {
       for (let x = FOREST.x0 - 200; x < FOREST.x1 + 200; x += 70 + rand() * 90) {
         const base = groundY(Math.min(FOREST.x1, Math.max(FOREST.x0, x))) + 30;
         kelpStalk(g, lx(x), ly(base), (base - 60) * PARALLAX * (0.55 + rand() * 0.4) / PARALLAX, rand);
       }
     });
+    if (this.forestMidground) {
+      const plate = new Sprite({ texture: this.forestMidground, label: 'paintedForestMidground' });
+      plate.anchor.x = 0.5;
+      plate.position.set(lx(FOREST_PLATE_CENTER), ly(140));
+      plate.width = FOREST_PLATE_WIDTH;
+      plate.height = FOREST_PLATE_WIDTH / 2;
+      forest.plate = plate;
+      forest.c.addChild(plate);
+    }
     // The wreck shelf: hulks, masts and a crane, half sunk in the silt.
     mk(WRECK_SHELF.x0, WRECK_SHELF.x1 + 200, 0.4, (g) => {
       for (let x = WRECK_SHELF.x0 + 300; x < WRECK_SHELF.x1; x += 900 + rand() * 1100) {
@@ -170,7 +190,22 @@ export class ZoneBackdrop {
       const c: [number, number, number] = [fog[0] * (1 - k * 0.8), fog[1] * (1 - k * 0.72), fog[2] * (1 - k * 0.55)];
       const g = z.c.children[0] as Graphics;
       g.tint = toHex(c);
-      g.alpha = 0.62;
+      if (z.plate) {
+        const edge = Math.min(camCX - FOREST_PILOT_START, FOREST_PILOT_END - camCX);
+        // Crossfade at both ends and when the view gets too wide for a single plate.
+        const coverage = smooth(edge / FOREST_FADE) * smooth((1810 - cssW / zoom) / 480);
+        z.plate.visible = coverage > 0;
+        z.plate.alpha = coverage * 0.85;
+        z.plate.tint = toHex([
+          Math.min(1, fog[0] / forestReferenceFog[0]),
+          Math.min(1, fog[1] / forestReferenceFog[1]),
+          Math.min(1, fog[2] / forestReferenceFog[2]),
+        ]);
+        g.visible = coverage < 1;
+        g.alpha = 0.62 * (1 - coverage);
+      } else {
+        g.alpha = 0.62;
+      }
     }
   }
 }
