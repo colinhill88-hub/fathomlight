@@ -28,8 +28,20 @@ const BUFFER = 0.13;
 const HALF_W = 13;
 const HEIGHT = 84;
 const GRAPPLE_RANGE = 420;
-const GRAPPLE_FLY = 0.15;
-const GRAPPLE_PULL = 760;
+/**
+ * The grapple (Colin, before milestone 11): the harpoon comes off the back,
+ * fires its spear into the ring, and you swing on the line as a pendulum,
+ * with momentum, letting go (jump) to fly across gaps too wide to jump.
+ */
+const GRAPPLE_DRAW = 0.24;
+const GRAPPLE_FLY = 0.16;
+const GRAPPLE_REEL = 0.24;
+/** The hands on the line, above the feet. */
+const GRIP = 100;
+/** Pushing left or right on the line pumps the swing (units/s²); up and down climb it. */
+const SWING_PUMP = 720;
+const SWING_CLIMB = 220;
+const SWING_MAX = 1050;
 const VENT_CYCLE = 3.2;
 const VENT_BURST = 1.0;
 /** Climbing speed on a ladder (the base on foot). */
@@ -174,7 +186,36 @@ export class Interior {
   private collectWas = false;
   private lampWas = false;
   private dropTimer = 0;
-  private grapple: { to: number; phase: 'fly' | 'pull' | 'hang'; t: number } | null = null;
+  /**
+   * Riding a lift (Colin, before milestone 11: no more blinking from deck to
+   * deck). In the Corvina the gate slides up, you step into the car, the gate
+   * shuts, the car's lamp comes on and it runs along its shaft to the other
+   * stop. In the base the car rises or sinks between the ends of a long climb.
+   */
+  private ride: {
+    steps: ('call' | 'open' | 'in' | 'close' | 'move' | 'open2' | 'out' | 'close2')[];
+    i: number;
+    t: number;
+    carX0: number;
+    carX1: number;
+    y0: number;
+    y1: number;
+    inX: number;
+    outX: number;
+    gate0: { x: number; y: number } | null;
+    gate1: { x: number; y: number } | null;
+    width: number;
+    walkFrom: number;
+  } | null = null;
+  /** Where the Corvina's lift car waits (its floor y), between rides. */
+  private carY: number | null = null;
+  private carLight: Light = { x: 0, y: 0, radius: 260, intensity: 0, color: [1, 0.92, 0.7], haze: 0.05 };
+  private gateOpen: [number, number] = [0, 0];
+  private grapple: { to: number; phase: 'draw' | 'fly' | 'swing' | 'reel'; t: number; len: number; want: number; maxLen: number; from: { x: number; y: number } } | null = null;
+  /** After letting go of a swing: the flight keeps its speed for a while. */
+  private flingT = 0;
+  /** Only with the grapple line built (set by the game). */
+  canGrapple = true;
   private grappleTarget = -1;
   private holdKey = '';
   private needRelease = false;
@@ -192,7 +233,7 @@ export class Interior {
     this.glowSprite.blendMode = 'add';
     this.glowSprite.filters = [new BlurFilter({ strength: 10, quality: 3 })];
     this.litRoot.addChild(this.litCam);
-    this.litCam.addChild(this.static_, this.doorG, this.breakerG, this.takenG, this.dynamic, this.actorLit, this.walker.view);
+    this.litCam.addChild(this.static_, this.doorG, this.breakerG, this.takenG, this.dynamic, this.actorLit, this.walker.view, this.front);
     this.emissiveCam.addChild(this.emissiveStatic, this.dynEmissive, this.actorEm, this.walker.lens, this.overlay);
     this.glowCam.addChild(this.glowStatic, this.actorGlow);
     this.view.addChild(this.lighting.view, this.emissiveCam, this.glowSprite);
@@ -223,7 +264,7 @@ export class Interior {
   /** Solid for everything (steel, crates, a shut powered door). */
   private solidTile(tx: number, ty: number): boolean {
     const c = this.ch(tx, ty);
-    return c === '#' || c === 'c' || c === 'X' || c === 'P' || (c === 'D' && !this.power);
+    return c === '#' || c === 'c' || c === 'X' || c === 'P' || c === 'G' || (c === 'D' && !this.power);
   }
   /** A ladder tile ('H'). Its top tile holds you up like a grating. */
   private ladder(tx: number, ty: number): boolean {
@@ -291,7 +332,7 @@ export class Interior {
     this.lastSafe = { x: w.x, y: w.y };
     this.cam.x = w.x - 400;
     this.cam.y = w.y - 400;
-    this.grapple = null;
+    this.dropGrapple();
     this.active = true;
     this.view.visible = true;
     this.shownKey = '';
@@ -326,7 +367,7 @@ export class Interior {
     w.arrive();
     this.lastSafe = { x, y };
     this.climbing = false;
-    this.grapple = null;
+    this.dropGrapple();
     this.cam.x = x - 400;
     this.cam.y = y - 400;
   }
@@ -441,12 +482,23 @@ export class Interior {
           }
           gl.rect(x - 10, 0, T + 20, T * 2).fill({ color: 0x4a7a86, alpha: 0.5 });
           this.emergency.push({ x: x + T / 2, y: T, radius: 360, intensity: 0.7, color: [0.5, 0.75, 0.85] });
+        } else if (c === 'L') {
+          // The lift shaft: a dark recess with guide rails down each side and a few struts.
+          g.rect(x, y, T + 0.5, T + 0.5).fill({ color: 0x15191b });
+          if (this.ch(tx - 1, ty) !== 'L') g.rect(x + 2, y, 5, T + 0.5).fill({ color: 0x5a554c });
+          if (this.ch(tx + 1, ty) !== 'L') g.rect(x + T - 7, y, 5, T + 0.5).fill({ color: 0x5a554c });
+          if (ty % 3 === 0) g.rect(x, y + 4, T + 0.5, 3).fill({ color: 0x2a2e30 });
+        } else if (c === 'G') {
+          // The gate's frame (the gate itself slides, drawn each frame).
+          g.rect(x + 2, y, T - 4, T + 0.5).fill({ color: 0x1c2123 });
+          g.rect(x, y, 4, T + 0.5).fill({ color: 0x6a6e70 });
+          g.rect(x + T - 4, y, 4, T + 0.5).fill({ color: 0x6a6e70 });
+          if (this.ch(tx, ty - 1) !== 'G') g.rect(x - 2, y - 6, T + 4, 6).fill({ color: 0xc9a24a });
         } else if (c === 'U') {
-          g.rect(x - 4, 0, 6, PH).fill({ color: 0x3b3a36, alpha: 0.0 });
+          // A call panel beside the gate, with a brass plate.
+          g.roundRect(x + 4, y - 38, 16, 24, 3).fill({ color: 0x3a3e40 });
+          g.rect(x + 4, y - 38, 16, 4).fill({ color: 0xc9a24a });
           g.roundRect(x - 2, y + T - 8, T + 4, 8, 2).fill({ color: 0x8a8e90 });
-          g.rect(x - 4, y - T * 2, 5, T * 3).fill({ color: 0x5a554c });
-          g.rect(x + T, y - T * 2, 5, T * 3).fill({ color: 0x5a554c });
-          g.rect(x - 4, y - T * 2, T + 9, 6).fill({ color: 0xc9a24a });
         } else if (c === 'B') {
           g.roundRect(x + 6, y + 4, T - 12, T - 8, 3).fill({ color: 0x4a4e50 });
           g.rect(x + 6, y + 4, T - 12, 5).fill({ color: 0xc9a24a });
@@ -664,10 +716,18 @@ export class Interior {
       this.render(dt);
       return ev;
     }
+    if (this.ride) {
+      this.updateRide(dt, ev);
+      this.label = null;
+      this.progress = 0;
+      this.banner = '';
+      this.render(dt);
+      return ev;
+    }
 
     // ---- Grapple target: the best anchor in range with a clear line, ahead and above first ----
     this.grappleTarget = -1;
-    if (!this.grapple && !this.climbing) {
+    if (!this.grapple && !this.climbing && this.canGrapple) {
       const hx = w.x;
       const hy = w.y - 60;
       let best = Infinity;
@@ -716,10 +776,26 @@ export class Interior {
             label: other.y < s.y ? 'Take the lift up' : 'Take the lift down',
             seconds: 0.6,
             done: () => {
-              w.x = other.x;
-              w.y = other.y;
-              w.vx = w.vy = 0;
-              this.lastSafe = { x: w.x, y: w.y };
+              const carX = s.x + 3 * T;
+              const top = Math.min(s.y, other.y);
+              const here = this.carY ?? Math.max(s.y, other.y);
+              this.ride = {
+                steps: [...(Math.abs(here - s.y) > 2 ? (['call'] as const) : []), 'open', 'in', 'close', 'move', 'open2', 'out', 'close2'],
+                i: 0,
+                t: 0,
+                carX0: carX,
+                carX1: carX,
+                y0: s.y,
+                y1: other.y,
+                inX: carX,
+                outX: other.x,
+                gate0: { x: (s.tx + 1) * T, y: s.y },
+                gate1: { x: (other.tx + 1) * T, y: other.y },
+                width: 3 * T - 8,
+                walkFrom: s.x,
+              };
+              this.callFrom = here;
+              void top;
               ev.push({ type: 'lift' });
             },
           };
@@ -742,8 +818,8 @@ export class Interior {
         label: 'Fire the grapple',
         seconds: 0,
         done: () => {
-          this.grapple = { to, phase: 'fly', t: 0 };
-          ev.push({ type: 'grapple' });
+          this.grapple = { to, phase: 'draw', t: 0, len: 0, want: 0, maxLen: 0, from: { x: 0, y: 0 } };
+          w.spear = 'reach';
         },
       };
     }
@@ -774,7 +850,7 @@ export class Interior {
 
     // ---- Movement ----
     if (!this.grapple) w.hangTo = null;
-    if (this.grapple) this.updateGrapple(dt, inp, jumpPressed);
+    if (this.grapple) this.updateGrapple(dt, inp, jumpPressed, collectTap, ev);
     else if (this.climbing) this.updateClimb(dt, inp, jumpPressed, ev);
     else this.updateWalk(dt, inp, jumpPressed, ev);
 
@@ -786,7 +862,7 @@ export class Interior {
         v.hitAt = this.time;
         w.vy = -520;
         w.vx = (w.x < v.x ? -1 : 1) * 260;
-        this.grapple = null;
+        this.dropGrapple();
         ev.push({ type: 'hurt', amount: 0.08, why: 'steam' });
       }
     }
@@ -795,7 +871,7 @@ export class Interior {
       w.x = this.lastSafe.x;
       w.y = this.lastSafe.y;
       w.vx = w.vy = 0;
-      this.grapple = null;
+      this.dropGrapple();
     }
 
     // ---- Banners ----
@@ -810,7 +886,11 @@ export class Interior {
     if (w.onGround) this.sprinting = !!inp.sprint && Math.abs(inp.moveX) > 0.5;
     const target = inp.moveX * (this.sprinting ? SPRINT : WALK);
     const a = w.onGround ? ACCEL_GROUND : ACCEL_AIR;
-    if (Math.abs(target - w.vx) < a * dt) w.vx = target;
+    this.flingT = w.onGround ? 0 : Math.max(0, this.flingT - dt);
+    if (this.flingT > 0 && Math.abs(w.vx) > Math.abs(target) && (target === 0 || Math.sign(target) === Math.sign(w.vx))) {
+      // Flung off a swing: the flight keeps its speed (a little air drag), unless you push against it.
+      w.vx *= 1 - 0.35 * dt;
+    } else if (Math.abs(target - w.vx) < a * dt) w.vx = target;
     else w.vx += Math.sign(target - w.vx) * a * dt;
     if (Math.abs(inp.moveX) > 0.15) w.face = inp.moveX > 0 ? 1 : -1;
     // Jump: a short grace after leaving a ledge, and a remembered press just before landing.
@@ -953,45 +1033,333 @@ export class Interior {
     return false;
   }
 
-  private updateGrapple(dt: number, inp: InteriorInput, jumpPressed: boolean): void {
+  private updateGrapple(dt: number, inp: InteriorInput, jumpPressed: boolean, collectTap: boolean, ev: InteriorEvent[]): void {
     const w = this.walker;
     const g = this.grapple!;
     const a = this.anchors[g.to];
     g.t += dt;
-    const hx = a.x;
-    const hy = a.y + 8 + HEIGHT + 22;
-    if (g.phase === 'fly') {
-      if (g.t >= GRAPPLE_FLY) {
-        g.phase = 'pull';
-        g.t = 0;
+    if (g.phase === 'draw' || g.phase === 'fly' || g.phase === 'reel') {
+      // Reaching back for the harpoon, firing it, and reeling the spear back in: the
+      // walker moves as usual meanwhile (a little slower while aiming).
+      this.updateWalk(dt, { ...inp, moveX: g.phase === 'reel' ? inp.moveX : inp.moveX * 0.4 }, g.phase === 'reel' && jumpPressed, ev);
+      w.hangTo = g.phase === 'reel' ? null : a;
+      if (g.phase === 'draw') {
+        if (g.t > GRAPPLE_DRAW * 0.45) w.spear = 'hand';
+        if (g.t >= GRAPPLE_DRAW) {
+          g.phase = 'fly';
+          g.t = 0;
+          ev.push({ type: 'grapple' });
+        }
+      } else if (g.phase === 'fly') {
+        if (g.t >= GRAPPLE_FLY) {
+          // The spear bites and the line reels in hard, lifting you off your feet: short
+          // enough that the bottom of the swing clears the floor under the ring.
+          const gx = w.x;
+          const gy = w.y - GRIP;
+          const d = Math.hypot(gx - a.x, gy - a.y);
+          let floor = a.y + T;
+          while (floor < this.H * T && !this.solidTile(Math.floor(a.x / T), Math.floor(floor / T)) && !'=~'.includes(this.ch(Math.floor(a.x / T), Math.floor(floor / T)))) floor += T / 2;
+          floor = Math.floor(floor / T) * T;
+          g.maxLen = Math.max(60, Math.min(GRAPPLE_RANGE, floor - a.y - GRIP - 48));
+          g.len = Math.max(60, d);
+          g.want = Math.max(60, Math.min(g.maxLen, d - 18));
+          g.phase = 'swing';
+          g.t = 0;
+          w.onGround = false;
+          this.climbing = false;
+        }
+      } else if (g.t >= GRAPPLE_REEL) {
+        this.dropGrapple();
+        w.spear = 'back';
       }
-    } else if (g.phase === 'pull') {
-      const dx = hx - w.x;
-      const dy = hy - w.y;
-      const d = Math.hypot(dx, dy);
-      const step = Math.min(d, GRAPPLE_PULL * dt);
-      w.vx = (dx / Math.max(1, d)) * GRAPPLE_PULL * 0.5;
-      w.vy = (dy / Math.max(1, d)) * GRAPPLE_PULL * 0.5;
-      w.x += (dx / Math.max(1, d)) * step;
-      w.y += (dy / Math.max(1, d)) * step;
-      if (d < 8) g.phase = 'hang';
-      if (g.t > 2) this.grapple = null;
-    } else {
-      // Hanging under the anchor: jump to swing off, or press down to let go.
-      w.x += (hx + Math.sin(this.time * 2.4) * 3 - w.x) * Math.min(1, dt * 8);
-      w.y = hy;
-      w.vx = w.vy = 0;
-      if (Math.abs(inp.moveX) > 0.15) w.face = inp.moveX > 0 ? 1 : -1;
-      if (jumpPressed) {
-        this.grapple = null;
-        w.vy = -560;
-        w.vx = (Math.abs(inp.moveX) > 0.15 ? Math.sign(inp.moveX) : w.face) * 330;
-      } else if (inp.moveY > 0.6) this.grapple = null;
+      return;
     }
+    // ---- Swinging: a pendulum on the line ----
+    if (jumpPressed || collectTap) {
+      // Let go: keep the swing's speed, with a little hop when jumping off.
+      if (jumpPressed) {
+        w.vy = Math.min(w.vy, 120) - 240;
+        w.vx *= 1.08;
+      }
+      this.flingT = 1.1;
+      this.releaseLine(g);
+      return;
+    }
+    if (Math.abs(inp.moveX) > 0.15) w.face = inp.moveX > 0 ? 1 : -1;
+    if (inp.moveY < -0.5) g.want = Math.max(60, g.want - SWING_CLIMB * dt);
+    else if (inp.moveY > 0.5) g.want = Math.min(g.maxLen, g.want + SWING_CLIMB * dt);
+    // The line reels in fast towards the length wanted, and pays out at climbing speed.
+    g.len = g.len > g.want ? Math.max(g.want, g.len - 760 * dt) : Math.min(g.want, g.len + SWING_CLIMB * dt);
+    let vx = w.vx + inp.moveX * SWING_PUMP * dt;
+    let vy = w.vy + GRAVITY * dt;
+    const drag = 1 - 0.12 * dt;
+    vx *= drag;
+    vy *= drag;
+    let nx = w.x + vx * dt;
+    let ny = w.y + vy * dt;
+    // The line: the hands can't get further from the ring than its length.
+    const dx = nx - a.x;
+    const dy = ny - GRIP - a.y;
+    const d = Math.hypot(dx, dy) || 1;
+    if (d > g.len) {
+      const ux = dx / d;
+      const uy = dy / d;
+      nx = a.x + ux * g.len;
+      ny = a.y + uy * g.len + GRIP;
+      const vr = vx * ux + vy * uy;
+      if (vr > 0) {
+        vx -= vr * ux;
+        vy -= vr * uy;
+      }
+    }
+    const sp = Math.hypot(vx, vy);
+    if (sp > SWING_MAX) {
+      vx *= SWING_MAX / sp;
+      vy *= SWING_MAX / sp;
+    }
+    // Walls and floors: slide along them; touching the floor lets go of the line.
+    const hit = (x: number, y: number) => this.rectHits(x - HALF_W, y - HEIGHT, x + HALF_W, y - 1);
+    if (hit(nx, ny)) {
+      if (!hit(nx, w.y)) {
+        if (vy > 0) {
+          w.x = nx;
+          w.vx = vx;
+          w.vy = 0;
+          w.onGround = true;
+          this.releaseLine(g);
+          return;
+        }
+        ny = w.y;
+        vy = 0;
+      } else if (!hit(w.x, ny)) {
+        nx = w.x;
+        vx = -vx * 0.25;
+      } else {
+        nx = w.x;
+        ny = w.y;
+        vx = vy = 0;
+      }
+    }
+    w.x = nx;
+    w.y = ny;
+    w.vx = vx;
+    w.vy = vy;
     w.onGround = false;
-    w.pose = g.phase === 'fly' ? 'jump' : 'hang';
-    w.hangTo = this.grapple ? a : null;
-    if (!this.grapple) this.fallFrom = w.y;
+    w.pose = 'hang';
+    w.hangTo = a;
+    // The body hangs along the line.
+    const bx = w.x - a.x;
+    const by = w.y - GRIP - a.y;
+    w.swingAngle = Math.atan2(-bx, Math.max(1, by));
+    this.fallFrom = w.y;
+  }
+
+  /**
+   * The harpoon in the hand, its line and the spear: flying out to the ring,
+   * stuck in it while you swing, and reeling back when you let go.
+   */
+  private drawGrapple(g: NonNullable<Interior['grapple']>): void {
+    const w = this.walker;
+    const a = this.anchors[g.to];
+    const f = this.front;
+    const swinging = g.phase === 'swing';
+    // Where the hands are: on the line while swinging, else the near hand.
+    const hand = swinging ? { x: w.x - Math.sin(w.swingAngle ?? 0) * 0, y: w.y - GRIP } : w.hand();
+    if (swinging) {
+      const bx = w.x - a.x;
+      const by = w.y - GRIP - a.y;
+      const d = Math.hypot(bx, by) || 1;
+      hand.x = a.x + (bx / d) * Math.min(d, g.len);
+      hand.y = a.y + (by / d) * Math.min(d, g.len);
+    }
+    if (g.phase === 'draw' && w.spear !== 'hand') return;
+    // Aim: from the hand to the ring (reeling, back towards the hand).
+    let tip = { x: a.x, y: a.y };
+    if (g.phase === 'draw') tip = { x: hand.x + (a.x - hand.x) * 0.04, y: hand.y + (a.y - hand.y) * 0.04 };
+    else if (g.phase === 'fly') {
+      const k = Math.min(1, g.t / GRAPPLE_FLY);
+      tip = { x: hand.x + (a.x - hand.x) * k, y: hand.y + (a.y - hand.y) * k };
+    } else if (g.phase === 'reel') {
+      const k = Math.min(1, g.t / GRAPPLE_REEL);
+      const e = k * k;
+      tip = { x: g.from.x + (hand.x - g.from.x) * e, y: g.from.y + (hand.y - g.from.y) * e };
+    }
+    const ang = Math.atan2(tip.y - hand.y, tip.x - hand.x);
+    const cx = Math.cos(ang);
+    const cy = Math.sin(ang);
+    // The line (slack reeling back, taut otherwise).
+    if (g.phase !== 'draw') {
+      if (g.phase === 'reel') {
+        const mx = (hand.x + tip.x) / 2;
+        const my = (hand.y + tip.y) / 2 + 14 * (1 - g.t / GRAPPLE_REEL);
+        f.moveTo(hand.x, hand.y).quadraticCurveTo(mx, my, tip.x, tip.y).stroke({ color: 0xd8c890, width: 1.6 });
+      } else f.moveTo(hand.x, hand.y).lineTo(tip.x, tip.y).stroke({ color: 0xd8c890, width: 2 });
+    }
+    // The harpoon's white stock and chrome barrel in the hand, pointing at the ring.
+    const sx = hand.x - cx * 6;
+    const sy = hand.y - cy * 6;
+    f.moveTo(sx - cx * 10, sy - cy * 10).lineTo(sx + cx * 8, sy + cy * 8).stroke({ color: 0xd8dde0, width: 5, cap: 'round' });
+    f.moveTo(sx + cx * 8, sy + cy * 8).lineTo(sx + cx * 18, sy + cy * 18).stroke({ color: 0x4d5d77, width: 2.2 });
+    // The spear: a chrome shaft and barbed head.
+    const back = 16;
+    f.moveTo(tip.x - cx * back, tip.y - cy * back).lineTo(tip.x, tip.y).stroke({ color: 0x8e979c, width: 1.6 });
+    f.poly([tip.x + cx * 6, tip.y + cy * 6, tip.x - cy * 3.2, tip.y + cx * 3.2, tip.x + cy * 3.2, tip.y - cx * 3.2]).fill({ color: 0xd6e0ee });
+  }
+  private front = new Graphics();
+  private callFrom = 0;
+  /** Ride a lift from where the walker stands to (x, y): the base's lifts (no gates, the car comes to you). */
+  startRide(x: number, y: number): void {
+    const w = this.walker;
+    this.dropGrapple();
+    this.climbing = false;
+    this.ride = { steps: ['close', 'move', 'open2'], i: 0, t: 0, carX0: w.x, carX1: x, y0: w.y, y1: y, inX: w.x, outX: x, gate0: null, gate1: null, width: 92, walkFrom: w.x };
+    this.callFrom = w.y;
+  }
+  get riding(): boolean {
+    return !!this.ride;
+  }
+
+  private updateRide(dt: number, ev: InteriorEvent[]): void {
+    const w = this.walker;
+    const r = this.ride!;
+    const step = r.steps[r.i];
+    r.t += dt;
+    const moveDur = Math.max(1.4, Math.abs(r.y1 - r.y0) / 240);
+    // Stepping in and out takes as long as the walk (at an easy 150 a second).
+    if ((step === 'in' || step === 'out') && r.t <= dt) r.walkFrom = w.x;
+    const walkDur = Math.max(0.25, Math.abs((step === 'in' ? r.inX : r.outX) - r.walkFrom) / 150);
+    const dur = step === 'move' ? moveDur : step === 'call' ? Math.max(1, Math.abs(this.callFrom - r.y0) / 320) : step === 'in' || step === 'out' ? walkDur : 0.42;
+    const k = Math.min(1, r.t / dur);
+    const ease = k * k * (3 - 2 * k);
+    w.vy = 0;
+    w.onGround = true;
+    w.pose = 'stand';
+    w.vx = 0;
+    // The walker steps in and out; otherwise stands still on the car's floor.
+    const walkTo = (x: number) => {
+      const nx = r.walkFrom + (x - r.walkFrom) * k;
+      w.vx = (nx - w.x) / Math.max(0.001, dt);
+      if (k < 1) {
+        w.pose = 'walk';
+        w.face = x > r.walkFrom ? 1 : -1;
+      } else w.vx = 0;
+      w.x = nx;
+    };
+    if (step === 'call') this.carY = this.callFrom + (r.y0 - this.callFrom) * ease;
+    else if (step === 'open') this.gateOpen[0] = ease;
+    else if (step === 'in') walkTo(r.inX);
+    else if (step === 'close') {
+      if (r.gate0) this.gateOpen[0] = 1 - ease;
+      this.carLit = ease;
+    } else if (step === 'move') {
+      w.y = r.y0 + (r.y1 - r.y0) * ease;
+      w.x = r.carX0 + (r.carX1 - r.carX0) * ease;
+      this.carY = w.y;
+      // A little judder as the car runs.
+      w.y += Math.sin(this.time * 31) * 0.6 * Math.sin(Math.PI * k);
+    } else if (step === 'open2') {
+      if (r.gate1) this.gateOpen[1] = ease;
+      this.carLit = 1 - ease * 0.6;
+    } else if (step === 'out') walkTo(r.outX);
+    else if (step === 'close2') this.gateOpen[1] = 1 - ease;
+    if (k >= 1) {
+      if (step === 'move') {
+        w.y = r.y1;
+        ev.push({ type: 'lift' });
+      }
+      r.i++;
+      r.t = 0;
+      if (r.i >= r.steps.length) {
+        this.ride = null;
+        this.carLit = 0.4;
+        this.gateOpen = [0, 0];
+        this.lastSafe = { x: w.x, y: w.y };
+        this.fallFrom = 0;
+        if (!r.gate0) this.carLit = 0;
+      }
+    }
+  }
+  private carLit = 0;
+
+  /** The lift car, its cable and the gates (Corvina), drawn behind and in front of the walker. */
+  private drawLift(d: Graphics, de: Graphics, f: Graphics): void {
+    const r = this.ride;
+    const ups = this.spots.filter((s) => s.ch === 'U');
+    let carX: number | null = null;
+    let floorY = 0;
+    let width = 3 * T - 8;
+    let shaftTop = 0;
+    if (ups.length === 2) {
+      // The Corvina: the car always shows, waiting at a stop when no one rides it.
+      carX = ups[0].x + 3 * T;
+      if (this.carY === null) this.carY = Math.max(ups[0].y, ups[1].y);
+      floorY = this.carY;
+      shaftTop = Math.min(ups[0].y, ups[1].y) - 3 * T;
+    }
+    if (r && !r.gate0) {
+      carX = this.walker.x;
+      floorY = this.walker.y;
+      width = r.width;
+      shaftTop = Math.min(r.y0, r.y1) - 3 * T - 40;
+    }
+    // Gates: steel bars sliding up into the frame.
+    if (ups.length === 2)
+      ups.forEach((u) => {
+        const open = r ? (r.gate0 && Math.abs(r.gate0.y - u.y) < 2 ? this.gateOpen[0] : r.gate1 && Math.abs(r.gate1.y - u.y) < 2 ? this.gateOpen[1] : 0) : 0;
+        const gx = (u.tx + 1) * T;
+        const top = u.y - 3 * T;
+        const h = 3 * T * (1 - open);
+        for (let b = 0; b < 4; b++) f.rect(gx + 6 + b * 8, top, 3, h).fill({ color: 0x8a8e90 });
+        f.rect(gx + 2, top + h - 5, T - 4, 5).fill({ color: 0xc9a24a });
+        // The call panel's lamp: green when the car waits here.
+        const here = this.carY !== null && Math.abs(this.carY - u.y) < 2;
+        de.circle(u.x - T / 2 + 12, u.y - 26, 3).fill({ color: !this.power ? 0x3a2020 : here ? 0x9ae070 : 0xd8902e });
+      });
+    if (carX === null) {
+      this.carLight.intensity = 0;
+      return;
+    }
+    const half = width / 2;
+    const ch = 3 * T - 10;
+    const top = floorY - ch;
+    // The cable up to the head of the shaft.
+    d.moveTo(carX, shaftTop).lineTo(carX, top - 6).stroke({ color: 0x8e979c, width: 2 });
+    // Back of the car: a dark cage wall with ribs, the roof and the floor.
+    d.rect(carX - half, top, width, ch).fill({ color: 0x2c3234, alpha: 0.92 });
+    for (let x = carX - half + 10; x < carX + half - 4; x += 14) d.rect(x, top + 8, 2, ch - 14).fill({ color: 0x3e4648 });
+    d.rect(carX - half - 3, top - 8, width + 6, 9).fill({ color: 0x5a554c });
+    d.rect(carX - half - 3, top - 8, width + 6, 2).fill({ color: 0xc9a24a, alpha: 0.8 });
+    d.roundRect(carX - 10, top - 16, 20, 9, 3).fill({ color: 0x3a3e40 });
+    // In front of the walker: the floor plate, the side posts and a waist-high rail.
+    f.rect(carX - half - 3, floorY - 6, width + 6, 9).fill({ color: 0x6a6e70 });
+    f.rect(carX - half - 3, floorY - 6, width + 6, 2).fill({ color: 0x9aa0a2 });
+    f.rect(carX - half - 3, top - 4, 5, ch + 2).fill({ color: 0x6a6e70 });
+    f.rect(carX + half - 2, top - 4, 5, ch + 2).fill({ color: 0x6a6e70 });
+    f.rect(carX - half, floorY - 46, width, 3).fill({ color: 0x8a8e90, alpha: 0.9 });
+    // The car's lamp: on while riding.
+    const lit = this.power || !!this.hooks ? this.carLit : 0;
+    de.roundRect(carX - 7, top - 3, 14, 4, 1.5).fill({ color: lit > 0.05 ? 0xfff0c8 : 0x4a4e50, alpha: 0.4 + 0.6 * lit });
+    this.carLight.x = carX;
+    this.carLight.y = top + 14;
+    this.carLight.intensity = 1.2 * lit;
+  }
+
+  /** Stop grappling at once (a vent's blast, the bilge, being put somewhere): the harpoon is back on the pack. */
+  private dropGrapple(): void {
+    this.grapple = null;
+    this.walker.spear = 'back';
+    this.walker.swingAngle = null;
+  }
+
+  /** Let go of the line: the spear pulls free and reels back to the harpoon. */
+  private releaseLine(g: NonNullable<Interior['grapple']>): void {
+    const a = this.anchors[g.to];
+    g.phase = 'reel';
+    g.t = 0;
+    g.from = { x: a.x, y: a.y };
+    this.walker.swingAngle = null;
+    this.walker.hangTo = null;
+    if (!this.walker.onGround) this.walker.pose = this.walker.vy < 0 ? 'jump' : 'fall';
   }
 
   // ---------------------------------------------------------------------------
@@ -1041,17 +1409,14 @@ export class Interior {
       const r = 22 + Math.sin(this.time * 6) * 3;
       o.circle(a.x, a.y, r).stroke({ color: 0xffc860, width: 2, alpha: 0.9 });
     }
-    if (this.grapple) {
-      const a = this.anchors[this.grapple.to];
-      const hand = w.hand();
-      const k2 = this.grapple.phase === 'fly' ? Math.min(1, this.grapple.t / GRAPPLE_FLY) : 1;
-      o.moveTo(hand.x, hand.y).lineTo(hand.x + (a.x - hand.x) * k2, hand.y + (a.y - hand.y) * k2).stroke({ color: 0xd8c890, width: 2 });
-    }
+    this.front.clear();
+    if (this.grapple) this.drawGrapple(this.grapple);
     if (this.hooks) {
       de.clear();
       this.hooks.animate(d, de, this.time);
       this.hooks.tick?.(dt, this.time, this.cam.x, this.cam.x + viewW);
     }
+    this.drawLift(d, de, this.front);
     // Lights: lamps (with power), the emergency lamps, and the helmet lamp's beam.
     // The beam starts at the shoulder lamp (the same lamp as the diver's).
     w.lampOn = this.lampOn;
@@ -1070,7 +1435,7 @@ export class Interior {
     // The nearest lights win (the shader adds up at most MAX_LIGHTS).
     const cx = this.cam.x + viewW / 2;
     const cy = this.cam.y + viewH / 2;
-    const pool = [...this.lamps.map((l) => l.light), ...(this.hooks ? this.hooks.lights() : this.power ? [] : this.emergency)].filter(
+    const pool = [this.carLight, ...this.lamps.map((l) => l.light), ...(this.hooks ? this.hooks.lights() : this.power ? [] : this.emergency)].filter(
       (l) => l.intensity > 0 && Math.abs(l.x - cx) < viewW / 2 + l.radius && Math.abs(l.y - cy) < viewH / 2 + l.radius,
     );
     pool.sort((a, b) => Math.hypot(a.x - cx, a.y - cy) - Math.hypot(b.x - cx, b.y - cy));

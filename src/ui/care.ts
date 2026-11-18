@@ -233,6 +233,10 @@ export class CareMode {
     const { save } = this.deps;
     const c = this.here().find((x) => x.id === this.selected);
     if (!c) return;
+    if (!save.kit.jar) {
+      this.deps.toast('You have no specimen jar to carry it in. One was lost by the old anchor in the coral garden.', 'warn');
+      return;
+    }
     if (save.jar) {
       this.deps.toast('The specimen jar is already full', 'warn');
       return;

@@ -351,9 +351,21 @@ body.touch .desk-only {
   z-index: 10;
 }
 
+/* The dive watch's size (Colin, before milestone 11: small on a 1440p monitor). Phones keep 108 px. */
+:root {
+  --watch: 108px;
+}
+@media (min-height: 820px) and (min-width: 1100px) and (hover: hover) and (pointer: fine) {
+  :root {
+    --watch: clamp(108px, 11vh, 176px);
+  }
+}
+body.touch {
+  --watch: 108px;
+}
 #watch {
-  width: 108px;
-  height: 108px;
+  width: var(--watch);
+  height: var(--watch);
   filter: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.45));
 }
 
@@ -1896,10 +1908,10 @@ body.touch #btn-sub.ready {
 
 #sub-chip {
   position: fixed;
-  top: calc(var(--safe-top) + 124px);
+  top: calc(var(--safe-top) + var(--watch) + 16px);
   left: calc(var(--safe-left) + 10px);
   display: none;
-  width: 108px;
+  width: var(--watch);
   padding: 5px 9px;
   border-radius: 10px;
   background: var(--ui-bg);
@@ -2498,7 +2510,7 @@ body.docking #station-btn {
 /* Milestone 8: suit integrity, under the dive watch (the sub's chip takes this place while aboard). */
 #suit-bar {
   position: fixed;
-  top: calc(var(--safe-top) + 122px);
+  top: calc(var(--safe-top) + var(--watch) + 14px);
   left: calc(var(--safe-left) + 10px);
   display: none;
   align-items: center;

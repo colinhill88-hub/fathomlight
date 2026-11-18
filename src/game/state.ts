@@ -306,6 +306,12 @@ export interface SaveData {
   tankData: Record<string, TankData>;
   /** The specimen jar on the diver's belt. A blackout lets its creature swim home. */
   jar: JarData | null;
+  /**
+   * The kit found out in the world (Colin, before milestone 11: the diver's kit
+   * builds up as things are found). The specimen jar, and the hip thruster:
+   * 0 none, 1 TH-1, 2 the TH-2 upgrade (a bigger boost).
+   */
+  kit: { jar: boolean; thruster: 0 | 1 | 2 };
   /** Wild creature or egg spot id -> play time when it was collected (they come back). */
   caught: Record<string, number>;
   /** Creatures that died of neglect, kept in storage as dormant remains (revived later). */
@@ -398,6 +404,7 @@ export function freshSave(spawnX: number, spawnY: number): SaveData {
     nextCreatureId: 1,
     tankData: {},
     jar: null,
+    kit: { jar: false, thruster: 0 },
     caught: {},
     dormant: {},
     nursery: [],
@@ -461,6 +468,10 @@ export function loadSave(spawnX: number, spawnY: number): { data: SaveData; load
       cuttings: d.cuttings && typeof d.cuttings === 'object' ? d.cuttings : {},
       lockerOpen: d.lockerOpen === true,
       jar: d.jar && typeof d.jar === 'object' ? d.jar : null,
+      kit: {
+        jar: d.kit?.jar === true,
+        thruster: d.kit?.thruster === 2 ? 2 : d.kit?.thruster === 1 ? 1 : 0,
+      },
       lines: Array.isArray(d.lines) ? d.lines : [],
       machines: d.machines && typeof d.machines === 'object' ? d.machines : {},
       whorls: Array.isArray(d.whorls) ? d.whorls : [],
@@ -501,6 +512,13 @@ export function loadSave(spawnX: number, spawnY: number): { data: SaveData; load
         p.gy += SITE_SHIFT.gy;
       }
       data.site = 2;
+    }
+    // Saves from before the kit was found piece by piece: whoever got going already keeps
+    // the jar (once they have kept or caught a creature) and the first thruster.
+    if (!d.kit) {
+      const started = data.drone === 'active' || data.pieces.length > 0 || data.tanks.length > 0;
+      data.kit.jar = !!data.jar || data.creatures.length > 0 || Object.keys(data.caught).length > 0 || data.nursery.length > 0;
+      data.kit.thruster = started ? 1 : 0;
     }
     // Older saves stored real clock times (milliseconds). Restart those timers from now.
     for (const k of Object.keys(data.taken)) if (data.taken[k] > 1e9) data.taken[k] = data.playSeconds;

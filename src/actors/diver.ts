@@ -15,13 +15,126 @@ import { BREATH_OUT, Glance, Spring, batchAll, breathShape } from './animkit';
  *    regulator port on the chest,
  *  - grey sleeves, a charcoal suit with faint brass etched panel lines,
  *    and rust-red gloves and belt,
- *  - a compact chrome rebreather unit on the back instead of a tank.
+ *  - the kit on the back grows as it is found (before milestone 11): a pony
+ *    bottle at first, up to four air tanks, the grapple harpoon, the hip
+ *    thruster (and its TH-2 head), and the pressure suit's brass and tubes.
  *
  * Joints (hips, knees, ankles, shoulders, elbows) are separate pieces so the
  * limbs can kick and scull. Weathering (rivets, scratches, rust) is painted on.
  *
  * Local drawing space: facing right, origin at the middle of the torso.
  */
+
+/**
+ * What the diver carries, found and built along the way (Colin, before
+ * milestone 11): air tanks found out in the world (0 is just the pony
+ * bottle), the grapple harpoon on the back, the specimen jar on the belt,
+ * the hip thruster (0 none, 1 TH-1, 2 TH-2) and the pressure suit.
+ */
+export interface KitLook {
+  tanks: number;
+  spear: boolean;
+  jar: boolean;
+  thruster: 0 | 1 | 2;
+  psuit: boolean;
+}
+export const FULL_KIT: KitLook = { tanks: 2, spear: true, jar: true, thruster: 1, psuit: false };
+export function kitKey(k: KitLook): string {
+  return `${Math.min(4, k.tanks)}${+k.spear}${+k.jar}${k.thruster}${+k.psuit}`;
+}
+/** Multiply two colours (a tint over a tint). */
+export function mulColour(a: number, b: number): number {
+  const ch = (s: number) => Math.round((((a >> s) & 255) * ((b >> s) & 255)) / 255);
+  return (ch(16) << 16) | (ch(8) << 8) | ch(0);
+}
+/** The pressure suit's warm bronze cast over the charcoal (with brass rings and tubes). */
+export const PSUIT_TINT = 0xf2dcb4;
+export const BRASS = 0xc9a13a;
+export const BRASS_DARK = 0x7a5e1e;
+
+/**
+ * The air tanks and the harpoon along the diver's back, for this kit.
+ * Rows of tanks stack away from the body: A next to the suit, then B, then
+ * C (short with three tanks, full with four). With none yet, a pony bottle.
+ */
+function drawDiverBack(g: Graphics, kit: KitLook): void {
+  const n = Math.min(4, kit.tanks);
+  const tank = (x0: number, x1: number, y: number, shade: number) => {
+    const w = x1 - x0;
+    g.roundRect(x0, y, w, 12, 6).fill({ color: shade });
+    g.roundRect(x0, y, w, 12, 6).stroke({ color: C.steelLight, width: 0.8, alpha: 0.5 });
+    g.rect(x1, y + 1, 2, 10).fill({ color: C.chromeHi, alpha: 0.8 });
+    g.roundRect(x0 + 3, y + 2, w - 6, 3, 1.5).fill({ color: 0x8e9aa2, alpha: 0.55 });
+    g.rect(x0 + w * 0.52, y + 1, 4, 10).fill({ color: C.visor, alpha: 0.9 });
+    if (w > 40) g.rect(x0 + w * 0.26, y + 1, 2, 10).fill({ color: C.visor, alpha: 0.6 });
+    g.rect(x1 + 2, y + 3, 6, 6).fill({ color: C.steelLight });
+    g.rect(x1 + 7, y + 1.5, 3, 9).fill({ color: C.chromeDark });
+    scratches(g, x0 + 2, y + 1, w - 4, 9, 2, 0.25);
+  };
+  let top = -27;
+  if (n === 0) {
+    // The pony bottle: a short chrome cylinder strapped high on the back.
+    g.rect(-2, -19, 38, 4).fill({ color: C.rubber });
+    g.roundRect(-4, -28, 36, 11, 5.5).fill({ color: C.chromeDark });
+    g.roundRect(-4, -28, 36, 11, 5.5).stroke({ color: C.steelLight, width: 0.8, alpha: 0.5 });
+    g.roundRect(-1, -27, 30, 2.6, 1.3).fill({ color: 0x8e9aa2, alpha: 0.6 });
+    g.rect(14, -28, 3.5, 11).fill({ color: C.visor, alpha: 0.85 });
+    g.rect(32, -25.5, 6, 6).fill({ color: C.steelLight });
+  } else {
+    tank(-30, 32, -27, C.chromeDark);
+    if (n >= 2) {
+      tank(-30, 32, -38, C.steelDark);
+      top = -38;
+    }
+    if (n === 3) {
+      tank(-12, 24, -49, C.chromeDark);
+      top = -49;
+    } else if (n >= 4) {
+      tank(-30, 32, -49, C.chromeDark);
+      top = -49;
+    }
+  }
+  // The regulator hose meets a chrome riser off the topmost valve.
+  const vy = n === 0 ? -23 : top + 6;
+  if (vy > -40) g.moveTo(38, vy).lineTo(38, -41).stroke({ color: C.chromeMid, width: 3, cap: 'round' });
+  if (kit.spear) {
+    // The grapple harpoon clipped along the top of the pack: white stock, chrome barrel, spear.
+    const y = Math.min(top, -27) - 5;
+    g.moveTo(-40, y).lineTo(44, y - 3).stroke({ color: C.chromeDark, width: 1.6 });
+    g.poly([44, y - 3, 37, y - 5.5, 37.5, y - 0.5]).fill({ color: C.chromeHi });
+    g.roundRect(-30, y - 4, 30, 6, 3).fill({ color: 0xd8dde0 });
+    g.rect(-12, y + 2, 3, 6).fill({ color: 0xd8dde0 });
+    g.moveTo(-28, y - 2).lineTo(-2, y - 2).stroke({ color: 0x8e979c, width: 1 });
+    g.circle(-33, y, 2.6).stroke({ color: 0xd8c890, width: 1.4 }); // the line reel
+  }
+}
+
+/** The pressure suit's brass: collar rings, a chest plate and tubes from the pack (torso space). */
+function drawDiverPsuitTorso(g: Graphics): void {
+  g.roundRect(-30, -15, 4, 30, 2).fill({ color: BRASS });
+  g.roundRect(8, -15, 4, 30, 2).fill({ color: BRASS });
+  g.roundRect(-30, -15, 4, 30, 2).stroke({ color: BRASS_DARK, width: 0.8 });
+  g.roundRect(8, -15, 4, 30, 2).stroke({ color: BRASS_DARK, width: 0.8 });
+  // A riveted brass chest plate.
+  g.roundRect(14, -10, 16, 20, 4).fill({ color: 0x8a6a28, alpha: 0.9 });
+  g.roundRect(15, -9, 14, 3, 1.5).fill({ color: 0xf0d890, alpha: 0.5 });
+  rivets(g, [[16.5, -7], [27.5, -7], [16.5, 7], [27.5, 7]], 0.9);
+  // Two ribbed pressure tubes from the pack round the body to the chest.
+  coiledHose(g, [[-20, -16], [-12, -4], [2, 12], [16, 10]], 3.2);
+  coiledHose(g, [[-4, -16], [4, -6], [16, 2], [26, -4]], 2.8);
+}
+
+/** Brass rings and a ribbed tube on a limb segment (len long), for the pressure suit. */
+function psuitLimb(len: number, w: number, tube: boolean): Graphics {
+  const g = new Graphics();
+  for (const x of [2, len - 3]) {
+    g.roundRect(x - 1.8, -w / 2 - 0.8, 3.6, w + 1.6, 1.4).fill({ color: BRASS });
+    g.rect(x - 1.8, -w / 2 - 0.8, 1.2, w + 1.6).fill({ color: 0xf0d890, alpha: 0.5 });
+  }
+  if (tube) coiledHose(g, [[3, -w / 2 + 1], [len * 0.35, -w / 2 - 2], [len * 0.65, -w / 2 - 2], [len - 4, -w / 2 + 1]], 2.4);
+  g.visible = false;
+  return g;
+}
 
 /** The suit's colours, shared with the walker (the same person on foot). */
 export const C = {
@@ -223,25 +336,7 @@ function buildTorso(): Container {
   const c = new Container();
   const g = new Graphics();
 
-  // Twin oxygen tanks along the back (Colin's Crest diver): dark chrome with lime
-  // bands, valves and chrome caps towards the head.
-  for (const [y, shade] of [[-38, C.steelDark], [-27, C.chromeDark]] as const) {
-    g.roundRect(-30, y, 62, 12, 6).fill({ color: shade });
-    g.roundRect(-30, y, 62, 12, 6).stroke({ color: C.steelLight, width: 0.8, alpha: 0.5 });
-    g.rect(30, y + 1, 2, 10).fill({ color: C.chromeHi, alpha: 0.8 });
-    g.roundRect(-27, y + 2, 56, 3, 1.5).fill({ color: 0x8e9aa2, alpha: 0.55 });
-    g.rect(2, y + 1, 4, 10).fill({ color: C.visor, alpha: 0.9 });
-    g.rect(-14, y + 1, 2, 10).fill({ color: C.visor, alpha: 0.6 });
-    g.rect(32, y + 3, 6, 6).fill({ color: C.steelLight });
-    g.rect(37, y + 1.5, 3, 9).fill({ color: C.chromeDark });
-    scratches(g, -28, y + 1, 56, 9, 3, 0.25);
-  }
-  // A harpoon clipped along the tanks: white stock, chrome barrel and spear.
-  g.moveTo(-40, -43).lineTo(44, -46).stroke({ color: C.chromeDark, width: 1.6 });
-  g.poly([44, -46, 37, -48.5, 37.5, -43.5]).fill({ color: C.chromeHi });
-  g.roundRect(-30, -47, 30, 6, 3).fill({ color: 0xd8dde0 });
-  g.rect(-12, -41, 3, 6).fill({ color: 0xd8dde0 });
-  g.moveTo(-28, -45).lineTo(-2, -45).stroke({ color: 0x8e979c, width: 1 });
+  // The tanks and the harpoon on the back are drawn by drawDiverBack (they come with the kit).
 
   // Suit body: charcoal with brass etching.
   g.roundRect(-34, -15, 74, 30, 13).fill({ color: C.suit });
@@ -395,15 +490,27 @@ export class BeltJar {
     this.view.addChild(front);
     this.view.visible = false;
   }
-  /** Show what the jar holds (null hides the jar: nothing caught). */
-  set(look: JarLook | null, time: number): void {
-    this.view.visible = !!look;
-    if (!look) return;
+  /**
+   * Show the jar (owned: found yet; before milestone 11 it is a find in the
+   * coral garden) and what it holds (null: empty). A caught creature also
+   * tints the water in its colour, so even at a glance the jar reads as full.
+   */
+  set(look: JarLook | null, time: number, owned = true): void {
+    this.view.visible = owned;
+    if (!owned) return;
+    if (!look) {
+      if (this.key) {
+        this.key = '';
+        this.content.clear();
+      }
+      return;
+    }
     const k = look.species + look.stage;
     const t = JAR_TINT[look.species];
     if (k !== this.key) {
       this.key = k;
       const g = this.content.clear();
+      g.roundRect(-4, 3.4, 8, 10, 2.5).fill({ color: t.body, alpha: 0.28 });
       if (look.stage === 'egg') {
         for (const [x, y, r] of [[-1.6, 11.6, 1.5], [1.4, 11.8, 1.4], [0, 9.6, 1.4]] as const) {
           g.circle(x, y, r).fill({ color: t.body, alpha: 0.85 });
@@ -734,6 +841,13 @@ export class Diver {
   /** The specimen jar on the belt (set from the save each frame). */
   jar: JarLook | null = null;
   private beltJar = new BeltJar();
+  /** The kit the diver has found so far (set from the save each frame); drawn when it changes. */
+  kit: KitLook = FULL_KIT;
+  private kitShown = '';
+  private backG = new Graphics();
+  private psuitTorso = new Graphics();
+  private psuitBits: Graphics[] = [];
+  private tinted: { g: Graphics; base: number }[] = [];
   /** Hip thruster rig: a white housing with a lime nozzle, and the plume while boosting. */
   private thruster = new Graphics();
   private plume = new Graphics();
@@ -776,11 +890,41 @@ export class Diver {
   private static readonly RADIUS = 26;
   private static readonly SPEED = 230;
   private static readonly BOOST_SPEED = 430;
+  /** With the TH-2 thruster head (found in the kelp forest). */
+  private static readonly BOOST_SPEED_2 = 540;
 
   constructor() {
     // The torso is drawn long and compressed a little here for a stockier build.
     const torso = buildTorso();
     torso.scale.x = 0.88;
+    torso.addChildAt(this.backG, 0);
+    drawDiverPsuitTorso(this.psuitTorso);
+    this.psuitTorso.visible = false;
+    torso.addChild(this.psuitTorso);
+    // Pressure suit rings and tubes on every limb segment.
+    for (const leg of [this.nearLeg, this.farLeg]) {
+      const a = psuitLimb(24, 12, true);
+      const b = psuitLimb(21, 11, false);
+      leg.thigh.addChildAt(a, 1);
+      leg.shin.addChild(b);
+      this.psuitBits.push(a, b);
+    }
+    for (const arm of [this.nearArm, this.farArm]) {
+      const a = psuitLimb(17, 10, true);
+      const b = psuitLimb(11, 9, false);
+      arm.upper.addChildAt(a, 1);
+      arm.fore.addChildAt(b, 1);
+      this.psuitBits.push(a, b);
+    }
+    // The suit's own graphics, to take the pressure suit's bronze cast.
+    const collect = (c: Container) => {
+      for (const ch of c.children) {
+        if (ch instanceof Graphics && !this.psuitBits.includes(ch)) this.tinted.push({ g: ch, base: ch.tint });
+        if (!(ch instanceof Graphics)) collect(ch as Container);
+      }
+    };
+    for (const part of [this.nearLeg.thigh, this.farLeg.thigh, this.nearArm.upper, this.farArm.upper]) collect(part);
+    for (const ch of torso.children) if (ch instanceof Graphics && ch !== this.backG && ch !== this.psuitTorso) this.tinted.push({ g: ch, base: ch.tint });
     const helmet = buildHelmet();
     helmet.x = -6;
     this.visorFog = helmet.getChildByLabel('visorFog')!;
@@ -817,22 +961,49 @@ export class Diver {
     );
     this.diveBag.position.set(-8, 15);
     this.beltJar.view.position.set(5, 15);
-    {
-      const t = this.thruster;
-      t.roundRect(-30, 8, 24, 12, 5).fill({ color: 0xd8dde0 });
-      t.roundRect(-28, 9, 20, 3, 1.5).fill({ color: 0xffffff, alpha: 0.6 });
-      t.rect(-19, 8, 2, 12).fill({ color: 0x8e979c });
-      t.roundRect(-36, 9.5, 8, 9, 2).fill({ color: C.chromeDark });
-      t.circle(-36, 14, 4).fill({ color: C.visor, alpha: 0.9 });
-      t.rect(-12, 10, 10, 3).fill({ color: C.chromeDark });
-    }
     this.diveBag.visible = false;
+    this.applyKit();
     this.body.position.set(0, 0);
     this.view.addChild(this.body);
 
     this.lens.circle(0, 0, 2.4).fill({ color: 0xfff3d0 });
     this.lensGlow.circle(0, 0, 14).fill({ color: 0xffe9b0, alpha: 0.9 });
     batchAll(this.view);
+  }
+
+  /** Redraw the kit (tanks, harpoon, thruster, pressure suit) when it changed. */
+  private applyKit(): void {
+    const key = kitKey(this.kit);
+    if (key === this.kitShown) return;
+    this.kitShown = key;
+    const k = this.kit;
+    drawDiverBack(this.backG.clear(), k);
+    const t = this.thruster.clear();
+    if (k.thruster === 1) {
+      t.roundRect(-30, 8, 24, 12, 5).fill({ color: 0xd8dde0 });
+      t.roundRect(-28, 9, 20, 3, 1.5).fill({ color: 0xffffff, alpha: 0.6 });
+      t.rect(-19, 8, 2, 12).fill({ color: 0x8e979c });
+      t.roundRect(-36, 9.5, 8, 9, 2).fill({ color: C.chromeDark });
+      t.circle(-36, 14, 4).fill({ color: C.visor, alpha: 0.9 });
+      t.rect(-12, 10, 10, 3).fill({ color: C.chromeDark });
+    } else if (k.thruster === 2) {
+      // TH-2: a longer housing with twin nozzles, lime fins and a brass ring.
+      t.poly([-26, 7, -14, 0, -10, 0, -16, 7]).fill({ color: C.visor });
+      t.poly([-26, 21, -14, 28, -10, 28, -16, 21]).fill({ color: C.visor });
+      t.roundRect(-32, 6, 28, 16, 6).fill({ color: 0xd8dde0 });
+      t.roundRect(-30, 7, 24, 3.5, 1.5).fill({ color: 0xffffff, alpha: 0.6 });
+      t.rect(-20, 6, 3, 16).fill({ color: BRASS });
+      t.rect(-20, 6, 1, 16).fill({ color: 0xf0d890, alpha: 0.7 });
+      for (const y of [10.5, 17.5]) {
+        t.roundRect(-38, y - 3.6, 8, 7.2, 2).fill({ color: C.chromeDark });
+        t.circle(-38, y, 3.2).fill({ color: C.visor, alpha: 0.95 });
+      }
+      t.rect(-6, 9.5, 8, 3).fill({ color: C.chromeDark });
+      t.rect(-6, 15.5, 8, 3).fill({ color: C.chromeDark });
+    }
+    this.psuitTorso.visible = k.psuit;
+    for (const b of this.psuitBits) b.visible = k.psuit;
+    for (const { g, base } of this.tinted) g.tint = k.psuit ? mulColour(base, PSUIT_TINT) : base;
   }
 
   /** The middle of the helmet, in world space (for breath vapour and the surface splash). */
@@ -914,7 +1085,7 @@ export class Diver {
     this.boostCooldown = Math.max(0, this.boostCooldown - dt);
     this.boostTime = Math.max(0, this.boostTime - dt);
     if (boost && this.boostCooldown <= 0) {
-      this.boostTime = 0.55;
+      this.boostTime = this.kit.thruster === 2 ? 0.75 : 0.55;
       this.boostCooldown = 1.1;
       let bx = moveX;
       let by = moveY;
@@ -923,7 +1094,7 @@ export class Diver {
         by = 0;
       }
       const l = Math.hypot(bx, by);
-      const push = 260 * (1 - 0.2 * Math.min(1.6, this.load));
+      const push = (this.kit.thruster === 2 ? 340 : 260) * (1 - 0.2 * Math.min(1.6, this.load));
       this.vx += (bx / l) * push;
       this.vy += (by / l) * push;
     }
@@ -951,7 +1122,7 @@ export class Diver {
     }
 
     // Swim physics: accelerate towards the wanted velocity, with water drag.
-    const top = this.boostTime > 0 ? Diver.BOOST_SPEED : Diver.SPEED;
+    const top = this.boostTime > 0 ? (this.kit.thruster === 2 ? Diver.BOOST_SPEED_2 : Diver.BOOST_SPEED) : Diver.SPEED;
     // A heavy dive bag: slower everywhere, slower still going up, and a slow sink when not swimming.
     const L = Math.min(1.6, this.load);
     const heavy = 1 - 0.22 * L;
@@ -1156,7 +1327,10 @@ export class Diver {
    */
   private drawPlume(dt: number, jet: number): void {
     const NX = -38;
-    const NY = 14;
+    // TH-1 has one nozzle; TH-2 two, each a little narrower, and a longer jet.
+    const mk2 = this.kit.thruster === 2;
+    const nozzles = mk2 ? [10.5, 17.5] : [14];
+    const NY = nozzles[Math.floor(Math.random() * nozzles.length)];
     const sp = this.jetSparks;
     // Feed the trail while firing.
     if (jet > 0.05) {
@@ -1194,7 +1368,9 @@ export class Diver {
     if (jet > 0.02) {
       const t = this.time;
       const flick = 1 + Math.sin(t * 47) * 0.06 + Math.sin(t * 73 + 1) * 0.05;
-      const len = (30 + 26 * jet) * flick;
+      const len = (30 + 26 * jet) * flick * (mk2 ? 1.35 : 1);
+      const wk = mk2 ? 0.8 : 1;
+      for (const NY of nozzles) {
       // The bell: a little wider than the nozzle a short way out, then tapering to a soft tip.
       const bell = (u: number, w: number, l: number): number[] => {
         const top: number[] = [];
@@ -1209,9 +1385,9 @@ export class Diver {
         }
         return [...top, ...bot];
       };
-      pl.poly(bell(0, 6.2, len)).fill({ color: C.visor, alpha: 0.28 * jet });
-      pl.poly(bell(2, 4.2, len * 0.78)).fill({ color: 0xd9ff70, alpha: 0.5 * jet });
-      pl.poly(bell(4, 2.2, len * 0.45)).fill({ color: 0xfaffe6, alpha: 0.95 * jet });
+      pl.poly(bell(0, 6.2 * wk, len)).fill({ color: C.visor, alpha: 0.28 * jet });
+      pl.poly(bell(2, 4.2 * wk, len * 0.78)).fill({ color: 0xd9ff70, alpha: 0.5 * jet });
+      pl.poly(bell(4, 2.2 * wk, len * 0.45)).fill({ color: 0xfaffe6, alpha: 0.95 * jet });
       // Shock diamonds: bright knots that travel a little down the jet and pulse.
       for (let i = 0; i < 3; i++) {
         const f = 0.22 + i * 0.2 + ((t * 3.2) % 0.2);
@@ -1222,6 +1398,7 @@ export class Diver {
       // The nozzle's hot ring.
       pl.ellipse(NX + 0.5, NY, 2.6, 5.4).fill({ color: 0xf4ffd0, alpha: 0.9 * jet });
       pl.ellipse(NX + 0.5, NY, 1.4, 3.2).fill({ color: 0xffffff, alpha: jet });
+      }
     }
     // Churned bubbles (pale rings) and sparks (lime dots) thrown out behind.
     for (const q of sp) {
@@ -1256,7 +1433,8 @@ export class Diver {
       this.bagS.x = Math.max(-0.7, Math.min(0.7, this.bagS.x));
       this.diveBag.rotation = this.bagS.x;
     }
-    this.beltJar.set(this.jar, this.time);
+    this.applyKit();
+    this.beltJar.set(this.kit.jar ? this.jar : null, this.time, this.kit.jar);
     this.beltJar.view.rotation = this.bagS.x * 0.8;
     {
       // The hose flexes a little with the head, the breath and sudden changes of speed.

@@ -104,6 +104,10 @@ export class HatchPanel {
 
   private toJar(id: number): void {
     const { save } = this.deps;
+    if (!save.kit.jar) {
+      this.deps.toast('You have no specimen jar to carry it in. One was lost by the old anchor in the coral garden.', 'warn');
+      return;
+    }
     if (save.jar) {
       this.deps.toast('The specimen jar is already full', 'warn');
       return;

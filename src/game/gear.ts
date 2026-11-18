@@ -165,7 +165,7 @@ export const GEAR: Record<GearId, GearDef> = {
     id: 'tow',
     name: 'Grapple line',
     code: 'GL-1',
-    job: 'Fires a hooked line at an anchor ring and reels you in, faster than any current. When a ring is marked, tap Collect to fire.',
+    job: 'The harpoon on your back fires a hooked line at an anchor ring. In the water it reels you in, faster than any current; on foot you swing on it across gaps too wide to jump. When a ring is marked, tap Collect to fire.',
     blueprint: 'tow',
     cost: { plate: 3, fibre: 4, resin: 2 },
     seconds: 50,

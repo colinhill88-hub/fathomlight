@@ -65,6 +65,12 @@ async function main(): Promise<void> {
     // ?jar=glowfin (or glowfin-egg, crab-young...) hangs a filled specimen jar on the belt.
     const jq = params.get('jar');
     if (jq) d.jar = { species: jq.split('-')[0] as 'glowfin', stage: (jq.split('-')[1] ?? 'grown') as 'grown' };
+    // ?kit=tanks,spear,jar,thruster,psuit (e.g. kit=0,0,0,0,0 for a new game, kit=4,1,1,2,1 for everything).
+    const kq = params.get('kit');
+    if (kq) {
+      const [t, sp, j, th, ps] = kq.split(',').map(Number);
+      d.kit = { tanks: t || 0, spear: !!sp, jar: !!j, thruster: (th === 2 ? 2 : th === 1 ? 1 : 0) as 0 | 1 | 2, psuit: !!ps };
+    }
     d.x = ax;
     d.y = ay;
     d.lampOn = false;
