@@ -7,6 +7,7 @@ import { Water } from './scene/water';
 import { Backdrop } from './scene/backdrop';
 import { MarineSnow, SnowLight } from './scene/particles';
 import { ZoneBackdrop } from './scene/zonebackdrop';
+import { loadShallowsArt, loadShallowsSeabed, ShallowsBackdrop } from './art/shallows';
 import { initSettingsUI } from './ui';
 import { Input } from './input';
 import { Diver, type KitLook } from './actors/diver';
@@ -176,6 +177,7 @@ const VIEW_H_STATION = 400;
 const SURFACE_Y = 40;
 async function boot(): Promise<void> {
   const host = document.getElementById('game')!;
+  const urlq = new URLSearchParams(location.search);
   let choice: PresetChoice = loadChoice();
   let preset: Preset = resolveChoice(choice);
 
@@ -241,7 +243,13 @@ async function boot(): Promise<void> {
   seam.open = !!save.seamOpen;
   if (BENCH) seedBenchSave(save);
 
-  let scenery = new Scenery(renderer, preset.detail);
+  const useShallowsArt = urlq.get('art') === 'shallows';
+  const [shallowsArt, shallowsSeabed] = await Promise.all([
+    useShallowsArt ? loadShallowsArt() : null,
+    useShallowsArt && urlq.get('terrain') === 'painted' ? loadShallowsSeabed() : null,
+  ]);
+  const shallowsBackdrop = shallowsArt ? new ShallowsBackdrop(shallowsArt) : null;
+  let scenery = new Scenery(renderer, preset.detail, shallowsArt?.reef, shallowsSeabed ?? undefined);
   const pickups = new Pickups();
   const diver = new Diver();
   diver.x = save.x;
@@ -443,13 +451,16 @@ async function boot(): Promise<void> {
   }
   populate();
 
-  hdrRoot.addChild(water.view, backdrop.view, zoneBackdrop.view, lighting.view, emissiveCam, glowSprite, snow.view);
+  const worldLayers = [water.view, backdrop.view, zoneBackdrop.view];
+  if (shallowsBackdrop) worldLayers.push(shallowsBackdrop.view);
+  worldLayers.push(lighting.view, emissiveCam, glowSprite, snow.view);
+  hdrRoot.addChild(...worldLayers);
   // On the stage after the post pass, so the scanner, the build grid and the collect rings stay crisp.
   app.stage.addChild(post.view, overlayCam);
   // After milestone 8 part 2: dry interiors on foot, drawn over the (hidden) world.
   const interior = new Interior(renderer);
   hdrRoot.addChild(interior.view);
-  const worldLayers = [water.view, backdrop.view, zoneBackdrop.view, lighting.view, emissiveCam, glowSprite, snow.view, overlayCam];
+  worldLayers.push(overlayCam);
   /** Which interior you're on foot in, if any. */
   let inside: 'corvina' | 'base' | 'fulmar' | 'sanctum' | null = null;
   /** Milestone 11: the Choir in the sanctum's heart, and first contact (the ending). */
@@ -1194,7 +1205,7 @@ async function boot(): Promise<void> {
     snow.build(renderer, preset.particleDensity, cssW, cssH, fx.litSnow ? preset.bokeh : 0);
     if (builtDetail !== preset.detail) {
       scenery.view.destroy({ children: true });
-      scenery = new Scenery(renderer, preset.detail);
+      scenery = new Scenery(renderer, preset.detail, shallowsArt?.reef, shallowsSeabed ?? undefined);
       builtDetail = preset.detail;
       populate();
     }
@@ -1308,7 +1319,6 @@ async function boot(): Promise<void> {
   window.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && !logPanel.hidden) document.getElementById('log-btn')!.click();
   });
-  const urlq = new URLSearchParams(location.search);
   if (!urlq.has('notitle') && !urlq.has('at') && !urlq.has('bench')) menus.showTitle();
   let pausedFrames = 0;
 
@@ -3396,6 +3406,9 @@ async function boot(): Promise<void> {
     });
     water.update(time, camX, camY, viewW, viewH, app.canvas.width, app.canvas.height);
     backdrop.update(camCX, camCY, zoom, cssW, cssH);
+    if (shallowsBackdrop) {
+      backdrop.view.alpha = 1 - shallowsBackdrop.update(camCX, camCY, zoom, cssW, cssH);
+    }
     zoneBackdrop.view.visible = fx.zones;
     zoneBackdrop.view.alpha = preset.zoneAlpha;
     if (fx.zones) zoneBackdrop.update(camCX, camCY, zoom, cssW, cssH);

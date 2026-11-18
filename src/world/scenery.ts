@@ -1,4 +1,5 @@
-import { Container, Graphics, MeshRope, Point, Renderer, Text, Texture } from 'pixi.js';
+import { Color, Container, FillGradient, Graphics, MeshRope, Point, Renderer, Sprite, Text, Texture } from 'pixi.js';
+import { createShallowsSeabed, type ReefTextures } from '../art/shallows';
 import { mulberry32, WORLD_SEED } from '../rng';
 import { TrenchScenery } from './trenchgfx';
 import { SanctumScenery } from './sanctumgfx';
@@ -165,8 +166,26 @@ function inside(x: number, y: number, poly: [number, number][]): boolean {
   return hit;
 }
 
+function rockFade(color: number, from: number, to: number): FillGradient {
+  return new FillGradient({
+    start: { x: from, y: 0 },
+    end: { x: to, y: 0 },
+    textureSpace: 'global',
+    colorStops: [0, 0.25, 0.5, 0.75, 1].map((offset) => ({
+      offset,
+      color: new Color(color).setAlpha(1 - smooth(offset)),
+    })),
+  });
+}
+
 /** Paints rock texture into an outline: shaded base, dabs, cracks, algae on top. */
-function paintRock(g: Graphics, outline: [number, number][], topOf: (x: number) => number, detail: number): void {
+function paintRock(
+  g: Graphics,
+  outline: [number, number][],
+  topOf: (x: number) => number,
+  detail: number,
+  featherFrom?: number,
+): void {
   let minX = Infinity;
   let maxX = -Infinity;
   let minY = Infinity;
@@ -177,7 +196,18 @@ function paintRock(g: Graphics, outline: [number, number][], topOf: (x: number) 
     minY = Math.min(minY, y);
     maxY = Math.max(maxY, y);
   }
-  g.poly(outline.flat()).fill({ color: PAL.rock });
+  const baseFade = featherFrom === undefined ? null : rockFade(PAL.rock, featherFrom, maxX);
+  const rimFade = featherFrom === undefined ? null : rockFade(PAL.rockLight, featherFrom, maxX);
+  const coverage = featherFrom === undefined
+    ? () => 1
+    : (x: number) => 1 - smooth((x - featherFrom) / (maxX - featherFrom));
+  if (baseFade && rimFade) {
+    g.once('destroyed', () => {
+      baseFade.destroy();
+      rimFade.destroy();
+    });
+  }
+  g.poly(outline.flat()).fill(baseFade ? { fill: baseFade } : { color: PAL.rock });
   const area = ((maxX - minX) * (Math.min(maxY, WORLD_H + 40) - minY)) / 1000;
   const n = Math.round(Math.min(1400, area * 1.1) * detail);
   for (let i = 0; i < n; i++) {
@@ -189,20 +219,24 @@ function paintRock(g: Graphics, outline: [number, number][], topOf: (x: number) 
     if (!inside(x, y, outline)) continue;
     const depthIn = (y - top) / 120;
     const c = depthIn < 0.4 && rand() < 0.35 ? PAL.rockLight : rand() < 0.5 ? PAL.rockShade : PAL.rock;
-    dab(g, x, y, R(8, 30), R(5, 16), c, R(0.2, 0.4));
+    const rx = R(8, 30);
+    dab(g, x, y, rx, R(5, 16), c, R(0.2, 0.4) * coverage(x + rx));
   }
   for (let i = 0; i < n / 25; i++) {
     let x = R(minX, maxX);
     const top = topOf(x);
     if (!isFinite(top)) continue;
     let y = top + R(15, 90);
+    let right = x;
     g.moveTo(x, y);
     for (let k = 0; k < 4; k++) {
       x += R(-10, 10);
       y += R(6, 16);
+      right = Math.max(right, x);
       g.lineTo(x, y);
     }
-    g.stroke({ color: PAL.rockShade, alpha: 0.35, width: R(0.8, 1.5) });
+    const width = R(0.8, 1.5);
+    g.stroke({ color: PAL.rockShade, alpha: 0.35 * coverage(right + width / 2), width });
   }
   let started = false;
   for (let x = minX + 2; x <= maxX - 2; x += 6) {
@@ -212,13 +246,16 @@ function paintRock(g: Graphics, outline: [number, number][], topOf: (x: number) 
     else g.lineTo(x, top + 2.5);
     started = true;
   }
-  if (started) g.stroke({ color: PAL.rockLight, width: 5, alpha: 0.55, join: 'round', cap: 'round' });
+  if (started) g.stroke({ color: PAL.rockLight, fill: rimFade, width: 5, alpha: 0.55, join: 'round', cap: 'round' });
   for (let x = minX + 4; x < maxX - 4; x += R(5, 12)) {
     const top = topOf(x);
     if (!isFinite(top)) continue;
     if (rand() < 0.75) {
       const c = rand() < 0.5 ? PAL.algae : PAL.algaeLight;
-      g.circle(x + R(-3, 3), top + R(1, 6), R(2, 4.5)).fill({ color: c, alpha: R(0.5, 0.85) });
+      const cx = x + R(-3, 3);
+      const cy = top + R(1, 6);
+      const radius = R(2, 4.5);
+      g.circle(cx, cy, radius).fill({ color: c, alpha: R(0.5, 0.85) * coverage(cx + radius) });
     }
   }
 }
@@ -318,31 +355,41 @@ function drawCave(g: Graphics, dark: Graphics): void {
 }
 
 /** Branching coral, grown from a seed so every reef looks different. */
-function drawCoral(g: Graphics, x: number, y: number, color: number, size: number): void {
+function drawCoral(g: Graphics | undefined, x: number, y: number, color: number, size: number): void {
   const branch = (bx: number, by: number, angle: number, len: number, w: number, depth: number) => {
     const ex = bx + Math.cos(angle) * len;
     const ey = by + Math.sin(angle) * len;
-    g.moveTo(bx, by)
+    g?.moveTo(bx, by)
       .quadraticCurveTo(bx + Math.cos(angle + 0.3) * len * 0.5, by + Math.sin(angle + 0.3) * len * 0.5, ex, ey)
       .stroke({ color, width: w, cap: 'round' });
     if (depth > 0) {
       const n = rand() < 0.5 ? 2 : 3;
       for (let i = 0; i < n; i++) branch(ex, ey, angle + R(-0.7, 0.7), len * R(0.55, 0.8), w * 0.72, depth - 1);
     } else {
-      g.circle(ex, ey, w * 0.7).fill({ color: 0xffffff, alpha: 0.25 });
+      g?.circle(ex, ey, w * 0.7).fill({ color: 0xffffff, alpha: 0.25 });
     }
   };
   for (let i = 0; i < 3; i++) branch(x + R(-6, 6), y + 4, -Math.PI / 2 + R(-0.6, 0.6), 22 * size, 7 * size, 3);
 }
 
-function drawFan(g: Graphics, x: number, y: number, color: number, size: number): void {
+function drawFan(g: Graphics | undefined, x: number, y: number, color: number, size: number): void {
   for (let i = 0; i < 18; i++) {
     const a = -Math.PI / 2 + R(-0.9, 0.9);
     const l = R(26, 46) * size;
-    g.moveTo(x, y)
-      .quadraticCurveTo(x + Math.cos(a) * l * 0.4 + R(-6, 6), y + Math.sin(a) * l * 0.6, x + Math.cos(a) * l, y + Math.sin(a) * l)
+    const controlX = x + Math.cos(a) * l * 0.4 + R(-6, 6);
+    const controlY = y + Math.sin(a) * l * 0.6;
+    g?.moveTo(x, y)
+      .quadraticCurveTo(controlX, controlY, x + Math.cos(a) * l, y + Math.sin(a) * l)
       .stroke({ color, width: 1.6 * size, alpha: 0.85, cap: 'round' });
   }
+}
+
+function addReefSprite(layer: Container, texture: Texture, x: number, y: number, size: number): void {
+  const sprite = new Sprite(texture);
+  sprite.anchor.set(0.5, 0.9);
+  sprite.position.set(x, y);
+  sprite.width = sprite.height = size;
+  layer.addChild(sprite);
 }
 
 function rivetsRow(g: Graphics, x: number, y: number, n: number, gap: number): void {
@@ -628,7 +675,7 @@ export class Scenery {
   private beaconLight!: PointLight;
   private anemones: { core: Graphics; halo: Graphics; light: PointLight; phase: number }[] = [];
 
-  constructor(renderer: Renderer, detail: number) {
+  constructor(renderer: Renderer, detail: number, reef?: ReefTextures, seabed?: Texture) {
     // Same seed every time, so switching presets rebuilds the identical world.
     rand = mulberry32(WORLD_SEED ^ 0x5ce9);
 
@@ -668,7 +715,8 @@ export class Scenery {
       const top = (x: number) => gy(x) + 90 * smooth((x - 360) / 60) * (1 - smooth((x - 1640) / 120));
       for (let x = -320; x <= 1760; x += 8) pts.push([x, top(x)]);
       pts.push([1760, WORLD_H + 300], [-320, WORLD_H + 300]);
-      paintRock(g, pts, (x) => (x >= -320 && x <= 1760 ? top(x) : NaN), detail * 0.7);
+      // Feather the material at the eastern end while keeping the outline.
+      paintRock(g, pts, (x) => (x >= -320 && x <= 1760 ? top(x) : NaN), detail * 0.7, 1640);
     });
     rock(2080, 2500, (g) => rockPatch(g, 2080, 2500, 60, detail));
     rock(3020, 3290, (g) => rockPatch(g, 3020, 3290, 45, detail));
@@ -698,17 +746,32 @@ export class Scenery {
 
     // Coral and fans: thick in the coral garden, a few elsewhere.
     const corals = [0xc76a83, 0xa766a7, 0xd58a52, 0xb4506a];
+    const reefLayer = reef ? new Container() : null;
+    if (reefLayer && reef) {
+      decorLayer.addChildAt(reefLayer, 0);
+      this.slices.push({ obj: reefLayer, x0: BUOY_X - 80, x1: ANCHOR_X + 80 });
+      addReefSprite(reefLayer, reef.rock[0], 2110, gy(2110) + 4, 48);
+      addReefSprite(reefLayer, reef.rock[1], 2740, gy(2740) + 4, 48);
+    }
     for (let i = 0; i < Math.round(60 * detail); i++) {
       const p = rand();
       const x = p < 0.6 ? R(1750, 3580) : p < 0.72 ? R(400, 1700) : p < 0.86 ? R(5300, 6500) : R(6900, 8300);
       const deep = x > 5200 && x < 6600;
       const y = gy(x) + 4;
-      const g = decorAt(x);
+      // Advance the original drawing RNG even when a sprite takes over. Later
+      // coral, kelp, and scanner positions depend on the same sequence.
+      const authored = reefLayer && reef && x >= BUOY_X && x <= ANCHOR_X;
+      const g = authored ? undefined : decorAt(x);
       if (rand() < 0.65) {
-        drawCoral(g, x, y, corals[Math.floor(rand() * corals.length)], R(0.7, 1.3) * (deep ? 0.8 : 1));
+        const color = corals[Math.floor(rand() * corals.length)];
+        const size = R(0.7, 1.3) * (deep ? 0.8 : 1);
+        drawCoral(g, x, y, color, size);
+        if (authored) addReefSprite(reefLayer, reef.coral[i % reef.coral.length], x, y + 4, 76 * size);
         this.scanPoints.coral.push({ x, y: y - 20 });
       } else {
-        drawFan(g, x, y, deep ? 0x8c5a7a : 0xb86a8e, R(0.8, 1.4));
+        const size = R(0.8, 1.4);
+        drawFan(g, x, y, deep ? 0x8c5a7a : 0xb86a8e, size);
+        if (authored) addReefSprite(reefLayer, reef.fan[i % reef.fan.length], x, y, 64 * size);
         this.scanPoints.fan.push({ x, y: y - 25 });
       }
     }
@@ -912,6 +975,10 @@ export class Scenery {
     this.buildForest(renderer, detail, rock, addKelp, kelpBack, kelpFront, decorLayer);
     this.buildKelpCaves(detail, rock, decorLayer);
     this.buildShelf(detail, rock, decorLayer);
+    if (seabed) {
+      const strip = groundLayer.addChild(createShallowsSeabed(seabed));
+      this.slices.push({ obj: strip, x0: BUOY_X, x1: ANCHOR_X });
+    }
     // Milestone 10: the trench.
     this.trench = new TrenchScenery(detail);
     this.view.addChild(this.trench.view);
