@@ -10,7 +10,7 @@ import { ZoneBackdrop } from './scene/zonebackdrop';
 import { loadShallowsArt, loadShallowsKelp, loadShallowsSeabed, ShallowsBackdrop } from './art/shallows';
 import { loadPaintedDiver } from './art/paintedDiver';
 import { loadPaintedSuit } from './art/paintedSuit';
-import { loadForestMidground } from './art/forest';
+import { loadForestMidground, loadForestOutcrop } from './art/forest';
 import { initSettingsUI } from './ui';
 import { Input } from './input';
 import { Diver, type KitLook } from './actors/diver';
@@ -245,18 +245,19 @@ async function boot(): Promise<void> {
   if (BENCH) seedBenchSave(save);
 
   const useShallowsArt = urlq.get('art') === 'shallows';
-  const [shallowsArt, shallowsSeabed, shallowsKelp, paintedFace, paintedSuit, forestMidground] = await Promise.all([
+  const [shallowsArt, shallowsSeabed, shallowsKelp, paintedFace, paintedSuit, forestMidground, forestOutcrop] = await Promise.all([
     useShallowsArt ? loadShallowsArt() : null,
     useShallowsArt && urlq.get('terrain') === 'painted' ? loadShallowsSeabed() : null,
     useShallowsArt && urlq.get('kelp') === 'painted' ? loadShallowsKelp() : null,
     urlq.get('diver') === 'painted' ? loadPaintedDiver() : undefined,
     urlq.get('suit') === 'painted' ? loadPaintedSuit() : undefined,
     urlq.get('forest') === 'painted' ? loadForestMidground() : undefined,
+    urlq.get('forestTerrain') === 'painted' ? loadForestOutcrop() : undefined,
   ]);
   const zoneBackdrop = new ZoneBackdrop(forestMidground);
   zoneBackdrop.build();
   const shallowsBackdrop = shallowsArt ? new ShallowsBackdrop(shallowsArt) : null;
-  let scenery = new Scenery(renderer, preset.detail, shallowsArt?.reef, shallowsSeabed ?? undefined, shallowsKelp ?? undefined);
+  let scenery = new Scenery(renderer, preset.detail, shallowsArt?.reef, shallowsSeabed ?? undefined, shallowsKelp ?? undefined, forestOutcrop);
   const pickups = new Pickups();
   const diver = new Diver(paintedFace, paintedSuit?.swimmer, urlq.get('personality') === 'surface');
   diver.x = save.x;
@@ -1212,7 +1213,7 @@ async function boot(): Promise<void> {
     snow.build(renderer, preset.particleDensity, cssW, cssH, fx.litSnow ? preset.bokeh : 0);
     if (builtDetail !== preset.detail) {
       scenery.view.destroy({ children: true });
-      scenery = new Scenery(renderer, preset.detail, shallowsArt?.reef, shallowsSeabed ?? undefined, shallowsKelp ?? undefined);
+      scenery = new Scenery(renderer, preset.detail, shallowsArt?.reef, shallowsSeabed ?? undefined, shallowsKelp ?? undefined, forestOutcrop);
       builtDetail = preset.detail;
       populate();
     }

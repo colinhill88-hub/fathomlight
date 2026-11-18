@@ -675,7 +675,7 @@ export class Scenery {
   private beaconLight!: PointLight;
   private anemones: { core: Graphics; halo: Graphics; light: PointLight; phase: number }[] = [];
 
-  constructor(renderer: Renderer, detail: number, reef?: ReefTextures, seabed?: Texture, kelp?: readonly Texture[]) {
+  constructor(renderer: Renderer, detail: number, reef?: ReefTextures, seabed?: Texture, kelp?: readonly Texture[], forestOutcrop?: Texture) {
     // Same seed every time, so switching presets rebuilds the identical world.
     rand = mulberry32(WORLD_SEED ^ 0x5ce9);
 
@@ -702,11 +702,14 @@ export class Scenery {
     }
     const decorAt = (x: number) => decor[Math.max(0, Math.min(nSlices - 1, Math.floor(x / SLICE)))];
 
-    const rock = (x0: number, x1: number, build: (g: Graphics) => void) => {
+    const rock = (x0: number, x1: number, build: (g: Graphics) => void, replacement?: Sprite) => {
       const g = new Graphics();
       build(g);
-      groundLayer.addChild(g);
-      this.slices.push({ obj: g, x0: x0 - 60, x1: x1 + 60 });
+      // Keep the procedural random sequence identical so later decorations and scanner points stay put.
+      const obj = replacement ?? g;
+      if (replacement) g.destroy();
+      groundLayer.addChild(obj);
+      this.slices.push({ obj, x0: x0 - 60, x1: x1 + 60 });
     };
     // The cliff from the shelf down into the basin, and the rock under the shelf (milestone 5).
     // Since the terraces (after milestone 6) the rock starts at the foot of the lowest ledge.
@@ -976,7 +979,7 @@ export class Scenery {
 
     // ---- The kelp forest (milestone 7), with its own random numbers. ----
     rand = mulberry32(WORLD_SEED ^ 0xf0e57);
-    this.buildForest(renderer, detail, rock, addKelp, kelpBack, kelpFront, decorLayer);
+    this.buildForest(renderer, detail, rock, addKelp, kelpBack, kelpFront, decorLayer, forestOutcrop);
     this.buildKelpCaves(detail, rock, decorLayer);
     this.buildShelf(detail, rock, decorLayer);
     if (seabed) {
@@ -1007,19 +1010,24 @@ export class Scenery {
   private buildForest(
     _renderer: Renderer,
     detail: number,
-    rock: (x0: number, x1: number, build: (g: Graphics) => void) => void,
+    rock: (x0: number, x1: number, build: (g: Graphics) => void, replacement?: Sprite) => void,
     addKelp: (x: number, height: number, layer: Container, tint: number, base?: number) => void,
     kelpBack: Container,
     kelpFront: Container,
     decorLayer: Container,
+    forestOutcrop?: Texture,
   ): void {
     // Rock outcrops on the floor.
     for (const [x0, x1, th] of [
       [10850, 11450, 150],
       [12560, 13150, 180],
       [13600, 14100, 120],
-    ] as const)
-      rock(x0, x1, (g) => rockPatch(g, x0, x1, th, detail));
+    ] as const) {
+      const painted = forestOutcrop && x0 === 12560
+        ? new Sprite({ texture: forestOutcrop, label: 'paintedForestOutcrop', x: 12536, y: 1144 })
+        : undefined;
+      rock(x0, x1, (g) => rockPatch(g, x0, x1, th, detail), painted);
+    }
     // The east wall, with the kelp caves' mouth.
     rock(14560, 19400, (g) => {
       const pts: [number, number][] = [];
