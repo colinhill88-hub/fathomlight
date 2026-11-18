@@ -417,9 +417,17 @@ function buildArm(far: boolean): Arm {
   return { upper, fore };
 }
 
-function buildTorso(): Container {
+export function suitMaterialLayer(texture: Texture, trim: Graphics, x: number, y: number): Container {
+  const layer = new Container({ label: 'paintedSuit' });
+  const material = new Sprite({ texture, label: 'suitMaterial' });
+  material.position.set(x, y);
+  layer.addChild(material, trim);
+  return layer;
+}
+
+function buildTorso(texture?: Texture) {
   const c = new Container();
-  const g = new Graphics();
+  const g = new Graphics({ label: 'proceduralSuit' });
 
   // The tanks and the harpoon on the back are drawn by drawDiverBack (they come with the kit).
 
@@ -431,36 +439,44 @@ function buildTorso(): Container {
   accentBand(g, -12, -15, 4, 30);
   accentBand(g, 22, -15, 2.6, 30);
   rimEdge(g, -26, -14.5, 28, -14.5, 0.55);
-  // Belt with a chrome buckle.
+  // Belt, chrome buckle, and harness strap from the back unit.
   g.rect(-28, -15, 7, 30).fill({ color: C.suitShade });
   chromeBands(g, -36, -5, 9, 12, 3);
-  // Harness strap from the back unit.
   g.rect(14, -15, 5, 30).fill({ color: C.chromeDark, alpha: 0.85 });
   scratches(g, -30, -12, 70, 24, 6);
   for (let i = 0; i < 8; i++)
     g.circle(-30 + rand() * 60, 10 + rand() * 4, 0.8 + rand() * 1.1).fill({ color: 0x5f7a3a, alpha: 0.45 });
 
   // Collar yoke: the chrome ring that wraps the shoulders and seats the helmet.
-  g.moveTo(30, -26)
+  const collar = (q: Graphics) => q.moveTo(30, -26)
     .lineTo(44, -24)
     .quadraticCurveTo(52, -10, 52, 6)
     .quadraticCurveTo(52, 18, 42, 19)
     .lineTo(30, 16)
     .quadraticCurveTo(34, -4, 30, -26)
-    .closePath()
-    .fill({ color: C.chrome })
-    .stroke({ color: C.chromeDark, width: 1.2 });
+    .closePath();
+  collar(g).fill({ color: C.chrome }).stroke({ color: C.chromeDark, width: 1.2 });
   g.moveTo(36, -22).quadraticCurveTo(44, -8, 43, 12).stroke({ color: C.chromeHi, width: 2.2, alpha: 0.7, cap: 'round' });
   g.moveTo(47, -12).quadraticCurveTo(50, 2, 47, 14).stroke({ color: C.chromeMid, width: 2, alpha: 0.9, cap: 'round' });
-  rivets(g, [[34, -20], [33, 12], [48, 15]], 1);
-
-  // Regulator port on the chest: a round chrome fitting with a dark mouth
-  // and grille slots below.
-  g.circle(50, 9, 7).fill({ color: C.chrome }).stroke({ color: C.chromeDark, width: 1.2 });
-  g.circle(51, 9, 3.2).fill({ color: 0x0d1114 });
-  g.circle(48, 6.5, 1.6).fill({ color: C.chromeHi, alpha: 0.8 });
-  for (let i = 0; i < 3; i++) g.rect(42 + i * 3.2, 15.5, 2, 3.2).fill({ color: C.chromeDark });
+  const fittings = (q: Graphics) => {
+    rivets(q, [[34, -20], [33, 12], [48, 15]], 1);
+    // Regulator port and grille.
+    q.circle(50, 9, 7).fill({ color: C.chrome }).stroke({ color: C.chromeDark, width: 1.2 });
+    q.circle(51, 9, 3.2).fill({ color: 0x0d1114 });
+    q.circle(48, 6.5, 1.6).fill({ color: C.chromeHi, alpha: 0.8 });
+    for (let i = 0; i < 3; i++) q.rect(42 + i * 3.2, 15.5, 2, 3.2).fill({ color: C.chromeDark });
+  };
+  fittings(g);
   c.addChild(g);
+  let painted: Container | undefined;
+  if (texture) {
+    // The atlas already includes the bands, straps and buckle. Keep mechanical details above it.
+    const fittingsLayer = new Graphics();
+    collar(fittingsLayer).stroke({ color: C.chromeDark, width: 1.2 });
+    fittings(fittingsLayer);
+    painted = suitMaterialLayer(texture, fittingsLayer, -40, -32);
+    c.addChild(painted);
+  }
 
   const stencil = new Text({
     text: 'K7',
@@ -471,7 +487,7 @@ function buildTorso(): Container {
   stencil.anchor.set(0.5);
   stencil.position.set(-1, -19);
   c.addChild(stencil);
-  return c;
+  return { view: c, procedural: g, painted };
 }
 
 /** Ribbed hose: a curve with closely spaced light and dark rings across it. */
@@ -964,6 +980,7 @@ export class Diver {
   private ps2Torso = new Graphics();
   private ps2Bits: Graphics[] = [];
   private tinted: { g: Graphics; base: number }[] = [];
+  private readonly torsoMaterials: ReturnType<typeof buildTorso>;
   /** Hip thruster rig: a white housing with a lime nozzle, and the plume while boosting. */
   private thruster = new Graphics();
   /** After milestone 12: the suit attachments (satchel, visor, cowl) in body space, and the limb pieces (boots, flare tube). */
@@ -1013,9 +1030,10 @@ export class Diver {
   /** With the TH-2 thruster head (found in the kelp forest). */
   private static readonly BOOST_SPEED_2 = 540;
 
-  constructor(paintedFace?: Texture) {
+  constructor(paintedFace?: Texture, paintedSuit?: Texture) {
     // The torso is drawn long and compressed a little here for a stockier build.
-    const torso = buildTorso();
+    this.torsoMaterials = buildTorso(paintedSuit);
+    const torso = this.torsoMaterials.view;
     torso.scale.x = 0.88;
     torso.addChildAt(this.backG, 0);
     drawDiverPsuitTorso(this.psuitTorso);
@@ -1192,6 +1210,11 @@ export class Diver {
     for (const b of this.ps2Bits) b.visible = k.psuit === 2;
     const tint = k.psuit === 2 ? PSUIT2_TINT : PSUIT_TINT;
     for (const { g, base } of this.tinted) g.tint = k.psuit ? mulColour(base, tint) : base;
+    const { procedural, painted } = this.torsoMaterials;
+    if (painted) {
+      painted.visible = k.psuit === 0;
+      procedural.visible = !painted.visible;
+    }
   }
 
   /** Milestone 11: the resonator's crystal, lit in the Choir's colours (brighter while it sings). */

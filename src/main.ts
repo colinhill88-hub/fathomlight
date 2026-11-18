@@ -9,6 +9,7 @@ import { MarineSnow, SnowLight } from './scene/particles';
 import { ZoneBackdrop } from './scene/zonebackdrop';
 import { loadShallowsArt, loadShallowsKelp, loadShallowsSeabed, ShallowsBackdrop } from './art/shallows';
 import { loadPaintedDiver } from './art/paintedDiver';
+import { loadPaintedSuit } from './art/paintedSuit';
 import { initSettingsUI } from './ui';
 import { Input } from './input';
 import { Diver, type KitLook } from './actors/diver';
@@ -245,16 +246,17 @@ async function boot(): Promise<void> {
   if (BENCH) seedBenchSave(save);
 
   const useShallowsArt = urlq.get('art') === 'shallows';
-  const [shallowsArt, shallowsSeabed, shallowsKelp, paintedFace] = await Promise.all([
+  const [shallowsArt, shallowsSeabed, shallowsKelp, paintedFace, paintedSuit] = await Promise.all([
     useShallowsArt ? loadShallowsArt() : null,
     useShallowsArt && urlq.get('terrain') === 'painted' ? loadShallowsSeabed() : null,
     useShallowsArt && urlq.get('kelp') === 'painted' ? loadShallowsKelp() : null,
     urlq.get('diver') === 'painted' ? loadPaintedDiver() : undefined,
+    urlq.get('suit') === 'painted' ? loadPaintedSuit() : undefined,
   ]);
   const shallowsBackdrop = shallowsArt ? new ShallowsBackdrop(shallowsArt) : null;
   let scenery = new Scenery(renderer, preset.detail, shallowsArt?.reef, shallowsSeabed ?? undefined, shallowsKelp ?? undefined);
   const pickups = new Pickups();
-  const diver = new Diver(paintedFace);
+  const diver = new Diver(paintedFace, paintedSuit?.swimmer);
   diver.x = save.x;
   diver.y = save.y;
   diver.lampOn = save.lampOn;
@@ -461,7 +463,7 @@ async function boot(): Promise<void> {
   // On the stage after the post pass, so the scanner, the build grid and the collect rings stay crisp.
   app.stage.addChild(post.view, overlayCam);
   // After milestone 8 part 2: dry interiors on foot, drawn over the (hidden) world.
-  const interior = new Interior(renderer, paintedFace);
+  const interior = new Interior(renderer, paintedFace, paintedSuit?.walker);
   hdrRoot.addChild(interior.view);
   worldLayers.push(overlayCam);
   /** Which interior you're on foot in, if any. */

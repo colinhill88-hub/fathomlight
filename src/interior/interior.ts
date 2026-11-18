@@ -264,8 +264,8 @@ export class Interior {
   private shownKey = '';
   private opts: InteriorOptions = {};
 
-  constructor(private readonly renderer: Renderer, paintedFace?: Texture) {
-    this.walker = new Walker(paintedFace);
+  constructor(private readonly renderer: Renderer, paintedFace?: Texture, paintedSuit?: Texture) {
+    this.walker = new Walker(paintedFace, paintedSuit);
     this.lighting = new InteriorLighting(this.sceneRT);
     this.glowSprite = new Sprite(this.glowRT);
     this.glowSprite.blendMode = 'add';
