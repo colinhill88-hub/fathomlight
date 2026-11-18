@@ -80,7 +80,7 @@
 
     <div id="hint">
       <span class="touch-only">Drag on the left to swim · hold Scan near new things, tap it to name known ones · stop by materials or young creatures and hold Collect</span>
-      <span class="desk-only">WASD or arrows to swim · Shift boost · L lamp · E scan (hold for new, tap to name known) · hold C to collect · B build at the Kestrel site · T tend a creature tank · V board or leave the sub · mouse wheel or - / = to zoom · M mute</span>
+      <span class="desk-only">WASD or arrows to swim · Shift boost · L lamp · E scan (hold for new, tap to name known) · hold C to collect · B build at the Kestrel site · T tend a creature tank · V board or leave the sub · mouse wheel or - / = to zoom · M mute · Esc menu</span>
     </div>
 
     <div id="hud">
@@ -129,6 +129,7 @@
       <div id="log-panel" class="panel" hidden></div>
 
       <div id="settings-panel" class="panel" hidden>
+        <button type="button" class="x" data-close aria-label="Close">✕</button>
         <h2>Sound</h2>
         <div id="sound-rows">
           <label class="vol"><span>Master</span><input type="range" min="0" max="100" step="1" data-vol="master" /><output></output></label>
@@ -139,6 +140,7 @@
         <div class="sound-toggles">
           <button id="mute-btn" type="button" aria-pressed="false">Mute</button>
           <button id="silent-btn" type="button" aria-pressed="false" hidden>Silent switch: mutes</button>
+          <button id="speaker-btn" type="button" aria-pressed="false">Mix: phone speaker</button>
         </div>
         <p id="sound-note"></p>
         <h2 class="gap">Graphics</h2>
@@ -171,6 +173,7 @@
           <button type="button" data-fx="supersample" aria-pressed="false">Render scale (sharper, slower)</button>
           <button type="button" data-fx="edges" aria-pressed="true">Smooth edges (MSAA)</button>
           <button type="button" data-fx="causticSkip" aria-pressed="true">Skip hidden caustics</button>
+          <button type="button" data-fx="adaptive" aria-pressed="true">Adaptive resolution (keeps it smooth)</button>
           <button type="button" data-fx="perf" aria-pressed="false">Show performance</button>
         </div>
         <p id="fx-note" class="note"></p>

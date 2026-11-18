@@ -2,7 +2,7 @@ import { Application, BlurFilter, Container, RenderTexture, Sprite, Texture, UPD
 import { perf, PerfOverlay } from './dev/perf';
 import { PostStack, ZoneWeights } from './fx/post';
 import { Bench, BENCH, BENCH_SCENES, STILL, scenePos, seedBenchSave } from './dev/bench';
-import { FxToggles, loadChoice, loadFx, pixelRatioFor, renderBoost, Preset, PresetChoice, resolveChoice, saveChoice, saveFx } from './presets';
+import { FxToggles, loadChoice, loadFx, pixelRatioFor, renderBoost, renderScale, RENDER_SCALE_MIN, Preset, PresetChoice, resolveChoice, saveChoice, saveFx } from './presets';
 import { Water } from './scene/water';
 import { Backdrop } from './scene/backdrop';
 import { MarineSnow, SnowLight } from './scene/particles';
@@ -105,7 +105,7 @@ import { Scanner } from './game/scanner';
 import { SurfaceFx } from './fx/surface';
 import { Hud } from './ui/hud';
 import { DiveWatch } from './ui/watch';
-import { BaseLayout, berthOf, cellOpen, GRID_BASE, GRID_X0, GRID_X1, isDone, onSeabed, isStoreKind, isTankKind, pieceCode, PIECES, pieceRect, Placed, shapeOf, SORT_BAY, STORAGE_PER_POD } from './game/base';
+import { BaseLayout, berthOf, cellOpen, GRID_BASE, GRID_X0, GRID_X1, isDone, onSeabed, isStoreKind, isTankKind, pieceCode, PIECES, pieceRect, POWER_MAKE, TURBINE_LIMIT, Placed, shapeOf, SORT_BAY, STORAGE_PER_POD } from './game/base';
 import { Sub } from './actors/sub';
 import { airClock, DENT_PER_SPEED, DENT_SPEED, docks, holdKg, SUB_AIR, SUB_BUILD_TIME, SUB_COST, subDock } from './game/sub';
 import { DockMode } from './ui/dock';
@@ -134,6 +134,8 @@ import { SCAN_ENTRIES } from './game/scanner';
 import { CHOIR_AT, ChoirForm, HEART_MAP, heartOptions } from './interior/sanctum';
 import { Contact, type ContactWord } from './ui/contact';
 import { markSeen, ZoneMap } from './ui/zonemap';
+import { PadNav } from './ui/padnav';
+import { Menus } from './ui/menu';
 import { PATTERNS } from './game/traits';
 import { initSoundUI } from './ui/sound';
 
@@ -447,6 +449,7 @@ async function boot(): Promise<void> {
   const contact = new Contact(choir);
   /** Milestone 11: the Signal array's zone map (opened at its console). */
   const zoneMap = new ZoneMap();
+  const padNav = new PadNav();
   let seenClock = 0;
   // Saves from before the zone map: map the zones already reached.
   if (!save.mapSeen) {
@@ -1163,6 +1166,53 @@ async function boot(): Promise<void> {
     ui.refresh();
   }
 
+  // ---- Milestone 12: adaptive resolution ----
+  // Every 2 s of play, compare the average frame time with the preset's budget.
+  // Too slow: step the render scale down by 0.1. Comfortably at the cap for 8 s
+  // (and 30 s after the last step down): step it back up. Only the render
+  // targets are resized, not the scene.
+  const adapt = { ms: 0, n: 0, good: 0, sinceDown: 99 };
+  function resizeTargets(): void {
+    const res = pixelRatioFor(preset, cssW, cssH);
+    renderer.resize(cssW, cssH, res);
+    litRT.resize(cssW, cssH, res);
+    applyPost(res);
+    interior.resize(cssW, cssH, res);
+    glowRT.resize(cssW, cssH, res * preset.glowResolution);
+    blur.resolution = res * preset.glowResolution;
+  }
+  function adaptFrame(deltaMS: number): void {
+    if (!fx.adaptive || document.hidden || bench.active) {
+      if (!fx.adaptive && renderScale.v !== 1) {
+        renderScale.v = 1;
+        resizeTargets();
+      }
+      return;
+    }
+    if (deltaMS > 250) return; // a hitch (tab switch, a long load), not a slow scene
+    adapt.ms += deltaMS;
+    adapt.n++;
+    if (adapt.ms < 2000) return;
+    const avg = adapt.ms / adapt.n;
+    adapt.ms = 0;
+    adapt.n = 0;
+    adapt.sinceDown += 2;
+    const budget = 1000 / preset.maxFps;
+    if (avg > budget * 1.18 && renderScale.v > RENDER_SCALE_MIN + 0.001) {
+      renderScale.v = Math.max(RENDER_SCALE_MIN, Math.round((renderScale.v - 0.1) * 10) / 10);
+      adapt.good = 0;
+      adapt.sinceDown = 0;
+      resizeTargets();
+    } else if (avg <= budget * 1.04 && renderScale.v < 1) {
+      adapt.good += 2;
+      if (adapt.good >= 8 && adapt.sinceDown >= 30) {
+        renderScale.v = Math.min(1, Math.round((renderScale.v + 0.1) * 10) / 10);
+        adapt.good = 0;
+        resizeTargets();
+      }
+    } else adapt.good = 0;
+  }
+
   let fx: FxToggles = loadFx();
   renderBoost.v = fx.supersample ? preset.supersample : 1;
   const ui = initSettingsUI({
@@ -1177,6 +1227,7 @@ async function boot(): Promise<void> {
       location.reload();
     },
     buildId: __BUILD_ID__,
+    onGear: () => menus.openPause(),
     getFx: () => fx,
     fxOn: (key) => (key === 'edges' ? (fx.edges ?? preset.hdrMsaa) : !!fx[key]),
     setFx: (key, on) => {
@@ -1199,11 +1250,39 @@ async function boot(): Promise<void> {
     },
   });
 
+  // ---- Milestone 12: the title screen, the pause menu and moving a save ----
+  const menus = new Menus({
+    getSave: () => save,
+    hadSave: loaded.loaded,
+    persist: () => persist(),
+    resetProgress: () => {
+      clearSave();
+      resetting = true;
+      location.reload();
+    },
+    openSettings: () => {
+      ui.open();
+      soundUI.refresh();
+    },
+    openLog: () => document.getElementById('log-btn')!.click(),
+    buildId: __BUILD_ID__,
+    onPause: (p) => audio.setPaused(p),
+    panelOpen: () =>
+      build.active || care.active || dockUI.active || station.active || hatchPanel.active || contact.active || zoneMap.open || hud.reading || rates.open || !settingsPanel.hidden || !logPanel.hidden,
+  });
+  window.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !logPanel.hidden) document.getElementById('log-btn')!.click();
+  });
+  const urlq = new URLSearchParams(location.search);
+  if (!urlq.has('notitle') && !urlq.has('at') && !urlq.has('bench')) menus.showTitle();
+  let pausedFrames = 0;
+
   let resetting = false;
   let resizeTimer = 0;
   const onResize = () => {
     clearTimeout(resizeTimer);
     resizeTimer = window.setTimeout(rebuild, 120);
+    pausedFrames = -30;
   };
   window.addEventListener('resize', onResize);
   window.addEventListener('orientationchange', onResize);
@@ -1276,8 +1355,13 @@ async function boot(): Promise<void> {
         baseView.sync(layout);
         const p = ev.piece;
         const powered = layout.powered.has(p.id);
+        const net = layout.netFor(p.id);
+        if (net && net.rate < 1 && !save.tips.includes('powershort')) {
+          save.tips.push('powershort');
+          hud.toast(`The base now draws ${net.draw} W but makes ${net.make} W: machines run at ${Math.round(net.rate * 100)}% speed. Add a power source (the build title shows the meter).`, 'warn');
+        }
         hud.toast(
-          `Finished: ${PIECES[p.kind].name}${p.kind !== 'turbine' && !powered ? ' (no power yet: join it to a current turbine)' : ''}`,
+          `Finished: ${PIECES[p.kind].name}${!POWER_MAKE[p.kind] && !powered ? ' (no power yet: join it to a current turbine)' : ''}`,
           'big',
         );
         if (build.active) build.refresh();
@@ -1330,7 +1414,8 @@ async function boot(): Promise<void> {
 
     // ---- Salvage cranes (milestone 8 part 2): one piece a minute per crane, into storage ----
     {
-      const cranes = layout.pieces.filter((p) => p.kind === 'crane' && isDone(p) && layout.powered.has(p.id)).length;
+      // Milestone 12: a crane on a network short of power works slower.
+      const cranes = layout.pieces.filter((p) => p.kind === 'crane' && isDone(p) && layout.powered.has(p.id)).reduce((n, p) => n + layout.powerRate(p.id), 0);
       if (cranes && save.craneQueue > 0) {
         save.craneProgress = Math.min(1, save.craneProgress + (dt * cranes) / 60);
         // It waits, holding the piece, until storage has room for everything it makes.
@@ -1537,6 +1622,9 @@ async function boot(): Promise<void> {
       perf.markUpdate();
       perf.width = app.canvas.width;
       perf.height = app.canvas.height;
+      // Paused: draw a few frames to settle, then stop drawing (saves the battery; the picture stays).
+      if (pausedFrames > 3) return;
+      if (pausedFrames === 0) adaptFrame(ticker.deltaMS);
       drawPost(ticker.elapsedMS);
       perf.frameEnd(ticker.elapsedMS);
       perfOverlay.tick(perf.last, performance.now());
@@ -1548,6 +1636,15 @@ async function boot(): Promise<void> {
   app.ticker.add((ticker) => {
     const dt = Math.min(ticker.deltaMS / 1000, 0.05);
     time += dt;
+    // Milestone 12: the gamepad drives whichever panel or menu is on screen.
+    padNav.update(dt);
+    menus.update();
+    // The title screen and the pause menu hold the world still.
+    if (menus.paused) {
+      pausedFrames++;
+      return;
+    }
+    pausedFrames = 0;
     if (interior.active) {
       interiorFrame(dt, ticker.deltaMS);
       return;
@@ -1557,7 +1654,7 @@ async function boot(): Promise<void> {
     const atSite = diver.x > GRID_X0 - 260 && diver.x < GRID_X1 + 260 && diver.y < GRID_BASE + 120;
     build.setAvailable(atSite && blackout === 0 && !care.active && !dockUI.active && !station.active);
     const aboardNow = !!save.sub?.aboard;
-    build.pollPad(dt);
+    if (!padNav.active) build.pollPad(dt);
     if (!build.active && rates.open) rates.close();
     rates.update(dt);
     // The walkable base: tanks, Labs and Workshops are used from inside now. A console
@@ -1622,7 +1719,7 @@ async function boot(): Promise<void> {
         'big',
       );
     }
-    input.suspended = build.active || care.active || dockUI.active || station.active;
+    input.suspended = build.active || care.active || dockUI.active || station.active || padNav.active;
     if (atSite && !save.tips.includes('build') && blackout === 0) {
       save.tips.push('build');
       hud.toast(
@@ -3556,12 +3653,16 @@ async function boot(): Promise<void> {
     status: (p) => {
       const code = pieceCode(layout, p);
       if (!layout.powered.has(p.id)) return `${code}: no power. Join it to a current turbine.`;
+      const net = layout.netFor(p.id)!;
+      const watts = `${net.draw} of ${net.make} W used${net.rate < 1 ? ` · short of power, machines at ${Math.round(net.rate * 100)}%` : ''}`;
       switch (p.kind) {
-        case 'turbine': {
-          let n = 0;
-          for (const q of layout.pieces) if (q.kind !== 'turbine' && layout.powered.has(q.id)) n++;
-          return `${code}: turning in the reef current · ${n} piece${n === 1 ? '' : 's'} powered`;
-        }
+        case 'turbine':
+          if (layout.idleTurbine(p)) return `${code}: idle. The Kestrel current only drives ${TURBINE_LIMIT} turbines`;
+          return `${code}: turning in the reef current · 12 W · ${watts}`;
+        case 'thermal':
+          return `${code}: vent-ore core glowing · 40 W · ${watts}`;
+        case 'lantern':
+          return `${code}: the Choir's light · 100 W · ${watts}`;
         case 'feeder': {
           const f = readings.feeder(p.id);
           return `${code}: hopper ${Math.round(f.hopper * 100)}% · mash ${Math.round(f.mash * 100)}%${f.run ? ' · pressing' : ''}`;
@@ -3738,7 +3839,7 @@ async function boot(): Promise<void> {
   }
   const FIND_NOTE = 'Kept in your scanner log.';
   function interiorFrame(dt: number, deltaMS: number): void {
-    input.suspended = false;
+    input.suspended = padNav.active;
     input.update();
     const s = input.state;
     const paused = hud.reading || zoneMap.open;
@@ -4011,6 +4112,9 @@ async function boot(): Promise<void> {
 
   // For automated checks: lets a test drive the diver without real touches.
   (window as unknown as { __fathom: unknown }).__fathom = {
+    perf,
+    adaptFrame: (ms: number) => adaptFrame(ms),
+    renderScale,
     diver,
     app,
     save,

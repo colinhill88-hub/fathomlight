@@ -228,6 +228,7 @@ export class StationMode {
         body += `<h3>Gear</h3>${rows}`;
       }
       if (!powered) body += '<p class="why">No power: join it to a current turbine to work.</p>';
+      else if (layout.powerRate(p.id) < 1) body += `<p class="why">Short of power: the base draws more than it makes, so this ${lab ? 'Lab' : 'Workshop'} works at ${Math.round(layout.powerRate(p.id) * 100)}% speed. Add a power source.</p>`;
     }
     const html = `<div class="head"><b>${code} · ${lab ? 'Lab' : 'Workshop'}</b><span>${powered ? 'powered' : 'no power'}</span>
         <button type="button" class="x" data-act="close" aria-label="Close">✕</button></div>${body}`;

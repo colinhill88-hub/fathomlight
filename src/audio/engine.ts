@@ -26,9 +26,16 @@ export interface AudioSettings {
   muted: boolean;
   /** iPhone: keep playing when the ring/silent switch is on silent. */
   ignoreSilent: boolean;
+  /**
+   * Milestone 12: the speaker mix. 'phone' cuts the deep rumble a phone speaker
+   * can't play (so it doesn't eat the headroom) and lifts the mids a little;
+   * 'full' is for headphones and desktop speakers. Defaults to 'phone' on touch devices.
+   */
+  speaker: 'phone' | 'full';
 }
 
-export const AUDIO_DEFAULTS: AudioSettings = { master: 0.8, music: 0.6, ambience: 0.7, effects: 0.8, muted: false, ignoreSilent: false };
+const TOUCH = typeof window !== 'undefined' && (navigator.maxTouchPoints > 0 || 'ontouchstart' in window);
+export const AUDIO_DEFAULTS: AudioSettings = { master: 0.8, music: 0.6, ambience: 0.7, effects: 0.8, muted: false, ignoreSilent: false, speaker: TOUCH ? 'phone' : 'full' };
 const KEY = 'fathomlight.audio';
 
 export function loadAudioSettings(): AudioSettings {
@@ -42,6 +49,7 @@ export function loadAudioSettings(): AudioSettings {
       }
       s.muted = !!v.muted;
       s.ignoreSilent = !!v.ignoreSilent;
+      if (v.speaker === 'phone' || v.speaker === 'full') s.speaker = v.speaker;
       return s;
     }
   } catch {
@@ -97,6 +105,11 @@ export class AudioEngine {
   private hidden = false;
   private blackout = 0;
   private meter: AnalyserNode | null = null;
+  /** Milestone 12: the final mix chain's speaker filters, and the pause duck. */
+  private lowCut!: BiquadFilterNode;
+  private presence!: BiquadFilterNode;
+  private musicShelf!: BiquadFilterNode;
+  private paused = false;
 
   /** Loudness of the output right now (RMS, 0..1), for automated checks. */
   level(): number {
@@ -209,15 +222,38 @@ export class AudioEngine {
 
   private build(): void {
     const ctx = this.ctx!;
+    // Milestone 12, the final mix chain:
+    //   fader -> low cut -> presence -> glue compressor -> limiter -> out.
+    // The glue compressor gently binds music, ambience and effects together;
+    // the limiter only catches peaks (a pile of cues at once, a bite, a dent).
     const limiter = ctx.createDynamicsCompressor();
-    limiter.threshold.value = -10;
-    limiter.knee.value = 8;
-    limiter.ratio.value = 6;
-    limiter.attack.value = 0.004;
-    limiter.release.value = 0.25;
+    limiter.threshold.value = -3;
+    limiter.knee.value = 0;
+    limiter.ratio.value = 20;
+    limiter.attack.value = 0.001;
+    limiter.release.value = 0.12;
     limiter.connect(ctx.destination);
+    const glue = ctx.createDynamicsCompressor();
+    glue.threshold.value = -20;
+    glue.knee.value = 10;
+    glue.ratio.value = 2;
+    glue.attack.value = 0.03;
+    glue.release.value = 0.35;
+    const makeup = ctx.createGain();
+    makeup.gain.value = 1.25;
+    glue.connect(makeup);
+    makeup.connect(limiter);
+    this.lowCut = ctx.createBiquadFilter();
+    this.lowCut.type = 'highpass';
+    this.lowCut.Q.value = 0.7;
+    this.presence = ctx.createBiquadFilter();
+    this.presence.type = 'peaking';
+    this.presence.frequency.value = 2400;
+    this.presence.Q.value = 0.8;
+    this.lowCut.connect(this.presence);
+    this.presence.connect(glue);
     this.fader = ctx.createGain();
-    this.fader.connect(limiter);
+    this.fader.connect(this.lowCut);
     this.meter = ctx.createAnalyser();
     this.meter.fftSize = 2048;
     limiter.connect(this.meter);
@@ -241,7 +277,13 @@ export class AudioEngine {
     this.space.connect(this.reverb);
 
     this.duck = ctx.createGain();
-    this.duck.connect(this.master);
+    // A gentle shelf under the music's pads so they don't mask the ambient drone.
+    this.musicShelf = ctx.createBiquadFilter();
+    this.musicShelf.type = 'lowshelf';
+    this.musicShelf.frequency.value = 180;
+    this.musicShelf.gain.value = -3;
+    this.duck.connect(this.musicShelf);
+    this.musicShelf.connect(this.master);
     // A soft echo on the music, fed into the reverb, for a spacious sound.
     const delay = ctx.createDelay(2);
     delay.delayTime.value = 0.72;
@@ -323,6 +365,9 @@ export class AudioEngine {
     if (!this.ctx) return;
     const s = this.settings;
     const t = this.ctx.currentTime;
+    const phone = s.speaker === 'phone';
+    this.lowCut.frequency.setTargetAtTime(phone ? 110 : 28, t, 0.05);
+    this.presence.gain.setTargetAtTime(phone ? 2.5 : 0, t, 0.05);
     this.master.gain.setTargetAtTime(s.muted ? 0 : curve(s.master), t, 0.05);
     const set = (b: Bus, v: number, makeup: number) => {
       b.dry.gain.setTargetAtTime(curve(v) * makeup, t, 0.05);
@@ -335,9 +380,16 @@ export class AudioEngine {
     set(this.buses.ui, s.effects, 2.2);
   }
 
+  /** Milestone 12: the pause menu softens everything and dips the music. */
+  setPaused(on: boolean): void {
+    if (this.paused === on) return;
+    this.paused = on;
+    this.applyFader(0.25);
+  }
+
   private applyFader(tc: number): void {
     if (!this.ctx) return;
-    const v = this.hidden ? 0 : 1 - 0.6 * this.blackout;
+    const v = this.hidden ? 0 : (1 - 0.6 * this.blackout) * (this.paused ? 0.55 : 1);
     this.fader.gain.setTargetAtTime(v, this.ctx.currentTime, Math.max(0.01, tc));
   }
 
@@ -347,7 +399,7 @@ export class AudioEngine {
     const t = this.ctx.currentTime;
     this.water.frequency.setTargetAtTime(o.muffle, t, 0.25);
     this.space.gain.setTargetAtTime(o.space, t, 0.6);
-    this.duck.gain.setTargetAtTime(o.duck, t, 0.5);
+    this.duck.gain.setTargetAtTime(o.duck * (this.paused ? 0.45 : 1), t, 0.5);
     if (Math.abs(o.blackout - this.blackout) > 0.01) {
       this.blackout = o.blackout;
       this.applyFader(0.3);

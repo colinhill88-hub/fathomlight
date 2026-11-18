@@ -514,10 +514,11 @@ export function breedNote(save: SaveData, layout: BaseLayout, c: CreatureData): 
 function tickBreeding(save: SaveData, layout: BaseLayout, dt: number, ev: CareEvent[]): void {
   const hatch = hatcheries(layout);
   // Eggs in a powered Hatchery hatch; the young wait there (they don't get hungry) until placed.
+  const hatchRate = hatch.length ? Math.max(...hatch.map((h) => layout.powerRate(h.id))) : 0;
   if (hatch.length)
     for (const c of save.nursery) {
       if (c.stage !== 'egg') continue;
-      c.growth += dt / HATCH_SECONDS;
+      c.growth += (dt * hatchRate) / HATCH_SECONDS;
       if (c.growth >= 1) {
         c.stage = 'young';
         c.growth = 0;

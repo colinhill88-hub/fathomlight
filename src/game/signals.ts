@@ -61,7 +61,8 @@ export function tickSignals(save: SaveData, layout: BaseLayout, dt: number): Sig
   if (!f) return out;
   const have = vocabulary(save);
   if (have < f.need) return out;
-  save.signals.progress = Math.min(1, save.signals.progress + dt / DECODE_SECONDS);
+  const rate = Math.max(0, ...layout.pieces.filter((p) => p.kind === 'signal' && isDone(p)).map((p) => layout.powerRate(p.id)));
+  save.signals.progress = Math.min(1, save.signals.progress + (dt * rate) / DECODE_SECONDS);
   if (save.signals.progress >= 1) {
     save.signals.progress = 0;
     save.signals.decoded.push(f.id);

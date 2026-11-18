@@ -600,6 +600,62 @@ function drawBracket(n: number, rot: number): PieceArt {
   return { body, windows, windowGlow, lamp: { x: lx, y: 24 } };
 }
 
+/**
+ * Milestone 12: the vent generator. A charcoal column like the turbine's, but
+ * sealed: a chrome-ringed porthole onto a core of glowing vent ore, heat fins
+ * down both sides, and the gold spine carrying its power.
+ */
+function drawThermal(n: number): PieceArt {
+  const W = CELL;
+  const H = CELL * 2;
+  const body = new Container();
+  const g = body.addChild(new Graphics());
+  const windows = new Graphics();
+  const windowGlow = new Graphics();
+  const cx = W / 2;
+  const hubY = H / 2 - 6;
+  tubeH(g, 0, 16, H - CELL / 2, 1);
+  tubeH(g, W - 16, W, H - CELL / 2, 1);
+  tubeH(g, 0, 16, CELL / 2, 1);
+  tubeH(g, W - 16, W, CELL / 2, 1);
+  g.roundRect(20, 6, W - 40, H - 14, 10).fill({ color: PAL.steel });
+  g.roundRect(20, 6, W - 40, 10, 5).fill({ color: PAL.steelDark });
+  g.rect(24, 16, 6, H - 30).fill({ color: 0xffffff, alpha: 0.06 });
+  // Heat fins.
+  for (let k = 0; k < 9; k++) {
+    const y = 24 + k * 9;
+    g.rect(14, y, 10, 4).fill({ color: PAL.steelDark });
+    g.rect(W - 24, y, 10, 4).fill({ color: PAL.steelDark });
+    g.rect(14, H - 30 - k * 9, 10, 4).fill({ color: PAL.steelDark });
+    g.rect(W - 24, H - 30 - k * 9, 10, 4).fill({ color: PAL.steelDark });
+  }
+  goldTraces(g, 28, 34, W - 56, 6);
+  goldTraces(g, 28, H - 34, W - 56, 6);
+  g.rect(cx - 3, 40, 6, H - 80).fill({ color: 0xb08020 });
+  windows.rect(cx - 2, 40, 4, hubY - 78).fill({ color: 0xffc040, alpha: 0.9 });
+  windows.rect(cx - 2, hubY + 38, 4, H - 40 - (hubY + 38)).fill({ color: 0xffc040, alpha: 0.9 });
+  // The core behind its porthole.
+  g.circle(cx, hubY, 36).fill({ color: PAL.steelDeep });
+  g.circle(cx, hubY, 36).stroke({ color: PAL.chrome, width: 8 });
+  g.circle(cx, hubY, 40).stroke({ color: PAL.steelDark, width: 1.2 });
+  for (let i = 0; i < 8; i++) {
+    const a = (i / 8) * Math.PI * 2;
+    g.circle(cx + Math.cos(a) * 36, hubY + Math.sin(a) * 36, 2.4).fill({ color: PAL.steelDark });
+  }
+  g.circle(cx, hubY, 28).fill({ color: 0x3a1408 });
+  windows.circle(cx, hubY, 24).fill({ color: 0xff6a1a, alpha: 0.85 });
+  windows.circle(cx - 4, hubY + 3, 14).fill({ color: 0xffa040, alpha: 0.9 });
+  windows.circle(cx + 3, hubY - 4, 6).fill({ color: 0xffe0a0 });
+  for (let i = 0; i < 5; i++) windows.circle(cx + R(-16, 16), hubY + R(-14, 14), R(2, 4)).fill({ color: 0xffd080, alpha: 0.8 });
+  g.circle(cx - 10, hubY - 12, 30).stroke({ color: PAL.chromeHi, width: 1.5, alpha: 0.4 });
+  windowGlow.circle(cx, hubY, 52).fill({ color: 0xff7a2a, alpha: 0.45 });
+  windowGlow.rect(cx - 6, 40, 12, H - 80).fill({ color: 0xffb030, alpha: 0.3 });
+  body.addChild(stencil(`VG-${n}`, cx, H - 50, 6));
+  scratches(g, 22, 10, W - 24, H - 10, 10);
+  algaeLine(g, 20, W - 20, H - 8, 8);
+  return { body, windows, windowGlow, lamp: { x: W - 30, y: 14 } };
+}
+
 function drawTurbine(n: number): PieceArt {
   // Colin's turbine board: a tall charcoal column with lime grille vents top and
   // bottom, a glowing gold spine carrying the current, side clamps, and the
@@ -1484,6 +1540,7 @@ export function drawPiece(kind: PieceKind, n: number, rot: number, seed: number)
   if (kind === 'lantern') return drawLantern(n);
   if (kind === 'bracket') return drawBracket(n, rot);
   if (kind === 'turbine') return drawTurbine(n);
+  if (kind === 'thermal') return drawThermal(n);
   if (kind === 'tank') return drawTank(n);
   if (kind === 'gtank') return drawTank(n, true);
   if (kind === 'sorter') return drawSorter(n);
@@ -1623,7 +1680,7 @@ export class BaseView {
       for (const w of l.whorls) this.dropWhorl(w);
       this.live.delete(id);
     }
-    const counts: Record<PieceKind, number> = { dome: 0, corridor: 0, turbine: 0, storage: 0, tank: 0, filter: 0, feeder: 0, press: 0, dock: 0, lab: 0, workshop: 0, gtank: 0, sorter: 0, recomp: 0, crane: 0, hatch: 0, farm: 0, revive: 0, shaft: 0, junction: 0, bracket: 0, signal: 0, lantern: 0 };
+    const counts: Record<PieceKind, number> = { dome: 0, corridor: 0, turbine: 0, storage: 0, tank: 0, filter: 0, feeder: 0, press: 0, dock: 0, lab: 0, workshop: 0, gtank: 0, sorter: 0, recomp: 0, crane: 0, hatch: 0, farm: 0, revive: 0, shaft: 0, junction: 0, bracket: 0, signal: 0, lantern: 0, thermal: 0 };
     for (const p of [...layout.pieces].sort((a, b) => a.id - b.id)) {
       counts[p.kind]++;
       if (this.live.has(p.id)) continue;

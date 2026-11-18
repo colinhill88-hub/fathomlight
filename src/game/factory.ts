@@ -354,6 +354,8 @@ export class Factory {
     for (const k of Object.keys(save.machines)) if (!byId.has(Number(k))) delete save.machines[k];
     for (const l of save.lines) this.flow(l.id).moved = 0;
     const on = (p: Placed) => isDone(p) && layout.powered.has(p.id);
+    // Milestone 12: a network short of power runs its machines and lines slower.
+    const pw = (p: Placed) => layout.powerRate(p.id);
 
     // ---- Conveyors: each carries what its source has and its target wants ----
     const has = (p: Placed, k: MaterialId): boolean => {
@@ -414,7 +416,7 @@ export class Factory {
         fl.acc = Math.min(fl.acc, 1);
         continue;
       }
-      fl.acc += (lineRate(l) / 60) * dt;
+      fl.acc += (lineRate(l) / 60) * dt * Math.min(pw(src), pw(dst));
       while (fl.acc >= 1 && pick) {
         fl.acc -= 1;
         take(src, pick);
@@ -432,7 +434,7 @@ export class Factory {
       if (f.kind !== 'farm' || !on(f)) continue;
       const m = machineData(save, f.id);
       const grow = m.grow ?? 'fibre';
-      const rate = whorlMult(save, f.id) * dt;
+      const rate = whorlMult(save, f.id) * dt * pw(f);
       if (grow === 'fibre') {
         if (m.fibre >= FARM_TRAY) continue;
         m.press += rate / FARM_SECONDS;
@@ -463,7 +465,7 @@ export class Factory {
       else if (m.fibre < 1) state = belts ? 'no-input' : 'no-belt';
       else if (m.mash > FEEDER_MASH_CAP - MASH_PER_FIBRE) state = 'full';
       else {
-        m.press += ((FEEDER_RATE * mult) / 60) * dt;
+        m.press += ((FEEDER_RATE * mult) / 60) * dt * pw(f);
         if (m.press >= 1) {
           m.press -= 1;
           m.fibre--;
@@ -486,7 +488,7 @@ export class Factory {
         }
         const td = (save.tankData[String(t.id)] ??= { water: 1, plant: null });
         const share = m.mash / (pipes.length - i);
-        const cap = (lineRate(l) / 60) * dt;
+        const cap = (lineRate(l) / 60) * dt * pw(f);
         const room = TROUGH_CAP - (td.mash ?? 0);
         const give = Math.max(0, Math.min(cap, room, share));
         // Busy = the trough wanted at least the pipe's full flow and the feeder had it.
@@ -512,7 +514,7 @@ export class Factory {
       else if (m.plate! >= PRESS_PLATE_CAP) state = beltOut ? 'full' : 'no-out';
       else if (!enough) state = beltIn ? 'no-input' : 'no-belt';
       else {
-        m.press += ((PRESS_RATE * mult) / 60) * dt;
+        m.press += ((PRESS_RATE * mult) / 60) * dt * pw(p);
         if (m.press >= 1) {
           m.press -= 1;
           m.scrap! -= PLATE_RECIPE.scrap ?? 0;

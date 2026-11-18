@@ -261,7 +261,7 @@ export class SoundDirector {
     audio.setScene({
       muffle: f.surfaced || f.inAir ? 16000 : Math.max(900, 4200 - 2300 * depth - 900 * m.cave - 500 * m.forest),
       space: f.surfaced ? 0.12 : 0.28 + 0.15 * m.basin + 0.12 * m.forest + 0.8 * m.cave + 0.3 * m.shelf + 0.6 * m.trench + 0.9 * m.sanctum,
-      duck: (f.panel ? 0.4 : 1) * (1 - 0.45 * f.lowAir),
+      duck: (f.panel ? 0.55 : 1) * (1 - 0.45 * f.lowAir),
       blackout: f.blackout,
     });
     this.ambience.update(dt, m, depth, nearSurface, f.surfaced, f.blackout);

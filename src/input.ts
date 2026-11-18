@@ -14,7 +14,8 @@
  *           (on foot: Space jumps, hold Shift to sprint),
  *           E or Q to scan (tap or hold), hold C or R to collect.
  * Mouse: hold the left button to swim towards the pointer, right-click to boost.
- * Gamepad: left stick to swim, A to boost, Y for the lamp, B to scan, hold X to collect.
+ * Gamepad: left stick to swim, A to boost, Y for the lamp, B to scan, hold X to collect,
+ * Start for the pause menu (milestone 12; panels are driven by src/ui/padnav.ts).
  * The submersible (milestone 6): the Board / Exit button (touch), V on the
  * keyboard or RB on a gamepad climbs in and out; aboard, the same controls
  * drive it (Boost fires the thrusters, Lamp switches its lights).

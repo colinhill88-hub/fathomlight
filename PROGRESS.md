@@ -1,6 +1,6 @@
 # Fathomlight progress
 
-Last updated: 2026-11-17, **milestone 10 (the deep) deployed**: the trench, crush depth, PS-2 and depth plating, three trench predators, the cinder snail key, the drowned Fulmar station and the Signal array's story fragments. Then merged with the three passes built alongside it (the stepped build trench, Colin's notes, and the kit found piece by piece). Next is **milestone 11, contact** (prompt in `docs/prompts/milestone-11.md`).
+Last updated: 2026-11-18, **milestone 12, part 1 (polish) deployed**: power as a real limit (three tiers), the gamepad in every panel and menu, a title screen and pause menu, moving a save between devices, the final audio mix, and adaptive resolution. The Steam desktop build waits, by Colin's choice. Next: more polish, then the Steam build (prompt to write when Colin is ready).
 
 Play link: https://colinhill88-hub.github.io/fathomlight/ (live; first successful deploy 2026-11-14)
 
@@ -1619,19 +1619,107 @@ Colin's feedback first (after the walker and the interior art pass): the animati
 - **The zone map** at 1280 × 720 and 844 × 390.
 - **Not tested by hand:** the two swings in the heart (the grapple fired at the first ring in the test, but a full crossing needs real hands), the touch pads on an iPhone, and frame rate on a real GPU.
 
+### Milestone 12, part 1: polish (2026-11-18)
+**Feedback on milestone 11:** "Everything looks good for now." Nothing was flagged, so nothing needed fixing first. Colin will test more later.
+
+**Colin's choices** (asked before building):
+- **Power as a real limit:** yes, three tiers (the recommended option).
+- **A shortage:** machines slow down (recommended). Nothing switches off.
+- **Gamepad:** every panel and menu (recommended).
+- **The Steam desktop build:** wait. "I wanna do more polish first."
+
+**Power as a real limit** (`POWER_MAKE`, `POWER_DRAW`, `TURBINE_LIMIT`, `PowerNet` in `src/game/base.ts`)
+- **Every source makes watts and every piece draws them.** Pieces joined together are one network and share its sources.
+  - Sources: current turbine 12 W, vent generator 40 W, Choir lantern 100 W.
+  - Draws: dome, storage, tank, filter, feeder, farm 1 W; lab, Grand tank, sorter, recompression room, Hatchery, revival pod 2 W; workshop, press, dock, crane 3 W; Signal array 4 W. Corridors, shafts, junctions and brackets draw nothing.
+- **The reef current drives only three turbines** (the first three built). A fourth stands idle and says so.
+- **Short of power:** the network's machines run at supply ÷ demand speed:
+  - production lines (conveyors, pipes, farms, feeders, presses), Labs and Workshops, the Signal array, salvage cranes, and eggs in a Hatchery;
+  - air, doors, lights, the dock's clamps, tanks' comfort and breeding are never affected.
+- **The vent generator VG-1** (`thermal`): the new middle tier.
+  - Lab research from scanning the vent field and the Fulmar (120 s). Then 5 vent ore, 3 brass, 4 copper and 2 plating, 45 s to weld.
+  - 1 × 2, collars on both levels like a turbine. Outside: a charcoal column with heat fins and a glowing orange core behind a porthole. Inside: the same core on the room's back wall.
+- **Where you see it:**
+  - build mode's title has a meter: "⚡ used / made W" (orange when short);
+  - a selected piece says what it makes or draws, and how its network is doing;
+  - the build card's line shows a piece's watts before you place it;
+  - the Lab/Workshop panel and the base's info consoles say when they run slow;
+  - a one-time tip when a finished piece first puts the base short.
+- **A typical first base** (dome, storage, tank, filter, feeder, press) draws 8 W, under one turbine. Adding a dock, Lab and Workshop needs a second turbine; a big base needs the vent generator, and a very big one the lantern.
+
+**The gamepad in every panel and menu** (`src/ui/padnav.ts`)
+- **One focus system** finds the panel on screen and drives its buttons:
+  - d-pad or left stick moves a lime highlight to the nearest button that way (held, it repeats);
+  - A presses; B closes (the panel's ✕ or Close); LB / RB step through tabs; the right stick scrolls.
+  - Sliders (the volume rows) move with left and right.
+  - The highlight only shows while a pad is in use, and the first touch of the pad only shows it.
+- **Covers:** the title screen, the pause menu, Move a save, logs and documents, contact's credits, the zone map, Settings, the scanner log, Base rates, Lab/Workshop, the dock, and tank care / the Hatchery.
+- **Build mode** keeps its own pad controls (unchanged).
+- **First contact:** the four pads answer to **A, B, X and Y** (the letter shows on each pad once a pad is used).
+- **Start** opens and closes the pause menu. While a panel holds the pad, the diver doesn't move.
+
+**Menus** (`src/ui/menu.ts`)
+- **The title screen**, on every start: Continue (or Begin the dive on a fresh game), New game (two taps), Move a save, Settings. It shows when the save was made and how big the base is. The world stands still behind it.
+- **The pause menu:** the gear button (top right), Escape, or Start on a gamepad. Resume, Settings, Scanner log, Move a save, Title screen. It saves as it opens. The world stands still, the sound softens and the music dips, and the picture stops redrawing after a few frames (saves the battery).
+- **Settings has a ✕** now, and Escape closes it.
+- Escape that closes a panel (build mode, say) doesn't also open the pause menu.
+- `?notitle` in the URL skips the title (for tests); `?bench` and `?at=` skip it too.
+
+**Moving a save between devices** (`exportSaveCode`, `readSaveCode`, `importSave`, `restoreBackup` in `src/game/state.ts`; the panel in `src/ui/menu.ts`)
+- **The code:** "FATHOM1." then the save, squeezed with the browser's own compression (about 0.8 KB for a new game).
+- **From this device:** Copy code, Share… (the iPhone's share sheet, so AirDrop to the PC or iPad works), or Save as file.
+- **From another device:** paste a code, or Open a file…. It shows the save's date and size first, and a second tap loads it.
+- **A backup:** loading a code keeps this device's own save as a backup, and "Put the backup back" swaps them.
+- Wrong or cut-short codes get a plain message and change nothing.
+- Saving stays behind `src/game/state.ts`, so Steam Cloud can plug in later.
+
+**The final mix** (`build()` in `src/audio/engine.ts`)
+- **A proper master chain:** a low cut, a presence lift, a gentle glue compressor (2:1 at −20 dB) and a true peak limiter (−3 dB). The old limiter was squashing everything at −10 dB.
+- **A soft shelf under the music** (−3 dB below 180 Hz), so its pads don't mask the ambient drone.
+- **Mix: phone speaker / headphones** (Settings → Sound). Phone mode cuts the rumble a phone speaker can't play (below 110 Hz) and lifts the mids a little. It starts on phone mode on touch devices.
+- **Panels** dip the music a little less (to 55%, was 40%). **The pause menu** softens everything to about half.
+
+**Performance tuning**
+- **Adaptive resolution** (Settings → Graphics effects, on by default; `renderScale` in `src/presets.ts`, `adaptFrame` in `src/main.ts`):
+  - if frames run more than 18% over the preset's budget (16.7 ms on High, 8.3 ms on Ultra) for 2 s, the render scale drops by 10%, to 70% at the least;
+  - after 30 s, and 8 s comfortably at the cap, it steps back up;
+  - only the picture's sharpness changes, never the effects;
+  - Settings → Resolution shows "(adaptive, 80%)" when it is down.
+- **The walkable base** only draws the moving parts of rooms and lines near the screen (it drew every room every frame).
+- **The benchmark route** gained the sanctum's great hall (`?bench&scene=8`). Fixed: `?scene=7` (the trench) couldn't be held before.
+- **Measured in the cloud** (software graphics, so CPU only; the real cost on a phone is the GPU): game update 2.1 ms in the shallows, 3.2 ms in the trench, 2.4 ms in the sanctum, 1.4 ms inside the base. The CPU is not the problem on either preset.
+
+**Not built (Colin's choice):** the Steam desktop build. When Colin wants it: Electron or Tauri, a Windows build from GitHub Actions, saves in a file for Steam Auto-Cloud, then Steamworks once there is an app ID.
+
+**Tested** (headless Chromium in the cloud, with a fake gamepad):
+- **Build:** type check and production build pass; no console errors.
+- **Screenshots** (`docs/art/milestone12/`): the power meter, Move a save, the pause menu, the contact pads, the sanctum benchmark scene.
+- **Power:** 10 domes on a turbine run at 100%; 16 at 75%; with a vent generator joined, 52 W made and 100%; a fourth turbine stands idle. Build mode's meter and piece notes read right (screenshot of the vent generator beside a turbine and dome).
+- **Title and pause:** the title at 1280 × 720 and 844 × 390; gamepad down / A opens Settings; left/right moves a volume slider; B closes it; Start opens and closes the pause menu; Escape out of build mode doesn't pause.
+- **Save codes:** a code is made, a bad code is refused with a message, a good one shows its summary, loads on the second tap and leaves a backup.
+- **Contact:** A answers the first pad in the heart.
+- **Audio:** sound plays through the new chain; the pause menu halves the level.
+- **Adaptive resolution:** at 33 fps it steps 100% → 70% in 6 s; back at the cap it returns to 100%.
+- **Not tested by hand:** a real gamepad, Share on an iPhone, the phone-speaker mix by ear, and frame rates on a real GPU.
+
 ## Next
 
-**Next session: milestone 12, polish** (prompt in `docs/prompts/milestone-12.md`):
-- the final sound and music mix (the Choir's own voice in the sanctum is in, but simple);
-- menus, a title screen, and save transfer between devices;
-- performance tuning for both presets (the trench and the sanctum are the new scenes to measure);
-- the Steam desktop build.
+**Next session: more polish** (Colin wants more before the Steam build). Ideas to choose from:
+- the left-over walkable-base items: line code plates indoors, and sounds for the lines and machines;
+- the zone map in portrait on a phone;
+- anything from Colin's next playtest.
 
-Also still open: power as a real limit (DESIGN.md, The base). The Choir lantern is ready to be its top tier.
-
-- **Left over from the walkable base:** line code plates indoors, and a sound for the lines and machines. Do these alongside milestone 12 if Colin asks.
+Then **the Steam desktop build** (DESIGN.md, Platform and tech), when Colin asks.
 
 ## Problems and open questions
+
+- **Milestone 12, to check after Colin plays:**
+  - **Power numbers** (`POWER_MAKE`, `POWER_DRAW`, `TURBINE_LIMIT` in `src/game/base.ts`): whether three turbines (36 W) is the right ceiling before the trench, and the vent generator's cost (`PIECES.thermal`) and research (`RESEARCH.thermal`: scans of the vents and the Fulmar).
+  - **Old bases:** a save with more than three turbines or a big base may now be short of power when it loads. That's the new rule, not a bug; a vent generator fixes it once the trench is reached.
+  - **Gamepad:** the highlight's moves between buttons are worked out from where they sit on screen; if a panel moves somewhere odd, note which one.
+  - **The title screen** shows on every start. If that's too much on the phone, it could show only after an hour away.
+  - **Adaptive resolution** thresholds (18% over budget down, 30 s before up) in `adaptFrame`. If you see the picture soften and sharpen in a loop, switch it off in Settings and tell me where.
+  - **Phone-speaker mix** (110 Hz low cut, +2.5 dB at 2.4 kHz): listen on the iPhone speaker and with headphones.
 
 - **Milestone 11, to check after Colin plays:**
   - **The heart's swings** (`HEART_MAP` in `src/interior/sanctum.ts`):
@@ -1645,7 +1733,7 @@ Also still open: power as a real limit (DESIGN.md, The base). The Choir lantern 
     - a phone in portrait gives a short map (it is sized for landscape);
     - the sanctum shows only after its door is open;
     - the kelp caves draw as a few hollows.
-  - **Gamepad:** contact can only be answered by touch or keys 1–4. Add pad buttons in milestone 12.
+  - **Gamepad:** contact answers to A, B, X and Y since milestone 12.
   - **The lighting bake is taller** (about 4,825 × 1,213 cells at 8 units). Check the first load time on the iPhone.
 
 - **Milestone 10, to check after Colin plays:**

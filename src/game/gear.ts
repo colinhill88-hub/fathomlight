@@ -152,6 +152,15 @@ export const RESEARCH: Record<BlueprintId, ResearchDef> = {
     scans: ['trench', 'vents', 'cvlog'],
     seconds: 120,
   },
+  // Milestone 12: the middle power tier.
+  thermal: {
+    id: 'thermal',
+    name: 'Vent generator VG-1 blueprint',
+    text: "From your scans of the vent field and the Fulmar station: the drowned crew's sealed vent-ore core, which made their power far below any current. 40 W, anywhere on the site. Unlocks a build card.",
+    finds: [],
+    scans: ['vents', 'fulmar'],
+    seconds: 120,
+  },
   lantern: {
     id: 'lantern',
     name: 'Choir lantern CL-1',
@@ -170,9 +179,9 @@ export const RESEARCH: Record<BlueprintId, ResearchDef> = {
   },
 };
 // (Milestone 11: the Choir lantern is given at first contact, never decoded in a Lab, so it isn't in RESEARCH_ORDER.)
-export const RESEARCH_ORDER: BlueprintId[] = ['light', 'gtank', 'sorter', 'relay', 'welder', 'tow', 'cutter', 'recomp', 'crane', 'sonar', 'psuit', 'revive', 'plating', 'psuit2', 'signal', 'resonator'];
+export const RESEARCH_ORDER: BlueprintId[] = ['light', 'gtank', 'sorter', 'relay', 'welder', 'tow', 'cutter', 'recomp', 'crane', 'sonar', 'psuit', 'revive', 'plating', 'psuit2', 'signal', 'thermal', 'resonator'];
 /** Blueprints that unlock a base piece (build card) instead of Workshop gear. */
-export const PIECE_BLUEPRINTS: Partial<Record<BlueprintId, string>> = { gtank: 'gtank', sorter: 'sorter', recomp: 'recomp', crane: 'crane', revive: 'revive', signal: 'signal', lantern: 'lantern' };
+export const PIECE_BLUEPRINTS: Partial<Record<BlueprintId, string>> = { gtank: 'gtank', sorter: 'sorter', recomp: 'recomp', crane: 'crane', revive: 'revive', signal: 'signal', thermal: 'thermal', lantern: 'lantern' };
 /** Milestone 10: blueprints that are fitted elsewhere (the dock) or built later, not in the Workshop. */
 export const OTHER_BLUEPRINTS: Partial<Record<BlueprintId, string>> = {
   plating: 'Fit it to KS-1 at a Moon pool dock (the Dock panel).',
@@ -334,7 +343,7 @@ export function tickStations(save: SaveData, layout: BaseLayout, dt: number): St
     if (!j) continue;
     const [what, id] = j.id.split(':');
     const secs = what === 'research' ? RESEARCH[id as BlueprintId].seconds : GEAR[id as GearId].seconds;
-    j.progress = Math.min(1, j.progress + dt / secs);
+    j.progress = Math.min(1, j.progress + (dt * layout.powerRate(p.id)) / secs);
     if (j.progress < 1) continue;
     delete save.jobs[String(p.id)];
     if (what === 'research') {

@@ -25,6 +25,8 @@ export interface ContactWord {
 
 const NOTE_HZ = [293.66, 369.99, 440, 554.37];
 const NOTE_CSS = ['#5ff0ff', '#a27cff', '#ff5ad8', '#ffe7a0'];
+/** Milestone 12: gamepad buttons for the four pads (A, B, X, Y; standard mapping 0, 1, 2, 3). */
+const PAD_KEY = ['A', 'B', 'X', 'Y'];
 const PHRASES = [
   [0, 2, 1],
   [1, 3, 0, 2],
@@ -81,7 +83,7 @@ export class Contact {
       b.type = 'button';
       b.className = 'contact-pad';
       b.style.setProperty('--c', NOTE_CSS[i]);
-      b.innerHTML = `<i></i><span></span><small>${i + 1}</small>`;
+      b.innerHTML = `<i></i><span></span><small>${i + 1}<em class="padkey"> · ${PAD_KEY[i]}</em></small>`;
       b.querySelector('span')!.textContent = words[i]?.name ?? fallback[i];
       b.addEventListener('pointerdown', (e) => {
         e.stopPropagation();
@@ -160,7 +162,23 @@ export class Contact {
 
   /** For tests on slow machines: run the sequence faster. */
   debugSpeed = 1;
+  private padPrev: boolean[] = [];
+
+  /** Milestone 12: answer with A, B, X and Y on a gamepad. */
+  private pollPad(): void {
+    const pad = (navigator.getGamepads?.() ?? []).find((p) => !!p);
+    if (!pad) return;
+    for (let i = 0; i < 4; i++) {
+      const down = !!pad.buttons[i]?.pressed;
+      if (down && !this.padPrev[i]) this.tap(i);
+      this.padPrev[i] = down;
+    }
+    // Any button press shows the pad letters on the pads.
+    if (pad.buttons.some((b) => b.pressed)) this.el?.classList.add('pad');
+  }
+
   update(dt: number): void {
+    if (this.active) this.pollPad();
     if (!this.active) return;
     dt *= this.debugSpeed;
     this.t += dt;

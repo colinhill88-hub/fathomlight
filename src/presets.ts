@@ -125,9 +125,11 @@ export interface FxToggles {
   edges?: boolean;
   /** The dev performance overlay. */
   perf: boolean;
+  /** Milestone 12: adaptive resolution (see renderScale). */
+  adaptive: boolean;
 }
 
-export const FX_DEFAULT: FxToggles = { hdr: true, tone: true, grade: true, bloom: true, vignette: true, grain: true, causticSkip: true, shadows: true, relief: true, contact: true, zones: true, rays: true, litSnow: true, dof: true, shimmer: true, grime: true, sheen: true, glass: true, eyes: true, supersample: false, perf: false };
+export const FX_DEFAULT: FxToggles = { hdr: true, tone: true, grade: true, bloom: true, vignette: true, grain: true, causticSkip: true, shadows: true, relief: true, contact: true, zones: true, rays: true, litSnow: true, dof: true, shimmer: true, grime: true, sheen: true, glass: true, eyes: true, supersample: false, perf: false, adaptive: true };
 
 const FX_KEY = 'fathomlight.fx';
 
@@ -289,9 +291,17 @@ export function resolveChoice(choice: PresetChoice): Preset {
 /** Pixel ratio to render at, honouring the preset's sharpness and 4K caps. */
 /** Graphics session G4: the Settings "Render scale" switch multiplies the pixel ratio (supersampling); 1 = off. */
 export const renderBoost = { v: 1 };
+/**
+ * Milestone 12: adaptive resolution. When frames run slow for a few seconds,
+ * main.ts lowers this in small steps (to 0.7 at the least) and raises it again
+ * when there is headroom, so a heavy scene drops a little sharpness instead of
+ * stuttering. Switch it off in Settings to see the full resolution always.
+ */
+export const renderScale = { v: 1 };
+export const RENDER_SCALE_MIN = 0.7;
 
 export function pixelRatioFor(preset: Preset, cssW: number, cssH: number): number {
-  let r = Math.min(window.devicePixelRatio || 1, preset.maxPixelRatio) * renderBoost.v;
+  let r = Math.min(window.devicePixelRatio || 1, preset.maxPixelRatio) * renderBoost.v * renderScale.v;
   const pixels = cssW * cssH * r * r;
   if (pixels > preset.maxBackbufferPixels) r *= Math.sqrt(preset.maxBackbufferPixels / pixels);
   return Math.max(1, r);

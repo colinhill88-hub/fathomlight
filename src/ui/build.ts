@@ -1,5 +1,8 @@
 import {
   BaseLayout,
+  POWER_DRAW,
+  POWER_MAKE,
+  TURBINE_LIMIT,
   canAfford,
   available,
   CELL,
@@ -87,6 +90,8 @@ const TAB_OF = Object.fromEntries(PIECE_ORDER.map((k) => [k, STRUCTURE.includes(
 
 /** Small side-view icons for the palette, drawn as SVG. */
 const PIECE_ICONS: Record<PieceKind, string> = {
+  thermal:
+    '<svg viewBox="0 0 40 32"><rect x="12" y="1" width="16" height="30" rx="3" fill="#2c3236"/><rect x="9" y="6" width="3" height="5" fill="#a4b0b7"/><rect x="28" y="6" width="3" height="5" fill="#a4b0b7"/><rect x="9" y="21" width="3" height="5" fill="#a4b0b7"/><rect x="28" y="21" width="3" height="5" fill="#a4b0b7"/><circle cx="20" cy="16" r="7" fill="#a4b0b7"/><circle cx="20" cy="16" r="5" fill="#ff7a2a"/><circle cx="20" cy="16" r="2.2" fill="#ffe0a0"/><rect x="15" y="4" width="10" height="2" fill="#c6f03a"/><rect x="15" y="26" width="10" height="2" fill="#c6f03a"/></svg>',
   lantern:
     '<svg viewBox="0 0 40 32"><rect x="1" y="13" width="38" height="6" fill="#2c3236"/><rect x="17" y="1" width="6" height="30" fill="#2c3236"/><circle cx="20" cy="16" r="11" fill="none" stroke="#b8c0d8" stroke-width="4"/><circle cx="20" cy="16" r="6" fill="#a27cff" opacity=".7"/><circle cx="20" cy="16" r="3" fill="#5ff0ff"/><circle cx="20" cy="16" r="1.4" fill="#f4fbff"/></svg>',
   signal:
@@ -200,6 +205,7 @@ export class BuildMode {
   private btn = document.getElementById('build-btn') as HTMLButtonElement;
   private bar = document.getElementById('build-bar')!;
   private info = document.getElementById('build-info')!;
+  private titleEl = document.getElementById('build-title')!;
   private placeBtn = document.getElementById('build-place') as HTMLButtonElement;
   private rotateBtn = document.getElementById('build-rotate') as HTMLButtonElement;
   private cancelBtn = document.getElementById('build-cancel') as HTMLButtonElement;
@@ -1437,7 +1443,7 @@ export class BuildMode {
       if ((!linkFrom || !linkTo) && !this.linkTargets().length)
         text += `<span class="why">Nothing here can ${link.anchor === 'from' ? 'take it' : 'feed it'} yet.</span>`;
     } else if (g) {
-      text = `<b>${PIECES[g.kind].name}</b>: ${PIECES[g.kind].job}`;
+      text = `<b>${PIECES[g.kind].name}</b>: ${PIECES[g.kind].job}${POWER_MAKE[g.kind] ? ` <span class="rate">Makes ${POWER_MAKE[g.kind]} W</span>` : POWER_DRAW[g.kind] ? ` <span class="rate">Draws ${POWER_DRAW[g.kind]} W</span>` : ''}`;
       text += this.reason ? `<span class="why">${this.reason}</span>` : '<span class="ok">Fits here: tap ✓ to place the frame</span>';
     } else if (this.selectedLine !== null) {
       const l = save.lines.find((q) => q.id === this.selectedLine)!;
@@ -1462,10 +1468,7 @@ export class BuildMode {
         busy?.id === sel.id ? `Drone welding: ${pct}% · about ${left} s left` : `Waiting for the drone · ${pct}% welded`
       }</span>`;
     } else if (sel) {
-      const on = layout.powered.has(sel.id);
-      text = `<b>${PIECES[sel.kind].name}</b>: ${PIECES[sel.kind].job}<span class="${on ? 'ok' : 'why'}">${
-        on ? (sel.kind === 'turbine' ? 'Making power' : 'Powered') : 'No power: join it to a current turbine'
-      }</span>${this.pieceDetails(sel)}`;
+      text = `<b>${PIECES[sel.kind].name}</b>: ${PIECES[sel.kind].job}${this.powerNote(sel)}${this.pieceDetails(sel)}`;
     } else if (!drone) {
       text = `Plan freely, but nothing can be built yet.<span class="why">${NO_DRONE}</span>`;
     } else if (!layout.pieces.length) {
@@ -1477,9 +1480,27 @@ export class BuildMode {
         document.body.classList.contains('touch') ? 'Drag to look around, pinch to zoom.' : 'Drag or WASD to look around, wheel to zoom, F to fit.'
       }${frames ? `<span class="ok">${frames} frame${frames > 1 ? 's' : ''} waiting for the drone</span>` : ''}${
         unpowered ? `<span class="why">${unpowered} piece${unpowered > 1 ? 's have' : ' has'} no power</span>` : ''
-      }`;
+      }${layout.nets.some((n) => n.rate < 1) ? '<span class="why">Short of power: machines run slower. Add a power source (tap one to see its watts).</span>' : ''}`;
     }
     if (this.info.innerHTML !== text) this.info.innerHTML = text;
+    // Milestone 12: the power meter in the title.
+    const tot = layout.powerTotals();
+    const short = layout.nets.some((n) => n.rate < 1);
+    const title = `Building · Kestrel site <span class="pw${short ? ' short' : ''}">⚡ ${tot.draw} / ${tot.make} W</span>`;
+    if (this.titleEl.innerHTML !== title) this.titleEl.innerHTML = title;
+  }
+
+  /** One line about a finished piece's power. */
+  private powerNote(sel: Placed): string {
+    const layout = this.deps.layout;
+    const net = layout.netFor(sel.id);
+    if (!net) return `<span class="why">No power: join it to a current turbine${this.deps.save.blueprints.includes('thermal') ? ' or a vent generator' : ''}</span>`;
+    if (layout.idleTurbine(sel)) return `<span class="why">Idle: the Kestrel current only drives ${TURBINE_LIMIT} turbines. Build a vent generator for more power.</span>`;
+    const make = POWER_MAKE[sel.kind];
+    const own = make ? `Makes ${make} W · ` : POWER_DRAW[sel.kind] ? `Draws ${POWER_DRAW[sel.kind]} W · ` : '';
+    if (net.rate < 1)
+      return `<span class="why">${own}Short of power: this network draws ${net.draw} W but makes ${net.make} W, so its machines run at ${Math.round(net.rate * 100)}% speed</span>`;
+    return `<span class="ok">${own}Powered (${net.draw} of ${net.make} W used)</span>`;
   }
 }
 
