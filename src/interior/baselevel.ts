@@ -238,7 +238,7 @@ export interface BaseCtx {
   /** Milestone 9: the Hatchery's panel, the Kelp farm's crop and tray, and the Revival pool. */
   hatchery(id: number): void;
   nursery(): CreatureData[];
-  farmCrop(id: number): { name: string; grow: 'fibre' | PlantId; progress: number; tray: number; cap: number };
+  farmCrop(id: number): { name: string; grow: 'fibre' | 'resin' | PlantId; progress: number; tray: number; cap: number };
   farmCycle(id: number): void;
   farmTake(id: number): void;
   reviveLabel(): { ok: boolean; text: string };
@@ -452,7 +452,7 @@ export class BaseHooks implements InteriorHooks {
     for (const r of this.level.rooms) {
       if (r.kind !== 'farm') continue;
       const f = this.ctx.farmCrop(r.piece.id);
-      const plant: PlantId = f.grow === 'fibre' ? 'kelp' : f.grow;
+      const plant: PlantId = f.grow === 'fibre' ? 'kelp' : f.grow === 'resin' ? 'bladder' : f.grow;
       let cr = this.crops.get(r.piece.id);
       if (!cr || cr.key !== plant) {
         cr?.plants.forEach((p) => p.destroy({ children: true }));
@@ -787,9 +787,9 @@ export class BaseHooks implements InteriorHooks {
       case 'farmtray': {
         const f = c.farmCrop(p.id);
         if (!on) return `${code}: no power. The grow lamps are off.`;
-        if (f.grow === 'fibre' && f.tray > 0) return { key: 'ftray', label: `Take ${f.tray} kelp fibre from the tray`, seconds: 0.5, done: () => c.farmTake(p.id) };
-        return f.grow === 'fibre'
-          ? `${code}: growing kelp fibre · ${Math.round(f.progress * 100)}% · tray ${f.tray}/${f.cap}`
+        if ((f.grow === 'fibre' || f.grow === 'resin') && f.tray > 0) return { key: 'ftray', label: `Take ${f.tray} ${f.name} from the tray`, seconds: 0.5, done: () => c.farmTake(p.id) };
+        return f.grow === 'fibre' || f.grow === 'resin'
+          ? `${code}: growing ${f.grow === 'resin' ? 'bladder kelp for resin' : 'kelp fibre'} · ${Math.round(f.progress * 100)}% · tray ${f.tray}/${f.cap}`
           : `${code}: growing ${f.name} cuttings · ${Math.round(f.progress * 100)}% · ready cuttings go to the planters`;
       }
       case 'revive':

@@ -217,8 +217,12 @@ export interface MachineData {
   scrap?: number;
   copper?: number;
   plate?: number;
-  /** Milestone 9, the Kelp farm: what it grows ('fibre' or a plant's id). Its tray uses `fibre`, its progress `press`. */
-  grow?: 'fibre' | PlantId;
+  /**
+   * Milestone 9, the Kelp farm: what it grows ('fibre', 'resin' or a plant's id). Its fibre tray uses `fibre`,
+   * its resin tray `resin` (after milestone 12), its progress `press`.
+   */
+  grow?: 'fibre' | 'resin' | PlantId;
+  resin?: number;
 }
 
 /** Modules that fit the submersible's slots (milestone 6; rules in src/game/sub.ts). */

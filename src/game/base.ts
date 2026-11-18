@@ -332,7 +332,7 @@ export const PIECES: Record<PieceKind, PieceDef> = {
   farm: {
     kind: 'farm',
     name: 'Kelp farm',
-    job: 'Grows kelp fibre under lamps, into its own tray, so a conveyor can carry it to an auto feeder or storage. Or switch it to grow cuttings of a tank plant you have scanned: planting with a cutting costs nothing.',
+    job: 'Grows kelp fibre under lamps, into its own tray, so a conveyor can carry it to an auto feeder or storage. Once bladder kelp is scanned it can grow resin instead (the only way to make resin at the base), or cuttings of a tank plant: planting with a cutting costs nothing.',
     cost: { fibre: 4, resin: 3, quartz: 2, copper: 2 },
     buildTime: 32,
     ports: { beltOut: 2 },

@@ -166,6 +166,13 @@ export const FARM_TRAY = 4;
 /** Seconds per plant cutting, and how many of each kind the base keeps ready. */
 export const CUTTING_SECONDS = 200;
 export const CUTTING_CAP = 3;
+/**
+ * After milestone 12: the farm can also grow bladder kelp for its resin (once
+ * bladder kelp is scanned). Nothing else makes resin except the wild kelp in
+ * the forest, and the breeding wing (Grand tanks, Hatcheries, sorting pods,
+ * more farms) is built from it. Slower than fibre.
+ */
+export const RESIN_SECONDS = 300;
 
 // ---- Echo whorls ----
 export const WHORLS_PER_PIECE = 2;
@@ -244,7 +251,7 @@ export function upgradeCost(kind: LineKind, cells: number, tier: number): Partia
 function sends(kind: PieceKind): MaterialId[] | null {
   if (kind === 'storage' || kind === 'sorter' || kind === 'tank' || kind === 'gtank') return null;
   if (kind === 'press') return ['plate'];
-  if (kind === 'farm') return ['fibre'];
+  if (kind === 'farm') return ['fibre', 'resin'];
   return [];
 }
 /** Solid materials a piece takes in from a conveyor (null: anything). */
@@ -362,7 +369,7 @@ export class Factory {
       if (isStoreKind(p.kind)) return save.stored[k] > 0;
       if (isTankKind(p.kind)) return (save.tankData[String(p.id)]?.out?.[k] ?? 0) > 0;
       if (p.kind === 'press') return k === 'plate' && (machineData(save, p.id).plate ?? 0) > 0;
-      if (p.kind === 'farm') return k === 'fibre' && machineData(save, p.id).fibre > 0;
+      if (p.kind === 'farm') return k === 'fibre' ? machineData(save, p.id).fibre > 0 : k === 'resin' && (machineData(save, p.id).resin ?? 0) > 0;
       return false;
     };
     /** How full the target is of k (0..1), or null if it has no room or no use for it. */
@@ -383,7 +390,11 @@ export class Factory {
         o[k] = (o[k] ?? 0) - 1;
         if (!o[k]) delete o[k];
       } else if (p.kind === 'press') machineData(save, p.id).plate!--;
-      else if (p.kind === 'farm') machineData(save, p.id).fibre--;
+      else if (p.kind === 'farm') {
+        const m = machineData(save, p.id);
+        if (k === 'resin') m.resin = (m.resin ?? 0) - 1;
+        else m.fibre--;
+      }
     };
     const give = (p: Placed, k: MaterialId) => {
       if (isStoreKind(p.kind)) save.stored[k]++;
@@ -435,7 +446,14 @@ export class Factory {
       const m = machineData(save, f.id);
       const grow = m.grow ?? 'fibre';
       const rate = whorlMult(save, f.id) * dt * pw(f);
-      if (grow === 'fibre') {
+      if (grow === 'resin') {
+        if ((m.resin ?? 0) >= FARM_TRAY) continue;
+        m.press += rate / RESIN_SECONDS;
+        if (m.press >= 1) {
+          m.press = 0;
+          m.resin = (m.resin ?? 0) + 1;
+        }
+      } else if (grow === 'fibre') {
         if (m.fibre >= FARM_TRAY) continue;
         m.press += rate / FARM_SECONDS;
         if (m.press >= 1) {

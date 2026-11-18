@@ -1702,6 +1702,12 @@ Colin's feedback first (after the walker and the interior art pass): the animati
 - **Adaptive resolution:** at 33 fps it steps 100% → 70% in 6 s; back at the cap it returns to 100%.
 - **Not tested by hand:** a real gamepad, Share on an iPhone, the phone-speaker mix by ear, and frame rates on a real GPU.
 
+### After milestone 12 part 1: the Kelp farm grows resin (2026-11-18)
+Colin asked how breeding and the Kelp farm fit the loop. One grown puffcap makes enough kelp fibre to feed about nine creatures, so once puffcaps are in a tank the farm's fibre adds little. The farm now has a job nothing else at the base does:
+- **A resin crop** (`RESIN_SECONDS` 300 in `src/game/factory.ts`). Once bladder kelp is scanned, the CROP console cycles fibre → **resin** → plant cuttings. One resin every 5 minutes into its tray (4), carried out by conveyor like fibre, or taken by hand.
+- **Why:** no creature makes resin, and the wild bladder kelp (7 spots in the forest, 10 minutes to regrow) is the only other source. The breeding wing is built from it: Grand tank 6, Hatchery 4, sorting pod 4, another farm 3.
+- Tested: a farm on resin with a conveyor to storage, 15 minutes of play: 3 grown, 2 carried to storage, 1 in the tray.
+
 ## Next
 
 **Next session: more polish** (Colin wants more before the Steam build). Ideas to choose from:

@@ -3680,8 +3680,8 @@ async function boot(): Promise<void> {
         case 'farm': {
           const m = machineData(save, p.id);
           const grow = m.grow ?? 'fibre';
-          return `${code}: growing ${grow === 'fibre' ? 'kelp fibre' : `${PLANTS[grow].name.toLowerCase()} cuttings`} · ${Math.round(Math.min(1, m.press) * 100)}%${
-            grow === 'fibre' ? ` · tray ${m.fibre}/${FARM_TRAY}` : ` · ${save.cuttings[grow] ?? 0} ready`
+          return `${code}: growing ${grow === 'fibre' ? 'kelp fibre' : grow === 'resin' ? 'bladder kelp for resin' : `${PLANTS[grow].name.toLowerCase()} cuttings`} · ${Math.round(Math.min(1, m.press) * 100)}%${
+            grow === 'fibre' ? ` · tray ${m.fibre}/${FARM_TRAY}` : grow === 'resin' ? ` · tray ${m.resin ?? 0}/${FARM_TRAY}` : ` · ${save.cuttings[grow] ?? 0} ready`
           }`;
         }
         default:
@@ -3697,11 +3697,21 @@ async function boot(): Promise<void> {
     farmCrop: (id) => {
       const m = machineData(save, id);
       const grow = m.grow ?? 'fibre';
-      return { name: grow === 'fibre' ? 'kelp fibre' : `${PLANTS[grow].name.toLowerCase()} cuttings`, grow, progress: Math.min(1, m.press), tray: m.fibre, cap: FARM_TRAY };
+      return {
+        name: grow === 'fibre' ? 'kelp fibre' : grow === 'resin' ? 'resin' : `${PLANTS[grow].name.toLowerCase()} cuttings`,
+        grow,
+        progress: Math.min(1, m.press),
+        tray: grow === 'resin' ? (m.resin ?? 0) : m.fibre,
+        cap: FARM_TRAY,
+      };
     },
     farmCycle: (id) => {
       const m = machineData(save, id);
-      const opts: ('fibre' | (typeof PLANT_ORDER)[number])[] = ['fibre', ...PLANT_ORDER.filter((pl) => save.scans.includes(PLANTS[pl].scan))];
+      const opts: ('fibre' | 'resin' | (typeof PLANT_ORDER)[number])[] = [
+        'fibre',
+        ...(save.scans.includes(PLANTS.bladder.scan) ? (['resin'] as const) : []),
+        ...PLANT_ORDER.filter((pl) => save.scans.includes(PLANTS[pl].scan)),
+      ];
       const i = opts.indexOf(m.grow ?? 'fibre');
       m.grow = opts[(i + 1) % opts.length];
       m.press = 0;
@@ -3709,16 +3719,21 @@ async function boot(): Promise<void> {
       hud.toast(
         m.grow === 'fibre'
           ? 'The farm grows kelp fibre: into its tray, for a conveyor (to an auto feeder or storage), or take it by hand.'
-          : `The farm grows ${PLANTS[m.grow].name.toLowerCase()} cuttings (${save.cuttings[m.grow] ?? 0} ready). Planting it in a tank uses a cutting instead of materials.`,
+          : m.grow === 'resin'
+            ? 'The farm grows bladder kelp and taps its resin: one every 5 minutes into its tray, for a conveyor to storage. Grand tanks, Hatcheries and sorting pods are built from it.'
+            : `The farm grows ${PLANTS[m.grow].name.toLowerCase()} cuttings (${save.cuttings[m.grow] ?? 0} ready). Planting it in a tank uses a cutting instead of materials.`,
       );
       persist();
     },
     farmTake: (id) => {
       const m = machineData(save, id);
-      if (m.fibre <= 0) return;
+      const resin = m.resin ?? 0;
+      if (m.fibre <= 0 && resin <= 0) return;
       save.bag.fibre += m.fibre;
-      hud.toast(`+${m.fibre} kelp fibre from the farm's tray`);
+      save.bag.resin += resin;
+      hud.toast(`+${[m.fibre ? `${m.fibre} kelp fibre` : '', resin ? `${resin} resin` : ''].filter(Boolean).join(' and ')} from the farm's tray`);
       m.fibre = 0;
+      m.resin = 0;
       hud.refreshInventory();
       persist();
     },
