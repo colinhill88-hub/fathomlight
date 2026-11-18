@@ -238,7 +238,7 @@ export interface BaseCtx {
   /** Milestone 9: the Hatchery's panel, the Kelp farm's crop and tray, and the Revival pool. */
   hatchery(id: number): void;
   nursery(): CreatureData[];
-  farmCrop(id: number): { name: string; grow: 'fibre' | PlantId; progress: number; tray: number; cap: number };
+  farmCrop(id: number): { name: string; grow: 'fibre' | 'resin' | PlantId; progress: number; tray: number; cap: number };
   farmCycle(id: number): void;
   farmTake(id: number): void;
   reviveLabel(): { ok: boolean; text: string };
@@ -452,7 +452,7 @@ export class BaseHooks implements InteriorHooks {
     for (const r of this.level.rooms) {
       if (r.kind !== 'farm') continue;
       const f = this.ctx.farmCrop(r.piece.id);
-      const plant: PlantId = f.grow === 'fibre' ? 'kelp' : f.grow;
+      const plant: PlantId = f.grow === 'fibre' ? 'kelp' : f.grow === 'resin' ? 'bladder' : f.grow;
       let cr = this.crops.get(r.piece.id);
       if (!cr || cr.key !== plant) {
         cr?.plants.forEach((p) => p.destroy({ children: true }));
@@ -659,6 +659,9 @@ export class BaseHooks implements InteriorHooks {
         add(b.ox + b.ow * 0.62, b.bottom, 'recomp', 70);
         add(b.ox + 70, b.bottom, 'info', 60);
         break;
+      case 'thermal':
+        add(b.cx, b.bottom, 'info', 120);
+        break;
       case 'turbine':
         this.turbines.push({ x: b.ox + 140, y: b.floor(0) - 92, r: 64, id });
         add(b.cx, b.bottom, 'info', 120);
@@ -784,9 +787,9 @@ export class BaseHooks implements InteriorHooks {
       case 'farmtray': {
         const f = c.farmCrop(p.id);
         if (!on) return `${code}: no power. The grow lamps are off.`;
-        if (f.grow === 'fibre' && f.tray > 0) return { key: 'ftray', label: `Take ${f.tray} kelp fibre from the tray`, seconds: 0.5, done: () => c.farmTake(p.id) };
-        return f.grow === 'fibre'
-          ? `${code}: growing kelp fibre · ${Math.round(f.progress * 100)}% · tray ${f.tray}/${f.cap}`
+        if ((f.grow === 'fibre' || f.grow === 'resin') && f.tray > 0) return { key: 'ftray', label: `Take ${f.tray} ${f.name} from the tray`, seconds: 0.5, done: () => c.farmTake(p.id) };
+        return f.grow === 'fibre' || f.grow === 'resin'
+          ? `${code}: growing ${f.grow === 'resin' ? 'bladder kelp for resin' : 'kelp fibre'} · ${Math.round(f.progress * 100)}% · tray ${f.tray}/${f.cap}`
           : `${code}: growing ${f.name} cuttings · ${Math.round(f.progress * 100)}% · ready cuttings go to the planters`;
       }
       case 'revive':
@@ -1032,6 +1035,22 @@ export class BaseHooks implements InteriorHooks {
           g.rect(b.ox + 8, fy - 14, 22, 4).fill({ color: COL.chrome });
           e.rect(b.ox + 10, fy - 13, 18, 2).fill({ color: COL.lime, alpha: 0.7 });
           addText(sign(`L${r.h - k}`, b.ox + 56, fy - 22, 9, 0xc6f03a, 0.65));
+        }
+        break;
+      }
+      case 'thermal': {
+        // Milestone 12: the core generator's room. A sealed porthole onto its glowing core, heat fins either side.
+        const y = b.floor(0) - 92;
+        g.circle(b.cx, y, 70).fill({ color: COL.chrome });
+        g.circle(b.cx, y, 70).stroke({ color: COL.chromeDark, width: 3 });
+        g.circle(b.cx, y, 58).fill({ color: 0x3a1408 });
+        e.circle(b.cx, y, 52).fill({ color: 0xff6a1a, alpha: 0.75 });
+        e.circle(b.cx - 8, y + 6, 30).fill({ color: 0xffa040, alpha: 0.85 });
+        e.circle(b.cx + 6, y - 8, 12).fill({ color: 0xffe0a0 });
+        gl.circle(b.cx, y, 110).fill({ color: 0xff7a2a, alpha: 0.35 });
+        for (let k = 0; k < 8; k++) {
+          g.rect(b.cx - 120, y - 60 + k * 16, 30, 6).fill({ color: COL.wallDark });
+          g.rect(b.cx + 90, y - 60 + k * 16, 30, 6).fill({ color: COL.wallDark });
         }
         break;
       }
@@ -1419,12 +1438,25 @@ export class BaseHooks implements InteriorHooks {
 
   // -------------------------------------------------------------------------
 
-  animate(d: Graphics, de: Graphics, time: number): void {
+  animate(d: Graphics, de: Graphics, time: number, view?: { x0: number; y0: number; x1: number; y1: number }): void {
     const c = this.ctx;
+    // Milestone 12: only draw what is near the screen (a big base has many rooms and lines).
+    const M = 300;
+    const near = (x0: number, y0: number, x1: number, y1: number) => !view || (x1 > view.x0 - M && x0 < view.x1 + M && y1 > view.y0 - M && y0 < view.y1 + M);
     // Things riding the lines: bundles of material on belts (their colour), soft pulses in pipes.
     for (const r of this.routes) {
       const fl = c.flow(r.id);
       if (!fl || fl.rate <= 0.02) continue;
+      if (view) {
+        let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+        for (const [px, py] of r.pts) {
+          if (px < x0) x0 = px;
+          if (px > x1) x1 = px;
+          if (py < y0) y0 = py;
+          if (py > y1) y1 = py;
+        }
+        if (!near(x0, y0, x1, y1)) continue;
+      }
       if (r.kind === 'belt') {
         const [col, hi] = ITEM_COLOURS[fl.item ?? 'fibre'];
         const off = (time * (r.tier > 1 ? 44 : 24) * 2.2) % 28;
@@ -1456,8 +1488,9 @@ export class BaseHooks implements InteriorHooks {
       d.circle(t.x, t.y, 6).fill({ color: COL.chromeDark });
     }
     for (const r of this.level.rooms) {
-      const on = this.powered(r.piece.id);
       const b = this.box(r);
+      if (!near(b.ox, b.oy, b.ox + b.ow, b.oy + b.oh)) continue;
+      const on = this.powered(r.piece.id);
       const bot = b.bottom;
       const id = r.piece.id;
       if (r.kind === 'dock' && c.subDocked(id)) {

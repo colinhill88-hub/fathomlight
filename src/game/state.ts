@@ -76,7 +76,7 @@ export const REGROW_SECONDS = 10 * 60;
  * Scrap grows back faster (Colin, after milestone 7b: waiting for scrap made the
  * fresh-save road to the Lab and Workshop slow).
  */
-export const REGROW_BY_KIND: Partial<Record<MaterialId, number>> = { scrap: 6 * 60 };
+export const REGROW_BY_KIND: Partial<Record<MaterialId, number>> = { scrap: 6 * 60, resin: 20 * 60 };
 export function regrowSeconds(kind: string): number {
   return REGROW_BY_KIND[kind as MaterialId] ?? REGROW_SECONDS;
 }
@@ -217,12 +217,17 @@ export interface MachineData {
   scrap?: number;
   copper?: number;
   plate?: number;
-  /** Milestone 9, the Kelp farm: what it grows ('fibre' or a plant's id). Its tray uses `fibre`, its progress `press`. */
-  grow?: 'fibre' | PlantId;
+  /**
+   * Milestone 9, the Kelp farm: what it grows ('fibre', 'resin' or a plant's id). Its fibre tray uses `fibre`,
+   * its resin tray `resin` (after milestone 12), its progress `press`.
+   */
+  grow?: 'fibre' | 'resin' | PlantId;
+  resin?: number;
 }
 
 /** Modules that fit the submersible's slots (milestone 6; rules in src/game/sub.ts). */
-export type SubModule = 'cargo' | 'lights' | 'grabber';
+/** After milestone 12: six more modules (afterburner, sonar dome, tractor beam, ballast pod, habitat pod, drill nose). */
+export type SubModule = 'cargo' | 'lights' | 'grabber' | 'booster' | 'sdome' | 'tractor' | 'ballast' | 'habitat' | 'drill';
 
 /** The submersible KS-1 (milestone 6). There is one; it is built at a Moon pool dock. */
 export interface SubData {
@@ -257,11 +262,11 @@ export interface SubData {
 }
 
 /** Milestone 7: gear built in the Workshop (rules in src/game/gear.ts). */
-export type GearId = 'light' | 'cutter' | 'tow' | 'welder' | 'relay' | 'sonar' | 'psuit' | 'psuit2' | 'resonator';
+export type GearId = 'light' | 'cutter' | 'tow' | 'welder' | 'relay' | 'sonar' | 'psuit' | 'psuit2' | 'resonator' | 'dart' | 'flare' | 'boots' | 'satchel' | 'cowl' | 'visor' | 'dash';
 /** Blueprints the Lab decodes. Each one lets the Workshop build something, or unlocks a base piece. */
-export type BlueprintId = 'light' | 'cutter' | 'tow' | 'welder' | 'relay' | 'gtank' | 'sorter' | 'sonar' | 'psuit' | 'recomp' | 'crane' | 'revive' | 'psuit2' | 'plating' | 'signal' | 'resonator' | 'lantern';
+export type BlueprintId = 'light' | 'cutter' | 'tow' | 'welder' | 'relay' | 'gtank' | 'sorter' | 'sonar' | 'psuit' | 'recomp' | 'crane' | 'revive' | 'psuit2' | 'plating' | 'signal' | 'resonator' | 'lantern' | 'thermal' | 'hatch' | 'dart' | 'flare' | 'boots' | 'satchel' | 'cowl' | 'visor' | 'dash' | 'booster' | 'sdome' | 'tractor' | 'ballast' | 'habitat' | 'drill';
 /** Data finds the diver brings back to the Lab (they weigh nothing). */
-export type FindId = 'recorder' | 'relaylog' | 'weldchip' | 'towcoil' | 'cache' | 'sonardata' | 'suitplans' | 'poolplans' | 'hulllogs' | 'ps2plans' | 'resonplans';
+export type FindId = 'recorder' | 'relaylog' | 'weldchip' | 'towcoil' | 'cache' | 'sonardata' | 'suitplans' | 'poolplans' | 'hulllogs' | 'ps2plans' | 'resonplans' | 'nurserylog';
 /** What a Lab or Workshop is busy with. */
 export interface StationJob {
   /** 'research:light' or 'build:light'. */
@@ -273,7 +278,7 @@ export interface StationJob {
 /** A base piece as saved (see src/game/base.ts). */
 export interface SavedPiece {
   id: number;
-  kind: 'dome' | 'corridor' | 'turbine' | 'storage' | 'tank' | 'filter' | 'feeder' | 'press' | 'dock' | 'lab' | 'workshop' | 'gtank' | 'sorter' | 'recomp' | 'crane' | 'hatch' | 'farm' | 'revive' | 'shaft' | 'junction' | 'bracket' | 'signal' | 'lantern';
+  kind: 'dome' | 'corridor' | 'turbine' | 'storage' | 'tank' | 'filter' | 'feeder' | 'press' | 'dock' | 'lab' | 'workshop' | 'gtank' | 'sorter' | 'recomp' | 'crane' | 'hatch' | 'farm' | 'revive' | 'shaft' | 'junction' | 'bracket' | 'signal' | 'lantern' | 'thermal';
   gx: number;
   gy: number;
   rot: number;
@@ -315,6 +320,10 @@ export interface SaveData {
   tankData: Record<string, TankData>;
   /** The specimen jar on the diver's belt. A blackout lets its creature swim home. */
   jar: JarData | null;
+  /** After milestone 12: the specimen satchel's second slot (it moves into the jar when the jar is emptied). */
+  jar2?: JarData | null;
+  /** After milestone 12: the soft rock seam in the trench wall, drilled open by KS-1's drill nose. */
+  seamOpen?: boolean;
   /**
    * The kit found out in the world (Colin, before milestone 11: the diver's kit
    * builds up as things are found). The specimen jar, and the hip thruster:
@@ -323,6 +332,11 @@ export interface SaveData {
   kit: { jar: boolean; thruster: 0 | 1 | 2 };
   /** Wild creature or egg spot id -> play time when it was collected (they come back). */
   caught: Record<string, number>;
+  /**
+   * After milestone 12 (Colin): wild young (and eggs) taken from the wild, per species. The wild only
+   * spares WILD_CAP of each; more come from breeding. See wildAllowed in src/game/creatures.ts.
+   */
+  wildCaught: Partial<Record<SpeciesId, number>>;
   /** Creatures that died of neglect, kept in storage as dormant remains (revived later). */
   dormant: Partial<Record<SpeciesId, number>>;
   /**
@@ -330,6 +344,8 @@ export interface SaveData {
    * Hatchery, and the young that hatched from them waiting to be placed.
    */
   nursery: CreatureData[];
+  /** After milestone 12: feed mash in the Hatcheries' shared trough (a feed pipe fills it, or a hand feed). */
+  nurseryMash?: number;
   /** Milestone 9: plant cuttings grown in a Kelp farm, used instead of materials when planting. */
   cuttings: Partial<Record<PlantId, number>>;
   /** Milestone 9: the wreck shelf's rusted locker, picked open by a grown tinker crab. */
@@ -432,6 +448,7 @@ export function freshSave(spawnX: number, spawnY: number): SaveData {
     jar: null,
     kit: { jar: false, thruster: 0 },
     caught: {},
+    wildCaught: {},
     dormant: {},
     nursery: [],
     cuttings: {},
@@ -471,6 +488,14 @@ export function freshSave(spawnX: number, spawnY: number): SaveData {
   };
 }
 
+/** Older saves: count the wild-born creatures they already keep as the ones taken from the wild. */
+function countWild(d: Partial<SaveData>): Partial<Record<SpeciesId, number>> {
+  const out: Partial<Record<SpeciesId, number>> = {};
+  for (const c of [...(Array.isArray(d.creatures) ? d.creatures : []), ...(Array.isArray(d.nursery) ? d.nursery : [])])
+    if ((c.traits?.gen ?? 1) <= 1) out[c.species] = (out[c.species] ?? 0) + 1;
+  return out;
+}
+
 export function loadSave(spawnX: number, spawnY: number): { data: SaveData; loaded: boolean } {
   const fresh = freshSave(spawnX, spawnY);
   if (BENCH_RUN) return { data: fresh, loaded: false };
@@ -494,6 +519,7 @@ export function loadSave(spawnX: number, spawnY: number): { data: SaveData; load
       creatures: Array.isArray(d.creatures) ? d.creatures : [],
       tankData: d.tankData && typeof d.tankData === 'object' ? d.tankData : {},
       caught: d.caught && typeof d.caught === 'object' ? d.caught : {},
+      wildCaught: d.wildCaught && typeof d.wildCaught === 'object' ? d.wildCaught : countWild(d),
       dormant: d.dormant && typeof d.dormant === 'object' ? d.dormant : {},
       nursery: Array.isArray(d.nursery) ? d.nursery : [],
       cuttings: d.cuttings && typeof d.cuttings === 'object' ? d.cuttings : {},
@@ -603,4 +629,111 @@ export function clearSave(): void {
 
 export function maxOxygen(d: SaveData): number {
   return BASE_OXYGEN + d.tanks.length * TANK_BONUS;
+}
+
+// ---------------------------------------------------------------------------
+// Milestone 12: moving a save between devices.
+//
+// A save code is the save, squeezed with the browser's own deflate and
+// written as letters and digits: "FATHOM1." then base64url. It goes by copy
+// and paste, a file, or the share sheet (AirDrop on an iPhone). Loading one
+// keeps a backup of this device's save first, and the normal loadSave()
+// fills in anything an older code lacks. A Steam build can swap localStorage
+// for a file under the same calls (writeSave, loadSave, exportSaveCode,
+// importSaveCode).
+
+const CODE_PREFIX = 'FATHOM1.';
+const BACKUP_KEY = 'fathomlight.save.backup';
+
+function toB64url(bytes: Uint8Array): string {
+  let bin = '';
+  for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+function fromB64url(s: string): Uint8Array {
+  const b = s.replace(/-/g, '+').replace(/_/g, '/');
+  const bin = atob(b + '='.repeat((4 - (b.length % 4)) % 4));
+  const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
+}
+
+async function pipeThrough(bytes: Uint8Array, stream: CompressionStream | DecompressionStream): Promise<Uint8Array> {
+  const out = new Response(new Blob([bytes as BlobPart]).stream().pipeThrough(stream));
+  return new Uint8Array(await out.arrayBuffer());
+}
+
+/** The save as a code to carry to another device. */
+export async function exportSaveCode(d: SaveData): Promise<string> {
+  const json = new TextEncoder().encode(JSON.stringify(d));
+  if (typeof CompressionStream === 'undefined') return CODE_PREFIX + 'J' + toB64url(json);
+  return CODE_PREFIX + 'Z' + toB64url(await pipeThrough(json, new CompressionStream('deflate-raw')));
+}
+
+/** A short summary of a save, to show before loading it. */
+export function describeSave(d: Partial<SaveData>): string {
+  const pieces = Array.isArray(d.pieces) ? d.pieces.length : 0;
+  const creatures = Array.isArray(d.creatures) ? d.creatures.length : 0;
+  const scans = Array.isArray(d.scans) ? d.scans.length : 0;
+  const when = d.savedAt ? new Date(d.savedAt).toLocaleString() : 'unknown time';
+  return `Saved ${when} · ${pieces} base piece${pieces === 1 ? '' : 's'} · ${creatures} creature${creatures === 1 ? '' : 's'} · ${scans} scanner entr${scans === 1 ? 'y' : 'ies'}`;
+}
+
+/** Read a save code. Throws a plain-language Error if it is not one. */
+export async function readSaveCode(code: string): Promise<Partial<SaveData>> {
+  const c = code.replace(/\s+/g, '');
+  if (!c.startsWith(CODE_PREFIX)) throw new Error('That is not a Fathomlight save code (it should start with FATHOM1.).');
+  const kind = c[CODE_PREFIX.length];
+  let bytes: Uint8Array;
+  try {
+    bytes = fromB64url(c.slice(CODE_PREFIX.length + 1));
+    if (kind === 'Z') bytes = await pipeThrough(bytes, new DecompressionStream('deflate-raw'));
+    else if (kind !== 'J') throw new Error('kind');
+  } catch {
+    throw new Error('The code is damaged or cut short. Copy the whole code and try again.');
+  }
+  let d: Partial<SaveData>;
+  try {
+    d = JSON.parse(new TextDecoder().decode(bytes));
+  } catch {
+    throw new Error('The code is damaged or cut short. Copy the whole code and try again.');
+  }
+  if (!d || typeof d !== 'object' || d.v !== 1) throw new Error('This code is from a version of Fathomlight this one cannot read.');
+  return d;
+}
+
+/** Replace this device's save with one read from a code (the old one is kept as a backup). */
+export function importSave(d: Partial<SaveData>): boolean {
+  try {
+    const old = localStorage.getItem(KEY);
+    if (old) localStorage.setItem(BACKUP_KEY, old);
+    localStorage.setItem(KEY, JSON.stringify(d));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Is there a backup from before the last loaded code? */
+export function hasBackup(): boolean {
+  try {
+    return !!localStorage.getItem(BACKUP_KEY);
+  } catch {
+    return false;
+  }
+}
+
+/** Put the backup back (swapping it with the current save). */
+export function restoreBackup(): boolean {
+  try {
+    const b = localStorage.getItem(BACKUP_KEY);
+    if (!b) return false;
+    const cur = localStorage.getItem(KEY);
+    localStorage.setItem(KEY, b);
+    if (cur) localStorage.setItem(BACKUP_KEY, cur);
+    return true;
+  } catch {
+    return false;
+  }
 }

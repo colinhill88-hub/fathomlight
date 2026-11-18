@@ -262,6 +262,8 @@ export const KC_FINDS = {
   weldchip: { x: 17060, from: 1320 },
   towcoil: { x: 17350, from: 860 },
   cache: { x: 19000, from: 1650 },
+  // After milestone 12: the Hatchery's notes, in the alcove behind the kelp wall (the cutter torch opens it).
+  nurserylog: { x: 15545, from: 1470 },
 } as const;
 /** Every open shape, for drawing. */
 export function caveShapes(): readonly CaveShape[] {
@@ -406,6 +408,14 @@ export function corvinaSolid(x: number, y: number): boolean | null {
 /** The hidden passage in the shelf edge that a sonar pulse reveals (milestone 8 part 2). */
 export const HIDDEN = { tunnel: cap(19790, 1560, 44, 19560, 1548, 42), room: ell(19470, 1528, 92, 58), x: 19760, y: 1560 };
 export const hidden = { open: false };
+/**
+ * After milestone 12: a soft rock seam in the sheer wall under the trench rim
+ * (the face of the first ledge, about 28 m down). KS-1's drill nose bores it
+ * open: a sub-sized tunnel into a sealed grotto where blooms have grown in the
+ * dark, with vent ore and an Echo whorl.
+ */
+export const SEAM = { tunnel: cap(27400, 2150, 92, 27060, 2160, 96), room: ell(26850, 2165, 230, 140), x: 27390, y: 2150 };
+export const seam = { open: false };
 /** Heavy salvage on the shelf floor: the sub's grabber lifts it, a salvage crane breaks it down. */
 export const SALVAGE = [
   // Kept well away from the brass spots, so the grabber's Collect isn't taken by a fitting.
@@ -760,6 +770,7 @@ export function isSolid(x: number, y: number): boolean {
     if (!cleft.open && x > CLEFT.plug.x0 && x < CLEFT.plug.x1 && y > CLEFT.plug.y0 && y < CLEFT.plug.y1) return true;
     if (inShape(CLEFT.tunnel, x, y) || inShape(CLEFT.room, x, y)) return false;
   }
+  if (seam.open && x > 26600 && x < 27500 && y > 2000 && y < 2320 && (inShape(SEAM.tunnel, x, y) || inShape(SEAM.room, x, y))) return false;
   if (hidden.open && x > 19370 && x < 19840 && y > 1460 && (inShape(HIDDEN.tunnel, x, y) || inShape(HIDDEN.room, x, y))) return false;
   if (y >= groundY(x)) return !inCave(x, y) && !inKelpCaves(x, y);
   if (y > 540 && y < 780 && x > 5690 && x < 6880 && inPolygon(x, y, LEDGE)) return true;
@@ -780,6 +791,9 @@ export function inCaveTunnel(x: number, y: number): boolean {
 export function bakeSkyVisibility(cell: number, blurPasses: number): HTMLCanvasElement {
   const wasOpen = boom.open;
   boom.open = true;
+  // The drill seam is baked open, so the lamp lights the grotto once it is bored (the plug is drawn as rock).
+  const seamWas = seam.open;
+  seam.open = true;
   const w = Math.ceil(WORLD_SPAN / cell);
   const h = Math.ceil(WORLD_H / cell);
   const vis = new Float32Array(w * h);
@@ -844,6 +858,7 @@ export function bakeSkyVisibility(cell: number, blurPasses: number): HTMLCanvasE
   }
   ctx.putImageData(img, 0, 0);
   boom.open = wasOpen;
+  seam.open = seamWas;
   return canvas;
 }
 

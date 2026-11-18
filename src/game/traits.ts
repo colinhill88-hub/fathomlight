@@ -45,8 +45,17 @@ export const PATTERNS: Record<SpeciesId, string[]> = {
 };
 export const RARE_COLOUR = 3;
 
-/** Chance a colour or pattern mutates in an egg. */
+/** Chance a colour mutates in an egg. */
 export const MUTATION = 0.08;
+/**
+ * After milestone 12 (Colin: breeding should find new patterns at least as fast as
+ * the wild): a pattern mutates this often, and a mutation always gives a pattern
+ * neither parent shows (when there is one). The third pattern of each species is
+ * never found in the wild: only breeding brings it out.
+ */
+export const PATTERN_MUTATION = 0.2;
+/** Wild creatures only ever show the first this-many patterns. */
+export const WILD_PATTERNS = 2;
 /** Chance an egg is radiant, by how many parents are. */
 export const RADIANT_ODDS = [0.04, 0.35, 0.75];
 /** A radiant grown creature makes this much more. */
@@ -66,7 +75,7 @@ function pickWeighted(r: number, w: number[]): number {
 
 /** Traits of a creature from the wild: common colours and patterns, never radiant. */
 export function wildTraits(rand: () => number = Math.random): Traits {
-  return { colour: pickWeighted(rand(), [55, 30, 15]), pattern: pickWeighted(rand(), [60, 25, 15]), gen: 1 };
+  return { colour: pickWeighted(rand(), [55, 30, 15]), pattern: pickWeighted(rand(), [65, 35]), gen: 1 };
 }
 
 /** Its traits. Creatures from before milestone 9 get wild traits fixed by their id. */
@@ -77,7 +86,11 @@ export function traitsOf(c: { id: number; traits?: Traits }): Traits {
 /** An egg's traits from two parents. */
 export function inherit(a: Traits, b: Traits, rand: () => number = Math.random): Traits {
   const colour = rand() < MUTATION ? Math.floor(rand() * 4) : rand() < 0.5 ? a.colour : b.colour;
-  const pattern = rand() < MUTATION ? Math.floor(rand() * 3) : rand() < 0.5 ? a.pattern : b.pattern;
+  let pattern = rand() < 0.5 ? a.pattern : b.pattern;
+  if (rand() < PATTERN_MUTATION) {
+    const fresh = [0, 1, 2].filter((p) => p !== a.pattern && p !== b.pattern);
+    pattern = fresh.length ? fresh[Math.floor(rand() * fresh.length)] : Math.floor(rand() * 3);
+  }
   const radiant = rand() < RADIANT_ODDS[(a.radiant ? 1 : 0) + (b.radiant ? 1 : 0)];
   return { colour, pattern, radiant: radiant || undefined, gen: Math.max(a.gen ?? 1, b.gen ?? 1) + 1 };
 }

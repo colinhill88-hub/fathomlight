@@ -19,7 +19,8 @@ export const BENCH = typeof location !== 'undefined' && new URLSearchParams(loca
 /** ?bench&still holds the view perfectly still (for before and after screenshots of the same frame). */
 export const STILL = typeof location !== 'undefined' && new URLSearchParams(location.search).has('still');
 
-const BENCH_SCENE_COUNT = 7;
+// Milestone 12: was 7, which kept ?scene=7 (the trench) from being held. Keep in step with BENCH_SCENES.
+const BENCH_SCENE_COUNT = 9;
 
 /** ?bench&scene=N stays in scene N (0 to 6) and never moves on: for screenshots. */
 export const HOLD: number | null = (() => {
@@ -64,6 +65,8 @@ export const BENCH_SCENES: BenchScene[] = [
   { id: 'base', name: 'Base interior, ceiling lines', x: 0, y: 0, face: 1, lamp: true, zoom: 1, interior: true, sway: 0 },
   // Milestone 10 (appended, so the scene numbers above keep their meaning).
   { id: 'trench', name: 'Trench vent field, lamp on', x: 29700, y: 150, floor: true, face: 1, lamp: true, zoom: 1, sway: 100 },
+  // Milestone 12: the sanctum's great hall (the newest big scene).
+  { id: 'sanctum', name: 'Sanctum, great hall', x: 30860, y: 8250, face: -1, lamp: true, zoom: 1, sway: 120 },
 ];
 
 /** Where a scene's diver sits (the seabed offset resolved). */

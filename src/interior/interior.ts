@@ -71,7 +71,8 @@ export interface InteriorHooks {
   /** Extra art over the tiles, drawn once: lit, unlit (emissive) and glow layers, and signs. */
   decorate(g: Graphics, e: Graphics, gl: Graphics, addLamp: (x: number, y: number, zone: number) => void, addText: (t: Text) => void, phase: 'back' | 'front'): void;
   /** Moving art, every frame. */
-  animate(d: Graphics, de: Graphics, time: number): void;
+  /** view: the world rectangle on screen, so far-off rooms can be skipped (milestone 12). */
+  animate(d: Graphics, de: Graphics, time: number, view?: { x0: number; y0: number; x1: number; y1: number }): void;
   /** Is a room (lamp zone) powered? */
   powered(zone: number): boolean;
   /** Extra lights (screens, glowing tanks). */
@@ -1627,7 +1628,7 @@ export class Interior {
     if (this.opts.animate) this.opts.animate(d, de, this.time);
     if (this.hooks) {
       de.clear();
-      this.hooks.animate(d, de, this.time);
+      this.hooks.animate(d, de, this.time, { x0: this.cam.x, y0: this.cam.y, x1: this.cam.x + viewW, y1: this.cam.y + viewH });
       this.hooks.tick?.(dt, this.time, this.cam.x, this.cam.x + viewW);
     }
     this.drawLift(d, de, this.front);

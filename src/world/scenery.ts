@@ -48,6 +48,7 @@ import {
   corvinaHouse,
   CV_HATCH,
   HIDDEN,
+  SEAM,
   shapesField,
   SALVAGE,
 } from './terrain';
@@ -1193,6 +1194,16 @@ export class Scenery {
         g.moveTo(x + 18, y - 14).quadraticCurveTo(x + 40, y, x + 62, y - 2).stroke({ color: 0xb89a5a, width: 2.5 });
       }
       {
+        // After milestone 12: the nursery log's crate, with a warm egg stencilled on its lid.
+        const x = KC_FINDS.nurserylog.x;
+        const y = floor('nurserylog');
+        g.roundRect(x - 22, y - 20, 44, 20, 3).fill({ color: 0x4a545a });
+        g.rect(x - 22, y - 20, 44, 4).fill({ color: 0xc9a24a });
+        g.ellipse(x, y - 10, 5, 6.5).fill({ color: 0xffd890 });
+        g.ellipse(x - 1, y - 12, 2, 2.4).fill({ color: 0xfff4d0, alpha: 0.8 });
+        rustStreaks(g, x - 18, x + 18, y - 16, 4, 8);
+      }
+      {
         const x = KC_FINDS.cache.x;
         const y = floor('cache');
         g.roundRect(x - 40, y - 34, 80, 34, 4).fill({ color: 0x6a5a4c });
@@ -1515,6 +1526,8 @@ export class Scenery {
       this.setVane(0);
     }
     this.buildHidden();
+    this.buildSeam();
+    this.setSeam(false);
     this.buildLocker();
     this.setHidden(false);
     // Heavy salvage: a rusted winch drum, a propeller hub and an engine block, lying in the silt.
@@ -1554,6 +1567,38 @@ export class Scenery {
     this.view.addChild(o, sh);
     this.scanPoints.hidden.push({ x: 19770, y: 1560 });
   }
+  // ---- After milestone 12: the drill seam under the trench rim, and the grotto behind it ----
+  private seamOpenG = new Graphics();
+  private seamShutG = new Graphics();
+  private buildSeam(): void {
+    const o = this.seamOpenG;
+    const fn = (x: number, y: number) => shapesField([SEAM.tunnel, SEAM.room], x, y);
+    traceField(o, (x, y) => fn(x, y) - 10, 26580, 27480, 1990, 2340, 6, 0x2a2430, 0.7);
+    traceField(o, fn, 26580, 27480, 1990, 2340, 6, 0x120f18, 1);
+    // Bore marks round the tunnel, and pale crystal in the grotto's walls.
+    for (let i = 0; i < 12; i++) {
+      const x = R(27080, 27380);
+      o.moveTo(x, SEAM.y - 80).lineTo(x - 6, SEAM.y + 80).stroke({ color: 0x3a3440, width: 1.2, alpha: 0.6 });
+    }
+    for (let i = 0; i < 18; i++) {
+      const a = R(Math.PI * 1.05, Math.PI * 1.95);
+      const x = SEAM.room.x + Math.cos(a) * SEAM.room.rx * 0.92;
+      const y = SEAM.room.y + Math.sin(a) * SEAM.room.ry * 0.92;
+      o.poly([x, y, x + R(-4, 4), y - R(8, 16), x + R(4, 8), y]).fill({ color: 0x8a90a8, alpha: 0.7 });
+    }
+    o.visible = false;
+    // The seam, shut: a band of pale, flaky soft rock across the wall, glinting.
+    const sh = this.seamShutG;
+    for (let i = 0; i < 46; i++) dab(sh, R(27330, 27420), R(2050, 2250), R(8, 20), R(5, 12), rand() < 0.5 ? 0x8a8070 : 0x9a9282, 0.8);
+    for (let i = 0; i < 16; i++) sh.circle(R(27340, 27415), R(2060, 2240), R(1.2, 2.4)).fill({ color: 0xe8f0ff, alpha: 0.8 });
+    for (let k = 0; k < 4; k++) sh.moveTo(27330 + k * 22, 2040).lineTo(27340 + k * 22, 2260).stroke({ color: 0x5a5448, width: 1.4, alpha: 0.6 });
+    this.view.addChild(o, sh);
+  }
+  setSeam(open: boolean): void {
+    this.seamOpenG.visible = open;
+    this.seamShutG.visible = !open;
+  }
+
   setHidden(open: boolean): void {
     this.hiddenOpen.visible = open;
     this.hiddenShut.visible = !open;

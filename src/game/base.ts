@@ -80,7 +80,7 @@ export const SITE = (() => {
 /** How many cells of the site are open water. */
 export const OPEN_CELLS = OPEN.filter(Boolean).length;
 
-export type PieceKind = 'dome' | 'corridor' | 'turbine' | 'storage' | 'tank' | 'filter' | 'feeder' | 'press' | 'dock' | 'lab' | 'workshop' | 'gtank' | 'sorter' | 'recomp' | 'crane' | 'hatch' | 'farm' | 'revive' | 'shaft' | 'junction' | 'bracket' | 'signal' | 'lantern';
+export type PieceKind = 'dome' | 'corridor' | 'turbine' | 'storage' | 'tank' | 'filter' | 'feeder' | 'press' | 'dock' | 'lab' | 'workshop' | 'gtank' | 'sorter' | 'recomp' | 'crane' | 'hatch' | 'farm' | 'revive' | 'shaft' | 'junction' | 'bracket' | 'signal' | 'lantern' | 'thermal';
 /** Creature tanks of either size (milestone 7 part 2 added the Grand tank). */
 export function isTankKind(k: PieceKind): boolean {
   return k === 'tank' || k === 'gtank';
@@ -138,7 +138,7 @@ export const PIECES: Record<PieceKind, PieceDef> = {
   turbine: {
     kind: 'turbine',
     name: 'Current turbine',
-    job: 'Turns the reef current into power for every piece joined to it.',
+    job: 'Turns the reef current into 12 W of power for the pieces joined to it. The Kestrel current only drives three turbines; more stand idle.',
     cost: { scrap: 2, copper: 4, fibre: 1 },
     buildTime: 28,
     // Doorways on both levels: the upper pair (after the terrain pass) joins pieces to the top deck.
@@ -179,7 +179,7 @@ export const PIECES: Record<PieceKind, PieceDef> = {
     kind: 'tank',
     name: 'Creature tank',
     job: 'Houses up to four creatures. Stop by it with a creature in your jar and tap Collect to put it in; tap Tend to look after them.',
-    cost: { scrap: 2, quartz: 3, fibre: 1 },
+    cost: { scrap: 2, quartz: 3, fibre: 1, copper: 2 },
     buildTime: 24,
     ports: { pipeIn: 1, beltOut: 2 },
     whorls: true,
@@ -264,7 +264,7 @@ export const PIECES: Record<PieceKind, PieceDef> = {
     kind: 'gtank',
     name: 'Grand tank',
     job: 'A big tank for up to eight creatures, with a planter for two kinds of plant, so two species can both have their favourite. Collect and Tend work as with a creature tank.',
-    cost: { resin: 6, plate: 4, quartz: 3, moss: 2 },
+    cost: { resin: 6, plate: 4, quartz: 3, moss: 2, brass: 3 },
     buildTime: 50,
     ports: { pipeIn: 1, beltOut: 2 },
     whorls: true,
@@ -326,13 +326,15 @@ export const PIECES: Record<PieceKind, PieceDef> = {
     name: 'Hatchery',
     job: 'Happy grown pairs in the base\'s tanks lay eggs now and then: the Hatchery collects them and keeps them warm (4 at a time). Choose a tank for each young one that hatches. Colour and glow pattern pass from parent to young.',
     cost: { resin: 4, quartz: 3, moss: 2, copper: 2 },
+    blueprint: 'hatch',
+    ports: { pipeIn: 1 },
     buildTime: 36,
     shapes: [{ w: 2, h: 1, collars: [{ cx: 0, cy: 0, dir: 'L' }, { cx: 1, cy: 0, dir: 'R' }, { cx: 0, cy: 0, dir: 'U' }] }],
   },
   farm: {
     kind: 'farm',
     name: 'Kelp farm',
-    job: 'Grows kelp fibre under lamps, into its own tray, so a conveyor can carry it to an auto feeder or storage. Or switch it to grow cuttings of a tank plant you have scanned: planting with a cutting costs nothing.',
+    job: 'Grows kelp fibre under lamps, into its own tray, so a conveyor can carry it to an auto feeder or storage. Once bladder kelp is scanned it can grow resin instead (the only way to make resin at the base), or cuttings of a tank plant: planting with a cutting costs nothing.',
     cost: { fibre: 4, resin: 3, quartz: 2, copper: 2 },
     buildTime: 32,
     ports: { beltOut: 2 },
@@ -399,11 +401,33 @@ export const PIECES: Record<PieceKind, PieceDef> = {
       },
     ],
   },
+  // Milestone 12: power as a real limit. The middle tier, from the trench's vent ore.
+  thermal: {
+    kind: 'thermal',
+    // After milestone 12 (Colin: the power ceiling came too long before the trench): copied from the Corvina, built from shelf materials.
+    name: 'Core generator',
+    job: "A copy of the Corvina's sealed power core, glowing behind its porthole. It makes 40 W, more than three current turbines, and needs no current, so it works anywhere on the site.",
+    cost: { brass: 4, copper: 5, plate: 3, quartz: 2 },
+    buildTime: 45,
+    blueprint: 'thermal',
+    shapes: [
+      {
+        w: 1,
+        h: 2,
+        collars: [
+          { cx: 0, cy: 0, dir: 'L' },
+          { cx: 0, cy: 0, dir: 'R' },
+          { cx: 0, cy: 1, dir: 'L' },
+          { cx: 0, cy: 1, dir: 'R' },
+        ],
+      },
+    ],
+  },
   // Milestone 11: the Choir's gift after contact. A power source like a turbine, but it needs no current.
   lantern: {
     kind: 'lantern',
     name: 'Choir lantern',
-    job: "A seed of the Choir's light in a ring of pale stone. It powers every piece joined to it, like a current turbine, anywhere on the site, and lights the base in the Choir's colours.",
+    job: "A seed of the Choir's light in a ring of pale stone. It makes 100 W, needs no current and works anywhere on the site, and lights the base in the Choir's colours.",
     cost: { quartz: 4, ore: 2, bloom: 1 },
     buildTime: 30,
     blueprint: 'lantern',
@@ -449,7 +473,7 @@ export const PIECES: Record<PieceKind, PieceDef> = {
     ],
   },
 };
-export const PIECE_ORDER: PieceKind[] = ['dome', 'corridor', 'turbine', 'storage', 'tank', 'filter', 'feeder', 'press', 'dock', 'lab', 'workshop', 'gtank', 'sorter', 'recomp', 'crane', 'hatch', 'farm', 'revive', 'signal', 'lantern', 'shaft', 'junction', 'bracket'];
+export const PIECE_ORDER: PieceKind[] = ['dome', 'corridor', 'turbine', 'storage', 'tank', 'filter', 'feeder', 'press', 'dock', 'lab', 'workshop', 'gtank', 'sorter', 'recomp', 'crane', 'hatch', 'farm', 'revive', 'signal', 'thermal', 'lantern', 'shaft', 'junction', 'bracket'];
 /** Each sorting pod's bay for every material. */
 export const SORT_BAY = 12;
 
@@ -534,6 +558,32 @@ function cellsOf(p: Omit<Placed, 'id'>): [number, number][] {
   return out;
 }
 
+
+/**
+ * Milestone 12: power as a real limit (Colin's choices: three tiers, and a
+ * shortage slows machines down instead of switching anything off).
+ *
+ * Every source makes watts and every piece draws watts. Pieces joined into
+ * one network share its sources. If a network draws more than it makes, its
+ * machines (production lines, Labs, Workshops, the Signal array, cranes,
+ * Hatcheries) run at supply ÷ demand speed. Air, doors, lights and the dock's
+ * clamps never fail.
+ */
+export const POWER_MAKE: Partial<Record<PieceKind, number>> = { turbine: 12, thermal: 40, lantern: 100 };
+/** The Kestrel current only drives this many turbines in all; the rest stand idle. */
+export const TURBINE_LIMIT = 3;
+export const POWER_DRAW: Record<PieceKind, number> = {
+  dome: 1, corridor: 0, turbine: 0, storage: 1, tank: 1, filter: 1, feeder: 1, press: 3, dock: 3, lab: 2, workshop: 3,
+  gtank: 2, sorter: 2, recomp: 2, crane: 3, hatch: 2, farm: 1, revive: 2, shaft: 0, junction: 0, bracket: 0, signal: 4, lantern: 0, thermal: 0,
+};
+export interface PowerNet {
+  make: number;
+  draw: number;
+  /** supply ÷ demand, capped at 1. */
+  rate: number;
+  ids: number[];
+}
+
 /** The base as a whole: which cells are taken, which collars are joined, which pieces have power. */
 export class BaseLayout {
   pieces: Placed[] = [];
@@ -541,6 +591,9 @@ export class BaseLayout {
   /** Piece id -> ids of the pieces it is joined to. */
   links = new Map<number, number[]>();
   powered = new Set<number>();
+  /** Milestone 12: the power network each powered piece is on. */
+  nets: PowerNet[] = [];
+  private netOf = new Map<number, PowerNet>();
 
   constructor(pieces: Placed[]) {
     this.set(pieces);
@@ -563,7 +616,7 @@ export class BaseLayout {
     // Frames still being welded neither work nor pass power on.
     this.powered.clear();
     const done = new Set(pieces.filter(isDone).map((p) => p.id));
-    const queue = pieces.filter((p) => (p.kind === 'turbine' || p.kind === 'lantern') && done.has(p.id)).map((p) => p.id);
+    const queue = pieces.filter((p) => POWER_MAKE[p.kind] && done.has(p.id)).map((p) => p.id);
     for (const id of queue) this.powered.add(id);
     while (queue.length) {
       const id = queue.shift()!;
@@ -574,6 +627,60 @@ export class BaseLayout {
         }
       }
     }
+    // Split the powered pieces into networks and add up each one's watts.
+    this.nets = [];
+    this.netOf.clear();
+    const byId = new Map(pieces.map((p) => [p.id, p]));
+    // Turbines past the limit (in build order) stand idle.
+    const liveTurbines = new Set(pieces.filter((p) => p.kind === 'turbine' && done.has(p.id)).sort((a, b) => a.id - b.id).slice(0, TURBINE_LIMIT).map((p) => p.id));
+    for (const start of [...this.powered].sort((a, b) => a - b)) {
+      if (this.netOf.has(start)) continue;
+      const net: PowerNet = { make: 0, draw: 0, rate: 1, ids: [] };
+      const q = [start];
+      this.netOf.set(start, net);
+      while (q.length) {
+        const id = q.pop()!;
+        net.ids.push(id);
+        const p = byId.get(id)!;
+        net.make += p.kind === 'turbine' ? (liveTurbines.has(id) ? 12 : 0) : POWER_MAKE[p.kind] ?? 0;
+        net.draw += POWER_DRAW[p.kind];
+        for (const n of this.links.get(id) ?? []) {
+          if (!this.powered.has(n) || this.netOf.has(n)) continue;
+          this.netOf.set(n, net);
+          q.push(n);
+        }
+      }
+      net.rate = net.draw <= net.make ? 1 : net.make / net.draw;
+      this.nets.push(net);
+    }
+  }
+
+  /** How fast this piece's machines run: 1 with enough power, less when its network is short, 0 with none. */
+  powerRate(id: number): number {
+    return this.netOf.get(id)?.rate ?? 0;
+  }
+
+  /** The network this piece is on, if it has power. */
+  netFor(id: number): PowerNet | undefined {
+    return this.netOf.get(id);
+  }
+
+  /** The whole base's watts (all networks together). */
+  powerTotals(): { make: number; draw: number } {
+    let make = 0;
+    let draw = 0;
+    for (const n of this.nets) {
+      make += n.make;
+      draw += n.draw;
+    }
+    return { make, draw };
+  }
+
+  /** Is this turbine one the Kestrel current can't drive (past the limit)? */
+  idleTurbine(p: Placed): boolean {
+    if (p.kind !== 'turbine' || !isDone(p)) return false;
+    const live = this.pieces.filter((q) => q.kind === 'turbine' && isDone(q)).sort((a, b) => a.id - b.id).slice(0, TURBINE_LIMIT);
+    return !live.some((q) => q.id === p.id);
   }
 
   pieceAt(gx: number, gy: number): Placed | undefined {
@@ -699,6 +806,7 @@ const CODE_PREFIX: Record<PieceKind, string> = {
   bracket: 'BR-',
   signal: 'SA-',
   lantern: 'CL-',
+  thermal: 'CG-',
 };
 
 /** A piece's stencil code, as painted on it: CT-1, AF-2, PP-1, TANK 3. Pieces are numbered per kind in build order. */

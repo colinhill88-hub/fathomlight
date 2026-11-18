@@ -261,7 +261,7 @@ export class SoundDirector {
     audio.setScene({
       muffle: f.surfaced || f.inAir ? 16000 : Math.max(900, 4200 - 2300 * depth - 900 * m.cave - 500 * m.forest),
       space: f.surfaced ? 0.12 : 0.28 + 0.15 * m.basin + 0.12 * m.forest + 0.8 * m.cave + 0.3 * m.shelf + 0.6 * m.trench + 0.9 * m.sanctum,
-      duck: (f.panel ? 0.4 : 1) * (1 - 0.45 * f.lowAir),
+      duck: (f.panel ? 0.55 : 1) * (1 - 0.45 * f.lowAir),
       blackout: f.blackout,
     });
     this.ambience.update(dt, m, depth, nearSurface, f.surfaced, f.blackout);
@@ -507,6 +507,42 @@ export class SoundDirector {
     audio.bell({ t, freq: 520, gain: 0.07, decay: 2.4, ratio: 1, index: 0.2, send: 0.9 });
     audio.tone({ t, freq: 900, to: 260, dur: 0.5, gain: 0.05, send: 0.8 });
     audio.bell({ t: t + 0.7, freq: 520, gain: 0.025, decay: 2, ratio: 1, index: 0.2, send: 0.9 });
+  }
+
+  // ---- After milestone 12: the new gear's cues ----
+  /** The flare launcher: a pop, then the fizz of the flare catching. */
+  flare(): void {
+    if (!audio.running) return;
+    const t = audio.now;
+    audio.thump({ t, freq: 180, gain: 0.12, dur: 0.12, send: 0.3 });
+    audio.hiss({ t: t + 0.05, dur: 0.9, gain: 0.06, freq: 2400, to: 1400, q: 0.8, send: 0.4 });
+    audio.bubbles({ t, n: 6, spread: 0.3, gain: 0.03 });
+  }
+  /** The stun dart: a sharp release and a crackle where it strikes. */
+  dart(hit: boolean): void {
+    if (!audio.running) return;
+    const t = audio.now;
+    audio.thump({ t, freq: 260, gain: 0.1, dur: 0.08 });
+    audio.hiss({ t, dur: 0.15, gain: 0.08, freq: 3000, to: 1200, q: 1.5 });
+    if (hit) for (let i = 0; i < 6; i++) audio.hiss({ t: t + 0.18 + i * 0.03, dur: 0.02, gain: 0.07, freq: 4000 + Math.random() * 2000, q: 4 });
+  }
+  /** The TH-3 dash: a hard burst of the thruster. */
+  dash(): void {
+    if (!audio.running) return;
+    const t = audio.now;
+    audio.hiss({ t, dur: 0.45, gain: 0.14, freq: 500, to: 1600, q: 0.7, brown: true });
+    audio.bubbles({ t, n: 14, spread: 0.5, gain: 0.05, low: 300, high: 1200 });
+  }
+  /** The tractor beam drawing a material in: a rising hum. */
+  tractor(): void {
+    if (!audio.running) return;
+    audio.tone({ freq: 220, to: 660, dur: 0.6, attack: 0.05, gain: 0.04, type: 'triangle', send: 0.5 });
+  }
+  /** The drill nose biting soft rock. */
+  drill(): void {
+    if (!audio.running) return;
+    audio.metal({ freq: 140 + Math.random() * 60, gain: 0.05, decay: 0.25, send: 0.3 });
+    audio.hiss({ dur: 0.12, gain: 0.05, freq: 900, q: 1.2, brown: true });
   }
 
   /** Milestone 8: a lurker warns (a dry clicking rattle from its den). */

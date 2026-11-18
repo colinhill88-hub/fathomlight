@@ -1,4 +1,4 @@
-import { FxToggles, Preset, PresetChoice, detectPreset } from './presets';
+import { FxToggles, Preset, PresetChoice, detectPreset, renderScale } from './presets';
 
 interface SettingsDeps {
   getChoice(): PresetChoice;
@@ -17,6 +17,8 @@ interface SettingsDeps {
   fxOn(key: keyof FxToggles): boolean;
   setFx(key: keyof FxToggles, on: boolean): void;
   fxNote(): string;
+  /** Milestone 12: the gear button opens the pause menu instead, when this is given. */
+  onGear?(): void;
 }
 
 /** The gear button in the corner and its small Graphics panel. */
@@ -49,9 +51,20 @@ export function initSettingsUI(deps: SettingsDeps) {
   });
 
   btn.addEventListener('click', () => {
-    panel.hidden = !panel.hidden;
-    btn.setAttribute('aria-expanded', String(!panel.hidden));
+    if (deps.onGear && panel.hidden) {
+      deps.onGear();
+      return;
+    }
+    setOpen(panel.hidden === true);
+  });
+  function setOpen(on: boolean): void {
+    panel.hidden = !on;
+    btn.setAttribute('aria-expanded', String(on));
     refresh();
+  }
+  panel.querySelector('[data-close]')?.addEventListener('click', () => setOpen(false));
+  window.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !panel.hidden) setOpen(false);
   });
 
   for (const b of presetButtons) {
@@ -76,7 +89,7 @@ export function initSettingsUI(deps: SettingsDeps) {
     const p = deps.getPreset();
     statPreset.textContent = `${p.label}, up to ${p.maxFps} fps`;
     const [w, h] = deps.getPixelSize();
-    statRes.textContent = `${w} × ${h}`;
+    statRes.textContent = `${w} × ${h}${renderScale.v < 1 ? ` (adaptive, ${Math.round(renderScale.v * 100)}%)` : ""}`;
     statRenderer.textContent = deps.getRendererName();
     for (const b of fxButtons) b.setAttribute('aria-pressed', String(deps.fxOn(b.dataset.fx as keyof FxToggles)));
     fxNote.textContent = deps.fxNote();
@@ -100,5 +113,5 @@ export function initSettingsUI(deps: SettingsDeps) {
     }
   }
 
-  return { refresh, tick };
+  return { refresh, tick, open: () => setOpen(true), close: () => setOpen(false) };
 }

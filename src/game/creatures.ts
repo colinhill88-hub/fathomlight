@@ -1,6 +1,6 @@
 import { BaseLayout, isDone, isTankKind, Placed } from './base';
 import { CreatureData, MaterialId, MATERIAL_ORDER, MATERIALS, PlantId, SaveData, SpeciesId, TankData } from './state';
-import { EAT_BELOW, MASH_FED, TRAY_CAP, trayCount, whorlMult } from './factory';
+import { EAT_BELOW, MASH_FED, NURSERY_TROUGH, TRAY_CAP, trayCount, whorlMult } from './factory';
 import { ensureTraits, inherit, RADIANT_MAKE, traitsOf, wildTraits, type Traits } from './traits';
 
 /**
@@ -156,6 +156,21 @@ export const PLANTS: Record<PlantId, { name: string; cost: Partial<Record<Materi
 };
 export const PLANT_ORDER: PlantId[] = ['coral', 'kelp', 'grass', 'bladder', 'lumen'];
 
+/**
+ * After milestone 12 (Colin): the wild spares only this many young (or eggs) of
+ * each species, enough for one breeding pair. More come from the Hatchery. If
+ * the base has none of a species left at all (none in tanks, the Hatchery or
+ * the jar, and no dormant remains), the wild spares one more, so a lost
+ * species is never gone for good.
+ */
+export const WILD_CAP = 2;
+export function wildAllowed(save: SaveData, sp: SpeciesId): boolean {
+  if ((save.wildCaught[sp] ?? 0) < WILD_CAP) return true;
+  const have =
+    save.creatures.some((c) => c.species === sp) || save.nursery.some((c) => c.species === sp) || save.jar?.species === sp || (save.dormant[sp] ?? 0) > 0;
+  return !have;
+}
+
 /** Creatures per tank (eggs count too). */
 export const TANK_CAPACITY = 4;
 /** Milestone 7 part 2: the Grand tank holds eight. */
@@ -185,6 +200,17 @@ export const SICK_BELOW = 0.25;
 export const SICK_SECONDS = 360;
 /** Needs at or above this let it grow and make materials. */
 export const HAPPY_AT = 0.6;
+/**
+ * After milestone 12 (Colin: "planting feels pointless"): comfort has a higher
+ * bar. A tank starts at 50% comfort and company adds 20%, so without the
+ * species' plant (+30%) a creature can't reach it. Food and water keep the 60% bar.
+ */
+export const COMFORT_HAPPY = 0.75;
+/** Do all three needs clear their bars? */
+function needsMet(save: SaveData, c: CreatureData): boolean {
+  const w = tankDataFor(save, c.tank).water;
+  return c.fed >= HAPPY_AT && w >= HAPPY_AT && c.comfort >= COMFORT_HAPPY;
+}
 /** Young to grown, with needs met (8 minutes). */
 export const GROW_SECONDS = 480;
 /** Egg to young, in any tank (90 seconds). */
@@ -203,7 +229,7 @@ export const REEF_MAX = 0.5;
 
 /** Is this creature happy enough to grow and make things? */
 export function isHappy(save: SaveData, c: CreatureData): boolean {
-  return c.stage !== 'egg' && c.sickness === 0 && worstNeed(save, c).value >= HAPPY_AT;
+  return c.stage !== 'egg' && c.sickness === 0 && needsMet(save, c);
 }
 
 /** Tanks with at least two grown, happy creatures. */
@@ -331,7 +357,9 @@ export function comfortTarget(save: SaveData, layout: BaseLayout, c: CreatureDat
     t -= 0.4;
     notes.push({ text: 'Tank has no power: no light or flow', good: false });
   }
-  if (all.length > 3) t -= 0.1 * (all.length - 3);
+  // Crowding starts once a tank is nearly full (3 in a tank, 7 in a Grand tank).
+  const roomy = tankCapacity(layout, c.tank) - 1;
+  if (all.length > roomy) t -= 0.1 * (all.length - roomy);
   return { target: Math.max(0, Math.min(1, t)), notes };
 }
 
@@ -362,8 +390,16 @@ export function statusLine(save: SaveData, c: CreatureData): string {
   if (c.sickness > 0.02) return `Sick: ${what.toLowerCase()}. ${glowWord === 'Lantern' ? 'Lantern is' : glowWord} fading. Fix it soon.`;
   if (w.value < 0.45) return `${what}. ${glowWord === 'Lantern' ? 'Lantern is' : glowWord} dimming.`;
   if (c.stage === 'young')
-    return w.value >= HAPPY_AT ? `Healthy and growing: ${Math.floor(c.growth * 100)}% grown.` : `Settling in. Needs above ${Math.round(HAPPY_AT * 100)}% to grow.`;
-  return w.value >= HAPPY_AT ? `Grown and thriving. It ${sp.makesText}.` : `Grown. Happier, it would make ${MATERIALS[sp.makes].name.toLowerCase()}.`;
+    return needsMet(save, c)
+      ? `Healthy and growing: ${Math.floor(c.growth * 100)}% grown.`
+      : c.comfort < COMFORT_HAPPY && w.value >= HAPPY_AT
+        ? `Settling in. Needs ${Math.round(COMFORT_HAPPY * 100)}% comfort to grow: its plant in the tank helps most.`
+        : `Settling in. Needs food and water above ${Math.round(HAPPY_AT * 100)}% to grow.`;
+  return needsMet(save, c)
+    ? `Grown and thriving. It ${sp.makesText}.`
+    : c.comfort < COMFORT_HAPPY && w.value >= HAPPY_AT
+      ? `Grown, but not comfortable enough to make ${MATERIALS[sp.makes].name.toLowerCase()} (needs ${Math.round(COMFORT_HAPPY * 100)}% comfort).`
+      : `Grown. Happier, it would make ${MATERIALS[sp.makes].name.toLowerCase()}.`;
 }
 
 /** 0..1: how brightly it glows (and how lively it looks). */
@@ -441,7 +477,7 @@ export function tickCare(save: SaveData, layout: BaseLayout, dt: number): CareEv
       c.sickness = Math.max(0, c.sickness - dt / 90);
       if (c.sickness === 0) ev.push({ type: 'better', c });
     }
-    const happy = w.value >= HAPPY_AT && c.sickness === 0;
+    const happy = needsMet(save, c) && c.sickness === 0;
     if (c.stage === 'young' && happy) {
       c.growth += dt / GROW_SECONDS;
       if (c.growth >= 1) {
@@ -483,6 +519,10 @@ export function hatcheries(layout: BaseLayout): Placed[] {
   return layout.pieces.filter((p) => p.kind === 'hatch' && isDone(p) && layout.powered.has(p.id));
 }
 /** How many eggs and young the base's Hatcheries can still take. */
+export function nurseryTroughCap(layout: BaseLayout): number {
+  return NURSERY_TROUGH * hatcheries(layout).length;
+}
+
 export function nurseryRoom(save: SaveData, layout: BaseLayout): number {
   return HATCH_CAP * hatcheries(layout).length - save.nursery.length;
 }
@@ -513,15 +553,36 @@ export function breedNote(save: SaveData, layout: BaseLayout, c: CreatureData): 
 
 function tickBreeding(save: SaveData, layout: BaseLayout, dt: number, ev: CareEvent[]): void {
   const hatch = hatcheries(layout);
-  // Eggs in a powered Hatchery hatch; the young wait there (they don't get hungry) until placed.
+  // Eggs in a powered Hatchery hatch. After milestone 12 (Colin) the young get hungry while they
+  // wait: they eat from the Hatcheries' trough (a feed pipe fills it), and starve like any creature.
+  const hatchRate = hatch.length ? Math.max(...hatch.map((h) => layout.powerRate(h.id))) : 0;
+  for (const c of [...save.nursery]) {
+    if (c.stage !== 'young') continue;
+    c.fed = Math.max(0, c.fed - HUNGER_RATE * dt);
+    if (c.fed < EAT_BELOW && (save.nurseryMash ?? 0) > 0) {
+      const eat = Math.min(save.nurseryMash ?? 0, (EAT_BELOW + 0.03 - c.fed) / MASH_FED);
+      save.nurseryMash = (save.nurseryMash ?? 0) - eat;
+      c.fed = Math.min(1, c.fed + eat * MASH_FED);
+    }
+    if (c.fed < SICK_BELOW) {
+      const was = c.sickness;
+      c.sickness += dt / SICK_SECONDS;
+      if (was === 0) ev.push({ type: 'sick', c, why: 'hungry' });
+      if (c.sickness >= 1) {
+        save.nursery = save.nursery.filter((x) => x.id !== c.id);
+        save.dormant[c.species] = (save.dormant[c.species] ?? 0) + 1;
+        ev.push({ type: 'dormant', c });
+      }
+    } else if (c.sickness > 0) c.sickness = Math.max(0, c.sickness - dt / 90);
+  }
   if (hatch.length)
     for (const c of save.nursery) {
       if (c.stage !== 'egg') continue;
-      c.growth += dt / HATCH_SECONDS;
+      c.growth += (dt * hatchRate) / HATCH_SECONDS;
       if (c.growth >= 1) {
         c.stage = 'young';
         c.growth = 0;
-        c.fed = 0.8;
+        c.fed = 1;
         ev.push({ type: 'nursery-hatched', c });
       }
     }

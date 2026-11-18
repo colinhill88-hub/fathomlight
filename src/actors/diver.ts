@@ -40,10 +40,17 @@ export interface KitLook {
   psuit: 0 | 1 | 2;
   /** Milestone 11: the alien resonator, a crystal hoop on the pack and a ringed bracer on the near forearm. */
   resonator?: boolean;
+  /** After milestone 12: suit attachments built in the Workshop. */
+  satchel?: boolean;
+  flare?: boolean;
+  visor?: boolean;
+  boots?: boolean;
+  cowl?: boolean;
+  dash?: boolean;
 }
 export const FULL_KIT: KitLook = { tanks: 2, spear: true, jar: true, thruster: 1, psuit: 0, resonator: false };
 export function kitKey(k: KitLook): string {
-  return `${Math.min(4, k.tanks)}${+k.spear}${+k.jar}${k.thruster}${k.psuit}${+!!k.resonator}`;
+  return `${Math.min(4, k.tanks)}${+k.spear}${+k.jar}${k.thruster}${k.psuit}${+!!k.resonator}${+!!k.satchel}${+!!k.flare}${+!!k.visor}${+!!k.boots}${+!!k.cowl}${+!!k.dash}`;
 }
 /** The Choir's own colours (DESIGN.md: only the Choir and its technology show them). */
 export const CHOIR = [0x5ff0ff, 0xa27cff, 0xff5ad8];
@@ -943,6 +950,10 @@ export class Diver {
   private tinted: { g: Graphics; base: number }[] = [];
   /** Hip thruster rig: a white housing with a lime nozzle, and the plume while boosting. */
   private thruster = new Graphics();
+  /** After milestone 12: the suit attachments (satchel, visor, cowl) in body space, and the limb pieces (boots, flare tube). */
+  private extras = new Graphics();
+  private bootBits: Graphics[] = [];
+  private flareTube = new Graphics();
   private plume = new Graphics();
   private visorFog!: Container;
   private visorDrops!: Container;
@@ -1025,6 +1036,24 @@ export class Diver {
       arm.upper.addChildAt(pl, 2);
       this.ps2Bits.push(pl);
     }
+    // After milestone 12: mag-boot soles on both shins, and the flare tube on the near forearm.
+    for (const leg of [this.nearLeg, this.farLeg]) {
+      const b = new Graphics();
+      b.roundRect(14.5, -7, 8, 14, 2.5).fill({ color: C.chromeDark });
+      b.roundRect(14.5, -7, 8, 3, 1.5).fill({ color: C.chromeHi, alpha: 0.7 });
+      b.circle(18.5, 3, 1.8).fill({ color: C.visor, alpha: 0.95 });
+      b.visible = false;
+      leg.shin.addChild(b);
+      this.bootBits.push(b);
+    }
+    {
+      const f = this.flareTube;
+      f.roundRect(1, -9, 10, 4.5, 2).fill({ color: C.chromeDark });
+      f.roundRect(1, -9, 10, 1.4, 0.7).fill({ color: C.chromeHi, alpha: 0.6 });
+      f.rect(10, -8.6, 2.4, 3.8).fill({ color: 0xc8402e });
+      f.visible = false;
+      this.nearArm.fore.addChild(f);
+    }
     // The suit's own graphics, to take the pressure suit's bronze cast.
     const collect = (c: Container) => {
       for (const ch of c.children) {
@@ -1062,6 +1091,7 @@ export class Diver {
       this.beltJar.view,
       helmet,
       this.hose,
+      this.extras,
       buildShoulderLamp(),
       this.nearLeg.thigh,
       this.plume,
@@ -1112,6 +1142,34 @@ export class Diver {
       t.rect(-6, 15.5, 8, 3).fill({ color: C.chromeDark });
     }
     for (const b of this.bracers) b.visible = !!k.resonator;
+    // After milestone 12: the attachments.
+    for (const b of this.bootBits) b.visible = !!k.boots;
+    this.flareTube.visible = !!k.flare;
+    const x = this.extras.clear();
+    if (k.dash && k.thruster >= 1) {
+      // TH-3: a third, upturned nozzle on the hip thruster.
+      x.roundRect(-36, 1, 9, 6, 2).fill({ color: C.chromeDark });
+      x.circle(-36, 4, 2.6).fill({ color: C.visor, alpha: 0.95 });
+      x.poly([-28, 1, -20, -3, -18, -1, -26, 3]).fill({ color: C.visor });
+    }
+    if (k.satchel) {
+      // The specimen satchel: a padded pouch with a lime-lit lid beside the jar.
+      x.roundRect(15, 10, 12, 13, 3.5).fill({ color: 0x4a545a });
+      x.roundRect(15, 10, 12, 4, 2).fill({ color: C.chromeDark });
+      x.rect(19, 15, 4, 5).fill({ color: C.visor, alpha: 0.8 });
+    }
+    if (k.cowl) {
+      // The heat-shield cowl: a chrome rim round the helmet's base and a cape plate over the shoulder.
+      x.moveTo(36, 13).quadraticCurveTo(58, 24, 80, 13).stroke({ color: C.chromeHi, width: 3.2 });
+      x.moveTo(36, 13).quadraticCurveTo(58, 24, 80, 13).stroke({ color: C.chromeDark, width: 1, alpha: 0.8 });
+      x.poly([12, 0, 40, -4, 44, 8, 16, 12]).fill({ color: C.chromeDark, alpha: 0.92 });
+      x.poly([12, 0, 40, -4, 41, -1, 13, 3]).fill({ color: C.chromeHi, alpha: 0.6 });
+    }
+    if (k.visor) {
+      // The Echo visor: a lime band across the front of the glass.
+      x.moveTo(58, -15).quadraticCurveTo(74, -19, 84, -11).stroke({ color: C.visor, width: 2.4, alpha: 0.85 });
+      x.circle(84, -11, 1.6).fill({ color: 0xf0ffc0 });
+    }
     this.psuitTorso.visible = k.psuit > 0;
     for (const b of this.psuitBits) b.visible = k.psuit > 0;
     this.ps2Torso.visible = k.psuit === 2;

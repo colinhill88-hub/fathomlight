@@ -21,6 +21,11 @@ export function initSoundUI(): { refresh(): void } {
     audio.setSettings({ muted: !audio.settings.muted });
     refresh();
   });
+  const speaker = document.getElementById('speaker-btn') as HTMLButtonElement;
+  speaker.addEventListener('click', () => {
+    audio.setSettings({ speaker: audio.settings.speaker === 'phone' ? 'full' : 'phone' });
+    refresh();
+  });
   silent.addEventListener('click', () => {
     audio.setSettings({ ignoreSilent: !audio.settings.ignoreSilent });
     refresh();
@@ -39,6 +44,8 @@ export function initSoundUI(): { refresh(): void } {
       (r.nextElementSibling as HTMLOutputElement).textContent = String(v);
     }
     mute.setAttribute('aria-pressed', String(s.muted));
+    speaker.setAttribute('aria-pressed', String(s.speaker === 'phone'));
+    speaker.textContent = s.speaker === 'phone' ? 'Mix: phone speaker (tap for headphones)' : 'Mix: headphones and speakers (tap for phone)';
     mute.textContent = s.muted ? 'Sound muted (tap to unmute)' : 'Mute';
     silent.setAttribute('aria-pressed', String(s.ignoreSilent));
     silent.textContent = s.ignoreSilent ? 'Plays with the silent switch on' : 'Silent switch mutes the game';

@@ -166,6 +166,15 @@ export const FARM_TRAY = 4;
 /** Seconds per plant cutting, and how many of each kind the base keeps ready. */
 export const CUTTING_SECONDS = 200;
 export const CUTTING_CAP = 3;
+/**
+ * After milestone 12: the farm can also grow bladder kelp for its resin (once
+ * bladder kelp is scanned). Nothing else makes resin except the wild kelp in
+ * the forest, and the breeding wing (Grand tanks, Hatcheries, sorting pods,
+ * more farms) is built from it. Slower than fibre.
+ */
+export const RESIN_SECONDS = 240;
+/** After milestone 12: mash the Hatcheries' shared trough holds, per Hatchery. */
+export const NURSERY_TROUGH = 12;
 
 // ---- Echo whorls ----
 export const WHORLS_PER_PIECE = 2;
@@ -244,7 +253,7 @@ export function upgradeCost(kind: LineKind, cells: number, tier: number): Partia
 function sends(kind: PieceKind): MaterialId[] | null {
   if (kind === 'storage' || kind === 'sorter' || kind === 'tank' || kind === 'gtank') return null;
   if (kind === 'press') return ['plate'];
-  if (kind === 'farm') return ['fibre'];
+  if (kind === 'farm') return ['fibre', 'resin'];
   return [];
 }
 /** Solid materials a piece takes in from a conveyor (null: anything). */
@@ -354,13 +363,15 @@ export class Factory {
     for (const k of Object.keys(save.machines)) if (!byId.has(Number(k))) delete save.machines[k];
     for (const l of save.lines) this.flow(l.id).moved = 0;
     const on = (p: Placed) => isDone(p) && layout.powered.has(p.id);
+    // Milestone 12: a network short of power runs its machines and lines slower.
+    const pw = (p: Placed) => layout.powerRate(p.id);
 
     // ---- Conveyors: each carries what its source has and its target wants ----
     const has = (p: Placed, k: MaterialId): boolean => {
       if (isStoreKind(p.kind)) return save.stored[k] > 0;
       if (isTankKind(p.kind)) return (save.tankData[String(p.id)]?.out?.[k] ?? 0) > 0;
       if (p.kind === 'press') return k === 'plate' && (machineData(save, p.id).plate ?? 0) > 0;
-      if (p.kind === 'farm') return k === 'fibre' && machineData(save, p.id).fibre > 0;
+      if (p.kind === 'farm') return k === 'fibre' ? machineData(save, p.id).fibre > 0 : k === 'resin' && (machineData(save, p.id).resin ?? 0) > 0;
       return false;
     };
     /** How full the target is of k (0..1), or null if it has no room or no use for it. */
@@ -381,7 +392,11 @@ export class Factory {
         o[k] = (o[k] ?? 0) - 1;
         if (!o[k]) delete o[k];
       } else if (p.kind === 'press') machineData(save, p.id).plate!--;
-      else if (p.kind === 'farm') machineData(save, p.id).fibre--;
+      else if (p.kind === 'farm') {
+        const m = machineData(save, p.id);
+        if (k === 'resin') m.resin = (m.resin ?? 0) - 1;
+        else m.fibre--;
+      }
     };
     const give = (p: Placed, k: MaterialId) => {
       if (isStoreKind(p.kind)) save.stored[k]++;
@@ -414,7 +429,7 @@ export class Factory {
         fl.acc = Math.min(fl.acc, 1);
         continue;
       }
-      fl.acc += (lineRate(l) / 60) * dt;
+      fl.acc += (lineRate(l) / 60) * dt * Math.min(pw(src), pw(dst));
       while (fl.acc >= 1 && pick) {
         fl.acc -= 1;
         take(src, pick);
@@ -432,8 +447,15 @@ export class Factory {
       if (f.kind !== 'farm' || !on(f)) continue;
       const m = machineData(save, f.id);
       const grow = m.grow ?? 'fibre';
-      const rate = whorlMult(save, f.id) * dt;
-      if (grow === 'fibre') {
+      const rate = whorlMult(save, f.id) * dt * pw(f);
+      if (grow === 'resin') {
+        if ((m.resin ?? 0) >= FARM_TRAY) continue;
+        m.press += rate / RESIN_SECONDS;
+        if (m.press >= 1) {
+          m.press = 0;
+          m.resin = (m.resin ?? 0) + 1;
+        }
+      } else if (grow === 'fibre') {
         if (m.fibre >= FARM_TRAY) continue;
         m.press += rate / FARM_SECONDS;
         if (m.press >= 1) {
@@ -463,7 +485,7 @@ export class Factory {
       else if (m.fibre < 1) state = belts ? 'no-input' : 'no-belt';
       else if (m.mash > FEEDER_MASH_CAP - MASH_PER_FIBRE) state = 'full';
       else {
-        m.press += ((FEEDER_RATE * mult) / 60) * dt;
+        m.press += ((FEEDER_RATE * mult) / 60) * dt * pw(f);
         if (m.press >= 1) {
           m.press -= 1;
           m.fibre--;
@@ -480,13 +502,26 @@ export class Factory {
         const l = pipes[i];
         const fl = this.flow(l.id);
         const t = byId.get(l.to)!;
+        // After milestone 12: a feed pipe into a Hatchery fills the young's shared trough.
+        if (t.kind === 'hatch' && on(f) && isDone(t)) {
+          const capN = NURSERY_TROUGH * layout.pieces.filter((q) => q.kind === 'hatch' && isDone(q)).length;
+          const share = m.mash / (pipes.length - i);
+          const cap = (lineRate(l) / 60) * dt * pw(f);
+          const room = capN - (save.nurseryMash ?? 0);
+          const give = Math.max(0, Math.min(cap, room, share));
+          fl.busy += ((room > cap * 1.01 && share > cap * 1.01 ? 1 : 0) - fl.busy) * Math.min(1, dt / 20);
+          save.nurseryMash = (save.nurseryMash ?? 0) + give;
+          m.mash -= give;
+          fl.moved += give;
+          continue;
+        }
         if (!on(f) || !isTankKind(t.kind) || !isDone(t)) {
           fl.busy += (0 - fl.busy) * Math.min(1, dt / 20);
           continue;
         }
         const td = (save.tankData[String(t.id)] ??= { water: 1, plant: null });
         const share = m.mash / (pipes.length - i);
-        const cap = (lineRate(l) / 60) * dt;
+        const cap = (lineRate(l) / 60) * dt * pw(f);
         const room = TROUGH_CAP - (td.mash ?? 0);
         const give = Math.max(0, Math.min(cap, room, share));
         // Busy = the trough wanted at least the pipe's full flow and the feeder had it.
@@ -512,7 +547,7 @@ export class Factory {
       else if (m.plate! >= PRESS_PLATE_CAP) state = beltOut ? 'full' : 'no-out';
       else if (!enough) state = beltIn ? 'no-input' : 'no-belt';
       else {
-        m.press += ((PRESS_RATE * mult) / 60) * dt;
+        m.press += ((PRESS_RATE * mult) / 60) * dt * pw(p);
         if (m.press >= 1) {
           m.press -= 1;
           m.scrap! -= PLATE_RECIPE.scrap ?? 0;

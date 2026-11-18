@@ -1,6 +1,6 @@
 # Fathomlight progress
 
-Last updated: 2026-11-17, **milestone 10 (the deep) deployed**: the trench, crush depth, PS-2 and depth plating, three trench predators, the cinder snail key, the drowned Fulmar station and the Signal array's story fragments. Then merged with the three passes built alongside it (the stepped build trench, Colin's notes, and the kit found piece by piece). Next is **milestone 11, contact** (prompt in `docs/prompts/milestone-11.md`).
+Last updated: 2026-11-18, **milestone 12, part 1 (polish) deployed**: power as a real limit (three tiers), the gamepad in every panel and menu, a title screen and pause menu, moving a save between devices, the final audio mix, and adaptive resolution. The Steam desktop build waits, by Colin's choice. Next: more polish, then the Steam build (prompt to write when Colin is ready).
 
 Play link: https://colinhill88-hub.github.io/fathomlight/ (live; first successful deploy 2026-11-14)
 
@@ -1619,19 +1619,193 @@ Colin's feedback first (after the walker and the interior art pass): the animati
 - **The zone map** at 1280 × 720 and 844 × 390.
 - **Not tested by hand:** the two swings in the heart (the grapple fired at the first ring in the test, but a full crossing needs real hands), the touch pads on an iPhone, and frame rate on a real GPU.
 
+### Milestone 12, part 1: polish (2026-11-18)
+**Feedback on milestone 11:** "Everything looks good for now." Nothing was flagged, so nothing needed fixing first. Colin will test more later.
+
+**Colin's choices** (asked before building):
+- **Power as a real limit:** yes, three tiers (the recommended option).
+- **A shortage:** machines slow down (recommended). Nothing switches off.
+- **Gamepad:** every panel and menu (recommended).
+- **The Steam desktop build:** wait. "I wanna do more polish first."
+
+**Power as a real limit** (`POWER_MAKE`, `POWER_DRAW`, `TURBINE_LIMIT`, `PowerNet` in `src/game/base.ts`)
+- **Every source makes watts and every piece draws them.** Pieces joined together are one network and share its sources.
+  - Sources: current turbine 12 W, vent generator 40 W, Choir lantern 100 W.
+  - Draws: dome, storage, tank, filter, feeder, farm 1 W; lab, Grand tank, sorter, recompression room, Hatchery, revival pod 2 W; workshop, press, dock, crane 3 W; Signal array 4 W. Corridors, shafts, junctions and brackets draw nothing.
+- **The reef current drives only three turbines** (the first three built). A fourth stands idle and says so.
+- **Short of power:** the network's machines run at supply ÷ demand speed:
+  - production lines (conveyors, pipes, farms, feeders, presses), Labs and Workshops, the Signal array, salvage cranes, and eggs in a Hatchery;
+  - air, doors, lights, the dock's clamps, tanks' comfort and breeding are never affected.
+- **The vent generator VG-1** (`thermal`): the new middle tier.
+  - Lab research from scanning the vent field and the Fulmar (120 s). Then 5 vent ore, 3 brass, 4 copper and 2 plating, 45 s to weld.
+  - 1 × 2, collars on both levels like a turbine. Outside: a charcoal column with heat fins and a glowing orange core behind a porthole. Inside: the same core on the room's back wall.
+- **Where you see it:**
+  - build mode's title has a meter: "⚡ used / made W" (orange when short);
+  - a selected piece says what it makes or draws, and how its network is doing;
+  - the build card's line shows a piece's watts before you place it;
+  - the Lab/Workshop panel and the base's info consoles say when they run slow;
+  - a one-time tip when a finished piece first puts the base short.
+- **A typical first base** (dome, storage, tank, filter, feeder, press) draws 8 W, under one turbine. Adding a dock, Lab and Workshop needs a second turbine; a big base needs the vent generator, and a very big one the lantern.
+
+**The gamepad in every panel and menu** (`src/ui/padnav.ts`)
+- **One focus system** finds the panel on screen and drives its buttons:
+  - d-pad or left stick moves a lime highlight to the nearest button that way (held, it repeats);
+  - A presses; B closes (the panel's ✕ or Close); LB / RB step through tabs; the right stick scrolls.
+  - Sliders (the volume rows) move with left and right.
+  - The highlight only shows while a pad is in use, and the first touch of the pad only shows it.
+- **Covers:** the title screen, the pause menu, Move a save, logs and documents, contact's credits, the zone map, Settings, the scanner log, Base rates, Lab/Workshop, the dock, and tank care / the Hatchery.
+- **Build mode** keeps its own pad controls (unchanged).
+- **First contact:** the four pads answer to **A, B, X and Y** (the letter shows on each pad once a pad is used).
+- **Start** opens and closes the pause menu. While a panel holds the pad, the diver doesn't move.
+
+**Menus** (`src/ui/menu.ts`)
+- **The title screen**, on every start: Continue (or Begin the dive on a fresh game), New game (two taps), Move a save, Settings. It shows when the save was made and how big the base is. The world stands still behind it.
+- **The pause menu:** the gear button (top right), Escape, or Start on a gamepad. Resume, Settings, Scanner log, Move a save, Title screen. It saves as it opens. The world stands still, the sound softens and the music dips, and the picture stops redrawing after a few frames (saves the battery).
+- **Settings has a ✕** now, and Escape closes it.
+- Escape that closes a panel (build mode, say) doesn't also open the pause menu.
+- `?notitle` in the URL skips the title (for tests); `?bench` and `?at=` skip it too.
+
+**Moving a save between devices** (`exportSaveCode`, `readSaveCode`, `importSave`, `restoreBackup` in `src/game/state.ts`; the panel in `src/ui/menu.ts`)
+- **The code:** "FATHOM1." then the save, squeezed with the browser's own compression (about 0.8 KB for a new game).
+- **From this device:** Copy code, Share… (the iPhone's share sheet, so AirDrop to the PC or iPad works), or Save as file.
+- **From another device:** paste a code, or Open a file…. It shows the save's date and size first, and a second tap loads it.
+- **A backup:** loading a code keeps this device's own save as a backup, and "Put the backup back" swaps them.
+- Wrong or cut-short codes get a plain message and change nothing.
+- Saving stays behind `src/game/state.ts`, so Steam Cloud can plug in later.
+
+**The final mix** (`build()` in `src/audio/engine.ts`)
+- **A proper master chain:** a low cut, a presence lift, a gentle glue compressor (2:1 at −20 dB) and a true peak limiter (−3 dB). The old limiter was squashing everything at −10 dB.
+- **A soft shelf under the music** (−3 dB below 180 Hz), so its pads don't mask the ambient drone.
+- **Mix: phone speaker / headphones** (Settings → Sound). Phone mode cuts the rumble a phone speaker can't play (below 110 Hz) and lifts the mids a little. It starts on phone mode on touch devices.
+- **Panels** dip the music a little less (to 55%, was 40%). **The pause menu** softens everything to about half.
+
+**Performance tuning**
+- **Adaptive resolution** (Settings → Graphics effects, on by default; `renderScale` in `src/presets.ts`, `adaptFrame` in `src/main.ts`):
+  - if frames run more than 18% over the preset's budget (16.7 ms on High, 8.3 ms on Ultra) for 2 s, the render scale drops by 10%, to 70% at the least;
+  - after 30 s, and 8 s comfortably at the cap, it steps back up;
+  - only the picture's sharpness changes, never the effects;
+  - Settings → Resolution shows "(adaptive, 80%)" when it is down.
+- **The walkable base** only draws the moving parts of rooms and lines near the screen (it drew every room every frame).
+- **The benchmark route** gained the sanctum's great hall (`?bench&scene=8`). Fixed: `?scene=7` (the trench) couldn't be held before.
+- **Measured in the cloud** (software graphics, so CPU only; the real cost on a phone is the GPU): game update 2.1 ms in the shallows, 3.2 ms in the trench, 2.4 ms in the sanctum, 1.4 ms inside the base. The CPU is not the problem on either preset.
+
+**Not built (Colin's choice):** the Steam desktop build. When Colin wants it: Electron or Tauri, a Windows build from GitHub Actions, saves in a file for Steam Auto-Cloud, then Steamworks once there is an app ID.
+
+**Tested** (headless Chromium in the cloud, with a fake gamepad):
+- **Build:** type check and production build pass; no console errors.
+- **Screenshots** (`docs/art/milestone12/`): the power meter, Move a save, the pause menu, the contact pads, the sanctum benchmark scene.
+- **Power:** 10 domes on a turbine run at 100%; 16 at 75%; with a vent generator joined, 52 W made and 100%; a fourth turbine stands idle. Build mode's meter and piece notes read right (screenshot of the vent generator beside a turbine and dome).
+- **Title and pause:** the title at 1280 × 720 and 844 × 390; gamepad down / A opens Settings; left/right moves a volume slider; B closes it; Start opens and closes the pause menu; Escape out of build mode doesn't pause.
+- **Save codes:** a code is made, a bad code is refused with a message, a good one shows its summary, loads on the second tap and leaves a backup.
+- **Contact:** A answers the first pad in the heart.
+- **Audio:** sound plays through the new chain; the pause menu halves the level.
+- **Adaptive resolution:** at 33 fps it steps 100% → 70% in 6 s; back at the cap it returns to 100%.
+- **Not tested by hand:** a real gamepad, Share on an iPhone, the phone-speaker mix by ear, and frame rates on a real GPU.
+
+### After milestone 12 part 1: the Kelp farm grows resin (2026-11-18)
+Colin asked how breeding and the Kelp farm fit the loop. One grown puffcap makes enough kelp fibre to feed about nine creatures, so once puffcaps are in a tank the farm's fibre adds little. The farm now has a job nothing else at the base does:
+- **A resin crop** (`RESIN_SECONDS` 300 in `src/game/factory.ts`). Once bladder kelp is scanned, the CROP console cycles fibre → **resin** → plant cuttings. One resin every 5 minutes into its tray (4), carried out by conveyor like fibre, or taken by hand.
+- **Why:** no creature makes resin, and the wild bladder kelp (7 spots in the forest, 10 minutes to regrow) is the only other source. The breeding wing is built from it: Grand tank 6, Hatchery 4, sorting pod 4, another farm 3.
+- Tested: a farm on resin with a conveyor to storage, 15 minutes of play: 3 grown, 2 carried to storage, 1 in the tray.
+
+### After milestone 12 part 1: Colin's pacing pass, line markers, and a new sub (2026-11-18)
+Colin's answers after reading the breeding and farm analysis. All built:
+
+**Breeding is the way to more creatures** (`WILD_CAP`, `wildAllowed` in `src/game/creatures.ts`; `PATTERN_MUTATION`, `WILD_PATTERNS` in `src/game/traits.ts`)
+- **The wild spares two of each species** (young or eggs), enough for one breeding pair. After that the spots still have creatures, but Collect says "breed more at the base" and a one-time tip explains breeding. Counted in `save.wildCaught` (older saves count their wild-born creatures).
+  - **Safety net:** if the base has none of a species left (none in tanks, the Hatchery or the jar, and no dormant remains), the wild spares one more.
+- **Breeding finds new patterns faster than the wild:** 20% of eggs show a glow pattern neither parent has (was 8% for any random pattern). The colour mutation stays 8%.
+- **The third pattern of every species is breed-only:** wild creatures only show the first two (65% / 35%).
+- Checked: about 20% of eggs from two pattern-0 parents show a new pattern; no wild creature shows the third; the cap and its safety net.
+
+**The 4th fragment needs a bred creature** (`FRAGMENTS`, `hasBredWord` in `src/game/signals.ts`): besides 8 patterns, a grown creature bred at the base (2nd generation or later) must be in a tank. The array's console says so when it's the only thing missing.
+
+**Resin is scarce in the wild** (`src/world/pickups.ts`, `REGROW_BY_KIND` in `src/game/state.ts`): 5 spots in the kelp forest (was 7), 20 minutes to regrow (was 10). The farm's resin crop is faster: one every 4 minutes (`RESIN_SECONDS` 240). Before the farm, gear needs about 10 resin (cutter 2, grapple 2, air relay 4, pressure suit 2) and the farm itself 3.
+
+**Plants matter: comfort must reach 75%** (`COMFORT_HAPPY` in `src/game/creatures.ts`). A tank starts at 50%, company adds 20% and the species' plant 30%, so without its plant a creature can't grow, make materials or breed. Food and water keep the 60% bar (75% there would mean hand-feeding every 4 minutes before the feeder). The status line says when comfort is what's missing. **Crowding** now starts once a tank is nearly full (from the 4th creature in a tank, the 8th in a Grand tank); it used to start at the 4th even in a Grand tank, which would have made big Grand tanks unhappy under the new bar.
+
+**The middle power tier comes earlier** (`thermal` in `PIECES` and `RESEARCH`): renamed the **Core generator CG-1**, a copy of the Corvina's sealed power core. Researched in a Lab from the Corvina's log (found in her lab; was the trench's vent field and the Fulmar). Costs 4 brass, 5 copper, 3 plating and 2 quartz (no vent ore). Still 40 W.
+
+**Lines: port markers, drag to connect, and a first-time guide** (`portMarkers`, `markerAt`, `lineGuide` in `src/ui/build.ts`; drawn in `BuildOverlay` in `src/world/basegfx.ts`)
+- **Port markers:** in build mode every finished piece that takes or sends lines shows a badge above its port: **amber** for conveyors, **teal** for feed pipes; **▲** sends out, **▼** takes in, **⇅** both (storage). While drawing a line, pieces it can go to pulse and the rest dim.
+- **Drag to connect:** press a marker, drag to a piece that lights up and let go. The line is built at once. A rubber band follows the finger until a target is found. Dragging from storage onto something that only feeds it draws the line the other way. A tap on a marker (no drag) still starts a line the old way; the Conveyor/Pipe buttons are unchanged.
+- **The first-time guide** appears in build mode's info panel once a storage pod, auto feeder and creature tank are finished: three steps (storage → feeder conveyor, feeder → tank pipe, tank → storage conveyor), each shown until done, then a toast.
+- Tested with the mouse: all three guided drags built the right lines and the guide finished.
+
+**The submersible's new look** (`src/actors/sub.ts`; Colin: "make it look cooler")
+- The new base kit's charcoal, chrome, neon lime glass and gold circuit lines on a swept, flattened hull with a sharp chrome bow and a lime sensor eye, a raised spine and a dark chin plate.
+- A **teardrop bubble canopy** in lime glass, with the pilot inside.
+- **No propeller:** a main ring thruster at the stern and a ventral nacelle, with turbine fans and **lime exhaust that burns longer with speed and flares on Boost** (and casts a little lime light).
+- A swept dorsal fin with a lime edge light and a red tail lamp; lime side line and vents that glow while it's powered.
+- Modules restyled: a sleek clamped cargo pod, twin bow light bars (floodlights), a charcoal-and-gold grabber arm.
+- Its size and collision didn't change, so it drives exactly as before.
+- Screenshots: `docs/art/milestone12/sub-new.png`, `sub-boost.png`.
+
+### After milestone 12 part 1: pacing, suit attachments and sub modules (2026-11-18)
+Colin: "Do all of that new stuff." Everything proposed after the pacing pass is built.
+
+**Pacing**
+1. **The Hatchery needs a blueprint** (`hatch` in `RESEARCH`, the `nurserylog` find). The **Kestrel nursery log** lies in a crate in the kelp caves' alcove, behind the kelp wall the cutter torch opens (`KC_FINDS.nurserylog`). A Lab decodes it (70 s).
+2. **Young in the Hatchery get hungry** (`tickBreeding` in `src/game/creatures.ts`). They share one trough (`save.nurseryMash`, 12 L per Hatchery). A **feed pipe** from an auto feeder fills it (the Hatchery now takes one pipe in), or **Feed (1 fibre)** at its console. Unfed, a youngster sickens and goes dormant like any creature. They hatch full, which gives about 17 minutes. A one-time tip explains this.
+3. **Housing costs more:** the creature tank adds 2 copper; the Grand tank adds 3 brass.
+4. **Each zone's gear needs a bigger batch of its materials:** dive light 4 quartz and 2 copper (was 2 and 1), sonar 5 brass (was 3), PS-1 8 brass (was 6), PS-2 8 vent ore (was 6).
+5. **Bred patterns for the later fragments** (`FRAGMENTS`, `bredWords` in `src/game/signals.ts`): fragment 3 needs 1 pattern shown by a grown creature bred at the base, and fragment 4 needs 2.
+
+**Suit attachments** (Lab research, then a Workshop build; all in `GEAR`/`RESEARCH` in `src/game/gear.ts`). Each shows on the swimming diver (`applyKit` in `src/actors/diver.ts`; preview with `animlab.html?kit=2,1,1,2,0,0,1,1,1,1,1,1`):
+| Gear | Researched from scans of | Does | Looks |
+| --- | --- | --- | --- |
+| Specimen satchel SJ-2 | glowfin, puffcap, ray | A second jar slot (`save.jar2`, which moves into the jar when it's emptied) | A padded pouch beside the jar |
+| Flare launcher FX-1 | kelp caves, black water | **Z**, LT or the flame button: a flare flies ahead, sinks, lands and burns 90 s with its own red light (1 carried quartz each, six at most) | A tube on the near forearm |
+| Echo visor EV-1 | Echo whorl, lumen moss | Lime marks on materials and amber marks on young creatures within about 20 m, through rock | A lime band across the helmet glass |
+| TH-3 dash head | the caves' surge (needs TH-2) | Double-tap Boost to dash, every 3 s | A third, upturned nozzle |
+| Mag-boots MB-1 | race, anchor ring | On the seabed, currents push you an eighth as much | Chrome soles with lime studs |
+| Stun dart SD-1 | lurker, wreck | **X**, RT or the dart button: hits the nearest predator ahead (lurker or trench hunter) and sends it away. Shares the sonar's 6 s cooldown (a miss recharges in 1.5 s) | (the harpoon already on the pack) |
+| Heat-shield cowl HC-1 | vent field, chimney | Vent plumes and the chimney scald a fifth as much | A chrome rim round the helmet and a shoulder plate |
+
+The Flare and Dart buttons show on touch screens once each is built. Visual effects are in `src/world/gearfx.ts`. The new parts don't show on the walker (on foot) yet.
+
+**Sub modules** (`MODULES` in `src/game/sub.ts`; Lab research, then fitted at a dock). **KS-1 now has 4 slots** (was 3), with nine modules to choose from:
+| Module | Researched from | Does | Looks |
+| --- | --- | --- | --- |
+| Afterburner AB-S | race, flow vane | Boost 1.5× faster and 3× longer | A second ring nozzle above the main one, with its own plume |
+| Ballast pod BP-S | wreck shelf, race | The race moves KS-1 a fifth as much | Twin trim tanks under the keel |
+| Tractor beam TB-S | Echo whorl, salvage | Driving slowly, it draws the nearest loose material within 4 m into the sub, one every 1.2 s | A lime lens in the chin, and a beam |
+| Sonar dome SD-S | the Corvina's log | Teal marks on materials within about 25 m, through rock | A small glass dome on the back with a sweep |
+| Habitat pod HP-S | air pocket, Corvina | The sub's air reserve falls a quarter as fast | A pressurised pod on the back with lit ports |
+| Drill nose DN-S | trench, crushed probe | Bores the soft rock seam (below) | A chrome drill cone past the bow, spinning while it drills |
+
+**The drill seam** (`SEAM`, `seam` in `src/world/terrain.ts`; art `buildSeam` in `scenery.ts`): a band of pale, glinting soft rock in the sheer wall under the trench rim (the face of the first ledge, about 28 m). With the drill fitted, put the bow at it and hold Collect (3 s): it opens into a sub-sized tunnel and a **sealed grotto** with 2 glowing blooms, 2 vent ore and an Echo whorl (`seam-*` and `whorl-seam` in `pickups.ts`, hidden until it's open). Without the drill, the banner says what it needs. Saved as `save.seamOpen`.
+
+**Hull tiers** (`setLook` in `src/actors/sub.ts`): with depth plating DP-S, brass plates show along the hull. After first contact, pale Choir stone with cyan, violet and magenta gems lines the spine and keel.
+
+**Also fixed:** a diver saved inside the sonar's hidden room or the drill grotto was pushed out onto the rock above on loading (the passages opened a frame too late).
+
+**Tested** (headless Chromium; software graphics, so game time runs slow):
+- Type check and production build; no console errors on a fresh start through the title screen.
+- **Rules (run against the game's code):** unfed young sicken and go dormant; a feed pipe from a feeder into a Hatchery is accepted; fragments need 2/4/6/8 patterns with 0/0/1/2 bred.
+- **The seam:** KS-1 at the wall with the drill fitted. The banner said "hold Collect to drill it", drilling went 8% → 42% → 75%, then it opened. Inside, the tractor beam took 2 vent ore and a bloom by itself.
+- **On foot in the grotto:** a flare used 1 quartz and burned in the tunnel; the dart fired; the visor marked the grotto's materials.
+- **Screenshots** (`docs/art/milestone12/`): `suit-attachments.png`, `seam-grotto-flare.png`, `sub-modules-a.png` (afterburner, ballast, sonar dome, drill, brass plating) and `sub-modules-b.png` (habitat, tractor beam, Choir stone).
+- **Not tested by hand:** the dash's feel, mag-boots in the race, the cowl in the plumes, the satchel catching a second creature, and all of it on the phone.
+
 ## Next
 
-**Next session: milestone 12, polish** (prompt in `docs/prompts/milestone-12.md`):
-- the final sound and music mix (the Choir's own voice in the sanctum is in, but simple);
-- menus, a title screen, and save transfer between devices;
-- performance tuning for both presets (the trench and the sanctum are the new scenes to measure);
-- the Steam desktop build.
+**Next session: more polish** (Colin wants more before the Steam build). Ideas to choose from:
+- the left-over walkable-base items: line code plates indoors, and sounds for the lines and machines;
+- the zone map in portrait on a phone;
+- anything from Colin's next playtest.
 
-Also still open: power as a real limit (DESIGN.md, The base). The Choir lantern is ready to be its top tier.
-
-- **Left over from the walkable base:** line code plates indoors, and a sound for the lines and machines. Do these alongside milestone 12 if Colin asks.
+Then **the Steam desktop build** (DESIGN.md, Platform and tech), when Colin asks.
 
 ## Problems and open questions
+
+- **Milestone 12, to check after Colin plays:**
+  - **Power numbers** (`POWER_MAKE`, `POWER_DRAW`, `TURBINE_LIMIT` in `src/game/base.ts`): whether three turbines (36 W) is the right ceiling before the trench, and the vent generator's cost (`PIECES.thermal`) and research (`RESEARCH.thermal`: scans of the vents and the Fulmar).
+  - **Old bases:** a save with more than three turbines or a big base may now be short of power when it loads. That's the new rule, not a bug; a core generator (from the Corvina's log) fixes it.
+  - **Gamepad:** the highlight's moves between buttons are worked out from where they sit on screen; if a panel moves somewhere odd, note which one.
+  - **The title screen** shows on every start. If that's too much on the phone, it could show only after an hour away.
+  - **Adaptive resolution** thresholds (18% over budget down, 30 s before up) in `adaptFrame`. If you see the picture soften and sharpen in a loop, switch it off in Settings and tell me where.
+  - **Phone-speaker mix** (110 Hz low cut, +2.5 dB at 2.4 kHz): listen on the iPhone speaker and with headphones.
 
 - **Milestone 11, to check after Colin plays:**
   - **The heart's swings** (`HEART_MAP` in `src/interior/sanctum.ts`):
@@ -1645,7 +1819,7 @@ Also still open: power as a real limit (DESIGN.md, The base). The Choir lantern 
     - a phone in portrait gives a short map (it is sized for landscape);
     - the sanctum shows only after its door is open;
     - the kelp caves draw as a few hollows.
-  - **Gamepad:** contact can only be answered by touch or keys 1–4. Add pad buttons in milestone 12.
+  - **Gamepad:** contact answers to A, B, X and Y since milestone 12.
   - **The lighting bake is taller** (about 4,825 × 1,213 cells at 8 units). Check the first load time on the iPhone.
 
 - **Milestone 10, to check after Colin plays:**

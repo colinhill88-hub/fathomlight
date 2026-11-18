@@ -2,7 +2,7 @@ import { Application, BlurFilter, Container, RenderTexture, Sprite, Texture, UPD
 import { perf, PerfOverlay } from './dev/perf';
 import { PostStack, ZoneWeights } from './fx/post';
 import { Bench, BENCH, BENCH_SCENES, STILL, scenePos, seedBenchSave } from './dev/bench';
-import { FxToggles, loadChoice, loadFx, pixelRatioFor, renderBoost, Preset, PresetChoice, resolveChoice, saveChoice, saveFx } from './presets';
+import { FxToggles, loadChoice, loadFx, pixelRatioFor, renderBoost, renderScale, RENDER_SCALE_MIN, Preset, PresetChoice, resolveChoice, saveChoice, saveFx } from './presets';
 import { Water } from './scene/water';
 import { Backdrop } from './scene/backdrop';
 import { MarineSnow, SnowLight } from './scene/particles';
@@ -52,6 +52,8 @@ import {
   CV_HATCH,
   hidden,
   HIDDEN,
+  seam,
+  SEAM,
   SALVAGE,
   SALVAGE_REGROW,
   WRECK_SHELF,
@@ -105,7 +107,7 @@ import { Scanner } from './game/scanner';
 import { SurfaceFx } from './fx/surface';
 import { Hud } from './ui/hud';
 import { DiveWatch } from './ui/watch';
-import { BaseLayout, berthOf, cellOpen, GRID_BASE, GRID_X0, GRID_X1, isDone, onSeabed, isStoreKind, isTankKind, pieceCode, PIECES, pieceRect, Placed, shapeOf, SORT_BAY, STORAGE_PER_POD } from './game/base';
+import { BaseLayout, berthOf, cellOpen, GRID_BASE, GRID_X0, GRID_X1, isDone, onSeabed, isStoreKind, isTankKind, pieceCode, PIECES, pieceRect, POWER_MAKE, TURBINE_LIMIT, Placed, shapeOf, SORT_BAY, STORAGE_PER_POD } from './game/base';
 import { Sub } from './actors/sub';
 import { airClock, DENT_PER_SPEED, DENT_SPEED, docks, holdKg, SUB_AIR, SUB_BUILD_TIME, SUB_COST, subDock } from './game/sub';
 import { DockMode } from './ui/dock';
@@ -115,7 +117,7 @@ import { Wildlife } from './world/wildlife';
 import { TankLife } from './world/tanklife';
 import { Escort } from './actors/escort';
 import { CareMode } from './ui/care';
-import { creaturesIn, newCreature, payCost, PLANT_ORDER, PLANTS, SPECIES, SPECIES_ORDER, tankCapacity, tankNumber, tickCare } from './game/creatures';
+import { creaturesIn, newCreature, payCost, PLANT_ORDER, PLANTS, SPECIES, SPECIES_ORDER, tankCapacity, tankNumber, tickCare, wildAllowed, WILD_CAP } from './game/creatures';
 import { HatchPanel } from './ui/hatch';
 import { traitText, wildTraits } from './game/traits';
 import { RatesPanel } from './ui/rates';
@@ -134,6 +136,9 @@ import { SCAN_ENTRIES } from './game/scanner';
 import { CHOIR_AT, ChoirForm, HEART_MAP, heartOptions } from './interior/sanctum';
 import { Contact, type ContactWord } from './ui/contact';
 import { markSeen, ZoneMap } from './ui/zonemap';
+import { PadNav } from './ui/padnav';
+import { Menus } from './ui/menu';
+import { GearFx } from './world/gearfx';
 import { PATTERNS } from './game/traits';
 import { initSoundUI } from './ui/sound';
 
@@ -231,6 +236,9 @@ async function boot(): Promise<void> {
   // Progress from the last visit (or a fresh start at the Kestrel buoy).
   const loaded = loadSave(START.x, START.y);
   const save: SaveData = loaded.data;
+  // Opened passages count from the very first frame, so a diver saved inside one isn't pushed out (after milestone 12).
+  hidden.open = !!save.hiddenOpen;
+  seam.open = !!save.seamOpen;
   if (BENCH) seedBenchSave(save);
 
   let scenery = new Scenery(renderer, preset.detail);
@@ -262,6 +270,8 @@ async function boot(): Promise<void> {
   const lurkers = new Lurkers(LURKER_DENS);
   // Milestone 10: the trench's predators.
   const hunters = new DeepHunters(TR_LANTERNJAWS, TR_STALKERS, TR_SPIDERS);
+  // After milestone 12: flares, darts, visor marks, the tractor beam and drill sparks.
+  const gearFx = new GearFx();
   const tankLife = new TankLife();
   // Milestone 9: a grown glowfin from the jar swims beside the diver as a light.
   const escort = new Escort();
@@ -345,7 +355,7 @@ async function boot(): Promise<void> {
   baseView.sync(layout);
   tankLife.sync(save, layout);
   const buildOverlay = new BuildOverlay();
-  overlayCam.addChild(buildOverlay.view);
+  overlayCam.addChild(buildOverlay.view, gearFx.overlay);
   // Milestone 5: conveyors, feed pipes and the machines they join.
   const factory = new Factory();
   /** How many more items fit in the base's storage pods. */
@@ -428,7 +438,7 @@ async function boot(): Promise<void> {
       scenery.over,
     );
     frontCam.addChild(scenery.front);
-    emissiveCam.addChild(scenery.emissive, baseView.emissive, tankLife.emissive, pickups.emissive, wildlife.emissive, escort.emissive, lurkers.emissive, hunters.emissive, sub.emissive, drone.emissive, ...fish.map((f) => f.lure), diver.lens, diver.resonDot, surfaceFx.view);
+    emissiveCam.addChild(gearFx.emissive, scenery.emissive, baseView.emissive, tankLife.emissive, pickups.emissive, wildlife.emissive, escort.emissive, lurkers.emissive, hunters.emissive, sub.emissive, drone.emissive, ...fish.map((f) => f.lure), diver.lens, diver.resonDot, surfaceFx.view);
     glowCam.addChild(scenery.glow, baseView.glow, tankLife.glow, pickups.glow, wildlife.glow, escort.glow, lurkers.glow, hunters.glow, sub.glow, drone.glow, ...fish.map((f) => f.halo), diver.lensGlow, diver.resonGlow);
   }
   populate();
@@ -447,6 +457,7 @@ async function boot(): Promise<void> {
   const contact = new Contact(choir);
   /** Milestone 11: the Signal array's zone map (opened at its console). */
   const zoneMap = new ZoneMap();
+  const padNav = new PadNav();
   let seenClock = 0;
   // Saves from before the zone map: map the zones already reached.
   if (!save.mapSeen) {
@@ -624,6 +635,14 @@ async function boot(): Promise<void> {
   const GRAPPLE_REEL = 580;
   let vaneT = save.vane ? 1 : 0;
   let sonarAt = -99;
+  // After milestone 12: the dash, the drill and the tractor beam's clocks.
+  let boostTapAt = -99;
+  let dashAt = -99;
+  let drillT = 0;
+  let tractorAt = 0;
+  let tractorBeam: { x0: number; y0: number; x1: number; y1: number } | null = null;
+  let tractorBeamT = 0;
+  let noFlareAt = -99;
   race.vane = save.vane;
   const lineClear = (ax: number, ay: number, bx: number, by: number) => {
     for (let k = 1; k < 12; k++) if (isSolid(ax + ((bx - ax) * k) / 12, ay + ((by - ay) * k) / 12)) return false;
@@ -696,6 +715,12 @@ async function boot(): Promise<void> {
       research: 'tow',
       label: "Take the rope store's spool tag",
       toast: 'Rope store notes taken! A Lab can decode the grapple line from them: it hooks anchor points and reels you in, faster than strong currents.',
+      y: 0,
+    },
+    nurserylog: {
+      research: 'hatch',
+      label: 'Take the Kestrel nursery log',
+      toast: 'The Kestrel nursery log! A Lab can decode it into the Hatchery HX-1: warm cradles that take the eggs a happy pair lays. The wild only spares two of each kind, so breeding is how a base grows.',
       y: 0,
     },
     cache: {
@@ -1004,7 +1029,20 @@ async function boot(): Promise<void> {
   let lastViewW = 1000;
   /** What the diver's kit looks like: the gear found and built so far, carried on the body. */
   function kitLook(): KitLook {
-    return { tanks: save.tanks.length, spear: hasGear(save, 'tow'), jar: save.kit.jar, thruster: save.kit.thruster, psuit: hasGear(save, 'psuit2') ? 2 : hasGear(save, 'psuit') ? 1 : 0, resonator: hasGear(save, 'resonator') };
+    return {
+      tanks: save.tanks.length,
+      spear: hasGear(save, 'tow'),
+      jar: save.kit.jar,
+      thruster: save.kit.thruster,
+      psuit: hasGear(save, 'psuit2') ? 2 : hasGear(save, 'psuit') ? 1 : 0,
+      resonator: hasGear(save, 'resonator'),
+      satchel: hasGear(save, 'satchel'),
+      flare: hasGear(save, 'flare'),
+      visor: hasGear(save, 'visor'),
+      boots: hasGear(save, 'boots'),
+      cowl: hasGear(save, 'cowl'),
+      dash: hasGear(save, 'dash'),
+    };
   }
   let noThrusterAt = -99;
   /** The SLED 2 recorder still lies out on the sand (not taken, decoded or being decoded). */
@@ -1163,6 +1201,53 @@ async function boot(): Promise<void> {
     ui.refresh();
   }
 
+  // ---- Milestone 12: adaptive resolution ----
+  // Every 2 s of play, compare the average frame time with the preset's budget.
+  // Too slow: step the render scale down by 0.1. Comfortably at the cap for 8 s
+  // (and 30 s after the last step down): step it back up. Only the render
+  // targets are resized, not the scene.
+  const adapt = { ms: 0, n: 0, good: 0, sinceDown: 99 };
+  function resizeTargets(): void {
+    const res = pixelRatioFor(preset, cssW, cssH);
+    renderer.resize(cssW, cssH, res);
+    litRT.resize(cssW, cssH, res);
+    applyPost(res);
+    interior.resize(cssW, cssH, res);
+    glowRT.resize(cssW, cssH, res * preset.glowResolution);
+    blur.resolution = res * preset.glowResolution;
+  }
+  function adaptFrame(deltaMS: number): void {
+    if (!fx.adaptive || document.hidden || bench.active) {
+      if (!fx.adaptive && renderScale.v !== 1) {
+        renderScale.v = 1;
+        resizeTargets();
+      }
+      return;
+    }
+    if (deltaMS > 250) return; // a hitch (tab switch, a long load), not a slow scene
+    adapt.ms += deltaMS;
+    adapt.n++;
+    if (adapt.ms < 2000) return;
+    const avg = adapt.ms / adapt.n;
+    adapt.ms = 0;
+    adapt.n = 0;
+    adapt.sinceDown += 2;
+    const budget = 1000 / preset.maxFps;
+    if (avg > budget * 1.18 && renderScale.v > RENDER_SCALE_MIN + 0.001) {
+      renderScale.v = Math.max(RENDER_SCALE_MIN, Math.round((renderScale.v - 0.1) * 10) / 10);
+      adapt.good = 0;
+      adapt.sinceDown = 0;
+      resizeTargets();
+    } else if (avg <= budget * 1.04 && renderScale.v < 1) {
+      adapt.good += 2;
+      if (adapt.good >= 8 && adapt.sinceDown >= 30) {
+        renderScale.v = Math.min(1, Math.round((renderScale.v + 0.1) * 10) / 10);
+        adapt.good = 0;
+        resizeTargets();
+      }
+    } else adapt.good = 0;
+  }
+
   let fx: FxToggles = loadFx();
   renderBoost.v = fx.supersample ? preset.supersample : 1;
   const ui = initSettingsUI({
@@ -1177,6 +1262,7 @@ async function boot(): Promise<void> {
       location.reload();
     },
     buildId: __BUILD_ID__,
+    onGear: () => menus.openPause(),
     getFx: () => fx,
     fxOn: (key) => (key === 'edges' ? (fx.edges ?? preset.hdrMsaa) : !!fx[key]),
     setFx: (key, on) => {
@@ -1199,11 +1285,39 @@ async function boot(): Promise<void> {
     },
   });
 
+  // ---- Milestone 12: the title screen, the pause menu and moving a save ----
+  const menus = new Menus({
+    getSave: () => save,
+    hadSave: loaded.loaded,
+    persist: () => persist(),
+    resetProgress: () => {
+      clearSave();
+      resetting = true;
+      location.reload();
+    },
+    openSettings: () => {
+      ui.open();
+      soundUI.refresh();
+    },
+    openLog: () => document.getElementById('log-btn')!.click(),
+    buildId: __BUILD_ID__,
+    onPause: (p) => audio.setPaused(p),
+    panelOpen: () =>
+      build.active || care.active || dockUI.active || station.active || hatchPanel.active || contact.active || zoneMap.open || hud.reading || rates.open || !settingsPanel.hidden || !logPanel.hidden,
+  });
+  window.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !logPanel.hidden) document.getElementById('log-btn')!.click();
+  });
+  const urlq = new URLSearchParams(location.search);
+  if (!urlq.has('notitle') && !urlq.has('at') && !urlq.has('bench')) menus.showTitle();
+  let pausedFrames = 0;
+
   let resetting = false;
   let resizeTimer = 0;
   const onResize = () => {
     clearTimeout(resizeTimer);
     resizeTimer = window.setTimeout(rebuild, 120);
+    pausedFrames = -30;
   };
   window.addEventListener('resize', onResize);
   window.addEventListener('orientationchange', onResize);
@@ -1276,8 +1390,13 @@ async function boot(): Promise<void> {
         baseView.sync(layout);
         const p = ev.piece;
         const powered = layout.powered.has(p.id);
+        const net = layout.netFor(p.id);
+        if (net && net.rate < 1 && !save.tips.includes('powershort')) {
+          save.tips.push('powershort');
+          hud.toast(`The base now draws ${net.draw} W but makes ${net.make} W: machines run at ${Math.round(net.rate * 100)}% speed. Add a power source (the build title shows the meter).`, 'warn');
+        }
         hud.toast(
-          `Finished: ${PIECES[p.kind].name}${p.kind !== 'turbine' && !powered ? ' (no power yet: join it to a current turbine)' : ''}`,
+          `Finished: ${PIECES[p.kind].name}${!POWER_MAKE[p.kind] && !powered ? ' (no power yet: join it to a current turbine)' : ''}`,
           'big',
         );
         if (build.active) build.refresh();
@@ -1330,7 +1449,8 @@ async function boot(): Promise<void> {
 
     // ---- Salvage cranes (milestone 8 part 2): one piece a minute per crane, into storage ----
     {
-      const cranes = layout.pieces.filter((p) => p.kind === 'crane' && isDone(p) && layout.powered.has(p.id)).length;
+      // Milestone 12: a crane on a network short of power works slower.
+      const cranes = layout.pieces.filter((p) => p.kind === 'crane' && isDone(p) && layout.powered.has(p.id)).reduce((n, p) => n + layout.powerRate(p.id), 0);
       if (cranes && save.craneQueue > 0) {
         save.craneProgress = Math.min(1, save.craneProgress + (dt * cranes) / 60);
         // It waits, holding the piece, until storage has room for everything it makes.
@@ -1372,7 +1492,7 @@ async function boot(): Promise<void> {
     // ---- Creature care: needs run on play time ----
     for (const ev of tickCare(save, layout, dt)) {
       const name = SPECIES[ev.c.species].name;
-      const where = `tank ${tankNumber(layout, ev.c.tank)}`;
+      const where = ev.c.tank < 0 ? "the Hatchery" : `tank ${tankNumber(layout, ev.c.tank)}`;
       // Milestone 9: breeding.
       if (ev.type === 'laid') {
         const tp = layout.pieces.find((q) => q.id === ev.parents[0].tank);
@@ -1386,6 +1506,10 @@ async function boot(): Promise<void> {
       }
       if (ev.type === 'nursery-hatched') {
         hud.toast(`A ${name.toLowerCase()} hatched in the Hatchery: ${traitText(ev.c.species, ev.c.traits!)}. Choose a tank for it at the Hatchery console.`, 'big');
+        if (!save.tips.includes('younghunger')) {
+          save.tips.push('younghunger');
+          setTimeout(() => hud.toast('Young in the Hatchery get hungry while they wait: run a feed pipe from an auto feeder into it, or feed them by hand at its console.', 'big'), 5000);
+        }
         baseHooks?.syncTanks();
         persist();
         continue;
@@ -1537,6 +1661,9 @@ async function boot(): Promise<void> {
       perf.markUpdate();
       perf.width = app.canvas.width;
       perf.height = app.canvas.height;
+      // Paused: draw a few frames to settle, then stop drawing (saves the battery; the picture stays).
+      if (pausedFrames > 3) return;
+      if (pausedFrames === 0) adaptFrame(ticker.deltaMS);
       drawPost(ticker.elapsedMS);
       perf.frameEnd(ticker.elapsedMS);
       perfOverlay.tick(perf.last, performance.now());
@@ -1548,6 +1675,15 @@ async function boot(): Promise<void> {
   app.ticker.add((ticker) => {
     const dt = Math.min(ticker.deltaMS / 1000, 0.05);
     time += dt;
+    // Milestone 12: the gamepad drives whichever panel or menu is on screen.
+    padNav.update(dt);
+    menus.update();
+    // The title screen and the pause menu hold the world still.
+    if (menus.paused) {
+      pausedFrames++;
+      return;
+    }
+    pausedFrames = 0;
     if (interior.active) {
       interiorFrame(dt, ticker.deltaMS);
       return;
@@ -1557,7 +1693,7 @@ async function boot(): Promise<void> {
     const atSite = diver.x > GRID_X0 - 260 && diver.x < GRID_X1 + 260 && diver.y < GRID_BASE + 120;
     build.setAvailable(atSite && blackout === 0 && !care.active && !dockUI.active && !station.active);
     const aboardNow = !!save.sub?.aboard;
-    build.pollPad(dt);
+    if (!padNav.active) build.pollPad(dt);
     if (!build.active && rates.open) rates.close();
     rates.update(dt);
     // The walkable base: tanks, Labs and Workshops are used from inside now. A console
@@ -1622,7 +1758,7 @@ async function boot(): Promise<void> {
         'big',
       );
     }
-    input.suspended = build.active || care.active || dockUI.active || station.active;
+    input.suspended = build.active || care.active || dockUI.active || station.active || padNav.active;
     if (atSite && !save.tips.includes('build') && blackout === 0) {
       save.tips.push('build');
       hud.toast(
@@ -1672,7 +1808,7 @@ async function boot(): Promise<void> {
     if (save.sub?.aboard && !save.sub.docked) {
       const sr = raceAt(sub.x, sub.y);
       if (sr > 0) {
-        const nx = sub.x - RACE.speed * (save.vane ? 0.5 : 1.4) * sr * dt;
+        const nx = sub.x - RACE.speed * (save.vane ? 0.5 : 1.4) * sr * dt * (save.sub.modules.includes('ballast') ? 0.2 : 1);
         if (!isSolid(nx - 150, sub.y) && !isSolid(nx - 150, sub.y + 40)) sub.x = nx;
       }
     }
@@ -1748,7 +1884,7 @@ async function boot(): Promise<void> {
         const dockOn = S.docked && layout.powered.has(S.dock);
         if (dockOn) S.air = Math.min(SUB_AIR, S.air + (SUB_AIR / 20) * dt);
         else if (sub.surfaced) S.air = Math.min(SUB_AIR, S.air + (SUB_AIR / 30) * dt);
-        else if (S.aboard && inControl && blackout === 0) S.air = Math.max(0, S.air - dt * (sub.thrust > 0 ? 1.3 : 1));
+        else if (S.aboard && inControl && blackout === 0) S.air = Math.max(0, S.air - dt * (sub.thrust > 0 ? 1.3 : 1) * (S.modules.includes('habitat') ? 0.25 : 1));
         if (S.air > 120) subAirWarn = 0;
         if (S.aboard && S.air < 60 && subAirWarn === 0) {
           subAirWarn = 1;
@@ -1815,6 +1951,8 @@ async function boot(): Promise<void> {
     const raceHere = aboard ? 0 : raceAt(diver.x, diver.y);
     const atRing = ANCHORS.findIndex((r) => Math.hypot(diver.x - r.x, diver.y - r.y) < 80);
     diver.current.x += -RACE.speed * raceHere * (atRing >= 0 ? 0.1 : 1) * (0.85 + 0.15 * Math.sin(time * 0.7));
+    // After milestone 12: mag-boots grip the seabed, so on the bottom currents hardly push.
+    if (!aboard && hasGear(save, 'boots') && (isSolid(diver.x, diver.y + 44) || isSolid(diver.x - 14, diver.y + 44) || isSolid(diver.x + 14, diver.y + 44))) diver.current.x *= 0.12;
     scenery.updateRace(time, camX, camX + lastViewW);
     diver.current.y = 0;
     // Milestone 10: scalding plumes over the vent chimneys lift and burn; so does the sealed chimney.
@@ -1835,6 +1973,8 @@ async function boot(): Promise<void> {
     cv.door = save.corvina.door;
     cv.power = save.corvina.breakers.every(Boolean);
     hidden.open = save.hiddenOpen;
+    seam.open = !!save.seamOpen;
+    scenery.setSeam(seam.open);
     scenery.setCorvina(save.corvina);
     scenery.setHidden(save.hiddenOpen);
     scenery.setLocker(save.lockerOpen);
@@ -1927,6 +2067,23 @@ async function boot(): Promise<void> {
         hud.toast('No thruster to boost with yet. A Kestrel survey left a spare hip thruster somewhere near its beacon, at the drop-off.', 'warn');
       }
       diver.update(dt, inControl ? s.moveX : 0, inControl ? s.moveY : 0, inControl && s.boost && save.kit.thruster > 0, inControl && s.lamp);
+      // After milestone 12: the TH-3 dash head. A double tap of Boost dashes, every 3 s.
+      if (inControl && s.boost && hasGear(save, 'dash')) {
+        if (time - boostTapAt < 0.32 && time - dashAt > 3) {
+          dashAt = time;
+          const mx = Math.abs(s.moveX) > 0.2 || Math.abs(s.moveY) > 0.2 ? s.moveX : diver.facing;
+          const my = Math.abs(s.moveX) > 0.2 || Math.abs(s.moveY) > 0.2 ? s.moveY : 0;
+          const l = Math.hypot(mx, my) || 1;
+          diver.vx += (mx / l) * 1150;
+          diver.vy += (my / l) * 900;
+          sound.dash();
+          if (!save.tips.includes('dash')) {
+            save.tips.push('dash');
+            hud.toast('Dash! The TH-3 head throws you a short way at once. It needs 3 s to recover.');
+          }
+        }
+        boostTapAt = time;
+      }
     }
 
     // Breaking the surface: a splash, then breath vapour with each breath out.
@@ -2164,6 +2321,8 @@ async function boot(): Promise<void> {
       else if (atSurface || domeAir || subAir || relayAir) save.suit = Math.min(1, save.suit + dt * 0.25);
       else if (suitCalm > 8) save.suit = Math.min(1, save.suit + dt * 0.012);
       if (scald > 0 && !aboard) {
+        // After milestone 12: the heat-shield cowl turns most of the heat away.
+        if (hasGear(save, 'cowl')) scald *= 0.2;
         save.suit = Math.max(0, save.suit - dt * 0.09 * scald);
         suitCalm = 0;
         if (!save.tips.includes('scald')) {
@@ -2313,9 +2472,20 @@ async function boot(): Promise<void> {
     // Wild creatures: the specimen jar takes the Collect button when one is in reach.
     const wt = wildlife.target;
     const wtKnown = !!wt && save.scans.includes(SPECIES[wt.species].scan);
-    const wildOk = !!wt && wtKnown && save.kit.jar && !save.jar && !diver.surfaced && !atDrone;
+    const wildSpare = !!wt && wildAllowed(save, wt.species);
+    // After milestone 12: the specimen satchel is a second slot.
+    const jarFull = !!save.jar && (!hasGear(save, 'satchel') || !!save.jar2);
+    const wildOk = !!wt && wtKnown && wildSpare && save.kit.jar && !jarFull && !diver.surfaced && !atDrone;
     for (const ev of wildlife.update(dt, time, reachPt.x, reachPt.y, Math.hypot(diver.vx, diver.vy), aboard ? sub.thrust > 0 : diver.boosting, save, collectHeld && wildOk, camX - 200, camX + lastViewW + 200)) {
-      save.jar = { species: ev.species, stage: ev.stage, traits: wildlife.traitsOf(ev.id) };
+      const caughtJar = { species: ev.species, stage: ev.stage, traits: wildlife.traitsOf(ev.id) };
+      if (save.jar) save.jar2 = caughtJar;
+      else save.jar = caughtJar;
+      save.wildCaught[ev.species] = (save.wildCaught[ev.species] ?? 0) + 1;
+      const left = WILD_CAP - (save.wildCaught[ev.species] ?? 0);
+      if (left <= 0 && !save.tips.includes(`wildcap-${ev.species}`)) {
+        save.tips.push(`wildcap-${ev.species}`);
+        setTimeout(() => hud.toast(`That's the last ${SPECIES[ev.species].name.toLowerCase()} the wild will spare. For more, keep a pair happy and grown in one tank, with a Hatchery at the base: they breed.`, 'big'), 4500);
+      }
       drone.cheer();
       const sp = SPECIES[ev.species];
       const name = ev.stage === 'egg' ? sp.eggName : sp.youngName;
@@ -2339,7 +2509,9 @@ async function boot(): Promise<void> {
           ? 'Nothing to carry it in. A Kestrel specimen jar was lost by the old anchor in the coral garden.'
           : !save.scans.includes(SPECIES[wildTarget.species].scan)
             ? `Scan the ${SPECIES[wildTarget.species].name.toLowerCase()} first, to learn how to keep it`
-            : 'The specimen jar is full. Put its creature in a tank first.',
+            : !wildAllowed(save, wildTarget.species)
+              ? `The wild has spared you two ${SPECIES[wildTarget.species].name.toLowerCase()}s already. Breed more at a Hatchery: a happy grown pair in one tank lays eggs.`
+              : 'The specimen jar is full. Put its creature in a tank first.',
         'warn',
       );
     }
@@ -2943,8 +3115,10 @@ async function boot(): Promise<void> {
           ? 'No specimen jar yet'
           : !save.scans.includes(sp.scan)
           ? `Unknown creature: scan it first`
-          : save.jar
-            ? 'Specimen jar full'
+          : !wildAllowed(save, wildTarget.species)
+            ? `Wild ${sp.name.toLowerCase()}: breed more at the base`
+            : jarFull
+            ? hasGear(save, 'satchel') ? 'Jar and satchel full' : 'Specimen jar full'
             : wildTarget.stage === 'egg'
               ? `Ease ${sp.eggName} into jar`
               : `Coax ${sp.youngName} into jar`,
@@ -3006,6 +3180,9 @@ async function boot(): Promise<void> {
       }
     }
     idTimer = Math.max(0, idTimer - dt);
+
+    // ---- After milestone 12: suit attachments and the sub's new modules ----
+    gearFrame(dt, aboard, s, inControl);
 
     for (const f of fish) f.update(dt, time, diver.x, diver.y);
     const [bx, by] = diver.bubblePoint();
@@ -3099,6 +3276,8 @@ async function boot(): Promise<void> {
         build.link ? null : build.selected,
         build.linkPreview(),
         build.selectedLine !== null ? linesView.route(build.selectedLine) : null,
+        build.portMarkers(),
+        Math.max(0.9, Math.min(2.6, build.cam.h / 760)),
       );
     }
     for (const sc of schools) sc.update(dt, time, diver.x, diver.y, camX, camX + viewW);
@@ -3170,7 +3349,7 @@ async function boot(): Promise<void> {
     diver.lensGlow.position.set(lp.x, lp.y);
     diver.lensGlow.alpha = diver.lamp * diver.view.alpha;
 
-    const lights: Light[] = [...(save.sub ? sub.lights : []), lampLight, ...drone.lights, ...scenery.lights, ...baseView.lights, ...pickups.lights, ...wildlife.lights, escort.light, ...lurkers.lights, ...hunters.lights, ...fish.map((f) => f.light)];
+    const lights: Light[] = [...(save.sub ? sub.lights : []), lampLight, ...gearFx.lights, ...drone.lights, ...scenery.lights, ...baseView.lights, ...pickups.lights, ...wildlife.lights, escort.light, ...lurkers.lights, ...hunters.lights, ...fish.map((f) => f.light)];
     // G2: soft contact shadows where things meet the seabed (the diver's, the sub's, the drone's and the base's feet).
     const contacts: [number, number, number, number][] = [];
     if (fx.contact && preset.contactShadows > 0) {
@@ -3556,12 +3735,16 @@ async function boot(): Promise<void> {
     status: (p) => {
       const code = pieceCode(layout, p);
       if (!layout.powered.has(p.id)) return `${code}: no power. Join it to a current turbine.`;
+      const net = layout.netFor(p.id)!;
+      const watts = `${net.draw} of ${net.make} W used${net.rate < 1 ? ` · short of power, machines at ${Math.round(net.rate * 100)}%` : ''}`;
       switch (p.kind) {
-        case 'turbine': {
-          let n = 0;
-          for (const q of layout.pieces) if (q.kind !== 'turbine' && layout.powered.has(q.id)) n++;
-          return `${code}: turning in the reef current · ${n} piece${n === 1 ? '' : 's'} powered`;
-        }
+        case 'turbine':
+          if (layout.idleTurbine(p)) return `${code}: idle. The Kestrel current only drives ${TURBINE_LIMIT} turbines`;
+          return `${code}: turning in the reef current · 12 W · ${watts}`;
+        case 'thermal':
+          return `${code}: sealed core glowing · 40 W · ${watts}`;
+        case 'lantern':
+          return `${code}: the Choir's light · 100 W · ${watts}`;
         case 'feeder': {
           const f = readings.feeder(p.id);
           return `${code}: hopper ${Math.round(f.hopper * 100)}% · mash ${Math.round(f.mash * 100)}%${f.run ? ' · pressing' : ''}`;
@@ -3579,8 +3762,8 @@ async function boot(): Promise<void> {
         case 'farm': {
           const m = machineData(save, p.id);
           const grow = m.grow ?? 'fibre';
-          return `${code}: growing ${grow === 'fibre' ? 'kelp fibre' : `${PLANTS[grow].name.toLowerCase()} cuttings`} · ${Math.round(Math.min(1, m.press) * 100)}%${
-            grow === 'fibre' ? ` · tray ${m.fibre}/${FARM_TRAY}` : ` · ${save.cuttings[grow] ?? 0} ready`
+          return `${code}: growing ${grow === 'fibre' ? 'kelp fibre' : grow === 'resin' ? 'bladder kelp for resin' : `${PLANTS[grow].name.toLowerCase()} cuttings`} · ${Math.round(Math.min(1, m.press) * 100)}%${
+            grow === 'fibre' ? ` · tray ${m.fibre}/${FARM_TRAY}` : grow === 'resin' ? ` · tray ${m.resin ?? 0}/${FARM_TRAY}` : ` · ${save.cuttings[grow] ?? 0} ready`
           }`;
         }
         default:
@@ -3596,11 +3779,21 @@ async function boot(): Promise<void> {
     farmCrop: (id) => {
       const m = machineData(save, id);
       const grow = m.grow ?? 'fibre';
-      return { name: grow === 'fibre' ? 'kelp fibre' : `${PLANTS[grow].name.toLowerCase()} cuttings`, grow, progress: Math.min(1, m.press), tray: m.fibre, cap: FARM_TRAY };
+      return {
+        name: grow === 'fibre' ? 'kelp fibre' : grow === 'resin' ? 'resin' : `${PLANTS[grow].name.toLowerCase()} cuttings`,
+        grow,
+        progress: Math.min(1, m.press),
+        tray: grow === 'resin' ? (m.resin ?? 0) : m.fibre,
+        cap: FARM_TRAY,
+      };
     },
     farmCycle: (id) => {
       const m = machineData(save, id);
-      const opts: ('fibre' | (typeof PLANT_ORDER)[number])[] = ['fibre', ...PLANT_ORDER.filter((pl) => save.scans.includes(PLANTS[pl].scan))];
+      const opts: ('fibre' | 'resin' | (typeof PLANT_ORDER)[number])[] = [
+        'fibre',
+        ...(save.scans.includes(PLANTS.bladder.scan) ? (['resin'] as const) : []),
+        ...PLANT_ORDER.filter((pl) => save.scans.includes(PLANTS[pl].scan)),
+      ];
       const i = opts.indexOf(m.grow ?? 'fibre');
       m.grow = opts[(i + 1) % opts.length];
       m.press = 0;
@@ -3608,16 +3801,21 @@ async function boot(): Promise<void> {
       hud.toast(
         m.grow === 'fibre'
           ? 'The farm grows kelp fibre: into its tray, for a conveyor (to an auto feeder or storage), or take it by hand.'
-          : `The farm grows ${PLANTS[m.grow].name.toLowerCase()} cuttings (${save.cuttings[m.grow] ?? 0} ready). Planting it in a tank uses a cutting instead of materials.`,
+          : m.grow === 'resin'
+            ? 'The farm grows bladder kelp and taps its resin: one every 4 minutes into its tray, for a conveyor to storage. Grand tanks, Hatcheries and sorting pods are built from it.'
+            : `The farm grows ${PLANTS[m.grow].name.toLowerCase()} cuttings (${save.cuttings[m.grow] ?? 0} ready). Planting it in a tank uses a cutting instead of materials.`,
       );
       persist();
     },
     farmTake: (id) => {
       const m = machineData(save, id);
-      if (m.fibre <= 0) return;
+      const resin = m.resin ?? 0;
+      if (m.fibre <= 0 && resin <= 0) return;
       save.bag.fibre += m.fibre;
-      hud.toast(`+${m.fibre} kelp fibre from the farm's tray`);
+      save.bag.resin += resin;
+      hud.toast(`+${[m.fibre ? `${m.fibre} kelp fibre` : '', resin ? `${resin} resin` : ''].filter(Boolean).join(' and ')} from the farm's tray`);
       m.fibre = 0;
+      m.resin = 0;
       hud.refreshInventory();
       persist();
     },
@@ -3736,9 +3934,139 @@ async function boot(): Promise<void> {
     goOnFoot();
     persist();
   }
+
+  /** After milestone 12: everything the new suit attachments and sub modules do each frame. */
+  function gearFrame(dt: number, aboard: boolean, s: typeof input.state, inControl: boolean): void {
+    const S = save.sub;
+    const mods = S && S.stage === 'built' ? S.modules : [];
+    const live = inControl && blackout === 0;
+    // The satchel's second slot moves into the jar once the jar is emptied.
+    if (!save.jar && save.jar2) {
+      save.jar = save.jar2;
+      save.jar2 = null;
+    }
+    // Flare launcher (Z, LT, or the flare button).
+    if (s.flare && live && !aboard) {
+      if (!hasGear(save, 'flare')) {
+        if (time - noFlareAt > 6) {
+          noFlareAt = time;
+          hud.toast('No flare launcher yet: a Lab can work one out from scans of the kelp caves and their black water.', 'warn');
+        }
+      } else if (save.bag.quartz < 1) hud.toast('Each flare takes 1 quartz, carried', 'warn');
+      else {
+        save.bag.quartz--;
+        hud.refreshInventory();
+        const lp = diver.lampPose();
+        gearFx.fireFlare(lp.x, lp.y, diver.facing);
+        sound.flare();
+      }
+    }
+    // Stun dart (X, RT, or the dart button): the nearest predator ahead, sharing the sonar's cooldown.
+    if (s.dart && live && !aboard && hasGear(save, 'dart')) {
+      if (time - sonarAt < 6) hud.toast(`The harpoon is recharging (${Math.ceil(6 - (time - sonarAt))} s)`, 'warn');
+      else {
+        const lp = diver.lampPose();
+        let best: { x: number; y: number; hit: () => boolean } | null = null;
+        let bd = 700;
+        const consider = (x: number, y: number, hit: () => boolean) => {
+          const dx = x - diver.x;
+          const d = Math.hypot(dx, y - diver.y);
+          if (dx * diver.facing > -60 && d < bd) {
+            bd = d;
+            best = { x, y, hit };
+          }
+        };
+        for (const l of lurkers.list) {
+          const h = l.head();
+          consider(h.x, h.y, () => l.scare());
+        }
+        for (const h of hunters.list) consider(h.x, h.y, () => h.scare());
+        sonarAt = time;
+        const b = best as { x: number; y: number; hit: () => boolean } | null;
+        if (b) {
+          gearFx.fireDart(lp.x, lp.y, b.x, b.y);
+          const stunned = b.hit();
+          sound.dart(true);
+          hud.toast(stunned ? 'The dart strikes: the predator jerks away into the dark.' : 'The dart strikes, but it was already retreating.');
+        } else {
+          gearFx.fireDart(lp.x, lp.y, lp.x + diver.facing * 520, lp.y);
+          sound.dart(false);
+          sonarAt = time - 4.5; // a miss recharges quicker
+        }
+      }
+    }
+    // Marks: the Echo visor (materials and young, about 20 m) and the sonar dome (materials, about 25 m).
+    const marks: { x: number; y: number; teal?: boolean; young?: boolean }[] = [];
+    if (!aboard && hasGear(save, 'visor') && !interior.active) {
+      for (const m of pickups.materials()) if (Math.hypot(m.x - diver.x, m.y - diver.y) < 1500) marks.push({ x: m.x, y: m.y });
+      for (const w of wildlife.youngSpots()) if (Math.hypot(w.x - diver.x, w.y - diver.y) < 1500) marks.push({ x: w.x, y: w.y, young: true });
+    }
+    if (aboard && mods.includes('sdome')) {
+      for (const m of pickups.materials()) if (Math.hypot(m.x - sub.x, m.y - sub.y) < 1900) marks.push({ x: m.x, y: m.y, teal: true });
+    }
+    // Tractor beam: drive slowly and it draws the nearest loose material in, one every 1.2 s.
+    tractorBeamT = Math.max(0, tractorBeamT - dt);
+    if (tractorBeamT <= 0) tractorBeam = null;
+    if (aboard && mods.includes('tractor') && S && !S.docked && Math.hypot(sub.vx, sub.vy) < 260) {
+      tractorAt -= dt;
+      if (tractorAt <= 0) {
+        tractorAt = 1.2;
+        let best: { id: string; x: number; y: number } | null = null;
+        let bd = 300;
+        for (const m of pickups.materials()) {
+          const d = Math.hypot(m.x - sub.x, m.y - sub.y);
+          if (d < bd && bagHasRoom(save, m.kind)) {
+            bd = d;
+            best = m;
+          }
+        }
+        const b = best as { id: string; x: number; y: number } | null;
+        if (b) {
+          const kind = pickups.tractorTake(b.id, save);
+          if (kind) {
+            save.bag[kind]++;
+            hud.refreshInventory(kind);
+            hud.toast(`+1 ${MATERIALS[kind].name} (tractor beam)`);
+            sound.tractor();
+            tractorBeam = { x0: sub.x + sub.face * 98, y0: sub.y + 24, x1: b.x, y1: b.y };
+            tractorBeamT = 0.6;
+          }
+        }
+      }
+    }
+    // The drill seam in the trench wall: KS-1's drill nose bores it (hold Collect with the bow at it).
+    sub.drilling = false;
+    if (!seam.open && S && aboard) {
+      const near = Math.hypot(sub.bowX() - SEAM.x, sub.y - SEAM.y) < 230;
+      if (near && !mods.includes('drill')) hud.setBanner('A soft rock seam: a drill nose on KS-1 could bore through it.');
+      else if (near && live && s.collect) {
+        drillT += dt;
+        sub.drilling = true;
+        gearFx.drillSparks(sub.bowX() + sub.face * 30, sub.y + 5);
+        if (Math.random() < dt * 8) sound.drill();
+        hud.setBanner(`Drilling the seam · ${Math.round(Math.min(1, drillT / 3) * 100)}%`);
+        if (drillT >= 3) {
+          seam.open = true;
+          save.seamOpen = true;
+          scenery.setSeam(true);
+          drone.cheer();
+          hud.setBanner('');
+          hud.toast('The drill breaks through! Behind the seam, a sealed grotto: glowing blooms that never saw a lamp, vent ore, and an Echo whorl.', 'big');
+          persist();
+        }
+      } else if (near) hud.setBanner('A soft rock seam: hold Collect to drill it.');
+      else drillT = Math.max(0, drillT - dt);
+    }
+    gearFx.update(dt, time, marks, tractorBeam, zoom);
+    if (S) sub.setLook(!!S.plating, !!save.sanctum.contact);
+    flareBtn.hidden = !hasGear(save, 'flare') || aboard;
+    dartBtn.hidden = !hasGear(save, 'dart') || aboard;
+  }
+  const flareBtn = document.getElementById('btn-flare') as HTMLButtonElement;
+  const dartBtn = document.getElementById('btn-dart') as HTMLButtonElement;
   const FIND_NOTE = 'Kept in your scanner log.';
   function interiorFrame(dt: number, deltaMS: number): void {
-    input.suspended = false;
+    input.suspended = padNav.active;
     input.update();
     const s = input.state;
     const paused = hud.reading || zoneMap.open;
@@ -4011,6 +4339,9 @@ async function boot(): Promise<void> {
 
   // For automated checks: lets a test drive the diver without real touches.
   (window as unknown as { __fathom: unknown }).__fathom = {
+    perf,
+    adaptFrame: (ms: number) => adaptFrame(ms),
+    renderScale,
     diver,
     app,
     save,

@@ -1,5 +1,8 @@
 import {
   BaseLayout,
+  POWER_DRAW,
+  POWER_MAKE,
+  TURBINE_LIMIT,
   canAfford,
   available,
   CELL,
@@ -33,6 +36,7 @@ import {
   lineCost,
   lineRate,
   lineRoute,
+  portPoint,
   LineKind,
   LINES,
   linkProblem,
@@ -87,6 +91,8 @@ const TAB_OF = Object.fromEntries(PIECE_ORDER.map((k) => [k, STRUCTURE.includes(
 
 /** Small side-view icons for the palette, drawn as SVG. */
 const PIECE_ICONS: Record<PieceKind, string> = {
+  thermal:
+    '<svg viewBox="0 0 40 32"><rect x="12" y="1" width="16" height="30" rx="3" fill="#2c3236"/><rect x="9" y="6" width="3" height="5" fill="#a4b0b7"/><rect x="28" y="6" width="3" height="5" fill="#a4b0b7"/><rect x="9" y="21" width="3" height="5" fill="#a4b0b7"/><rect x="28" y="21" width="3" height="5" fill="#a4b0b7"/><circle cx="20" cy="16" r="7" fill="#a4b0b7"/><circle cx="20" cy="16" r="5" fill="#ff7a2a"/><circle cx="20" cy="16" r="2.2" fill="#ffe0a0"/><rect x="15" y="4" width="10" height="2" fill="#c6f03a"/><rect x="15" y="26" width="10" height="2" fill="#c6f03a"/></svg>',
   lantern:
     '<svg viewBox="0 0 40 32"><rect x="1" y="13" width="38" height="6" fill="#2c3236"/><rect x="17" y="1" width="6" height="30" fill="#2c3236"/><circle cx="20" cy="16" r="11" fill="none" stroke="#b8c0d8" stroke-width="4"/><circle cx="20" cy="16" r="6" fill="#a27cff" opacity=".7"/><circle cx="20" cy="16" r="3" fill="#5ff0ff"/><circle cx="20" cy="16" r="1.4" fill="#f4fbff"/></svg>',
   signal:
@@ -178,6 +184,9 @@ interface Ghost {
   gy: number;
 }
 
+/** How far above a piece's port its marker floats (world units). */
+const MARK_LIFT = 30;
+
 export class BuildMode {
   active = false;
   ghost: Ghost | null = null;
@@ -200,6 +209,7 @@ export class BuildMode {
   private btn = document.getElementById('build-btn') as HTMLButtonElement;
   private bar = document.getElementById('build-bar')!;
   private info = document.getElementById('build-info')!;
+  private titleEl = document.getElementById('build-title')!;
   private placeBtn = document.getElementById('build-place') as HTMLButtonElement;
   private rotateBtn = document.getElementById('build-rotate') as HTMLButtonElement;
   private cancelBtn = document.getElementById('build-cancel') as HTMLButtonElement;
@@ -238,6 +248,9 @@ export class BuildMode {
 
   // Dragging the ghost with a finger (relative, so the finger never hides it).
   private drag: { id: number; sx: number; sy: number; wx: number; wy: number; t: number; moved: boolean; mouse: boolean } | null = null;
+  /** After milestone 12: a line being dragged out of a port marker, and where the pointer is (world). */
+  private portDrag: { id: number; moved: boolean; sx: number; sy: number } | null = null;
+  dragPoint: { x: number; y: number } | null = null;
   /** Unsnapped centre of the ghost while dragging. */
   private float = { x: 0, y: 0 };
   private padPrev: boolean[] = [];
@@ -741,15 +754,64 @@ export class BuildMode {
     return this.deps.layout.pieces.filter((p) => p.id !== a.id && !this.linkWhy(p));
   }
 
+  /**
+   * After milestone 12: the port markers build mode shows on every finished
+   * piece that takes or sends lines (one per kind: amber conveyors, teal
+   * pipes), and which way they go. Drag from one to another piece to connect.
+   */
+  portMarkers(): { piece: Placed; kind: LineKind; x: number; y: number; out: boolean; in: boolean }[] {
+    const out: { piece: Placed; kind: LineKind; x: number; y: number; out: boolean; in: boolean }[] = [];
+    for (const p of this.deps.layout.pieces) {
+      if (!isDone(p)) continue;
+      const ports = PIECES[p.kind].ports;
+      if (!ports) continue;
+      for (const kind of ['belt', 'pipe'] as const) {
+        const o = !!ports[kind === 'belt' ? 'beltOut' : 'pipeOut'];
+        const i = !!ports[kind === 'belt' ? 'beltIn' : 'pipeIn'];
+        if (!o && !i) continue;
+        // A press takes in and sends out at opposite ends: two markers.
+        if (p.kind === 'press' && o && i) {
+          const a = portPoint(p, kind, 'in');
+          const b = portPoint(p, kind, 'out');
+          out.push({ piece: p, kind, x: a.x, y: a.y - MARK_LIFT, out: false, in: true }, { piece: p, kind, x: b.x, y: b.y - MARK_LIFT, out: true, in: false });
+          continue;
+        }
+        const pt = portPoint(p, kind, o ? 'out' : 'in');
+        out.push({ piece: p, kind, x: pt.x, y: pt.y - MARK_LIFT, out: o, in: i });
+      }
+    }
+    return out;
+  }
+
+  /** The port marker under a world point, if any. */
+  private markerAt(x: number, y: number): ReturnType<BuildMode['portMarkers']>[number] | null {
+    const reach = Math.max(26, this.cam.h * 0.035);
+    let best: ReturnType<BuildMode['portMarkers']>[number] | null = null;
+    let bd = reach;
+    for (const m of this.portMarkers()) {
+      const d = Math.hypot(m.x - x, m.y - y);
+      if (d < bd) {
+        bd = d;
+        best = m;
+      }
+    }
+    return best;
+  }
+
   /** What the line being drawn would look like and cost, for the overlay. */
-  linkPreview(): { from: Placed; targets: Placed[]; route: [number, number][] | null; ok: boolean } | null {
+  linkPreview(): { from: Placed; targets: Placed[]; route: [number, number][] | null; ok: boolean; drag?: { x0: number; y0: number; x1: number; y1: number; kind: LineKind } } | null {
     const l = this.link;
     const anchor = this.linkAnchor();
     if (!l || !anchor) return null;
     const { from, to } = this.linkEnds();
     const { save } = this.deps;
     const route = from && to ? lineRoute(from, to, l.kind, save.lines.filter((q) => q.kind === l.kind && q.from === from.id).length).pts : null;
-    return { from: anchor, targets: this.linkTargets(), route, ok: !this.reason };
+    let drag: { x0: number; y0: number; x1: number; y1: number; kind: LineKind } | undefined;
+    if (this.dragPoint && !route) {
+      const pt = portPoint(anchor, l.kind, l.anchor === 'from' ? 'out' : 'in');
+      drag = { x0: pt.x, y0: pt.y - MARK_LIFT, x1: this.dragPoint.x, y1: this.dragPoint.y, kind: l.kind };
+    }
+    return { from: anchor, targets: this.linkTargets(), route, ok: !this.reason, drag };
   }
 
   private buildLink(): void {
@@ -991,6 +1053,19 @@ export class BuildMode {
       if (this.touches.size > 2) return;
     }
     const w = this.deps.toWorld(e.clientX, e.clientY);
+    // After milestone 12: press on a port marker and drag to another piece to draw a line.
+    if (!this.ghost) {
+      const m = this.markerAt(w.x, w.y);
+      if (m && (!this.link || this.link.kind !== m.kind || this.linkAnchor()?.id !== m.piece.id)) {
+        this.selected = m.piece;
+        this.selectedLine = null;
+        this.startLink(m.kind, m.out ? 'from' : 'to');
+        this.portDrag = { id: e.pointerId, moved: false, sx: e.clientX, sy: e.clientY };
+        this.dragPoint = { x: w.x, y: w.y };
+        this.markTip();
+        return;
+      }
+    }
     this.drag = { id: e.pointerId, sx: e.clientX, sy: e.clientY, wx: w.x, wy: w.y, t: performance.now(), moved: false, mouse };
     if (this.ghost) this.float = this.ghostCentre(this.ghost);
     else this.pan = { id: e.pointerId, sx: e.clientX, sy: e.clientY, cx: this.cam.x, cy: this.cam.y };
@@ -1009,6 +1084,29 @@ export class BuildMode {
       this.cam.x = this.pinch.wx - (mid.x - window.innerWidth / 2) * k;
       this.cam.y = this.pinch.wy - (mid.y - window.innerHeight / 2) * k;
       this.clampCam();
+      return;
+    }
+    const pd = this.portDrag;
+    if (pd && pd.id === e.pointerId && this.link) {
+      if (Math.hypot(e.clientX - pd.sx, e.clientY - pd.sy) > 8) pd.moved = true;
+      const w = this.deps.toWorld(e.clientX, e.clientY);
+      this.dragPoint = { x: w.x, y: w.y };
+      const c = cellAt(w.x, w.y);
+      const p = this.deps.layout.pieceAt(c.gx, c.gy);
+      // A piece that sends and takes the same kind (storage): drop on a piece that can only feed it to draw the line the other way.
+      if (p && this.link.anchor === 'from' && !this.linkTargets().includes(p)) {
+        const ports = PIECES[this.linkAnchor()!.kind].ports;
+        if (ports?.[this.link.kind === 'belt' ? 'beltIn' : 'pipeIn']) {
+          const keep = this.link;
+          this.link = { ...keep, anchor: 'to', to: keep.from, from: null };
+          if (!this.linkTargets().includes(p)) this.link = keep;
+        }
+      }
+      const other = p && this.linkTargets().includes(p) ? p.id : null;
+      if (other !== this.linkOther()) {
+        this.setLinkOther(other);
+        this.refresh();
+      }
       return;
     }
     const pan = this.pan;
@@ -1068,6 +1166,21 @@ export class BuildMode {
       return;
     }
     if (this.pan?.id === e.pointerId) this.pan = null;
+    const pd = this.portDrag;
+    if (pd && pd.id === e.pointerId) {
+      this.portDrag = null;
+      this.dragPoint = null;
+      if (!this.active || !this.link) return;
+      // Dropped on a piece that can take it: build the line. A tap on the marker (no drag)
+      // leaves the line waiting for a tap on its other end, as before.
+      if (this.linkOther() !== null) this.place();
+      else if (pd.moved) {
+        this.link = null;
+        this.deps.toast('Drop the line on a piece that lights up to connect it.', 'warn');
+      }
+      this.refresh();
+      return;
+    }
     const d = this.drag;
     if (!this.active || !d || d.id !== e.pointerId) return;
     this.drag = null;
@@ -1433,11 +1546,17 @@ export class BuildMode {
         const other = link.anchor === 'from' ? linkTo : linkFrom;
         text += ` ${link.anchor === 'from' ? 'To' : 'From'} the ${PIECES[other.kind].name.toLowerCase()} (${pieceCode(layout, other)}): ${linkCells} cell${linkCells > 1 ? 's' : ''} · ${costTxt}`;
       }
-      text += this.reason ? `<span class="why">${this.reason}</span>` : '<span class="ok">Tap ✓ to build it (no welding needed)</span>';
+      text += this.reason
+        ? `<span class="why">${this.reason}</span>`
+        : this.portDrag
+          ? linkFrom && linkTo
+            ? '<span class="ok">Let go to connect (no welding needed)</span>'
+            : '<span class="ok">Drag onto a piece that lights up</span>'
+          : '<span class="ok">Tap ✓ to build it (no welding needed)</span>';
       if ((!linkFrom || !linkTo) && !this.linkTargets().length)
         text += `<span class="why">Nothing here can ${link.anchor === 'from' ? 'take it' : 'feed it'} yet.</span>`;
     } else if (g) {
-      text = `<b>${PIECES[g.kind].name}</b>: ${PIECES[g.kind].job}`;
+      text = `<b>${PIECES[g.kind].name}</b>: ${PIECES[g.kind].job}${POWER_MAKE[g.kind] ? ` <span class="rate">Makes ${POWER_MAKE[g.kind]} W</span>` : POWER_DRAW[g.kind] ? ` <span class="rate">Draws ${POWER_DRAW[g.kind]} W</span>` : ''}`;
       text += this.reason ? `<span class="why">${this.reason}</span>` : '<span class="ok">Fits here: tap ✓ to place the frame</span>';
     } else if (this.selectedLine !== null) {
       const l = save.lines.find((q) => q.id === this.selectedLine)!;
@@ -1462,10 +1581,7 @@ export class BuildMode {
         busy?.id === sel.id ? `Drone welding: ${pct}% · about ${left} s left` : `Waiting for the drone · ${pct}% welded`
       }</span>`;
     } else if (sel) {
-      const on = layout.powered.has(sel.id);
-      text = `<b>${PIECES[sel.kind].name}</b>: ${PIECES[sel.kind].job}<span class="${on ? 'ok' : 'why'}">${
-        on ? (sel.kind === 'turbine' ? 'Making power' : 'Powered') : 'No power: join it to a current turbine'
-      }</span>${this.pieceDetails(sel)}`;
+      text = `<b>${PIECES[sel.kind].name}</b>: ${PIECES[sel.kind].job}${this.powerNote(sel)}${this.pieceDetails(sel)}`;
     } else if (!drone) {
       text = `Plan freely, but nothing can be built yet.<span class="why">${NO_DRONE}</span>`;
     } else if (!layout.pieces.length) {
@@ -1477,9 +1593,65 @@ export class BuildMode {
         document.body.classList.contains('touch') ? 'Drag to look around, pinch to zoom.' : 'Drag or WASD to look around, wheel to zoom, F to fit.'
       }${frames ? `<span class="ok">${frames} frame${frames > 1 ? 's' : ''} waiting for the drone</span>` : ''}${
         unpowered ? `<span class="why">${unpowered} piece${unpowered > 1 ? 's have' : ' has'} no power</span>` : ''
-      }`;
+      }${layout.nets.some((n) => n.rate < 1) ? '<span class="why">Short of power: machines run slower. Add a power source (tap one to see its watts).</span>' : ''}`;
     }
+    if (!this.link && !g && drone) text += this.lineGuide();
     if (this.info.innerHTML !== text) this.info.innerHTML = text;
+    // Milestone 12: the power meter in the title.
+    const tot = layout.powerTotals();
+    const short = layout.nets.some((n) => n.rate < 1);
+    const title = `Building · Kestrel site <span class="pw${short ? ' short' : ''}">⚡ ${tot.draw} / ${tot.make} W</span>`;
+    if (this.titleEl.innerHTML !== title) this.titleEl.innerHTML = title;
+  }
+
+  /** After milestone 12: the first time a port marker is used, say how lines work. */
+  private markTip(): void {
+    const { save } = this.deps;
+    if (save.tips.includes('portdrag')) return;
+    save.tips.push('portdrag');
+    this.deps.toast('Drag to a piece that lights up and let go to connect. Amber markers are conveyors (solid items), teal ones are feed pipes (mash). ▲ sends out, ▼ takes in.', 'big');
+  }
+
+  /**
+   * After milestone 12: a short first-time guide to lines, shown once the base
+   * has pieces that can be joined. Each step shows until it is done.
+   */
+  lineGuide(): string {
+    const { save, layout } = this.deps;
+    if (save.tips.includes('lineguide-done')) return '';
+    const done = (k: PieceKind) => layout.pieces.some((p) => p.kind === k && isDone(p));
+    const has = (kind: LineKind, a: (k: PieceKind) => boolean, b: (k: PieceKind) => boolean) =>
+      save.lines.some((l) => {
+        const f = this.piece(l.from);
+        const t = this.piece(l.to);
+        return l.kind === kind && !!f && !!t && a(f.kind) && b(t.kind);
+      });
+    if (!done('feeder') || !done('storage') || !layout.pieces.some((p) => isTankKind(p.kind) && isDone(p))) return '';
+    const steps = [
+      { ok: has('belt', isStoreKind, (k) => k === 'feeder'), text: 'Drag from the storage pod\'s amber ▲ marker to the auto feeder: a conveyor carries kelp fibre to it.' },
+      { ok: has('pipe', (k) => k === 'feeder', isTankKind), text: 'Drag from the auto feeder\'s teal ▲ marker to a creature tank: a feed pipe fills its trough with mash.' },
+      { ok: has('belt', isTankKind, isStoreKind), text: 'Drag from the tank\'s amber ▲ marker to storage: what its creatures make is carried away.' },
+    ];
+    const i = steps.findIndex((st) => !st.ok);
+    if (i < 0) {
+      save.tips.push('lineguide-done');
+      this.deps.toast('Your first production line is running: fibre to the feeder, mash to the tank, and what the creatures make back to storage. Tap a line to see its rate.', 'big');
+      return '';
+    }
+    return `<span class="guide">Lines ${i + 1}/3: ${steps[i].text}</span>`;
+  }
+
+  /** One line about a finished piece's power. */
+  private powerNote(sel: Placed): string {
+    const layout = this.deps.layout;
+    const net = layout.netFor(sel.id);
+    if (!net) return `<span class="why">No power: join it to a current turbine${this.deps.save.blueprints.includes('thermal') ? ' or a core generator' : ''}</span>`;
+    if (layout.idleTurbine(sel)) return `<span class="why">Idle: the Kestrel current only drives ${TURBINE_LIMIT} turbines. Build a core generator for more power.</span>`;
+    const make = POWER_MAKE[sel.kind];
+    const own = make ? `Makes ${make} W · ` : POWER_DRAW[sel.kind] ? `Draws ${POWER_DRAW[sel.kind]} W · ` : '';
+    if (net.rate < 1)
+      return `<span class="why">${own}Short of power: this network draws ${net.draw} W but makes ${net.make} W, so its machines run at ${Math.round(net.rate * 100)}% speed</span>`;
+    return `<span class="ok">${own}Powered (${net.draw} of ${net.make} W used)</span>`;
   }
 }
 
