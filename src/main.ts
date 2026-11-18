@@ -256,7 +256,7 @@ async function boot(): Promise<void> {
   const shallowsBackdrop = shallowsArt ? new ShallowsBackdrop(shallowsArt) : null;
   let scenery = new Scenery(renderer, preset.detail, shallowsArt?.reef, shallowsSeabed ?? undefined, shallowsKelp ?? undefined);
   const pickups = new Pickups();
-  const diver = new Diver(paintedFace, paintedSuit?.swimmer);
+  const diver = new Diver(paintedFace, paintedSuit?.swimmer, urlq.get('personality') === 'surface');
   diver.x = save.x;
   diver.y = save.y;
   diver.lampOn = save.lampOn;
@@ -1695,11 +1695,13 @@ async function boot(): Promise<void> {
     menus.update();
     // The title screen and the pause menu hold the world still.
     if (menus.paused) {
+      diver.cancelSurfaceReaction();
       pausedFrames++;
       return;
     }
     pausedFrames = 0;
     if (interior.active) {
+      diver.cancelSurfaceReaction();
       interiorFrame(dt, ticker.deltaMS);
       return;
     }
@@ -2025,6 +2027,7 @@ async function boot(): Promise<void> {
     // Planning in build view (or reading a panel out here): the diver treads water where they are
     // instead of sinking with the bag's weight (Colin, after the terrain pass).
     diver.noSink = build.active || care.active || dockUI.active || station.active;
+    if (aboard || boarding) diver.cancelSurfaceReaction();
     if (boarding) {
       // Climbing into the sub: swim to the hatch, then down through it.
       boarding.t += dt;
@@ -2081,7 +2084,8 @@ async function boot(): Promise<void> {
         noThrusterAt = time;
         hud.toast('No thruster to boost with yet. A Kestrel survey left a spare hip thruster somewhere near its beacon, at the drop-off.', 'warn');
       }
-      diver.update(dt, inControl ? s.moveX : 0, inControl ? s.moveY : 0, inControl && s.boost && save.kit.thruster > 0, inControl && s.lamp);
+      const freeSwimming = inControl && !input.suspended && !peek && !s.boost && !s.board && !s.scan && !s.collect && !s.flare && !s.dart;
+      diver.update(dt, inControl ? s.moveX : 0, inControl ? s.moveY : 0, inControl && s.boost && save.kit.thruster > 0, inControl && s.lamp, freeSwimming);
       // After milestone 12: the TH-3 dash head. A double tap of Boost dashes, every 3 s.
       if (inControl && s.boost && hasGear(save, 'dash')) {
         if (time - boostTapAt < 0.32 && time - dashAt > 3) {
@@ -2395,6 +2399,7 @@ async function boot(): Promise<void> {
         // Blacking out aboard: the crew pull the diver out of the sub first.
         if (aboard) leaveSub(true);
         blackout = 0.0001;
+        diver.cancelSurfaceReaction();
         respawned = false;
       }
     }

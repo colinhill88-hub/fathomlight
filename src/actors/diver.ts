@@ -967,6 +967,9 @@ export class Diver {
   private breaths = 0;
   private heave = 0;
   private diveCooldown = 0;
+  private surfaceReactionReady = false;
+  private surfaceReactionActive = false;
+  private nextSurfaceReactionAt = 0;
   private diveBag = buildDiveBag();
   /** The specimen jar on the belt (set from the save each frame). */
   jar: JarLook | null = null;
@@ -1030,7 +1033,7 @@ export class Diver {
   /** With the TH-2 thruster head (found in the kelp forest). */
   private static readonly BOOST_SPEED_2 = 540;
 
-  constructor(paintedFace?: Texture, paintedSuit?: Texture) {
+  constructor(paintedFace?: Texture, paintedSuit?: Texture, private readonly surfacePersonality = false) {
     // The torso is drawn long and compressed a little here for a stockier build.
     this.torsoMaterials = buildTorso(paintedSuit);
     const torso = this.torsoMaterials.view;
@@ -1311,7 +1314,15 @@ export class Diver {
     return this.boostTime > 0;
   }
 
-  update(dt: number, moveX: number, moveY: number, boost: boolean, toggleLamp: boolean): void {
+  cancelSurfaceReaction(): void {
+    this.surfaceReactionReady = false;
+    if (!this.surfaceReactionActive) return;
+    this.surfaceReactionActive = false;
+    this.headRig.rotation = this.headS.x;
+    this.eyelid.visible = this.glance.blinking;
+  }
+
+  update(dt: number, moveX: number, moveY: number, boost: boolean, toggleLamp: boolean, freeSwimming = false): void {
     this.time += dt;
     if (toggleLamp) this.lampOn = !this.lampOn;
     this.lampLevel += ((this.lampOn ? 1 : 0) - this.lampLevel) * Math.min(1, dt * 10);
@@ -1338,9 +1349,19 @@ export class Diver {
     this.splash = 0;
     this.exhale = false;
     this.diveCooldown = Math.max(0, this.diveCooldown - dt);
+    if (this.surfacePersonality) {
+      if (!freeSwimming || this.working || this.boostTime > 0) {
+        this.cancelSurfaceReaction();
+      } else if (!this.surfaced) {
+        this.surfaceReactionActive = false;
+        // A fresh ascent needs real submersion. Surface bobbing and surface spawns cannot arm it.
+        if (this.y >= 110) this.surfaceReactionReady = true;
+      }
+    }
     if (this.surfaced) {
       if (moveY > 0.4) {
         this.surfaced = false;
+        this.cancelSurfaceReaction();
         this.vy = 170;
         this.splash = 0.35;
         this.diveCooldown = 0.8;
@@ -1354,6 +1375,11 @@ export class Diver {
       this.breathClock = 0.35; // first gasp straight away
       this.breaths = 0;
       if (this.splash > 0) this.visorDrops.alpha = 1;
+      if (this.surfaceReactionReady && this.splash > 0 && this.time >= this.nextSurfaceReactionAt) {
+        this.surfaceReactionActive = true;
+        this.nextSurfaceReactionAt = this.time + 2.2;
+      }
+      this.surfaceReactionReady = false;
     }
 
     // Swim physics: accelerate towards the wanted velocity, with water drag.
@@ -1392,6 +1418,7 @@ export class Diver {
    * instead of freezing mid-kick.
    */
   pose(dt: number): void {
+    this.cancelSurfaceReaction();
     this.time += dt;
     this.speedNorm = Math.min(1.6, Math.hypot(this.vx, this.vy) / Diver.SPEED);
     this.animate(dt, 0, 0);
@@ -1540,6 +1567,11 @@ export class Diver {
    */
   private animateHead(dt: number, input: number): void {
     // Restrained: a look up, a look down, or back to straight ahead (shared with the walker).
+    const t = this.surfaceTime;
+    const reactionDuration = 0.64;
+    // Reserve a brief quiet gap after the scripted blinks without changing the idle glance cadence.
+    if (t >= 0.84) this.surfaceReactionActive = false;
+    const reacting = this.surfaceReactionActive && this.surfaced;
     this.glance.update(dt);
     const still = (1 - this.swimBlend) * (this.working ? 0 : 1);
     // Looking where the body is going: a little further than the body's own angle.
@@ -1549,8 +1581,11 @@ export class Diver {
     if (this.working) want = 0.1;
     want = Math.max(-0.17, Math.min(0.14, want));
     const w = 7;
-    this.headRig.rotation = this.headS.step(want, w, 1, dt);
-    this.eyelid.visible = this.glance.blinking;
+    const head = this.headS.step(want, w, 1, dt);
+    // Add the tip to the head drawing alone. The hose still follows the breathing spring.
+    const tip = reacting && t < reactionDuration ? (Math.PI / 60) * Math.sin(Math.PI * t / reactionDuration) ** 2 : 0;
+    this.headRig.rotation = head - tip;
+    this.eyelid.visible = reacting ? (t >= 0.14 && t < 0.24) || (t >= 0.375 && t < 0.475) : this.glance.blinking;
   }
 
   /**
