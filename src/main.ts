@@ -115,7 +115,7 @@ import { Wildlife } from './world/wildlife';
 import { TankLife } from './world/tanklife';
 import { Escort } from './actors/escort';
 import { CareMode } from './ui/care';
-import { creaturesIn, newCreature, payCost, PLANT_ORDER, PLANTS, SPECIES, SPECIES_ORDER, tankCapacity, tankNumber, tickCare } from './game/creatures';
+import { creaturesIn, newCreature, payCost, PLANT_ORDER, PLANTS, SPECIES, SPECIES_ORDER, tankCapacity, tankNumber, tickCare, wildAllowed, WILD_CAP } from './game/creatures';
 import { HatchPanel } from './ui/hatch';
 import { traitText, wildTraits } from './game/traits';
 import { RatesPanel } from './ui/rates';
@@ -2410,9 +2410,16 @@ async function boot(): Promise<void> {
     // Wild creatures: the specimen jar takes the Collect button when one is in reach.
     const wt = wildlife.target;
     const wtKnown = !!wt && save.scans.includes(SPECIES[wt.species].scan);
-    const wildOk = !!wt && wtKnown && save.kit.jar && !save.jar && !diver.surfaced && !atDrone;
+    const wildSpare = !!wt && wildAllowed(save, wt.species);
+    const wildOk = !!wt && wtKnown && wildSpare && save.kit.jar && !save.jar && !diver.surfaced && !atDrone;
     for (const ev of wildlife.update(dt, time, reachPt.x, reachPt.y, Math.hypot(diver.vx, diver.vy), aboard ? sub.thrust > 0 : diver.boosting, save, collectHeld && wildOk, camX - 200, camX + lastViewW + 200)) {
       save.jar = { species: ev.species, stage: ev.stage, traits: wildlife.traitsOf(ev.id) };
+      save.wildCaught[ev.species] = (save.wildCaught[ev.species] ?? 0) + 1;
+      const left = WILD_CAP - (save.wildCaught[ev.species] ?? 0);
+      if (left <= 0 && !save.tips.includes(`wildcap-${ev.species}`)) {
+        save.tips.push(`wildcap-${ev.species}`);
+        setTimeout(() => hud.toast(`That's the last ${SPECIES[ev.species].name.toLowerCase()} the wild will spare. For more, keep a pair happy and grown in one tank, with a Hatchery at the base: they breed.`, 'big'), 4500);
+      }
       drone.cheer();
       const sp = SPECIES[ev.species];
       const name = ev.stage === 'egg' ? sp.eggName : sp.youngName;
@@ -2436,7 +2443,9 @@ async function boot(): Promise<void> {
           ? 'Nothing to carry it in. A Kestrel specimen jar was lost by the old anchor in the coral garden.'
           : !save.scans.includes(SPECIES[wildTarget.species].scan)
             ? `Scan the ${SPECIES[wildTarget.species].name.toLowerCase()} first, to learn how to keep it`
-            : 'The specimen jar is full. Put its creature in a tank first.',
+            : !wildAllowed(save, wildTarget.species)
+              ? `The wild has spared you two ${SPECIES[wildTarget.species].name.toLowerCase()}s already. Breed more at a Hatchery: a happy grown pair in one tank lays eggs.`
+              : 'The specimen jar is full. Put its creature in a tank first.',
         'warn',
       );
     }
@@ -3040,7 +3049,9 @@ async function boot(): Promise<void> {
           ? 'No specimen jar yet'
           : !save.scans.includes(sp.scan)
           ? `Unknown creature: scan it first`
-          : save.jar
+          : !wildAllowed(save, wildTarget.species)
+            ? `Wild ${sp.name.toLowerCase()}: breed more at the base`
+            : save.jar
             ? 'Specimen jar full'
             : wildTarget.stage === 'egg'
               ? `Ease ${sp.eggName} into jar`
@@ -3196,6 +3207,8 @@ async function boot(): Promise<void> {
         build.link ? null : build.selected,
         build.linkPreview(),
         build.selectedLine !== null ? linesView.route(build.selectedLine) : null,
+        build.portMarkers(),
+        Math.max(0.9, Math.min(2.6, build.cam.h / 760)),
       );
     }
     for (const sc of schools) sc.update(dt, time, diver.x, diver.y, camX, camX + viewW);
@@ -3660,7 +3673,7 @@ async function boot(): Promise<void> {
           if (layout.idleTurbine(p)) return `${code}: idle. The Kestrel current only drives ${TURBINE_LIMIT} turbines`;
           return `${code}: turning in the reef current · 12 W · ${watts}`;
         case 'thermal':
-          return `${code}: vent-ore core glowing · 40 W · ${watts}`;
+          return `${code}: sealed core glowing · 40 W · ${watts}`;
         case 'lantern':
           return `${code}: the Choir's light · 100 W · ${watts}`;
         case 'feeder': {
@@ -3720,7 +3733,7 @@ async function boot(): Promise<void> {
         m.grow === 'fibre'
           ? 'The farm grows kelp fibre: into its tray, for a conveyor (to an auto feeder or storage), or take it by hand.'
           : m.grow === 'resin'
-            ? 'The farm grows bladder kelp and taps its resin: one every 5 minutes into its tray, for a conveyor to storage. Grand tanks, Hatcheries and sorting pods are built from it.'
+            ? 'The farm grows bladder kelp and taps its resin: one every 4 minutes into its tray, for a conveyor to storage. Grand tanks, Hatcheries and sorting pods are built from it.'
             : `The farm grows ${PLANTS[m.grow].name.toLowerCase()} cuttings (${save.cuttings[m.grow] ?? 0} ready). Planting it in a tank uses a cutting instead of materials.`,
       );
       persist();

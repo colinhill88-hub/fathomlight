@@ -155,10 +155,10 @@ export const RESEARCH: Record<BlueprintId, ResearchDef> = {
   // Milestone 12: the middle power tier.
   thermal: {
     id: 'thermal',
-    name: 'Vent generator VG-1 blueprint',
-    text: "From your scans of the vent field and the Fulmar station: the drowned crew's sealed vent-ore core, which made their power far below any current. 40 W, anywhere on the site. Unlocks a build card.",
+    name: 'Core generator CG-1 blueprint',
+    text: "Reads the Corvina's log: the engineering pages for her sealed power core, which ran the whole survey ship with no current to turn it. 40 W, anywhere on the site. Unlocks a build card.",
     finds: [],
-    scans: ['vents', 'fulmar'],
+    scans: ['cvlog'],
     seconds: 120,
   },
   lantern: {
@@ -179,7 +179,7 @@ export const RESEARCH: Record<BlueprintId, ResearchDef> = {
   },
 };
 // (Milestone 11: the Choir lantern is given at first contact, never decoded in a Lab, so it isn't in RESEARCH_ORDER.)
-export const RESEARCH_ORDER: BlueprintId[] = ['light', 'gtank', 'sorter', 'relay', 'welder', 'tow', 'cutter', 'recomp', 'crane', 'sonar', 'psuit', 'revive', 'plating', 'psuit2', 'signal', 'thermal', 'resonator'];
+export const RESEARCH_ORDER: BlueprintId[] = ['light', 'gtank', 'sorter', 'relay', 'welder', 'tow', 'cutter', 'recomp', 'crane', 'sonar', 'thermal', 'psuit', 'revive', 'plating', 'psuit2', 'signal', 'resonator'];
 /** Blueprints that unlock a base piece (build card) instead of Workshop gear. */
 export const PIECE_BLUEPRINTS: Partial<Record<BlueprintId, string>> = { gtank: 'gtank', sorter: 'sorter', recomp: 'recomp', crane: 'crane', revive: 'revive', signal: 'signal', thermal: 'thermal', lantern: 'lantern' };
 /** Milestone 10: blueprints that are fitted elsewhere (the dock) or built later, not in the Workshop. */

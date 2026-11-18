@@ -1039,7 +1039,7 @@ export class BaseHooks implements InteriorHooks {
         break;
       }
       case 'thermal': {
-        // Milestone 12: the vent generator's room. A sealed porthole onto its glowing core, heat fins either side.
+        // Milestone 12: the core generator's room. A sealed porthole onto its glowing core, heat fins either side.
         const y = b.floor(0) - 92;
         g.circle(b.cx, y, 70).fill({ color: COL.chrome });
         g.circle(b.cx, y, 70).stroke({ color: COL.chromeDark, width: 3 });

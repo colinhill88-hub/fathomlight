@@ -402,9 +402,10 @@ export const PIECES: Record<PieceKind, PieceDef> = {
   // Milestone 12: power as a real limit. The middle tier, from the trench's vent ore.
   thermal: {
     kind: 'thermal',
-    name: 'Vent generator',
-    job: 'A sealed core of trench vent ore, still hot from the vents, makes 40 W: more than three current turbines. Needs no current, so it works anywhere on the site.',
-    cost: { ore: 5, brass: 3, copper: 4, plate: 2 },
+    // After milestone 12 (Colin: the power ceiling came too long before the trench): copied from the Corvina, built from shelf materials.
+    name: 'Core generator',
+    job: "A copy of the Corvina's sealed power core, glowing behind its porthole. It makes 40 W, more than three current turbines, and needs no current, so it works anywhere on the site.",
+    cost: { brass: 4, copper: 5, plate: 3, quartz: 2 },
     buildTime: 45,
     blueprint: 'thermal',
     shapes: [
@@ -803,7 +804,7 @@ const CODE_PREFIX: Record<PieceKind, string> = {
   bracket: 'BR-',
   signal: 'SA-',
   lantern: 'CL-',
-  thermal: 'VG-',
+  thermal: 'CG-',
 };
 
 /** A piece's stencil code, as painted on it: CT-1, AF-2, PP-1, TANK 3. Pieces are numbered per kind in build order. */

@@ -1708,6 +1708,39 @@ Colin asked how breeding and the Kelp farm fit the loop. One grown puffcap makes
 - **Why:** no creature makes resin, and the wild bladder kelp (7 spots in the forest, 10 minutes to regrow) is the only other source. The breeding wing is built from it: Grand tank 6, Hatchery 4, sorting pod 4, another farm 3.
 - Tested: a farm on resin with a conveyor to storage, 15 minutes of play: 3 grown, 2 carried to storage, 1 in the tray.
 
+### After milestone 12 part 1: Colin's pacing pass, line markers, and a new sub (2026-11-18)
+Colin's answers after reading the breeding and farm analysis. All built:
+
+**Breeding is the way to more creatures** (`WILD_CAP`, `wildAllowed` in `src/game/creatures.ts`; `PATTERN_MUTATION`, `WILD_PATTERNS` in `src/game/traits.ts`)
+- **The wild spares two of each species** (young or eggs), enough for one breeding pair. After that the spots still have creatures, but Collect says "breed more at the base" and a one-time tip explains breeding. Counted in `save.wildCaught` (older saves count their wild-born creatures).
+  - **Safety net:** if the base has none of a species left (none in tanks, the Hatchery or the jar, and no dormant remains), the wild spares one more.
+- **Breeding finds new patterns faster than the wild:** 20% of eggs show a glow pattern neither parent has (was 8% for any random pattern). The colour mutation stays 8%.
+- **The third pattern of every species is breed-only:** wild creatures only show the first two (65% / 35%).
+- Checked: about 20% of eggs from two pattern-0 parents show a new pattern; no wild creature shows the third; the cap and its safety net.
+
+**The 4th fragment needs a bred creature** (`FRAGMENTS`, `hasBredWord` in `src/game/signals.ts`): besides 8 patterns, a grown creature bred at the base (2nd generation or later) must be in a tank. The array's console says so when it's the only thing missing.
+
+**Resin is scarce in the wild** (`src/world/pickups.ts`, `REGROW_BY_KIND` in `src/game/state.ts`): 5 spots in the kelp forest (was 7), 20 minutes to regrow (was 10). The farm's resin crop is faster: one every 4 minutes (`RESIN_SECONDS` 240). Before the farm, gear needs about 10 resin (cutter 2, grapple 2, air relay 4, pressure suit 2) and the farm itself 3.
+
+**Plants matter: comfort must reach 75%** (`COMFORT_HAPPY` in `src/game/creatures.ts`). A tank starts at 50%, company adds 20% and the species' plant 30%, so without its plant a creature can't grow, make materials or breed. Food and water keep the 60% bar (75% there would mean hand-feeding every 4 minutes before the feeder). The status line says when comfort is what's missing. **Crowding** now starts once a tank is nearly full (from the 4th creature in a tank, the 8th in a Grand tank); it used to start at the 4th even in a Grand tank, which would have made big Grand tanks unhappy under the new bar.
+
+**The middle power tier comes earlier** (`thermal` in `PIECES` and `RESEARCH`): renamed the **Core generator CG-1**, a copy of the Corvina's sealed power core. Researched in a Lab from the Corvina's log (found in her lab; was the trench's vent field and the Fulmar). Costs 4 brass, 5 copper, 3 plating and 2 quartz (no vent ore). Still 40 W.
+
+**Lines: port markers, drag to connect, and a first-time guide** (`portMarkers`, `markerAt`, `lineGuide` in `src/ui/build.ts`; drawn in `BuildOverlay` in `src/world/basegfx.ts`)
+- **Port markers:** in build mode every finished piece that takes or sends lines shows a badge above its port: **amber** for conveyors, **teal** for feed pipes; **▲** sends out, **▼** takes in, **⇅** both (storage). While drawing a line, pieces it can go to pulse and the rest dim.
+- **Drag to connect:** press a marker, drag to a piece that lights up and let go. The line is built at once. A rubber band follows the finger until a target is found. Dragging from storage onto something that only feeds it draws the line the other way. A tap on a marker (no drag) still starts a line the old way; the Conveyor/Pipe buttons are unchanged.
+- **The first-time guide** appears in build mode's info panel once a storage pod, auto feeder and creature tank are finished: three steps (storage → feeder conveyor, feeder → tank pipe, tank → storage conveyor), each shown until done, then a toast.
+- Tested with the mouse: all three guided drags built the right lines and the guide finished.
+
+**The submersible's new look** (`src/actors/sub.ts`; Colin: "make it look cooler")
+- The new base kit's charcoal, chrome, neon lime glass and gold circuit lines on a swept, flattened hull with a sharp chrome bow and a lime sensor eye, a raised spine and a dark chin plate.
+- A **teardrop bubble canopy** in lime glass, with the pilot inside.
+- **No propeller:** a main ring thruster at the stern and a ventral nacelle, with turbine fans and **lime exhaust that burns longer with speed and flares on Boost** (and casts a little lime light).
+- A swept dorsal fin with a lime edge light and a red tail lamp; lime side line and vents that glow while it's powered.
+- Modules restyled: a sleek clamped cargo pod, twin bow light bars (floodlights), a charcoal-and-gold grabber arm.
+- Its size and collision didn't change, so it drives exactly as before.
+- Screenshots: `docs/art/milestone12/sub-new.png`, `sub-boost.png`.
+
 ## Next
 
 **Next session: more polish** (Colin wants more before the Steam build). Ideas to choose from:
@@ -1721,7 +1754,7 @@ Then **the Steam desktop build** (DESIGN.md, Platform and tech), when Colin asks
 
 - **Milestone 12, to check after Colin plays:**
   - **Power numbers** (`POWER_MAKE`, `POWER_DRAW`, `TURBINE_LIMIT` in `src/game/base.ts`): whether three turbines (36 W) is the right ceiling before the trench, and the vent generator's cost (`PIECES.thermal`) and research (`RESEARCH.thermal`: scans of the vents and the Fulmar).
-  - **Old bases:** a save with more than three turbines or a big base may now be short of power when it loads. That's the new rule, not a bug; a vent generator fixes it once the trench is reached.
+  - **Old bases:** a save with more than three turbines or a big base may now be short of power when it loads. That's the new rule, not a bug; a core generator (from the Corvina's log) fixes it.
   - **Gamepad:** the highlight's moves between buttons are worked out from where they sit on screen; if a panel moves somewhere odd, note which one.
   - **The title screen** shows on every start. If that's too much on the phone, it could show only after an hour away.
   - **Adaptive resolution** thresholds (18% over budget down, 30 s before up) in `adaptFrame`. If you see the picture soften and sharpen in a loop, switch it off in Settings and tell me where.

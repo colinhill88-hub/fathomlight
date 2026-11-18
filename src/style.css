@@ -3437,3 +3437,14 @@ body.title-up #bag-marker,
 body.title-up #sub-marker {
   visibility: hidden;
 }
+
+/* After milestone 12: the first-time guide to lines in build mode. */
+#build-info .guide {
+  display: block;
+  margin-top: 6px;
+  padding: 5px 8px;
+  border-radius: 8px;
+  background: rgba(198, 240, 58, 0.14);
+  border: 1px solid rgba(198, 240, 58, 0.45);
+  color: #e8ffb8;
+}

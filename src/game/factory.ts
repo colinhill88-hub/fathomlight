@@ -172,7 +172,7 @@ export const CUTTING_CAP = 3;
  * the forest, and the breeding wing (Grand tanks, Hatcheries, sorting pods,
  * more farms) is built from it. Slower than fibre.
  */
-export const RESIN_SECONDS = 300;
+export const RESIN_SECONDS = 240;
 
 // ---- Echo whorls ----
 export const WHORLS_PER_PIECE = 2;

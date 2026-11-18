@@ -76,7 +76,7 @@ export const REGROW_SECONDS = 10 * 60;
  * Scrap grows back faster (Colin, after milestone 7b: waiting for scrap made the
  * fresh-save road to the Lab and Workshop slow).
  */
-export const REGROW_BY_KIND: Partial<Record<MaterialId, number>> = { scrap: 6 * 60 };
+export const REGROW_BY_KIND: Partial<Record<MaterialId, number>> = { scrap: 6 * 60, resin: 20 * 60 };
 export function regrowSeconds(kind: string): number {
   return REGROW_BY_KIND[kind as MaterialId] ?? REGROW_SECONDS;
 }
@@ -327,6 +327,11 @@ export interface SaveData {
   kit: { jar: boolean; thruster: 0 | 1 | 2 };
   /** Wild creature or egg spot id -> play time when it was collected (they come back). */
   caught: Record<string, number>;
+  /**
+   * After milestone 12 (Colin): wild young (and eggs) taken from the wild, per species. The wild only
+   * spares WILD_CAP of each; more come from breeding. See wildAllowed in src/game/creatures.ts.
+   */
+  wildCaught: Partial<Record<SpeciesId, number>>;
   /** Creatures that died of neglect, kept in storage as dormant remains (revived later). */
   dormant: Partial<Record<SpeciesId, number>>;
   /**
@@ -436,6 +441,7 @@ export function freshSave(spawnX: number, spawnY: number): SaveData {
     jar: null,
     kit: { jar: false, thruster: 0 },
     caught: {},
+    wildCaught: {},
     dormant: {},
     nursery: [],
     cuttings: {},
@@ -475,6 +481,14 @@ export function freshSave(spawnX: number, spawnY: number): SaveData {
   };
 }
 
+/** Older saves: count the wild-born creatures they already keep as the ones taken from the wild. */
+function countWild(d: Partial<SaveData>): Partial<Record<SpeciesId, number>> {
+  const out: Partial<Record<SpeciesId, number>> = {};
+  for (const c of [...(Array.isArray(d.creatures) ? d.creatures : []), ...(Array.isArray(d.nursery) ? d.nursery : [])])
+    if ((c.traits?.gen ?? 1) <= 1) out[c.species] = (out[c.species] ?? 0) + 1;
+  return out;
+}
+
 export function loadSave(spawnX: number, spawnY: number): { data: SaveData; loaded: boolean } {
   const fresh = freshSave(spawnX, spawnY);
   if (BENCH_RUN) return { data: fresh, loaded: false };
@@ -498,6 +512,7 @@ export function loadSave(spawnX: number, spawnY: number): { data: SaveData; load
       creatures: Array.isArray(d.creatures) ? d.creatures : [],
       tankData: d.tankData && typeof d.tankData === 'object' ? d.tankData : {},
       caught: d.caught && typeof d.caught === 'object' ? d.caught : {},
+      wildCaught: d.wildCaught && typeof d.wildCaught === 'object' ? d.wildCaught : countWild(d),
       dormant: d.dormant && typeof d.dormant === 'object' ? d.dormant : {},
       nursery: Array.isArray(d.nursery) ? d.nursery : [],
       cuttings: d.cuttings && typeof d.cuttings === 'object' ? d.cuttings : {},

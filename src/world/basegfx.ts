@@ -601,7 +601,7 @@ function drawBracket(n: number, rot: number): PieceArt {
 }
 
 /**
- * Milestone 12: the vent generator. A charcoal column like the turbine's, but
+ * Milestone 12: the core generator (copied from the Corvina's own). A charcoal column like the turbine's, but
  * sealed: a chrome-ringed porthole onto a core of glowing vent ore, heat fins
  * down both sides, and the gold spine carrying its power.
  */
@@ -650,7 +650,7 @@ function drawThermal(n: number): PieceArt {
   g.circle(cx - 10, hubY - 12, 30).stroke({ color: PAL.chromeHi, width: 1.5, alpha: 0.4 });
   windowGlow.circle(cx, hubY, 52).fill({ color: 0xff7a2a, alpha: 0.45 });
   windowGlow.rect(cx - 6, 40, 12, H - 80).fill({ color: 0xffb030, alpha: 0.3 });
-  body.addChild(stencil(`VG-${n}`, cx, H - 50, 6));
+  body.addChild(stencil(`CG-${n}`, cx, H - 50, 6));
   scratches(g, 22, 10, W - 24, H - 10, 10);
   algaeLine(g, 20, W - 20, H - 8, 8);
   return { body, windows, windowGlow, lamp: { x: W - 30, y: 14 } };
@@ -2057,9 +2057,10 @@ export class BuildOverlay {
   private ghostKey = '';
 
   private links = new Graphics();
+  private ports = new Graphics();
 
   constructor() {
-    this.view.addChild(this.grid, this.links, this.ghostRoot, this.ghostOutline, this.marks, this.select);
+    this.view.addChild(this.grid, this.links, this.ghostRoot, this.ghostOutline, this.marks, this.select, this.ports);
     this.view.visible = false;
     // Faint cell corners over open water, drawn once (the site is big).
     const g = this.grid;
@@ -2094,11 +2095,42 @@ export class BuildOverlay {
     layout: BaseLayout,
     ghost: { kind: PieceKind; gx: number; gy: number; rot: number; ok: boolean } | null,
     selected: Placed | null,
-    link: { from: Placed; targets: Placed[]; route: [number, number][] | null; ok: boolean } | null = null,
+    link: { from: Placed; targets: Placed[]; route: [number, number][] | null; ok: boolean; drag?: { x0: number; y0: number; x1: number; y1: number; kind: 'belt' | 'pipe' } } | null = null,
     line: [number, number][] | null = null,
+    markers: { piece: Placed; kind: 'belt' | 'pipe'; x: number; y: number; out: boolean; in: boolean }[] = [],
+    markScale = 1,
   ): void {
     const lg = this.links;
     lg.clear();
+    // After milestone 12: port markers on pieces that take or send lines (amber conveyors, teal pipes; ▲ out, ▼ in).
+    const pk = this.ports.clear();
+    if (!ghost) {
+      const k = markScale;
+      for (const m of markers) {
+        const col = m.kind === 'belt' ? 0xffb040 : 0x3cd8e8;
+        const isAnchor = !!link && link.from.id === m.piece.id && (!link.drag || link.drag.kind === m.kind);
+        const isTarget = !!link && link.targets.some((t) => t.id === m.piece.id) && (link.drag ? link.drag.kind === m.kind : true);
+        const dim = !!link && !isAnchor && !isTarget;
+        const r = (isAnchor ? 15 : 12) * k * (isTarget ? 1 + 0.12 * Math.sin(time * 6) : 1);
+        const a = dim ? 0.25 : 0.95;
+        pk.moveTo(m.x, m.y + r).lineTo(m.x, m.y + 30 - 10).stroke({ color: col, width: 2 * k, alpha: a * 0.7 });
+        pk.circle(m.x, m.y, r + 2.5 * k).fill({ color: 0x0a1418, alpha: a * 0.85 });
+        pk.circle(m.x, m.y, r).fill({ color: col, alpha: a });
+        const t = r * 0.5;
+        const tri = (dy: number, up: boolean) =>
+          pk.poly(up ? [m.x - t, m.y + dy + t * 0.55, m.x + t, m.y + dy + t * 0.55, m.x, m.y + dy - t * 0.65] : [m.x - t, m.y + dy - t * 0.55, m.x + t, m.y + dy - t * 0.55, m.x, m.y + dy + t * 0.65]).fill({ color: 0x0a1418, alpha: a });
+        if (m.out && m.in) {
+          tri(-r * 0.32, true);
+          tri(r * 0.36, false);
+        } else tri(0, m.out);
+      }
+    }
+    if (link?.drag) {
+      const d = link.drag;
+      const col = d.kind === 'belt' ? 0xffb040 : 0x3cd8e8;
+      lg.moveTo(d.x0, d.y0).lineTo(d.x1, d.y1).stroke({ color: col, width: 5 * markScale, alpha: 0.75, cap: 'round' });
+      lg.circle(d.x1, d.y1, 7 * markScale).fill({ color: col, alpha: 0.9 });
+    }
     if (link) {
       const pulse = 0.5 + 0.5 * Math.sin(time * 5);
       for (const t of link.targets) {

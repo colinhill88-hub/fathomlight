@@ -70,7 +70,8 @@ const SPOTS: Spot[] = (() => {
   // Milestone 7: the kelp forest. Resin beside giant kelp holdfasts, lumen
   // moss on shaded rock (the outcrops and the foot of the east wall), and a
   // little wreckage the tinker crabs have been picking at.
-  add('resin', [10300, 10990, 11720, 12400, 13330, 14250, 9930]);
+  // After milestone 12 (Colin): resin is scarce in the wild (5 spots, 20 minutes to regrow), so the Kelp farm's resin crop matters.
+  add('resin', [10300, 10990, 11720, 13330, 9930]);
   add('moss', [11080, 12880, 13980, 14720, 10920, [15720, 1100], [15880, 1100], [17270, 1320]]);
   s.push({ id: 'scrap-f0', kind: 'scrap', x: 12160, y: surfaceAt(12160) - 5 });
   s.push({ id: 'scrap-f1', kind: 'scrap', x: 13560, y: surfaceAt(13560) - 5 });
