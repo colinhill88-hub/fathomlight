@@ -245,23 +245,25 @@ async function boot(): Promise<void> {
   seam.open = !!save.seamOpen;
   if (BENCH) seedBenchSave(save);
 
-  const useShallowsArt = urlq.get('art') === 'shallows';
+  const visualMode = (flag: string, approved = 'painted') => (urlq.get(flag) ?? approved) === approved;
+  // art=procedural still switches the whole Shallows pilot back to procedural art.
+  const useShallowsArt = visualMode('art', 'shallows');
   const [shallowsArt, shallowsSeabed, shallowsKelp, paintedFace, paintedSuit, forestMidground, forestOutcrop, shelfMidground] = await Promise.all([
     useShallowsArt ? loadShallowsArt() : null,
-    useShallowsArt && urlq.get('terrain') === 'painted' ? loadShallowsSeabed() : null,
-    useShallowsArt && urlq.get('kelp') === 'painted' ? loadShallowsKelp() : null,
-    urlq.get('diver') === 'painted' ? loadPaintedDiver() : undefined,
-    urlq.get('suit') === 'painted' ? loadPaintedSuit() : undefined,
-    urlq.get('forest') === 'painted' ? loadForestMidground() : undefined,
-    urlq.get('forestTerrain') === 'painted' ? loadForestOutcrop() : undefined,
-    urlq.get('shelf') === 'painted' ? loadWreckShelfMidground() : undefined,
+    useShallowsArt && visualMode('terrain') ? loadShallowsSeabed() : null,
+    useShallowsArt && visualMode('kelp') ? loadShallowsKelp() : null,
+    visualMode('diver') ? loadPaintedDiver() : undefined,
+    visualMode('suit') ? loadPaintedSuit() : undefined,
+    visualMode('forest') ? loadForestMidground() : undefined,
+    visualMode('forestTerrain') ? loadForestOutcrop() : undefined,
+    visualMode('shelf') ? loadWreckShelfMidground() : undefined,
   ]);
   const zoneBackdrop = new ZoneBackdrop(forestMidground, shelfMidground);
   zoneBackdrop.build();
   const shallowsBackdrop = shallowsArt ? new ShallowsBackdrop(shallowsArt) : null;
   let scenery = new Scenery(renderer, preset.detail, shallowsArt?.reef, shallowsSeabed ?? undefined, shallowsKelp ?? undefined, forestOutcrop);
   const pickups = new Pickups();
-  const diver = new Diver(paintedFace, paintedSuit?.swimmer, urlq.get('personality') === 'surface');
+  const diver = new Diver(paintedFace, paintedSuit?.swimmer, visualMode('personality', 'surface'));
   diver.x = save.x;
   diver.y = save.y;
   diver.lampOn = save.lampOn;
