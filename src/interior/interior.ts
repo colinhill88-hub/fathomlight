@@ -1,5 +1,5 @@
 import { perf } from '../dev/perf';
-import { BlurFilter, Container, Graphics, RenderTexture, Renderer, Sprite, Text } from 'pixi.js';
+import { BlurFilter, Container, Graphics, RenderTexture, Renderer, Sprite, Text, type Texture } from 'pixi.js';
 import type { Light } from '../fx/lighting';
 import { Walker } from '../actors/walker';
 import { deckTread, lampFixture, rivet } from './detail';
@@ -170,7 +170,7 @@ export interface InteriorInput {
 
 export class Interior {
   readonly view = new Container();
-  readonly walker = new Walker();
+  readonly walker: Walker;
   active = false;
   /** The Collect button's label and hold progress, and a banner. */
   label: string | null = null;
@@ -264,7 +264,8 @@ export class Interior {
   private shownKey = '';
   private opts: InteriorOptions = {};
 
-  constructor(private readonly renderer: Renderer) {
+  constructor(private readonly renderer: Renderer, paintedFace?: Texture) {
+    this.walker = new Walker(paintedFace);
     this.lighting = new InteriorLighting(this.sceneRT);
     this.glowSprite = new Sprite(this.glowRT);
     this.glowSprite.blendMode = 'add';

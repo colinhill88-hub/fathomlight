@@ -1,4 +1,4 @@
-import { Container, Graphics, Text } from 'pixi.js';
+import { Container, Graphics, Sprite, Text, type Texture } from 'pixi.js';
 import { isSolid } from '../world/terrain';
 import { mulberry32 } from '../rng';
 import { BREATH_OUT, Glance, Spring, batchAll, breathShape } from './animkit';
@@ -691,7 +691,7 @@ export const PLATE_HINGE = { x: 70, y: -28 };
  * separate piece labelled 'plate' so the face plate can lift; drawn shut it
  * looks the same as the diver's.
  */
-export function buildHelmet(plate = false): Container {
+export function buildHelmet(plate = false, paintedFace?: Texture): Container {
   const c = new Container();
   const g = new Graphics();
   const shell = (q: Graphics) =>
@@ -771,13 +771,24 @@ export function buildHelmet(plate = false): Container {
   lid.visible = false;
   const headRig = new Container();
   headRig.label = 'headRig';
-  headRig.addChild(hd, lid);
+  if (paintedFace) {
+    const portrait = new Sprite(paintedFace);
+    portrait.label = hd.label;
+    // The 4x texture shares the original helmet-local coordinates and head pivot.
+    portrait.position.set(48, -24);
+    headRig.addChild(portrait);
+    hd.destroy();
+  } else {
+    headRig.addChild(hd);
+  }
+  headRig.addChild(lid);
   c.addChild(headRig);
   const f = new Graphics();
   // The suit's neck seal: a dark rubber collar with a metal ring, sitting in
   // the bottom of the helmet.
   f.moveTo(52, 13).quadraticCurveTo(64, 10.5, 77, 12.5).lineTo(79, 20).quadraticCurveTo(64, 22, 50, 19).closePath().fill({ color: C.suit });
   f.moveTo(52, 13).quadraticCurveTo(64, 10.5, 77, 12.5).stroke({ color: C.chrome, width: 1.6 });
+  const clearPaintedVisor = !plate && !!paintedFace;
   // Tinted glass shell (on foot, only the back of it: the front is the face plate).
   const CUT = PLATE_HINGE.x;
   const pl = new Graphics();
@@ -795,7 +806,7 @@ export function buildHelmet(plate = false): Container {
     pl.poly(front).fill({ color: C.visor, alpha: 0.3 });
     pl.poly(front).stroke({ color: C.visorEdge, width: 2, alpha: 0.95 });
   } else {
-    shell(f).fill({ color: C.visor, alpha: 0.3 });
+    shell(f).fill(clearPaintedVisor ? { color: 0x9bc568, alpha: 0.13 } : { color: C.visor, alpha: 0.3 });
     shell(f).stroke({ color: C.visorEdge, width: 2, alpha: 0.95 });
   }
   // The face plate's details go on the plate when it is a separate piece.
@@ -820,8 +831,13 @@ export function buildHelmet(plate = false): Container {
   fp.moveTo(82, -17).bezierCurveTo(87, -8, 87, 5, 81, 13).stroke({ color: C.visorEdge, width: 2, alpha: 0.9 });
 
   // Reflections.
-  f.moveTo(60, -21).quadraticCurveTo(71, -26, 81, -18).stroke({ color: 0xf6ffe0, width: 2.4, alpha: 0.55, cap: 'round' });
-  fp.circle(85, -9, 1.7).fill({ color: 0xffffff, alpha: 0.7 });
+  if (clearPaintedVisor) {
+    f.moveTo(61, -23).quadraticCurveTo(70, -27, 79, -22).stroke({ color: 0xf6ffe0, width: 1.6, alpha: 0.27, cap: 'round' });
+    fp.circle(86.3, -12.2, 1).fill({ color: 0xffffff, alpha: 0.26 });
+  } else {
+    f.moveTo(60, -21).quadraticCurveTo(71, -26, 81, -18).stroke({ color: 0xf6ffe0, width: 2.4, alpha: paintedFace ? 0.28 : 0.55, cap: 'round' });
+    fp.circle(85, -9, 1.7).fill({ color: 0xffffff, alpha: paintedFace ? 0.42 : 0.7 });
+  }
   fp.moveTo(87.5, -2).quadraticCurveTo(88, 3, 86, 8).stroke({ color: 0xffffff, width: 1.2, alpha: 0.35, cap: 'round' });
 
 
@@ -997,7 +1013,7 @@ export class Diver {
   /** With the TH-2 thruster head (found in the kelp forest). */
   private static readonly BOOST_SPEED_2 = 540;
 
-  constructor() {
+  constructor(paintedFace?: Texture) {
     // The torso is drawn long and compressed a little here for a stockier build.
     const torso = buildTorso();
     torso.scale.x = 0.88;
@@ -1063,7 +1079,7 @@ export class Diver {
     };
     for (const part of [this.nearLeg.thigh, this.farLeg.thigh, this.nearArm.upper, this.farArm.upper]) collect(part);
     for (const ch of torso.children) if (ch instanceof Graphics && ch !== this.backG && ch !== this.psuitTorso && ch !== this.ps2Torso) this.tinted.push({ g: ch, base: ch.tint });
-    const helmet = buildHelmet();
+    const helmet = buildHelmet(false, paintedFace);
     helmet.x = -6;
     this.visorFog = helmet.getChildByLabel('visorFog')!;
     this.visorDrops = helmet.getChildByLabel('visorDrops')!;

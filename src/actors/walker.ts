@@ -1,4 +1,4 @@
-import { Container, Graphics } from 'pixi.js';
+import { Container, Graphics, type Texture } from 'pixi.js';
 import { mulberry32 } from '../rng';
 import { BRASS, BeltJar, C, choirColour, drawResonatorBracer, drawResonatorHoop, FULL_KIT, JarLook, KitLook, PSUIT2_TINT, PSUIT_TINT, accentBand, buildDiveBag, kitKey, mulColour, buildHelmet, buildShoulderLamp, chromeBands, coiledHose, etching, rimEdge, rivets, scratches, segment } from './diver';
 import { Glance, Spring, approach, batchAll, breathShape, clamp, smoothstep } from './animkit';
@@ -529,8 +529,8 @@ export class Walker {
   private sinL = 0;
   private sxw = 1;
 
-  constructor() {
-    const hel = buildHelmet(true);
+  constructor(paintedFace?: Texture) {
+    const hel = buildHelmet(true, paintedFace);
     hel.scale.set(HELMET_K);
     hel.position.set(-64 * HELMET_K, -16 * HELMET_K);
     this.headRig = hel.getChildByLabel('headRig')!;
