@@ -243,6 +243,11 @@ export interface BaseCtx {
   farmTake(id: number): void;
   reviveLabel(): { ok: boolean; text: string };
   revive(id: number): void;
+  /** Milestone 10: the Signal array's console (status, and reading the latest decoded fragment). */
+  signalLabel(): { ok: boolean; text: string };
+  signalRead(): void;
+  /** 0..1 decoding progress, or -1 when idle (for the screen). */
+  signalProgress(): number;
 }
 
 const COL = {
@@ -290,7 +295,7 @@ interface Spot {
   x: number;
   y: number;
   r: number;
-  what: 'airlock' | 'planner' | 'unload' | 'tank' | 'station' | 'dock' | 'recomp' | 'info' | 'sealed' | 'lift' | 'board' | 'tune' | 'hatch' | 'farm' | 'farmtray' | 'revive';
+  what: 'airlock' | 'planner' | 'unload' | 'tank' | 'station' | 'dock' | 'recomp' | 'info' | 'sealed' | 'lift' | 'board' | 'tune' | 'hatch' | 'farm' | 'farmtray' | 'revive' | 'signal';
   other?: Placed;
   to?: { x: number; y: number };
   up?: boolean;
@@ -672,6 +677,9 @@ export class BaseHooks implements InteriorHooks {
       case 'revive':
         add(b.cx, b.bottom, 'revive', 140);
         break;
+      case 'signal':
+        add(b.cx, b.bottom, 'signal', 160);
+        break;
       default:
         add(b.cx, b.bottom, 'info', 130);
     }
@@ -786,6 +794,11 @@ export class BaseHooks implements InteriorHooks {
       {
         const l = c.reviveLabel();
         return l.ok ? { key: 'revive', label: l.text, seconds: 1.4, done: () => c.revive(p.id) } : l.text;
+      }
+      case 'signal': {
+        if (!on) return `${code}: no power. Join it to a current turbine.`;
+        const l = c.signalLabel();
+        return l.ok ? { key: 'signal', label: l.text, seconds: 0.5, done: () => c.signalRead() } : l.text;
       }
       default:
         return c.status(p);
@@ -1347,6 +1360,29 @@ export class BaseHooks implements InteriorHooks {
         addText(sign('REVIVAL POOL', b.cx, b.oy + 54, 10, 0xfff0c0, 0.7));
         break;
       }
+      case 'signal': {
+        // Milestone 10: the decoder: a big round pattern screen in a brass ring, receiver racks either side.
+        const sy = b.oy + (bot - b.oy) * 0.42;
+        g.circle(b.cx, sy, 104).fill({ color: 0xa8822e });
+        g.circle(b.cx, sy, 94).fill({ color: 0x081014 });
+        bolts(g, b.cx - 96, sy - 100, b.cx + 96, sy - 100, 12, 1.2);
+        for (let k = 0; k < 24; k++) {
+          const a = (k / 24) * Math.PI * 2;
+          g.moveTo(b.cx + Math.cos(a) * 96, sy + Math.sin(a) * 96).lineTo(b.cx + Math.cos(a) * 102, sy + Math.sin(a) * 102).stroke({ color: 0x5a4418, width: 1.4 });
+        }
+        for (const x of [b.ox + 70, b.ox + b.ow - 70]) {
+          g.roundRect(x - 34, bot - 200, 68, 200, 6).fill({ color: COL.wallDark });
+          for (let k = 0; k < 8; k++) {
+            g.rect(x - 26, bot - 190 + k * 22, 52, 14).fill({ color: 0x14181b });
+            e.rect(x - 22, bot - 186 + k * 22, 6 + ((k * 13) % 30), 3).fill({ color: 0xffc860, alpha: 0.6 });
+          }
+        }
+        g.roundRect(b.cx - 60, bot - 70, 120, 70, 8).fill({ color: COL.chromeDark });
+        g.roundRect(b.cx - 50, bot - 62, 100, 26, 4).fill({ color: 0x0c1418 });
+        addText(sign('SIGNAL ARRAY', b.cx, sy + 128, 11, 0xffd890, 0.75));
+        this.screens.push({ x: b.cx, y: sy, radius: 300, intensity: 0.5, color: [1, 0.85, 0.6], zone: id } as Light);
+        break;
+      }
       case 'crane': {
         // Upper level: the gantry beam and trolley. Lower: the cradle where salvage is broken down.
         const f0 = b.floor(0);
@@ -1423,6 +1459,17 @@ export class BaseHooks implements InteriorHooks {
         d.poly([sx - 30, sy - 36, sx - 20, sy - 56, sx + 6, sy - 56, sx + 2, sy - 36]).fill({ color: COL.lime, alpha: 0.6 });
         de.circle(sx + 96, sy - 16, 4).fill({ color: 0xfff0b0 });
         de.circle(sx - 94, sy - 12, 3).fill({ color: COL.red });
+      }
+      if (r.kind === 'signal' && on) {
+        // The pattern screen: slow rings while listening, the Choir's own colours while a fragment decodes.
+        const sy = b.oy + (bot - b.oy) * 0.42;
+        const pr = c.signalProgress();
+        for (let k = 0; k < 4; k++) {
+          const u = (time * (pr >= 0 ? 0.35 : 0.12) + k / 4) % 1;
+          const col = pr >= 0 ? [0x4ad8e8, 0x9a6af0, 0xe060c8, 0x4ad8e8][k] : 0xffc860;
+          de.circle(b.cx, sy, 8 + u * 82).stroke({ color: col, width: 1.6, alpha: 0.55 * (1 - u) });
+        }
+        if (pr >= 0) de.rect(b.cx - 46, bot - 54, 92 * pr, 6).fill({ color: 0x9ad0e0, alpha: 0.85 });
       }
       if (r.kind === 'revive' && on) {
         // Slow rings drifting out across the still, warm water.

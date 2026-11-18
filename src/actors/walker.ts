@@ -1,6 +1,6 @@
 import { Container, Graphics } from 'pixi.js';
 import { mulberry32 } from '../rng';
-import { BRASS, BeltJar, C, FULL_KIT, JarLook, KitLook, PSUIT_TINT, accentBand, buildDiveBag, kitKey, mulColour, buildHelmet, buildShoulderLamp, chromeBands, coiledHose, etching, rimEdge, rivets, scratches, segment } from './diver';
+import { BRASS, BeltJar, C, FULL_KIT, JarLook, KitLook, PSUIT2_TINT, PSUIT_TINT, accentBand, buildDiveBag, kitKey, mulColour, buildHelmet, buildShoulderLamp, chromeBands, coiledHose, etching, rimEdge, rivets, scratches, segment } from './diver';
 import { Glance, Spring, approach, batchAll, breathShape, clamp, smoothstep } from './animkit';
 
 /**
@@ -358,6 +358,25 @@ function psuitLimb(len: number, w: number, tube: boolean): Graphics {
   return g;
 }
 
+/** PS-2 on the torso: a second tube, a back plate and a lit pressure gauge. */
+function drawWalkerPs2(g: Graphics): void {
+  coiledHose(g, [[-11, -8], [-6, -2], [4, -2], [10, -12]], 2);
+  g.roundRect(-11.5, -33, 6, 22, 2).fill({ color: 0x5e4a22 });
+  rivets(g, [[-8.5, -30], [-8.5, -15]], 0.6);
+  g.circle(6, -14.5, 3).fill({ color: BRASS });
+  g.circle(6, -14.5, 2).fill({ color: 0x14181a });
+  g.moveTo(6, -14.5).lineTo(7.4, -15.9).stroke({ color: C.visor, width: 0.8 });
+}
+
+/** PS-2's armour plate on a thigh or upper arm. */
+function ps2Plate(len: number, w: number): Graphics {
+  const g = new Graphics();
+  g.roundRect(len * 0.22, -w / 2 - 1.3, len * 0.5, w * 0.6, 2.4).fill({ color: 0x7a5e28 });
+  g.roundRect(len * 0.22, -w / 2 - 1.3, len * 0.5, 1.2, 0.6).fill({ color: 0xf0d890, alpha: 0.5 });
+  g.visible = false;
+  return g;
+}
+
 /** The pressure suit on the torso: brass belt and collar bands, a chest plate, tubes to the chest. */
 function drawWalkerPsuit(g: Graphics): void {
   g.rect(-11.5, -4, 24, 3).fill({ color: BRASS });
@@ -408,6 +427,8 @@ export class Walker {
   private thrusterG = new Graphics();
   private psuitG = new Graphics();
   private psuitBits: Graphics[] = [];
+  private ps2G = new Graphics();
+  private ps2Bits: Graphics[] = [];
   private tinted: { g: Graphics; base: number }[] = [];
   /** The kit found so far (set from the save each frame): tanks, harpoon, thruster, pressure suit, jar. */
   kit: KitLook = FULL_KIT;
@@ -528,7 +549,9 @@ export class Walker {
     this.bag.scale.set(0.5);
     this.bag.visible = false;
     this.beltJar.view.scale.set(0.8);
-    this.torso.addChild(this.torsoG, this.psuitG, this.thrusterG);
+    this.torso.addChild(this.torsoG, this.psuitG, this.ps2G, this.thrusterG);
+    drawWalkerPs2(this.ps2G);
+    this.ps2G.visible = false;
     this.pack.addChild(this.packSpear, this.packG);
     drawWalkerPsuit(this.psuitG);
     this.psuitG.visible = false;
@@ -538,6 +561,9 @@ export class Walker {
       leg.thigh.addChildAt(a, 1);
       leg.shin.addChildAt(b, 1);
       this.psuitBits.push(a, b);
+      const pl = ps2Plate(THIGH, 12);
+      leg.thigh.addChildAt(pl, 2);
+      this.ps2Bits.push(pl);
     }
     for (const arm of [this.nearArm, this.farArm]) {
       const a = psuitLimb(UPPER, 9, true);
@@ -545,11 +571,14 @@ export class Walker {
       arm.upper.addChildAt(a, 1);
       arm.fore.addChildAt(b, 1);
       this.psuitBits.push(a, b);
+      const pl = ps2Plate(UPPER, 9);
+      arm.upper.addChildAt(pl, 2);
+      this.ps2Bits.push(pl);
     }
     const collect = (c: Container) => {
       for (const ch of c.children) {
         if (ch instanceof Graphics) {
-          if (!this.psuitBits.includes(ch)) this.tinted.push({ g: ch, base: ch.tint });
+          if (!this.psuitBits.includes(ch) && !this.ps2Bits.includes(ch)) this.tinted.push({ g: ch, base: ch.tint });
         } else collect(ch);
       }
     };
@@ -587,9 +616,12 @@ export class Walker {
     if (k.spear) drawPackSpear(this.packSpear, k);
     drawWalkerThruster(this.thrusterG.clear(), k.thruster);
     this.nozzleDot.visible = k.thruster > 0;
-    this.psuitG.visible = k.psuit;
-    for (const b of this.psuitBits) b.visible = k.psuit;
-    for (const { g, base } of this.tinted) g.tint = k.psuit ? mulColour(base, PSUIT_TINT) : base;
+    this.psuitG.visible = k.psuit > 0;
+    for (const b of this.psuitBits) b.visible = k.psuit > 0;
+    this.ps2G.visible = k.psuit === 2;
+    for (const b of this.ps2Bits) b.visible = k.psuit === 2;
+    const tint = k.psuit === 2 ? PSUIT2_TINT : PSUIT_TINT;
+    for (const { g, base } of this.tinted) g.tint = k.psuit ? mulColour(base, tint) : base;
   }
 
   // ---- Points other code reads (each returns the same object every call) ----

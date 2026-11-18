@@ -36,11 +36,12 @@ export interface KitLook {
   spear: boolean;
   jar: boolean;
   thruster: 0 | 1 | 2;
-  psuit: boolean;
+  /** The pressure suit: 0 the Kestrel suit, 1 PS-1, 2 PS-2 (milestone 10). */
+  psuit: 0 | 1 | 2;
 }
-export const FULL_KIT: KitLook = { tanks: 2, spear: true, jar: true, thruster: 1, psuit: false };
+export const FULL_KIT: KitLook = { tanks: 2, spear: true, jar: true, thruster: 1, psuit: 0 };
 export function kitKey(k: KitLook): string {
-  return `${Math.min(4, k.tanks)}${+k.spear}${+k.jar}${k.thruster}${+k.psuit}`;
+  return `${Math.min(4, k.tanks)}${+k.spear}${+k.jar}${k.thruster}${k.psuit}`;
 }
 /** Multiply two colours (a tint over a tint). */
 export function mulColour(a: number, b: number): number {
@@ -49,6 +50,8 @@ export function mulColour(a: number, b: number): number {
 }
 /** The pressure suit's warm bronze cast over the charcoal (with brass rings and tubes). */
 export const PSUIT_TINT = 0xf2dcb4;
+/** PS-2: a deeper, darker bronze, closer to gunmetal. */
+export const PSUIT2_TINT = 0xd2bc98;
 export const BRASS = 0xc9a13a;
 export const BRASS_DARK = 0x7a5e1e;
 
@@ -122,6 +125,28 @@ function drawDiverPsuitTorso(g: Graphics): void {
   // Two ribbed pressure tubes from the pack round the body to the chest.
   coiledHose(g, [[-20, -16], [-12, -4], [2, 12], [16, 10]], 3.2);
   coiledHose(g, [[-4, -16], [4, -6], [16, 2], [26, -4]], 2.8);
+}
+
+/** PS-2's extras on the torso: a second pair of tubes, a riveted back plate and a lit pressure gauge. */
+function drawDiverPs2Torso(g: Graphics): void {
+  coiledHose(g, [[-26, 14], [-14, 22], [6, 22], [22, 13]], 3);
+  g.roundRect(-24, -15, 30, 6, 3).fill({ color: 0x5e4a22 });
+  g.roundRect(-24, -15, 30, 2, 1).fill({ color: 0xf0d890, alpha: 0.45 });
+  rivets(g, [[-21, -12], [-9, -12], [3, -12]], 0.9);
+  // A round pressure gauge on the chest plate, its needle lit lime.
+  g.circle(22, 0, 5.5).fill({ color: BRASS }).stroke({ color: BRASS_DARK, width: 1 });
+  g.circle(22, 0, 4).fill({ color: 0x14181a });
+  g.moveTo(22, 0).lineTo(24.6, -2.6).stroke({ color: C.visor, width: 1.2 });
+}
+
+/** PS-2's armour plates on the thighs and upper arms. */
+function ps2Plate(len: number, w: number): Graphics {
+  const g = new Graphics();
+  g.roundRect(len * 0.22, -w / 2 - 1.6, len * 0.5, w * 0.62, 3).fill({ color: 0x7a5e28 });
+  g.roundRect(len * 0.22, -w / 2 - 1.6, len * 0.5, 1.6, 0.8).fill({ color: 0xf0d890, alpha: 0.5 });
+  rivets(g, [[len * 0.28, -w / 2 + 1], [len * 0.66, -w / 2 + 1]], 0.7);
+  g.visible = false;
+  return g;
 }
 
 /** Brass rings and a ribbed tube on a limb segment (len long), for the pressure suit. */
@@ -452,7 +477,7 @@ export function buildDiveBag(): Container {
 
 /** What the specimen jar holds, for the jar on the belt. */
 export interface JarLook {
-  species: 'glowfin' | 'puffcap' | 'ray' | 'crab' | 'shrimp';
+  species: 'glowfin' | 'puffcap' | 'ray' | 'crab' | 'shrimp' | 'snail';
   stage: 'egg' | 'young' | 'grown';
 }
 
@@ -462,6 +487,8 @@ const JAR_TINT: Record<JarLook['species'], { body: number; fin: number; glow?: n
   ray: { body: 0x8fa6c4, fin: 0x5c6482 },
   crab: { body: 0xe0703a, fin: 0x9a4220 },
   shrimp: { body: 0xff9a92, fin: 0xd0605a },
+  // Milestone 10's cinder snail: iron scales with ember-lit seams.
+  snail: { body: 0x5a524a, fin: 0x2e2a26, glow: 0xff8a3a },
 };
 
 /**
@@ -519,7 +546,12 @@ export class BeltJar {
       } else {
         const sc = look.stage === 'grown' ? 1 : 0.7;
         if (t.glow) g.circle(0, 8, 4.4 * sc).fill({ color: t.glow, alpha: 0.35 });
-        if (look.species === 'crab') {
+        if (look.species === 'snail') {
+          g.ellipse(0.4, 10.4, 3.2 * sc, 1.3 * sc).fill({ color: t.fin });
+          g.circle(-0.4, 8.6, 2.6 * sc).fill({ color: t.body });
+          g.circle(-0.4, 8.6, 2.6 * sc).stroke({ color: t.glow!, width: 0.6, alpha: 0.9 });
+          g.circle(-0.4, 8.6, 1.2 * sc).stroke({ color: t.glow!, width: 0.5, alpha: 0.8 });
+        } else if (look.species === 'crab') {
           g.ellipse(0, 9, 3 * sc, 2 * sc).fill({ color: t.body });
           for (const sx of [-1, 1]) g.circle(sx * 3.2 * sc, 7.6, 1.1 * sc).fill({ color: t.fin });
         } else if (look.species === 'ray') {
@@ -847,6 +879,8 @@ export class Diver {
   private backG = new Graphics();
   private psuitTorso = new Graphics();
   private psuitBits: Graphics[] = [];
+  private ps2Torso = new Graphics();
+  private ps2Bits: Graphics[] = [];
   private tinted: { g: Graphics; base: number }[] = [];
   /** Hip thruster rig: a white housing with a lime nozzle, and the plume while boosting. */
   private thruster = new Graphics();
@@ -901,6 +935,9 @@ export class Diver {
     drawDiverPsuitTorso(this.psuitTorso);
     this.psuitTorso.visible = false;
     torso.addChild(this.psuitTorso);
+    drawDiverPs2Torso(this.ps2Torso);
+    this.ps2Torso.visible = false;
+    torso.addChild(this.ps2Torso);
     // Pressure suit rings and tubes on every limb segment.
     for (const leg of [this.nearLeg, this.farLeg]) {
       const a = psuitLimb(24, 12, true);
@@ -908,6 +945,9 @@ export class Diver {
       leg.thigh.addChildAt(a, 1);
       leg.shin.addChild(b);
       this.psuitBits.push(a, b);
+      const pl = ps2Plate(24, 12);
+      leg.thigh.addChildAt(pl, 2);
+      this.ps2Bits.push(pl);
     }
     for (const arm of [this.nearArm, this.farArm]) {
       const a = psuitLimb(17, 10, true);
@@ -915,16 +955,19 @@ export class Diver {
       arm.upper.addChildAt(a, 1);
       arm.fore.addChildAt(b, 1);
       this.psuitBits.push(a, b);
+      const pl = ps2Plate(17, 10);
+      arm.upper.addChildAt(pl, 2);
+      this.ps2Bits.push(pl);
     }
     // The suit's own graphics, to take the pressure suit's bronze cast.
     const collect = (c: Container) => {
       for (const ch of c.children) {
-        if (ch instanceof Graphics && !this.psuitBits.includes(ch)) this.tinted.push({ g: ch, base: ch.tint });
+        if (ch instanceof Graphics && !this.psuitBits.includes(ch) && !this.ps2Bits.includes(ch)) this.tinted.push({ g: ch, base: ch.tint });
         if (!(ch instanceof Graphics)) collect(ch as Container);
       }
     };
     for (const part of [this.nearLeg.thigh, this.farLeg.thigh, this.nearArm.upper, this.farArm.upper]) collect(part);
-    for (const ch of torso.children) if (ch instanceof Graphics && ch !== this.backG && ch !== this.psuitTorso) this.tinted.push({ g: ch, base: ch.tint });
+    for (const ch of torso.children) if (ch instanceof Graphics && ch !== this.backG && ch !== this.psuitTorso && ch !== this.ps2Torso) this.tinted.push({ g: ch, base: ch.tint });
     const helmet = buildHelmet();
     helmet.x = -6;
     this.visorFog = helmet.getChildByLabel('visorFog')!;
@@ -1001,9 +1044,12 @@ export class Diver {
       t.rect(-6, 9.5, 8, 3).fill({ color: C.chromeDark });
       t.rect(-6, 15.5, 8, 3).fill({ color: C.chromeDark });
     }
-    this.psuitTorso.visible = k.psuit;
-    for (const b of this.psuitBits) b.visible = k.psuit;
-    for (const { g, base } of this.tinted) g.tint = k.psuit ? mulColour(base, PSUIT_TINT) : base;
+    this.psuitTorso.visible = k.psuit > 0;
+    for (const b of this.psuitBits) b.visible = k.psuit > 0;
+    this.ps2Torso.visible = k.psuit === 2;
+    for (const b of this.ps2Bits) b.visible = k.psuit === 2;
+    const tint = k.psuit === 2 ? PSUIT2_TINT : PSUIT_TINT;
+    for (const { g, base } of this.tinted) g.tint = k.psuit ? mulColour(base, tint) : base;
   }
 
   /** The middle of the helmet, in world space (for breath vapour and the surface splash). */

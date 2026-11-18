@@ -36,6 +36,8 @@ vec3 waterColor(float d) {
   vec3 c = mix(c0, c1, smoothstep(0.0, 380.0, d));
   c = mix(c, c2, smoothstep(250.0, 800.0, d));
   c = mix(c, c3, smoothstep(700.0, 1250.0, d));
+  // Milestone 10: the trench, from about 40 m down, fades to near black.
+  c = mix(c, vec3(0.006, 0.03, 0.055), smoothstep(1350.0, 2300.0, d));
   return c;
 }
 
@@ -68,6 +70,7 @@ export function waterColor(d: number): [number, number, number] {
   let c = mix3(stops[0], stops[1], smoothstep(0, 380, d));
   c = mix3(c, stops[2], smoothstep(250, 800, d));
   c = mix3(c, stops[3], smoothstep(700, 1250, d));
+  c = mix3(c, [0.006, 0.03, 0.055], smoothstep(1350, 2300, d));
   return c;
 }
 

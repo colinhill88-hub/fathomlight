@@ -82,6 +82,12 @@ const SPOTS: Spot[] = (() => {
   // past the lightless passage. Only a grown glowfin's light gets you there.
   add('bloom', [[16250, 1600], [16430, 1600], [16590, 1600]]);
   s.push({ id: 'whorl-grotto', kind: 'whorl', x: 16330, y: surfaceAt(16330, 1600) - 9 });
+  // Milestone 10: vent ore on the trench's ledges (most on the vent field), and glowing blooms
+  // in the dark of the cleft and the trench floor.
+  add('ore', [28620, 29080, 29540, 29760, 30010, 30250, 30430, [29150, 3990]]);
+  s.push({ id: 'bloom-cleft', kind: 'bloom', x: 28810, y: surfaceAt(28810, 3960) - 5 });
+  s.push({ id: 'bloom-floor0', kind: 'bloom', x: 30860, y: surfaceAt(30860, 6000) - 5 });
+  s.push({ id: 'bloom-floor1', kind: 'bloom', x: 32380, y: surfaceAt(32380, 6000) - 5 });
   // Milestone 7 part 2: the fourth, behind the kelp wall in the caves (the cutter torch opens it).
   s.push({ id: 'tank-kwall', kind: 'tank', x: 15545, y: surfaceAt(15545, 1500) - 12 });
   // The kit, found piece by piece (Colin, before milestone 11). Appended last so the
@@ -235,7 +241,17 @@ function drawBloom(g: Graphics): void {
   g.ellipse(-4, -2, 4, 1.6).fill({ color: 0x7a8a50 });
 }
 
+/** Milestone 10: a crust of vent ore: dark, knobbly, metallic, with warm cracks. */
+function drawOre(g: Graphics): void {
+  g.ellipse(0, 2, 13, 4).fill({ color: 0x2a2624, alpha: 0.8 });
+  g.poly([-11, 1, -9, -6, -3, -10, 4, -9, 10, -4, 12, 1]).fill({ color: 0x3a3230 });
+  for (let i = 0; i < 6; i++) g.circle(R(-8, 9), R(-8, 0), R(1.6, 3.4)).fill({ color: rand() < 0.5 ? 0x5a4a40 : 0x6a6058 });
+  for (let i = 0; i < 4; i++) g.circle(R(-7, 8), R(-7, -1), R(0.6, 1.2)).fill({ color: 0xd8c890, alpha: 0.8 });
+  g.moveTo(-4, -2).lineTo(-1, -6).lineTo(3, -4).stroke({ color: 0xff9a40, width: 1, alpha: 0.9 });
+}
+
 const DRAW: Record<Spot['kind'], (g: Graphics) => void> = {
+  ore: drawOre,
   bloom: drawBloom,
   resin: drawResin,
   moss: drawMoss,
@@ -271,6 +287,7 @@ export const EFFORT: Record<ReefMaterial, { seconds: number; verb: string }> = {
   moss: { seconds: 1.4, verb: 'Peel off' },
   brass: { seconds: 2.6, verb: 'Unbolt' },
   bloom: { seconds: 1.8, verb: 'Ease up' },
+  ore: { seconds: 3.2, verb: 'Chip off' },
 };
 /** How close the diver's middle must be to reach a material. */
 const REACH = 72;
@@ -535,6 +552,7 @@ export class Pickups {
       moss: [0x8aa84a, 0xe8f6a0, 0x4e6a30],
       brass: [0xa8822e, 0xe8c870, 0x6f9a80],
       bloom: [0xfff8e0, 0xfff2a0, 0xe8e0c0],
+      ore: [0x3a3230, 0xff9a40, 0x6a6058],
     };
     const cs = colors[kind];
     const n = kind === 'copper' ? 6 : 4;

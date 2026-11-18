@@ -36,6 +36,7 @@ export const ITEM_COLOURS: Record<MaterialId, [number, number]> = {
   moss: [0x7a9a40, 0xe0f0a0],
   brass: [0xa8822e, 0xe8c870],
   bloom: [0xf8f0d0, 0xfff2a0],
+  ore: [0x3e3430, 0xff9a40],
 };
 const PIPE = 9;
 

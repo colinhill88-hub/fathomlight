@@ -1,6 +1,6 @@
 import { BaseLayout, isDone, pieceCode, Placed } from '../game/base';
 import { MATERIAL_ORDER, MaterialId, SaveData } from '../game/state';
-import { FINDS, GEAR, GEAR_ORDER, jobOf, jobRunning, jobSecondsLeft, KIT_GEAR, PIECE_BLUEPRINTS, RESEARCH, RESEARCH_ORDER, researchBlocker } from '../game/gear';
+import { FINDS, GEAR, GEAR_ORDER, jobOf, jobRunning, jobSecondsLeft, KIT_GEAR, OTHER_BLUEPRINTS, PIECE_BLUEPRINTS, RESEARCH, RESEARCH_ORDER, researchBlocker } from '../game/gear';
 import { payCost } from '../game/creatures';
 import { haveFor, missingText } from '../game/sub';
 import { MATERIAL_ICONS } from './hud';
@@ -197,16 +197,18 @@ export class StationMode {
         const rows = RESEARCH_ORDER.map((id) => {
           const r = RESEARCH[id];
           if (save.blueprints.includes(id))
-            return `<div class="mod"><div><b>${r.name}</b><small>${PIECE_BLUEPRINTS[id] ? 'Decoded: its build card is in build mode now.' : 'Decoded. Build it in a Workshop.'}</small></div></div>`;
+            return `<div class="mod"><div><b>${r.name}</b><small>${PIECE_BLUEPRINTS[id] ? 'Decoded: its build card is in build mode now.' : (OTHER_BLUEPRINTS[id] ?? 'Decoded. Build it in a Workshop.')}</small></div></div>`;
           // Blueprints whose finds are still out in the world stay hidden until you have seen what they come from.
           if (r.finds.length && !r.finds.some((f) => save.finds.includes(f)) && id !== 'light') return '';
+          // Milestone 10: the trench's own blueprints stay hidden until you have scanned the trench.
+          if (r.scans.includes('trench') && !save.scans.includes('trench')) return '';
           if (jobRunning(save, `research:${id}`)) return `<div class="mod"><div><b>${r.name}</b><small>Decoding now.</small></div></div>`;
           const why = researchBlocker(save, r);
           const busy = !!j;
           return `<div class="mod"><div><b>${r.name}</b><small>${why ?? r.text}</small><div class="costs"><span class="cost">${r.seconds} s</span></div></div>
             <button type="button" class="act" data-act="research" data-id="${id}" ${why || busy || !powered ? 'disabled' : ''}>Decode</button></div>`;
         }).join('');
-        body += `<h3>Blueprints</h3>${rows}<p>More blueprints wait out in the kelp forest and its caves.</p>`;
+        body += `<h3>Blueprints</h3>${rows}<p>More blueprints wait out in the deeper zones.</p>`;
       } else {
         const rows = GEAR_ORDER.map((id) => {
           const g = GEAR[id];

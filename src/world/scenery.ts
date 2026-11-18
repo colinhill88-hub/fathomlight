@@ -1,5 +1,6 @@
 import { Container, Graphics, MeshRope, Point, Renderer, Text, Texture } from 'pixi.js';
 import { mulberry32, WORLD_SEED } from '../rng';
+import { TrenchScenery } from './trenchgfx';
 import {
   ANCHOR_X,
   BEACON_X,
@@ -92,7 +93,7 @@ export interface PointLight {
 }
 
 /** A soft brush dab: a few stacked ellipses fading towards the edge. */
-function dab(g: Graphics, x: number, y: number, rx: number, ry: number, color: number, alpha: number): void {
+export function dab(g: Graphics, x: number, y: number, rx: number, ry: number, color: number, alpha: number): void {
   g.ellipse(x, y, rx, ry).fill({ color, alpha: alpha * 0.5 });
   g.ellipse(x, y, rx * 0.65, ry * 0.65).fill({ color, alpha: alpha * 0.6 });
 }
@@ -225,7 +226,7 @@ function paintRock(g: Graphics, outline: [number, number][], topOf: (x: number) 
  * step S (after milestone 7 part 2): smooth, interpolated edges, with whole rows
  * of inside cells merged into single rectangles.
  */
-function traceField(g: Graphics, fn: (x: number, y: number) => number, X0: number, X1: number, Y0: number, Y1: number, S: number, color: number, alpha: number): void {
+export function traceField(g: Graphics, fn: (x: number, y: number) => number, X0: number, X1: number, Y0: number, Y1: number, S: number, color: number, alpha: number): void {
   const nx = Math.ceil((X1 - X0) / S) + 1;
   const ny = Math.ceil((Y1 - Y0) / S) + 1;
   const F = new Float32Array(nx * ny);
@@ -349,7 +350,7 @@ function rivetsRow(g: Graphics, x: number, y: number, n: number, gap: number): v
   }
 }
 
-function rustStreaks(g: Graphics, x0: number, x1: number, y: number, n: number, len: number): void {
+export function rustStreaks(g: Graphics, x0: number, x1: number, y: number, n: number, len: number): void {
   for (let i = 0; i < n; i++) {
     const sx = R(x0, x1);
     const sy = y + R(-2, 4);
@@ -612,6 +613,8 @@ export class Scenery {
   private kcSurge = new Graphics();
   private kcLitShown = '';
 
+  /** Milestone 10: the trench's own art. */
+  trench!: TrenchScenery;
   private kelps: Kelp[] = [];
   private grass: { g: Graphics; phase: number; x: number }[] = [];
   private slices: Slice[] = [];
@@ -905,6 +908,12 @@ export class Scenery {
     this.buildForest(renderer, detail, rock, addKelp, kelpBack, kelpFront, decorLayer);
     this.buildKelpCaves(detail, rock, decorLayer);
     this.buildShelf(detail, rock, decorLayer);
+    // Milestone 10: the trench.
+    this.trench = new TrenchScenery(detail);
+    this.view.addChild(this.trench.view);
+    this.emissive.addChild(this.trench.emissive);
+    this.glow.addChild(this.trench.glow);
+    this.lights.push(...this.trench.lights);
     rand = keep;
   }
 
@@ -931,11 +940,11 @@ export class Scenery {
     ] as const)
       rock(x0, x1, (g) => rockPatch(g, x0, x1, th, detail));
     // The east wall, with the kelp caves' mouth.
-    rock(14560, WORLD_W + 60, (g) => {
+    rock(14560, 19400, (g) => {
       const pts: [number, number][] = [];
-      for (let x = 14560; x <= WORLD_W + 60; x += 8) pts.push([x, gy(x)]);
-      pts.push([WORLD_W + 60, WORLD_H + 300], [14560, WORLD_H + 300]);
-      paintRock(g, pts, (x) => (x >= 14560 && x <= WORLD_W + 60 ? gy(x) : NaN), detail * 0.7);
+      for (let x = 14560; x <= 19400; x += 8) pts.push([x, gy(x)]);
+      pts.push([19400, WORLD_H + 300], [14560, WORLD_H + 300]);
+      paintRock(g, pts, (x) => (x >= 14560 && x <= 19400 ? gy(x) : NaN), detail * 0.7);
       // The mouth: a dark recess in the wall that grows black further in.
       // The mouth of the kelp caves is drawn with the caves (buildKelpCaves), as one smooth opening.
     });
@@ -944,10 +953,10 @@ export class Scenery {
 
     const decor = new Graphics();
     decorLayer.addChild(decor);
-    this.slices.push({ obj: decor, x0: 9400, x1: WORLD_W + 100 });
+    this.slices.push({ obj: decor, x0: 9400, x1: 19600 });
     const decorEnd = new Graphics();
     decorLayer.addChild(decorEnd);
-    this.slices.push({ obj: decorEnd, x0: 12000, x1: WORLD_W + 100 });
+    this.slices.push({ obj: decorEnd, x0: 12000, x1: 19600 });
     const dg = (x: number) => (x < 12200 ? decor : decorEnd);
 
     // Giant kelp: from the floor all the way up to the surface, golden brown.
@@ -1384,25 +1393,19 @@ export class Scenery {
       [24850, 25100, 50],
     ] as const)
       rock(x0, x1, (g) => rockPatch(g, x0, x1, th, detail));
-    // The east wall at the end of the world.
-    rock(26700, WORLD_W + 60, (g) => {
-      const pts: [number, number][] = [];
-      for (let x = 26700; x <= WORLD_W + 60; x += 8) pts.push([x, gy(x)]);
-      pts.push([WORLD_W + 60, WORLD_H + 300], [26700, WORLD_H + 300]);
-      paintRock(g, pts, (x) => (x >= 26700 && x <= WORLD_W + 60 ? gy(x) : NaN), detail * 0.6);
-    });
+    // (Milestone 10: the old east wall is now the trench's rim, drawn by TrenchScenery.)
 
     const decor = new Graphics();
     decorLayer.addChild(decor);
     this.slices.push({ obj: decor, x0: 19000, x1: 23400 });
     const decor2 = new Graphics();
     decorLayer.addChild(decor2);
-    this.slices.push({ obj: decor2, x0: 23200, x1: WORLD_W + 100 });
+    this.slices.push({ obj: decor2, x0: 23200, x1: 27400 });
     const dg = (x: number) => (x < 23300 ? decor : decor2);
 
     // Debris on the shelf floor: rusted plates, ribs, chain and cable.
     for (let i = 0; i < Math.round(70 * detail); i++) {
-      const x = R(19900, 26700);
+      const x = R(19900, 26600);
       const y = gy(x) + 3;
       const g = dg(x);
       const k = rand();
@@ -1936,6 +1939,7 @@ export class Scenery {
   /** viewX0..viewX1 is the part of the world the camera can see. */
   update(time: number, diverX: number, diverY: number, diverVX: number, viewX0: number, viewX1: number): void {
     for (const s of this.slices) s.obj.visible = s.x1 > viewX0 && s.x0 < viewX1;
+    this.trench.update(time, viewX0, viewX1);
 
     const t = time % 2.4;
     const flash = t < 0.12 ? 1 : Math.exp(-(t - 0.12) * 3.2) * 0.85;

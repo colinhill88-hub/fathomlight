@@ -9,7 +9,7 @@ import type { Traits } from './traits';
  * planned for milestone 11.
  */
 
-export type MaterialId = 'scrap' | 'copper' | 'quartz' | 'fibre' | 'plate' | 'resin' | 'moss' | 'brass' | 'bloom';
+export type MaterialId = 'scrap' | 'copper' | 'quartz' | 'fibre' | 'plate' | 'resin' | 'moss' | 'brass' | 'bloom' | 'ore';
 /** Materials found on the reef. Hull plating (milestone 5 part 2) is only made by the plate press. */
 export type ReefMaterial = Exclude<MaterialId, 'plate'>;
 
@@ -52,8 +52,15 @@ export const MATERIALS: Record<MaterialId, { name: string; plural: string; blurb
     blurb: 'A soft flower of light that grows only where no lamp has ever shone. The Revival pool uses one to wake a dormant creature.',
     kg: 0.3,
   },
+  // Milestone 10: the trench's own material.
+  ore: {
+    name: 'Vent ore',
+    plural: 'Vent ore',
+    blurb: 'Dark, metal-rich crust chipped from the mineral chimneys of the trench vents, still warm. Pressure gear, depth plating and the Signal array.',
+    kg: 3.5,
+  },
 };
-export const MATERIAL_ORDER: MaterialId[] = ['scrap', 'copper', 'quartz', 'fibre', 'plate', 'resin', 'moss', 'brass', 'bloom'];
+export const MATERIAL_ORDER: MaterialId[] = ['scrap', 'copper', 'quartz', 'fibre', 'plate', 'resin', 'moss', 'brass', 'bloom', 'ore'];
 
 /** Oxygen, in seconds of breathing, for the starting tank and for each tank upgrade. */
 export const BASE_OXYGEN = 75;
@@ -139,7 +146,7 @@ export interface DroppedBag {
 }
 
 /** Creatures you can keep (milestone 4). Rules are in src/game/creatures.ts. */
-export type SpeciesId = 'glowfin' | 'puffcap' | 'ray' | 'crab' | 'shrimp';
+export type SpeciesId = 'glowfin' | 'puffcap' | 'ray' | 'crab' | 'shrimp' | 'snail';
 export type PlantId = 'coral' | 'kelp' | 'grass' | 'bladder' | 'lumen';
 
 /** One creature living in a creature tank. Every need is 0..1 (1 is best). */
@@ -245,14 +252,16 @@ export interface SubData {
   lights: boolean;
   /** Milestone 8 part 2: a piece of heavy salvage hanging from the grabber. */
   salvage?: string | null;
+  /** Milestone 10: depth plating DP-S fitted at the dock (crush depth 45 m -> 120 m). */
+  plating?: boolean;
 }
 
 /** Milestone 7: gear built in the Workshop (rules in src/game/gear.ts). */
-export type GearId = 'light' | 'cutter' | 'tow' | 'welder' | 'relay' | 'sonar' | 'psuit';
+export type GearId = 'light' | 'cutter' | 'tow' | 'welder' | 'relay' | 'sonar' | 'psuit' | 'psuit2';
 /** Blueprints the Lab decodes. Each one lets the Workshop build something, or unlocks a base piece. */
-export type BlueprintId = 'light' | 'cutter' | 'tow' | 'welder' | 'relay' | 'gtank' | 'sorter' | 'sonar' | 'psuit' | 'recomp' | 'crane' | 'revive';
+export type BlueprintId = 'light' | 'cutter' | 'tow' | 'welder' | 'relay' | 'gtank' | 'sorter' | 'sonar' | 'psuit' | 'recomp' | 'crane' | 'revive' | 'psuit2' | 'plating' | 'signal' | 'resonator';
 /** Data finds the diver brings back to the Lab (they weigh nothing). */
-export type FindId = 'recorder' | 'relaylog' | 'weldchip' | 'towcoil' | 'cache' | 'sonardata' | 'suitplans' | 'poolplans';
+export type FindId = 'recorder' | 'relaylog' | 'weldchip' | 'towcoil' | 'cache' | 'sonardata' | 'suitplans' | 'poolplans' | 'hulllogs' | 'ps2plans' | 'resonplans';
 /** What a Lab or Workshop is busy with. */
 export interface StationJob {
   /** 'research:light' or 'build:light'. */
@@ -264,7 +273,7 @@ export interface StationJob {
 /** A base piece as saved (see src/game/base.ts). */
 export interface SavedPiece {
   id: number;
-  kind: 'dome' | 'corridor' | 'turbine' | 'storage' | 'tank' | 'filter' | 'feeder' | 'press' | 'dock' | 'lab' | 'workshop' | 'gtank' | 'sorter' | 'recomp' | 'crane' | 'hatch' | 'farm' | 'revive' | 'shaft' | 'junction' | 'bracket';
+  kind: 'dome' | 'corridor' | 'turbine' | 'storage' | 'tank' | 'filter' | 'feeder' | 'press' | 'dock' | 'lab' | 'workshop' | 'gtank' | 'sorter' | 'recomp' | 'crane' | 'hatch' | 'farm' | 'revive' | 'shaft' | 'junction' | 'bracket' | 'signal';
   gx: number;
   gy: number;
   rot: number;
@@ -371,6 +380,15 @@ export interface SaveData {
   craneProgress: number;
   /** Scrap still owed from the test gift after milestone 6 (removed in milestone 7: kept only so old saves load). */
   gift?: number;
+  /**
+   * Milestone 10: the trench. The cleft's chimney grazed away by a grown
+   * cinder snail; the Fulmar's airlock opened and her state inside; the
+   * Choir's signal fragments found (pattern spools) and decoded by a Signal
+   * array, and how far the array is into the one it is working on.
+   */
+  cleftOpen: boolean;
+  fulmar: { open: boolean; breakers: boolean[]; taken: string[] };
+  signals: { found: string[]; decoded: string[]; progress: number };
   /** One-time tips already shown. */
   tips: string[];
   playSeconds: number;
@@ -391,14 +409,14 @@ export function freshSave(spawnX: number, spawnY: number): SaveData {
     y: spawnY,
     oxygen: BASE_OXYGEN,
     lampOn: true,
-    bag: { scrap: 0, copper: 0, quartz: 0, fibre: 0, plate: 0, resin: 0, moss: 0, brass: 0, bloom: 0 },
+    bag: { scrap: 0, copper: 0, quartz: 0, fibre: 0, plate: 0, resin: 0, moss: 0, brass: 0, bloom: 0, ore: 0 },
     scans: [],
     tanks: [],
     taken: {},
     dropped: null,
     pieces: [],
     nextPieceId: 1,
-    stored: { scrap: 0, copper: 0, quartz: 0, fibre: 0, plate: 0, resin: 0, moss: 0, brass: 0, bloom: 0 },
+    stored: { scrap: 0, copper: 0, quartz: 0, fibre: 0, plate: 0, resin: 0, moss: 0, brass: 0, bloom: 0, ore: 0 },
     drone: 'stranded',
     creatures: [],
     nextCreatureId: 1,
@@ -434,6 +452,9 @@ export function freshSave(spawnX: number, spawnY: number): SaveData {
     salvageTaken: {},
     craneQueue: 0,
     craneProgress: 0,
+    cleftOpen: false,
+    fulmar: { open: false, breakers: [false, false, false], taken: [] },
+    signals: { found: [], decoded: [], progress: 0 },
     tips: [],
     playSeconds: 0,
     savedAt: 0,
@@ -500,6 +521,17 @@ export function loadSave(spawnX: number, spawnY: number): { data: SaveData; load
       salvageTaken: d.salvageTaken && typeof d.salvageTaken === 'object' ? d.salvageTaken : {},
       craneQueue: typeof d.craneQueue === 'number' ? d.craneQueue : 0,
       craneProgress: typeof d.craneProgress === 'number' ? d.craneProgress : 0,
+      cleftOpen: d.cleftOpen === true,
+      fulmar: {
+        open: d.fulmar?.open === true,
+        breakers: [0, 1, 2].map((i) => Array.isArray(d.fulmar?.breakers) && d.fulmar.breakers[i] === true),
+        taken: Array.isArray(d.fulmar?.taken) ? d.fulmar.taken : [],
+      },
+      signals: {
+        found: Array.isArray(d.signals?.found) ? d.signals.found : [],
+        decoded: Array.isArray(d.signals?.decoded) ? d.signals.decoded : [],
+        progress: typeof d.signals?.progress === 'number' ? d.signals.progress : 0,
+      },
       relays: Array.isArray(d.relays) ? d.relays.filter((r: { x?: unknown; y?: unknown }) => typeof r?.x === 'number' && typeof r?.y === 'number') : [],
     } as SaveData;
     // Milestone 7: the scavenger crab makes scrap now, so the test gift ends.

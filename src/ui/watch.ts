@@ -49,6 +49,8 @@ export class DiveWatch {
     atSurface: boolean,
     bag: { kg: number; rated: number; max: number } = { kg: 0, rated: 1, max: 1 },
     suit = 1,
+    /** Milestone 10: the suit's (or the sub's) crush depth in metres; the depth turns amber near it and red past it. */
+    limit = Infinity,
   ): void {
     if (now - this.last < 50) return;
     this.last = now;
@@ -146,7 +148,7 @@ export class DiveWatch {
     c.font = `600 ${Math.round(S * 0.075)}px -apple-system, system-ui, sans-serif`;
     c.fillText(`O₂ ${Math.ceil(oxygen)}s`, cx, cy - S * 0.2);
     c.globalAlpha = 1;
-    c.fillStyle = LUME;
+    c.fillStyle = depth > limit ? (Math.sin(now / 110) > 0 ? RED : '#ffd0c0') : depth > limit - 5 ? AMBER : LUME;
     c.font = `700 ${Math.round(S * 0.19)}px -apple-system, system-ui, sans-serif`;
     const d = depth.toFixed(1);
     c.fillText(d, cx - S * 0.03, cy + S * 0.01);

@@ -46,6 +46,7 @@ const BODY_TINTS: Record<SpeciesId, number[]> = {
   ray: [0xffffff, 0xa6b2c2, 0xbad49a, 0x5c6482],
   crab: [0xffffff, 0xc4d494, 0xffa494, 0x98b6ea],
   shrimp: [0xffffff, 0xff9a92, 0xd2ecff, 0xffdc6a],
+  snail: [0xffffff, 0xe8b080, 0xc8c4bc, 0xffd890],
 };
 
 /** Multiply two 0xRRGGBB tints. */
@@ -98,6 +99,7 @@ export class Critter {
     else if (species === 'puffcap') this.drawPuffcap();
     else if (species === 'crab') this.drawCrab(r);
     else if (species === 'shrimp') this.drawShrimp();
+    else if (species === 'snail') this.drawSnail();
     else this.drawRay();
     if (stage !== 'egg') this.drawPattern();
     if (stage !== 'egg' && this.traits.radiant) {
@@ -139,6 +141,15 @@ export class Critter {
         this.emissive.addChild(tips);
         this.parts.tips = tips;
       }
+    } else if (sp === 'snail') {
+      d.clear();
+      if (p === 1) for (let i = 0; i < 6; i++) d.circle(-12 + i * 5, 3.2, 0.9).fill({ color: 0xffa040 });
+      else
+        for (let k = 0; k < 18; k++) {
+          const a = k * 0.55;
+          const r = 9.5 - k * 0.42;
+          d.circle(-2 + Math.cos(a) * r, -9 + Math.sin(a) * r * 0.9, 0.7).fill({ color: 0xffa040 });
+        }
     } else if (sp === 'shrimp') {
       d.clear();
       if (p === 1) for (let i = 0; i < 6; i++) {
@@ -161,6 +172,7 @@ export class Critter {
     if (this.species === 'puffcap') return young ? 0.85 : 1.3;
     if (this.species === 'crab') return young ? 0.8 : 1.15;
     if (this.species === 'shrimp') return young ? 0.75 : 1.05;
+    if (this.species === 'snail') return young ? 0.8 : 1.2;
     return young ? 0.85 : 1.25;
   }
 
@@ -386,6 +398,36 @@ export class Critter {
     this.parts.halo = halo;
   }
 
+  // ---- Cinder snail (milestone 10, the trench's vent field) ----
+  private drawSnail(): void {
+    const foot = new Graphics();
+    const shell = new Graphics();
+    // The coiled shell: dark iron with mineral crust, its whorls outlined.
+    shell.circle(-2, -9, 10.5).fill({ color: 0x3a3634 });
+    shell.circle(-2, -9, 10.5).stroke({ color: 0x5a524c, width: 1.4 });
+    for (let k = 0; k < 3; k++) shell.circle(-2 + k * 1.2, -9 - k * 0.6, 7.5 - k * 2.4).stroke({ color: 0x24201e, width: 1.2, alpha: 0.9 });
+    shell.ellipse(-5, -15, 5, 2).fill({ color: 0xffffff, alpha: 0.12 });
+    for (const [x, y] of [[-9, -6], [-6, -16], [3, -15], [6, -6]] as const) shell.circle(x, y, 1.6).fill({ color: 0x6a5a4a, alpha: 0.8 });
+    // The foot: a long scaly sole with iron scales overlapping along it.
+    foot.moveTo(-14, 3).quadraticCurveTo(-4, -3, 12, -2).quadraticCurveTo(17, -1, 17, 2).quadraticCurveTo(4, 5, -14, 3).fill({ color: 0x5a4e46 });
+    for (let i = 0; i < 7; i++) foot.ellipse(-11 + i * 4, 0.5, 2.6, 2).fill({ color: i % 2 ? 0x2e2a28 : 0x3e3834 });
+    // Small eye stalks; their tips catch the lamp.
+    foot.moveTo(13, -2).lineTo(16, -8).moveTo(15, -2).lineTo(19, -7).stroke({ color: 0x5a4e46, width: 1.1 });
+    foot.circle(16, -8.6, 1.1).fill({ color: 0x1a1210 }).circle(19, -7.6, 1.1).fill({ color: 0x1a1210 });
+    this.body.addChild(foot, shell);
+    this.parts.foot = foot;
+    this.parts.shell = shell;
+    // Seams of warm ember light along the whorls.
+    const dots = new Graphics();
+    dots.arc(-2, -9, 10.5, -2.6, 0.2).stroke({ color: 0xffa040, width: 1 });
+    dots.arc(-0.8, -9.6, 5.1, 0.4, 3.4).stroke({ color: 0xffa040, width: 0.9 });
+    this.emissive.addChild(dots);
+    this.parts.dots = dots;
+    const halo = new Graphics().ellipse(-2, -8, 16, 12).fill({ color: 0xff8030, alpha: 0.45 });
+    this.glow.addChild(halo);
+    this.parts.halo = halo;
+  }
+
   // ---- Eggs ----
   private drawEggs(r: () => number): void {
     if (this.species === 'ray') return this.drawEggCase();
@@ -393,7 +435,7 @@ export class Critter {
     const g = new Graphics();
     const em = new Graphics();
     // Milestone 9: crab and shrimp clutches (laid in the Hatchery) are amber and coral, not glowfin green.
-    const egg = this.species === 'crab' ? 0xe8a060 : this.species === 'shrimp' ? 0xf0c890 : 0xd8e890;
+    const egg = this.species === 'crab' ? 0xe8a060 : this.species === 'shrimp' ? 0xf0c890 : this.species === 'snail' ? 0xd8a070 : 0xd8e890;
     const spots: [number, number, number][] = [];
     for (let i = 0; i < 8; i++) {
       const a = r() * Math.PI;
@@ -533,6 +575,17 @@ export class Critter {
       }
       this.parts.dots.alpha = 0.5 + 0.5 * vig;
       this.parts.halo.alpha = 0.35 * vig;
+    } else if (this.species === 'snail') {
+      // Creeps: the foot ripples and the shell rocks a little with each wave.
+      const walk = Math.min(1, sp / 16);
+      const w = Math.sin(t * 5) * walk;
+      this.parts.shell.rotation = w * 0.04 + sick * 0.15;
+      this.parts.shell.y = Math.abs(w) * -0.6;
+      this.parts.foot.scale.x = 1 + w * 0.04;
+      rot = sick * 0.1;
+      const p = 0.7 + 0.3 * Math.sin(t * 1.3);
+      this.parts.dots.alpha = (this.stage === 'grown' ? 0.4 + 0.6 * vig : 0.3 * vig) * p;
+      this.parts.halo.alpha = (this.stage === 'grown' ? 0.5 : 0.2) * vig * p;
     } else if (this.species === 'shrimp') {
       // Swims with flicks of its swimmerets; antennae trail and wave.
       rot = Math.atan2(vy, Math.abs(vx) + 25) * 0.5 * this.face + sick * 0.25;
