@@ -55,6 +55,11 @@ import { mulberry32, WORLD_SEED } from '../rng';
  * 30650 - 32500 the trench floor, about 98 m, and the drowned Fulmar deep
  *               station (the major site, an interior on foot)
  * 32500 - 33000 the trench's east wall, up to the surface
+ *
+ * Milestone 11 opened the sanctum under the trench floor (SANCTUM below): a
+ * round door of pale stone in the floor's far east end, a shaft down, an
+ * antechamber, the great hall behind a song-lock, and a second song-lock down
+ * to the deep pool, where the heart stands (an interior on foot).
  */
 
 /** West edge of the world (milestone 5 added the basin west of the old wall). */
@@ -62,8 +67,8 @@ export const WORLD_X0 = -5600;
 export const WORLD_W = 33000;
 /** Width of the whole world, from WORLD_X0 to WORLD_W. */
 export const WORLD_SPAN = WORLD_W - WORLD_X0;
-/** Milestone 10: the trench goes down to about 100 m. */
-export const WORLD_H = 7700;
+/** Milestone 10: the trench goes down to about 100 m. Milestone 11: the sanctum below it, to about 128 m. */
+export const WORLD_H = 9700;
 export const WU_PER_METRE = 75;
 
 /** Where the diver starts, and comes back to after blacking out: the Kestrel buoy at the surface. */
@@ -487,6 +492,52 @@ export function fulmarTop(x: number): number {
   return top;
 }
 export const FULMAR_HATCH = { x: FULMAR.hatchX, y: 0 };
+/*
+ * Milestone 11: the sanctum, carved into the rock under the trench floor
+ * (Colin's choice: swim down through it, then on foot in its heart). The
+ * Choir's water there holds no weight: there is no crush depth inside.
+ */
+export const SANCTUM = {
+  /** The door in the floor (the resonator opens it). */
+  door: { x: 32360, y: 0, r: 74 },
+  shaft: cap(32360, 7330, 66, 32290, 7860, 74),
+  ante: ell(32060, 7990, 380, 190),
+  /** The narrows from the antechamber to the hall: the first song-lock stands across it. */
+  narrows: cap(31760, 8020, 92, 31500, 8070, 88),
+  hall: ell(30860, 8250, 760, 430),
+  /** The way down from the hall to the deep pool: the second song-lock stands across it. */
+  down: cap(30230, 8500, 84, 29900, 8900, 86),
+  pool: ell(29600, 9120, 540, 300),
+  /** The song-locks: discs of light across the narrows (solid until sung open). */
+  locks: [
+    { x: 31640, y: 8045, r: 104 },
+    { x: 30070, y: 8700, r: 150 },
+  ],
+  /** The heart's way in, on the pool's floor (an interior on foot). */
+  heart: { x: 29420, y: 0 },
+  /** The Choir gate (after contact): in the antechamber, and its twin by the Kestrel buoy. */
+  gate: { x: 32170, y: 7990 },
+  homeGate: { x: 1180, y: 0 },
+};
+export const sanctum = { door: false, locks: [false, false] };
+const SANCTUM_SHAPES: CaveShape[] = [SANCTUM.shaft, SANCTUM.ante, SANCTUM.narrows, SANCTUM.hall, SANCTUM.down, SANCTUM.pool];
+export function sanctumShapes(): readonly CaveShape[] {
+  return SANCTUM_SHAPES;
+}
+/** Is the point in the sanctum's open water (whatever its doors)? */
+export function inSanctum(x: number, y: number): boolean {
+  if (x < 29000 || x > 32500 || y < 7300) return false;
+  for (const s of SANCTUM_SHAPES) if (inShape(s, x, y)) return true;
+  return false;
+}
+/** Solid parts of the sanctum's doors (the door in the floor, the song-locks) while shut. */
+function sanctumDoorSolid(x: number, y: number): boolean {
+  const d = SANCTUM.door;
+  if (!sanctum.door && Math.abs(x - d.x) < d.r && y > d.y - 30 && y < d.y + 60) return true;
+  for (const [i, l] of SANCTUM.locks.entries()) if (!sanctum.locks[i] && Math.abs(x - l.x) < 24 && Math.abs(y - l.y) < l.r) return true;
+  return false;
+}
+
 /** Predators of the trench (src/actors/deep.ts): where each one lives. */
 export const TR_LANTERNJAWS = [
   { x: 27950, y: 2150 },
@@ -504,8 +555,9 @@ export const TR_STALKERS = [
 export const TR_SPIDERS = [
   { x0: 28600, x1: 29250 },
   { x0: 29480, x1: 30420 },
-  { x0: 30750, x1: 31220 },
-  { x0: 32180, x1: 32480 },
+  { x0: 31000, x1: 31220 },
+  // (Milestone 11: the floor's east end is the sanctum's door now; its strider moved to the floor's west end.)
+  { x0: 30700, x1: 30950 },
 ];
 
 function forestFloor(x: number): number {
@@ -699,6 +751,11 @@ export function isSolid(x: number, y: number): boolean {
   }
   // Milestone 10: the drowned station is solid; the cleft is open once its chimney is grazed away.
   if (x > 31200 && x < 32200 && y >= fulmarTop(x)) return true;
+  // Milestone 11: the sanctum under the floor, behind its doors.
+  if (x > 29000 && x < 32500 && y > 7250) {
+    if (sanctumDoorSolid(x, y)) return true;
+    if (inSanctum(x, y)) return false;
+  }
   if (x > 28700 && x < 29520 && y > 3920 && y < 4200) {
     if (!cleft.open && x > CLEFT.plug.x0 && x < CLEFT.plug.x1 && y > CLEFT.plug.y0 && y < CLEFT.plug.y1) return true;
     if (inShape(CLEFT.tunnel, x, y) || inShape(CLEFT.room, x, y)) return false;
@@ -797,5 +854,9 @@ CV_BOLLARD.y = cvDeckY(CV_BOLLARD.x) - 22;
 CV_HATCH.y = cvDeckY(CV_HATCH.x);
 // Milestone 10: the Fulmar's airlock hatch sits on top of her main module.
 FULMAR_HATCH.y = fulmarTop(FULMAR_HATCH.x);
+// Milestone 11: the sanctum's door lies in the floor; the heart's way in on the pool's floor; the home gate on the shelf.
+SANCTUM.door.y = groundY(SANCTUM.door.x);
+SANCTUM.heart.y = ellBottom(SANCTUM.pool, SANCTUM.heart.x) - 4;
+SANCTUM.homeGate.y = groundY(SANCTUM.homeGate.x);
 /** Every point the grapple can hook: the race's rings, the Corvina's bollard and her hold's beam hooks. */
 export const ANCHORS: { x: number; y: number }[] = [...RINGS];

@@ -152,22 +152,30 @@ export const RESEARCH: Record<BlueprintId, ResearchDef> = {
     scans: ['trench', 'vents', 'cvlog'],
     seconds: 120,
   },
+  lantern: {
+    id: 'lantern',
+    name: 'Choir lantern CL-1',
+    text: "The Choir's gift: a seed of its light that powers the base. Unlocks a build card.",
+    finds: [],
+    scans: ['contact'],
+    seconds: 1,
+  },
   resonator: {
     id: 'resonator',
     name: 'Alien resonator blueprint',
-    text: "Reads the Fulmar's resonator drawings: a ring of tuned crystal and vent ore that sings back the Choir's own patterns. The doors below answer only to it. Building it needs what lies beyond the trench (the next update).",
+    text: "Reads the Fulmar's resonator drawings: a ring of tuned crystal and vent ore that sings back the Choir's own patterns. The doors below answer only to it. The Workshop can only tune it once the Signal array has decoded all four of the Choir's fragments.",
     finds: ['resonplans'],
     scans: [],
     seconds: 160,
   },
 };
+// (Milestone 11: the Choir lantern is given at first contact, never decoded in a Lab, so it isn't in RESEARCH_ORDER.)
 export const RESEARCH_ORDER: BlueprintId[] = ['light', 'gtank', 'sorter', 'relay', 'welder', 'tow', 'cutter', 'recomp', 'crane', 'sonar', 'psuit', 'revive', 'plating', 'psuit2', 'signal', 'resonator'];
 /** Blueprints that unlock a base piece (build card) instead of Workshop gear. */
-export const PIECE_BLUEPRINTS: Partial<Record<BlueprintId, string>> = { gtank: 'gtank', sorter: 'sorter', recomp: 'recomp', crane: 'crane', revive: 'revive', signal: 'signal' };
+export const PIECE_BLUEPRINTS: Partial<Record<BlueprintId, string>> = { gtank: 'gtank', sorter: 'sorter', recomp: 'recomp', crane: 'crane', revive: 'revive', signal: 'signal', lantern: 'lantern' };
 /** Milestone 10: blueprints that are fitted elsewhere (the dock) or built later, not in the Workshop. */
 export const OTHER_BLUEPRINTS: Partial<Record<BlueprintId, string>> = {
   plating: 'Fit it to KS-1 at a Moon pool dock (the Dock panel).',
-  resonator: 'Its build comes with the sanctum, in the next update.',
 };
 
 export interface GearDef {
@@ -253,8 +261,23 @@ export const GEAR: Record<GearId, GearDef> = {
     cost: { ore: 6, brass: 4, plate: 4, quartz: 2 },
     seconds: 100,
   },
+  resonator: {
+    id: 'resonator',
+    name: 'Alien resonator',
+    code: 'RS-1',
+    job: "A forged hoop of tuned crystal on your pack and a ringed bracer on your arm. It sings the Choir's own song: hold Collect at the door on the trench floor, and at the doors below it.",
+    blueprint: 'resonator',
+    cost: { ore: 6, quartz: 4, brass: 4, bloom: 1 },
+    seconds: 160,
+  },
 };
-export const GEAR_ORDER: GearId[] = ['light', 'cutter', 'tow', 'welder', 'relay', 'sonar', 'psuit', 'psuit2'];
+/** Milestone 11 (Colin's choice): the resonator can only be tuned once all four fragments are decoded. */
+export function gearBlocker(save: SaveData, id: GearId): string | null {
+  if (id === 'resonator' && save.signals.decoded.length < 4)
+    return `It can only be tuned to the Choir's song once the Signal array has decoded all four fragments (${save.signals.decoded.length} of 4 so far).`;
+  return null;
+}
+export const GEAR_ORDER: GearId[] = ['light', 'cutter', 'tow', 'welder', 'relay', 'sonar', 'psuit', 'psuit2', 'resonator'];
 /** Gear that is a kit you can build again and again (it isn't kept in save.gear). */
 export const KIT_GEAR: GearId[] = ['relay'];
 

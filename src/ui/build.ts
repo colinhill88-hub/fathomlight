@@ -87,6 +87,8 @@ const TAB_OF = Object.fromEntries(PIECE_ORDER.map((k) => [k, STRUCTURE.includes(
 
 /** Small side-view icons for the palette, drawn as SVG. */
 const PIECE_ICONS: Record<PieceKind, string> = {
+  lantern:
+    '<svg viewBox="0 0 40 32"><rect x="1" y="13" width="38" height="6" fill="#2c3236"/><rect x="17" y="1" width="6" height="30" fill="#2c3236"/><circle cx="20" cy="16" r="11" fill="none" stroke="#b8c0d8" stroke-width="4"/><circle cx="20" cy="16" r="6" fill="#a27cff" opacity=".7"/><circle cx="20" cy="16" r="3" fill="#5ff0ff"/><circle cx="20" cy="16" r="1.4" fill="#f4fbff"/></svg>',
   signal:
     '<svg viewBox="0 0 40 32"><rect x="0" y="23" width="4" height="6" fill="#5b6467"/><rect x="36" y="23" width="4" height="6" fill="#5b6467"/><rect x="3" y="18" width="34" height="13" rx="3" fill="#5b6467"/><rect x="8" y="22" width="24" height="5" rx="1" fill="#ffd98a"/><rect x="19" y="8" width="2.5" height="10" fill="#a4b0b7"/><path d="M8 5q12 10 24 0" stroke="#a8822e" stroke-width="3" fill="none"/><circle cx="20" cy="3" r="2" fill="#ffe0a0"/></svg>',
   shaft:

@@ -257,9 +257,9 @@ export interface SubData {
 }
 
 /** Milestone 7: gear built in the Workshop (rules in src/game/gear.ts). */
-export type GearId = 'light' | 'cutter' | 'tow' | 'welder' | 'relay' | 'sonar' | 'psuit' | 'psuit2';
+export type GearId = 'light' | 'cutter' | 'tow' | 'welder' | 'relay' | 'sonar' | 'psuit' | 'psuit2' | 'resonator';
 /** Blueprints the Lab decodes. Each one lets the Workshop build something, or unlocks a base piece. */
-export type BlueprintId = 'light' | 'cutter' | 'tow' | 'welder' | 'relay' | 'gtank' | 'sorter' | 'sonar' | 'psuit' | 'recomp' | 'crane' | 'revive' | 'psuit2' | 'plating' | 'signal' | 'resonator';
+export type BlueprintId = 'light' | 'cutter' | 'tow' | 'welder' | 'relay' | 'gtank' | 'sorter' | 'sonar' | 'psuit' | 'recomp' | 'crane' | 'revive' | 'psuit2' | 'plating' | 'signal' | 'resonator' | 'lantern';
 /** Data finds the diver brings back to the Lab (they weigh nothing). */
 export type FindId = 'recorder' | 'relaylog' | 'weldchip' | 'towcoil' | 'cache' | 'sonardata' | 'suitplans' | 'poolplans' | 'hulllogs' | 'ps2plans' | 'resonplans';
 /** What a Lab or Workshop is busy with. */
@@ -273,7 +273,7 @@ export interface StationJob {
 /** A base piece as saved (see src/game/base.ts). */
 export interface SavedPiece {
   id: number;
-  kind: 'dome' | 'corridor' | 'turbine' | 'storage' | 'tank' | 'filter' | 'feeder' | 'press' | 'dock' | 'lab' | 'workshop' | 'gtank' | 'sorter' | 'recomp' | 'crane' | 'hatch' | 'farm' | 'revive' | 'shaft' | 'junction' | 'bracket' | 'signal';
+  kind: 'dome' | 'corridor' | 'turbine' | 'storage' | 'tank' | 'filter' | 'feeder' | 'press' | 'dock' | 'lab' | 'workshop' | 'gtank' | 'sorter' | 'recomp' | 'crane' | 'hatch' | 'farm' | 'revive' | 'shaft' | 'junction' | 'bracket' | 'signal' | 'lantern';
   gx: number;
   gy: number;
   rot: number;
@@ -389,6 +389,14 @@ export interface SaveData {
   cleftOpen: boolean;
   fulmar: { open: boolean; breakers: boolean[]; taken: string[] };
   signals: { found: string[]; decoded: string[]; progress: number };
+  /**
+   * Milestone 11: the sanctum. Its door in the trench floor and its two
+   * song-locks sung open, its heart's state inside (finds by map letter), and
+   * whether first contact has happened (the ending; the Choir gate opens then).
+   */
+  sanctum: { door: boolean; locks: boolean[]; taken: string[]; contact: boolean };
+  /** Milestone 11: the Signal array's zone map, one character per 250 units of the world, '1' once seen. */
+  mapSeen: string;
   /** One-time tips already shown. */
   tips: string[];
   playSeconds: number;
@@ -455,6 +463,8 @@ export function freshSave(spawnX: number, spawnY: number): SaveData {
     cleftOpen: false,
     fulmar: { open: false, breakers: [false, false, false], taken: [] },
     signals: { found: [], decoded: [], progress: 0 },
+    sanctum: { door: false, locks: [false, false], taken: [], contact: false },
+    mapSeen: '',
     tips: [],
     playSeconds: 0,
     savedAt: 0,
@@ -532,6 +542,13 @@ export function loadSave(spawnX: number, spawnY: number): { data: SaveData; load
         decoded: Array.isArray(d.signals?.decoded) ? d.signals.decoded : [],
         progress: typeof d.signals?.progress === 'number' ? d.signals.progress : 0,
       },
+      sanctum: {
+        door: d.sanctum?.door === true,
+        locks: [0, 1].map((i) => Array.isArray(d.sanctum?.locks) && d.sanctum.locks[i] === true),
+        taken: Array.isArray(d.sanctum?.taken) ? d.sanctum.taken : [],
+        contact: d.sanctum?.contact === true,
+      },
+      mapSeen: typeof d.mapSeen === 'string' ? d.mapSeen : '',
       relays: Array.isArray(d.relays) ? d.relays.filter((r: { x?: unknown; y?: unknown }) => typeof r?.x === 'number' && typeof r?.y === 'number') : [],
     } as SaveData;
     // Milestone 7: the scavenger crab makes scrap now, so the test gift ends.

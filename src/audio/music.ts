@@ -19,7 +19,7 @@ import { audio } from './engine';
  * Nothing here uses cyan/violet "Choir" sounds yet: those come with the sanctum.
  */
 
-export type MusicZone = 'shallows' | 'basin' | 'forest' | 'cave' | 'shelf' | 'trench';
+export type MusicZone = 'shallows' | 'basin' | 'forest' | 'cave' | 'shelf' | 'trench' | 'sanctum';
 
 interface Profile {
   /** MIDI note of the pad root. */
@@ -135,6 +135,24 @@ const PROFILES: Record<MusicZone, Profile> = {
     chimes: 0.12,
     padGain: 0.05,
     tension: [1, 6],
+  },
+  // Milestone 11: the sanctum. Awe after dread: a wide, open lydian over D, slow and glassy, with more chimes.
+  sanctum: {
+    root: 38, // D2
+    scale: [0, 2, 4, 6, 7, 9, 11],
+    chords: [
+      [0, 7, 14, 19, 23],
+      [2, 9, 14, 18, 21],
+      [-5, 7, 11, 14, 19],
+      [4, 11, 16, 18, 23],
+    ],
+    lo: 0,
+    hi: 19,
+    bright: 1800,
+    beat: 1.5,
+    density: 0.22,
+    chimes: 0.6,
+    padGain: 0.05,
   },
   cave: {
     root: 40,

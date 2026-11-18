@@ -215,6 +215,7 @@ export class Hud {
       ['revive', 'Revival pool'],
       ['shaft', 'Riser shaft'],
       ['junction', 'Cross junction'],
+      ['lantern', 'Choir lantern'],
       ['bracket', 'Cliff bracket'],
     ];
     const base = save.pieces.length
@@ -278,7 +279,14 @@ export class Hud {
     return `<h2>The trench</h2>
       <p class="note">Crush depth: you wear ${suit}; ${sub}.</p>
       <p class="note">The cleft on the vent field: ${save.cleftOpen ? 'open' : 'sealed by a chimney (a grown cinder snail grazes chimneys)'}.</p>
-      <p class="note">Signal fragments: ${save.signals.found.length} of 4 spools found, ${n} decoded${n ? ' (read them above, as Artefacts)' : ''}. A Signal array reads them once your grown creatures show enough different glow patterns.</p>`;
+      <p class="note">Signal fragments: ${save.signals.found.length} of 4 spools found, ${n} decoded${n ? ' (read them above, as Artefacts)' : ''}. A Signal array reads them once your grown creatures show enough different glow patterns.</p>${
+        n >= 4 || save.gear.includes('resonator')
+          ? `<h2>The sanctum</h2>
+      <p class="note">The resonator: ${save.gear.includes('resonator') ? 'built and worn' : 'all four fragments decoded: build it in a Workshop'}.</p>
+      <p class="note">The door in the trench floor's far east end: ${save.sanctum.door ? 'open' : 'shut'}. Song-locks: ${save.sanctum.locks.filter(Boolean).length} of 2 sung open.</p>
+      <p class="note">${save.sanctum.contact ? 'First contact made. A Choir gate in the antechamber carries you home, and its twin by the Kestrel buoy brings you back.' : 'The Choir waits in the heart, on the floor of the deepest pool.'}</p>`
+          : ''
+      }`;
   }
 
   /** Milestone 7 part 2: what is left to find and make from the kelp caves. */

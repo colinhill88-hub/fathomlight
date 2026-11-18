@@ -1,6 +1,7 @@
 import { Container, Graphics, MeshRope, Point, Renderer, Text, Texture } from 'pixi.js';
 import { mulberry32, WORLD_SEED } from '../rng';
 import { TrenchScenery } from './trenchgfx';
+import { SanctumScenery } from './sanctumgfx';
 import {
   ANCHOR_X,
   BEACON_X,
@@ -615,6 +616,8 @@ export class Scenery {
 
   /** Milestone 10: the trench's own art. */
   trench!: TrenchScenery;
+  /** Milestone 11: the sanctum under the trench floor. */
+  sanctum!: SanctumScenery;
   private kelps: Kelp[] = [];
   private grass: { g: Graphics; phase: number; x: number }[] = [];
   private slices: Slice[] = [];
@@ -914,6 +917,12 @@ export class Scenery {
     this.emissive.addChild(this.trench.emissive);
     this.glow.addChild(this.trench.glow);
     this.lights.push(...this.trench.lights);
+    // Milestone 11: the sanctum.
+    this.sanctum = new SanctumScenery(detail);
+    this.view.addChild(this.sanctum.view);
+    this.emissive.addChild(this.sanctum.emissive);
+    this.glow.addChild(this.sanctum.glow);
+    this.lights.push(...this.sanctum.lights);
     rand = keep;
   }
 
@@ -1940,6 +1949,7 @@ export class Scenery {
   update(time: number, diverX: number, diverY: number, diverVX: number, viewX0: number, viewX1: number): void {
     for (const s of this.slices) s.obj.visible = s.x1 > viewX0 && s.x0 < viewX1;
     this.trench.update(time, viewX0, viewX1);
+    this.sanctum.update(time, viewX0, viewX1, diverY - 1400, diverY + 1400);
 
     const t = time % 2.4;
     const flash = t < 0.12 ? 1 : Math.exp(-(t - 0.12) * 3.2) * 0.85;

@@ -1403,7 +1403,7 @@ Colin's feedback first (after the walker and the interior art pass): the animati
 | Pressure suit PS-2 | drawings in the cleft's cargo pod | 150 s | 6 vent ore, 4 brass, 4 plating, 2 quartz; 100 s | safe to 110 m |
 | Depth plating DP-S | the probe's stress recorder, plus a scan of the trench | 110 s | 6 plating, 4 vent ore, 3 brass (fitted at the dock) | KS-1 safe to 120 m |
 | Signal array SA-1 (base piece) | scans of the trench, the vent field and the Corvina's log | 120 s | see below | reads pattern spools |
-| Alien resonator | drawings in the Fulmar's array room | 160 s | none yet | blueprint only; built in milestone 11 |
+| Alien resonator | drawings in the Fulmar's array room | 160 s | built in milestone 11 | opens the sanctum's doors |
 
 - **Depth plating is a hull refit, not a module.** It has its own "Hull refit" row in the Dock panel and takes no slot, so the cargo bay, floodlights and grabber can all stay fitted.
 - **The Lab** hides the trench's research until the trench has been scanned.
@@ -1477,7 +1477,7 @@ Colin's feedback first (after the walker and the interior art pass): the animati
   3. "Below the cold": an invitation down and east, past the trench floor.
   4. "The door": the door below hears only its own song, which matches the resonator drawings.
 - **The listening log** tells the Fulmar crew's story: eleven years listening, and lamps answered by lights. They worked out that every glowing creature is a word the Choir knows. They drew the resonator, then left when the hull began to weep.
-- **"Maps zones"** (DESIGN.md's other job for the array) is not built yet. See open questions.
+- **"Maps zones"** (DESIGN.md's other job for the array) was built in milestone 11: the zone map.
 
 **Also**
 - **New scanner entries:** the trench, the Fulmar relay buoy, the crushed deep probe, the vent field, the sealed chimney, the cinder snail, the lanternjaw, the pale stalker, the abyssal strider, the Fulmar deep station, the Fulmar's listening log, and the four signal fragments. That makes 15 entries.
@@ -1514,22 +1514,139 @@ Colin's feedback first (after the walker and the interior art pass): the animati
 - **Settings, Sound** now names the state when sound is paused. When it's running on an iPhone, it reminds you that the ring/silent switch mutes the game unless "Plays with the silent switch on" is chosen.
 - **Tested** in headless Chromium: a context forced into the stuck state came back with sound on the next key press, and a stale hidden flag cleared on the next tap. Not tested on the iPhone itself.
 
+### Milestone 11: contact (2026-11-18)
+**Feedback on milestone 10 and the merge with the kit passes:** "All looks good." Nothing was flagged, so nothing needed fixing first.
+
+**Colin's choices** (asked before building; all four were the recommended option):
+- **The resonator:** built in the Workshop, but it can only be tuned once the Signal array has decoded all four fragments. Worn as a hoop on the pack and a bracer on the arm, lit in the Choir's colours when it sings.
+- **The sanctum:** swim down through it, then on foot in its heart. No crush depth inside.
+- **The ending:** call and response with the resonator (no way to fail), a short scene, credits, and then the game goes on with two gifts: a Choir gate home and a Choir power source for the base.
+- **"Maps zones":** a map at the Signal array's console.
+
+**The alien resonator RS-1** (`resonator` in `GEAR`, `src/game/gear.ts`)
+- **Getting it:** decode the Fulmar's drawings in a Lab (160 s, as before). Then build it in a Workshop (160 s) for 6 vent ore, 4 quartz, 4 brass and 1 glowing bloom.
+- **The gate:** until 4 of 4 fragments are decoded, the Workshop row says why and its Build button stays off (`gearBlocker`).
+- **On the body** (`KitLook.resonator` in `src/actors/diver.ts`):
+  - a forged brass hoop holding a pale tuned crystal on four spokes, with two swept fins, riding on top of the pack (`drawResonatorHoop`; on the walker it stands above the tanks);
+  - a brass bracer with a small crystal ring on the near forearm (`drawResonatorBracer`).
+- **The light:** the crystal glows unlit, drifting through cyan, violet and magenta (`choirColour`). While it sings (holding Collect at a door or song-lock, or answering the Choir), it flares and pulses faster, and rings of song spread from it (`SanctumScenery.song`).
+- **Previews:** `animlab.html?kit=4,1,1,2,2,1` (a sixth number is the resonator); add `&walker` for the walker.
+
+**The sanctum** (`SANCTUM`, `sanctum`, `inSanctum` in `src/world/terrain.ts`; art in `src/world/sanctumgfx.ts`, owned by `Scenery`)
+- **The world grew deeper:** `WORLD_H` went from 7,700 to 9,700 (about 129 m). The sanctum is carved into the rock under the trench floor:
+  - **The door** (x 32360): a raised disc of pale stone in the floor's far east end, cut with rings of grooves that leak cyan light (a beacon from across the floor). With the resonator built, hold Collect there: "Sing to the door with the resonator", 3 s. Its petals fold back into the rock.
+  - **The shaft** down, and the **antechamber**.
+  - **The first song-lock:** a tall lens of light across the narrows. Sing to it (3 s).
+  - **The great hall:** about 20 × 11 m, with three great rings of pale stone lit from inside, stone ribbons hanging from the roof, glowing veins and crystals, and slow Choir motes (ribbons of light) drifting.
+  - **The second song-lock**, down to the **deep pool**.
+  - **The heart:** a spiral shell of stone on the pool's floor with a glowing arch. Hold Collect at the arch to go in.
+- **No crush depth** anywhere inside the sanctum (the Choir's water holds no weight). The depth chip hides there, and the watch's digits stay calm.
+- **Its own colour grade** (`GRADES.sanctum`: richer colour, a lifted violet floor) and its own zone in the sound:
+  - glassy chimes in fifths for the ambience;
+  - a slow, open lydian over D for the music (`PROFILES.sanctum`).
+- **The sub can't follow.** The shaft is diver-sized and the sanctum is past KS-1's 120 m anyway.
+- **To keep finds clear of the door:**
+  - the floor's eastern strider moved to the floor's west end;
+  - the glowing bloom at x 32380 moved to x 31120 (it had been taking the Collect button at the door).
+- **New scanner entries:** the door in the floor, the sanctum, song-lock, the heart, and (after the ending) First contact. The scanner log has a "The sanctum" section under the trench's.
+
+**The heart, on foot** (`HEART_MAP`, `heartOptions` in `src/interior/sanctum.ts`)
+- **Built by code** as a 90 × 34 tile map: rooms carved out of solid stone, so the shape is easy to change.
+- **The interior system gained a sanctum style** (`InteriorOptions.style: 'sanctum'`):
+  - pale nacre stone with glowing seams and veins;
+  - ledges of solid light;
+  - grapple rings of light;
+  - crystal lamps in the Choir's colours;
+  - a glowing arch for the way out.
+- **New interior options:**
+  - `powered`: it needs no breakers;
+  - `gates`: door letters that open once a find is taken (here `Q` opens with plinth `1`);
+  - `animate` and `lights`: the level's own moving art;
+  - `exitLabel`.
+- **Falling into the light pool** at the bottom of the chasm only puts you back where you last stood. No damage.
+- **The route:**
+  1. In by the arch, east along the upper hall.
+  2. Over a chasm of light on three high rings (fire the grapple, swing, let go, catch the next).
+  3. The lift at the east end: a disc of stone riding a column of light, with curtains of light for gates. It is the same ride as the wrecks' lifts, redrawn.
+  4. West along the lower hall to a song-lock door. Sing to it at its plinth.
+  5. A second swing on three low rings over the pool.
+  6. The Choir's chamber, under the upper hall: tall, with ledges of light. At its plinth, hold Collect: "Answer the Choir".
+
+**First contact, the ending** (`src/ui/contact.ts`; the Choir's form is `ChoirForm` in `src/interior/sanctum.ts`)
+1. **The Choir rises** out of its light well: six tilted rings turning in cyan, violet and magenta, ribbons trailing, a bright core. The camera draws back to frame the chamber.
+2. **Three phrases** of 3, 4 and 5 notes. It sings each in light and sound. You answer by tapping the same colours in order: four big pads on the phone, or keys 1–4.
+   - Each pad is named after one of your own creatures' glow patterns, e.g. "Glowfin · banded" (the vocabulary the fragments needed).
+   - A wrong note makes it sing the phrase again, slower. There is no way to fail.
+3. **It names your creatures:** it sings back every pattern you raised and opens out to fill the room, with three lines of text.
+4. **Credits,** then a "Keep exploring" button.
+5. **The rewards:**
+   - you come to in the antechamber, beside a **Choir gate**;
+   - the **Choir lantern** build card unlocks;
+   - First contact goes into the scanner log.
+- **If the game closes mid-contact,** the plinth waits again (the `9` find is cleared unless contact is saved).
+
+**The gifts**
+- **Choir gates** (`SANCTUM.gate`, `SANCTUM.homeGate`): a ring of swirling light in the antechamber, and its twin on the Kestrel shelf by the buoy (x 1180). Hold Collect at either (1.2 s) to step through to the other. Diver only; the sub stays where it is.
+- **Choir lantern CL-1** (`lantern` in `PIECES`, `src/game/base.ts`): 1 × 1, collars on all four sides, 4 quartz, 2 vent ore and 1 glowing bloom, 30 s to weld.
+  - It powers every piece joined to it, like a current turbine, anywhere on the site.
+  - Outside: a ring of pale Choir stone with a seed of light. Inside: the same ring on the room's back wall.
+  - It is the only place the Choir's colours appear on the base.
+  - The power-as-a-limit design (DESIGN.md) is still to come; for now it is a second kind of source.
+
+**The Signal array's zone map** (`src/ui/zonemap.ts`)
+- **Opening it:** hold Collect at a powered array's console: "Open the zone map". It replaces "Read fragment".
+- **What it shows:**
+  - a side view of the whole world, with depth on a square-root scale so the shallow zones aren't squashed flat;
+  - places you have swum or driven through are mapped (`save.mapSeen`, one character per 250 units, updated twice a second), and the rest is dark;
+  - zone names appear once reached;
+  - sites appear once scanned or found: Kestrel, the sled, the kelp caves, the Corvina, the relay buoy, the cleft, the Fulmar, the door and the heart;
+  - you, as a marker;
+  - the sanctum's halls, once the door is open.
+- **Each decoded fragment draws one more dotted leg** of the Choir's way in its colours: the rim, the ledges, the vent field, the floor, and finally a ring round the door.
+- **Reading fragments:** buttons under the map open each decoded fragment.
+- **Older saves** start with the zones they had already reached mapped.
+
+**Tested** (headless Chromium in the cloud with software graphics: about 1 frame a second inside the heart, so `contact.debugSpeed` ran the ending faster for the test):
+- **Build:** type check and production build pass; no console errors.
+- **Screenshots** (`docs/art/milestone11/`): the door singing, the great hall, the heart's shell, the contact pads, the credits, the zone map, the home gate, and the walker with the resonator.
+- **The door:** "Sing to the door with the resonator" is held at the door and opens it. Before the move, the bloom took the button there.
+- **The heart:**
+  - the lift ride from the upper hall to the lower;
+  - the song-lock plinth opens the door `Q`;
+  - "Answer the Choir" starts contact; all three phrases answered; the naming; the credits.
+  - "Keep exploring" sets `sanctum.contact`, unlocks the lantern and puts you by the gate.
+- **The gate home** lands by the Kestrel buoy.
+- **The zone map** at 1280 × 720 and 844 × 390.
+- **Not tested by hand:** the two swings in the heart (the grapple fired at the first ring in the test, but a full crossing needs real hands), the touch pads on an iPhone, and frame rate on a real GPU.
+
 ## Next
 
-**Next session: milestone 11, contact** (prompt in `docs/prompts/milestone-11.md`): the alien resonator (its blueprint is decoded from the Fulmar's drawings; the Workshop build and its materials are still to decide), the sanctum and the ending. The fourth signal fragment points the way: down and east, past the trench floor, to a door that hears only its own song. Also to decide then: the Signal array's "maps zones" job, and the late-game power sources (DESIGN.md, power as a mechanic). The graphics plan is done apart from tuning from Colin's testing and his `?bench` tables (now with a trench scene, 7).
-- **Left over from the walkable base:** line code plates indoors, and a sound for the lines and machines (the machine-room detail was done in the interior art pass). Do these alongside a later milestone if Colin asks.
-- **The harpoon:** decoration on the Crest diver for now; use its design for later tools and weapons.
+**Next session: milestone 12, polish** (prompt in `docs/prompts/milestone-12.md`):
+- the final sound and music mix (the Choir's own voice in the sanctum is in, but simple);
+- menus, a title screen, and save transfer between devices;
+- performance tuning for both presets (the trench and the sanctum are the new scenes to measure);
+- the Steam desktop build.
 
-Where things are (on foot):
-- the interior system: `src/interior/interior.ts` (physics constants at the top; ladders; hooks for generated levels);
-- its lighting: `src/interior/light.ts`;
-- the Corvina's map: `src/interior/corvina.ts`;
-- the base's rooms: `src/interior/baselevel.ts` (`buildBaseLevel` builds the map from the layout; `BaseHooks` draws each room and says what you can do in it);
-- the walker: `src/actors/walker.ts` (built from the diver's parts; shared animation helpers in `src/actors/animkit.ts`; lab: `animlab.html?walker`);
-- the hand-off: `src/main.ts` (`enterBase`, `exitBase`, `peekOut`, `backInside`, `simBase`, `interiorFrame`);
-- milestone 9: traits `src/game/traits.ts`, breeding in `src/game/creatures.ts` (bottom), the Hatchery panel `src/ui/hatch.ts`, the glowfin escort `src/actors/escort.ts`, indoor tanks via `TankLife` in `BaseHooks` (`attach`, `tick`, `tankFocus`, `roomFocus`).
+Also still open: power as a real limit (DESIGN.md, The base). The Choir lantern is ready to be its top tier.
+
+- **Left over from the walkable base:** line code plates indoors, and a sound for the lines and machines. Do these alongside milestone 12 if Colin asks.
 
 ## Problems and open questions
+
+- **Milestone 11, to check after Colin plays:**
+  - **The heart's swings** (`HEART_MAP` in `src/interior/sanctum.ts`):
+    - upper rings at columns 34, 41 and 48 (280 units apart), 220 units above the walkway;
+    - lower rings at 31, 38 and 45, where the line is held to about 230 units by the pool below.
+    - If a gap is too wide, move or add an `o`.
+  - **The contact's pace** (`src/ui/contact.ts`): the rise is 5 s, 0.95 s a note, and the three phrases are in `PHRASES`. The credits take about 26 s, and the button shows after 3.5 s.
+  - **The resonator's gate and cost:** all four fragments; 6 ore, 4 quartz, 4 brass and 1 bloom (`gearBlocker`, `GEAR.resonator`).
+  - **The Choir lantern's cost** (`PIECES.lantern`), and whether it should do more than a turbine once power becomes a limit.
+  - **The zone map:**
+    - a phone in portrait gives a short map (it is sized for landscape);
+    - the sanctum shows only after its door is open;
+    - the kelp caves draw as a few hollows.
+  - **Gamepad:** contact can only be answered by touch or keys 1–4. Add pad buttons in milestone 12.
+  - **The lighting bake is taller** (about 4,825 × 1,213 cells at 8 units). Check the first load time on the iPhone.
 
 - **Milestone 10, to check after Colin plays:**
   - **Crush numbers:** `CRUSH`, `CRUSH_RATE` (2%/s) and `CRUSH_DOUBLE` (5 m) in `src/world/terrain.ts`. With PS-1 the floor (98 m) kills in a second or two, on purpose; PS-2 is needed there.
@@ -1537,7 +1654,6 @@ Where things are (on foot):
   - **Vent plumes** lift (240) and scald (up to 9%/s). The chimney over the cleft also scalds at its mouth.
   - **Signal fragments** need 2/4/6/8 different glow patterns among grown creatures (`FRAGMENTS` in `src/game/signals.ts`), 150 s each. Eight needs real breeding (or the cinder snail's three patterns).
   - **Costs:** PS-2, DP-S (`DEPTH_PLATING_COST` in `src/ui/dock.ts`), the Signal array; vent ore weight (3.5 kg) and its eight spots.
-  - **The Signal array's "maps zones" job** (DESIGN.md) is not built. Proposal for milestone 11: decoded fragments mark the way to the sanctum on a simple zone map in the array's console.
   - **Frame rate in the trench** on the iPhone: three kinds of predators draw every frame when on screen (far ones idle). The lighting bake is taller (about 4,850 × 960 cells): check the first load time on the phone.
   - **The cleft's rock** lit by the lamp looks flat from inside; it may want the kelp caves' wall treatment later.
   - The trench's research is hidden in the Lab until the trench is scanned.

@@ -353,6 +353,37 @@ export const SCAN_ENTRIES: ScanEntry[] = [
     category: 'Artefact',
     text: 'Decoded from the Fulmar\'s last spool: THE DOOR HEARS ONLY ITS OWN SONG · CARRY THE SONG · WE WAIT. The array matches it to the Fulmar\'s resonator drawings: their ring would sing exactly this pattern.',
   },
+  // ---- Milestone 11: the sanctum ----
+  {
+    id: 'sdoor',
+    name: 'The door in the floor',
+    category: 'Place',
+    text: 'A disc of pale stone set flush into the far east end of the trench floor, cut with rings of grooves that leak a faint cyan light. No silt settles on it. It is warm. The fourth fragment said: THE DOOR HEARS ONLY ITS OWN SONG. An alien resonator, worn and sung here (hold Collect), should open it.',
+  },
+  {
+    id: 'shall',
+    name: 'The sanctum',
+    category: 'Place',
+    text: 'Halls of pale, nacre-smooth stone under the trench, lit from inside by veins of cyan, violet and magenta. Rings and ribbons of stone stand in the water like the shapes in the Fulmar\'s recordings. The water here is still and holds no weight at all: your suit\'s depth gauge stops complaining. Nothing here hunts.',
+  },
+  {
+    id: 'slock',
+    name: 'Song-lock',
+    category: 'Place',
+    text: 'A tall lens of light across a narrow way, cool to the glove and quite solid. It brightens when the resonator hums near it. Sing to it (hold Collect) and it should part.',
+  },
+  {
+    id: 'sheart',
+    name: 'The heart',
+    category: 'Place',
+    text: 'A spiral shell of stone the size of the Corvina, on the floor of the deepest pool, with a glowing arch for a door. Beyond the arch there is air: the Choir keeps dry rooms, as if it expected visitors who breathe. Hold Collect at the arch to go in.',
+  },
+  {
+    id: 'contact',
+    name: 'First contact',
+    category: 'Artefact',
+    text: 'In the heart of the sanctum the Choir rose to meet you: rings and ribbons of living light, very old, very curious. It sang, and you answered with the resonator, phrase by phrase, in the patterns your creatures taught you. Then it sang back the patterns of every creature you had raised, as if naming them, and made you a gift: a gate of light that carries you home from its door, and a lantern of its own to power the Kestrel.',
+  },
 ];
 
 export interface ScanCandidate {

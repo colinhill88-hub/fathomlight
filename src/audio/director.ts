@@ -1,7 +1,7 @@
 import { audio, BusName } from './engine';
 import { Ambience, ZoneMix } from './ambience';
 import { Music, MusicZone } from './music';
-import { BASIN_EAST, CAVE, FOREST, GROTTO, inCaveTunnel, inKelpCaves, KC, SITE_MOUTH, TRENCH, WRECK_SHELF } from '../world/terrain';
+import { BASIN_EAST, CAVE, FOREST, GROTTO, inCaveTunnel, inKelpCaves, inSanctum, KC, SITE_MOUTH, TRENCH, WRECK_SHELF } from '../world/terrain';
 
 /*
  * Milestone 7b: the sound director. main.ts hands it a snapshot of the game
@@ -71,18 +71,21 @@ export function zoneMix(x: number, y: number): ZoneMix {
   const shelf = shelfRaw * (1 - trench);
   const forest = smooth((x - (FOREST.x0 - 500)) / 600) * (1 - shelfRaw);
   const basin = x < BASIN_EAST + 150 ? smooth((y - 300) / 600) * (1 - smooth((x - (BASIN_EAST - 250)) / 400)) : 0;
-  const rest = 1 - cave;
+  // Milestone 11: inside the sanctum the Choir's water takes over everything.
+  const sanctum = inSanctum(x, y) ? 1 : 0;
+  cave *= 1 - sanctum;
+  const rest = 1 - cave - sanctum;
   const f = forest * rest;
   const b = basin * (1 - forest) * rest;
   const sh = shelf * rest;
   const tr = trench * rest;
-  return { cave, forest: f, basin: b, shelf: sh, trench: tr, shallows: Math.max(0, rest - f - b - sh - tr) };
+  return { cave, forest: f, basin: b, shelf: sh, trench: tr, sanctum, shallows: Math.max(0, rest - f - b - sh - tr) };
 }
 
 export class SoundDirector {
   private ambience = new Ambience();
   private music = new Music();
-  private mix: ZoneMix = { shallows: 1, basin: 0, forest: 0, cave: 0, shelf: 0, trench: 0 };
+  private mix: ZoneMix = { shallows: 1, basin: 0, forest: 0, cave: 0, shelf: 0, trench: 0, sanctum: 0 };
   private musicZone: MusicZone = 'shallows';
   private prev: Partial<AudioFrame> = {};
   private breathClock = 2;
@@ -246,8 +249,8 @@ export class SoundDirector {
     // Zone mix, eased so moving between zones crossfades.
     const want = zoneMix(f.x, f.y);
     const k = 1 - Math.exp(-dt / 1.6);
-    for (const z of ['shallows', 'basin', 'forest', 'cave', 'shelf', 'trench'] as const) this.mix[z] += (want[z] - this.mix[z]) * k;
-    const top = (['shallows', 'basin', 'forest', 'cave', 'shelf', 'trench'] as const).reduce((a, b) => (this.mix[b] > this.mix[a] ? b : a));
+    for (const z of ['shallows', 'basin', 'forest', 'cave', 'shelf', 'trench', 'sanctum'] as const) this.mix[z] += (want[z] - this.mix[z]) * k;
+    const top = (['shallows', 'basin', 'forest', 'cave', 'shelf', 'trench', 'sanctum'] as const).reduce((a, b) => (this.mix[b] > this.mix[a] ? b : a));
     if (top !== this.musicZone && this.mix[top] > 0.6) {
       this.musicZone = top;
       this.music.setZone(top);
@@ -257,7 +260,7 @@ export class SoundDirector {
     const m = this.mix;
     audio.setScene({
       muffle: f.surfaced || f.inAir ? 16000 : Math.max(900, 4200 - 2300 * depth - 900 * m.cave - 500 * m.forest),
-      space: f.surfaced ? 0.12 : 0.28 + 0.15 * m.basin + 0.12 * m.forest + 0.8 * m.cave + 0.3 * m.shelf + 0.6 * m.trench,
+      space: f.surfaced ? 0.12 : 0.28 + 0.15 * m.basin + 0.12 * m.forest + 0.8 * m.cave + 0.3 * m.shelf + 0.6 * m.trench + 0.9 * m.sanctum,
       duck: (f.panel ? 0.4 : 1) * (1 - 0.45 * f.lowAir),
       blackout: f.blackout,
     });
