@@ -7,7 +7,7 @@ import { Water } from './scene/water';
 import { Backdrop } from './scene/backdrop';
 import { MarineSnow, SnowLight } from './scene/particles';
 import { ZoneBackdrop } from './scene/zonebackdrop';
-import { loadShallowsArt, loadShallowsSeabed, ShallowsBackdrop } from './art/shallows';
+import { loadShallowsArt, loadShallowsKelp, loadShallowsSeabed, ShallowsBackdrop } from './art/shallows';
 import { initSettingsUI } from './ui';
 import { Input } from './input';
 import { Diver, type KitLook } from './actors/diver';
@@ -244,12 +244,13 @@ async function boot(): Promise<void> {
   if (BENCH) seedBenchSave(save);
 
   const useShallowsArt = urlq.get('art') === 'shallows';
-  const [shallowsArt, shallowsSeabed] = await Promise.all([
+  const [shallowsArt, shallowsSeabed, shallowsKelp] = await Promise.all([
     useShallowsArt ? loadShallowsArt() : null,
     useShallowsArt && urlq.get('terrain') === 'painted' ? loadShallowsSeabed() : null,
+    useShallowsArt && urlq.get('kelp') === 'painted' ? loadShallowsKelp() : null,
   ]);
   const shallowsBackdrop = shallowsArt ? new ShallowsBackdrop(shallowsArt) : null;
-  let scenery = new Scenery(renderer, preset.detail, shallowsArt?.reef, shallowsSeabed ?? undefined);
+  let scenery = new Scenery(renderer, preset.detail, shallowsArt?.reef, shallowsSeabed ?? undefined, shallowsKelp ?? undefined);
   const pickups = new Pickups();
   const diver = new Diver();
   diver.x = save.x;
@@ -1205,7 +1206,7 @@ async function boot(): Promise<void> {
     snow.build(renderer, preset.particleDensity, cssW, cssH, fx.litSnow ? preset.bokeh : 0);
     if (builtDetail !== preset.detail) {
       scenery.view.destroy({ children: true });
-      scenery = new Scenery(renderer, preset.detail, shallowsArt?.reef, shallowsSeabed ?? undefined);
+      scenery = new Scenery(renderer, preset.detail, shallowsArt?.reef, shallowsSeabed ?? undefined, shallowsKelp ?? undefined);
       builtDetail = preset.detail;
       populate();
     }

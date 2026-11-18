@@ -1,6 +1,6 @@
 import { Container, MeshSimple, Rectangle, Sprite, Texture } from 'pixi.js';
 import { ANCHOR_X, BUOY_X, groundY, smooth } from '../world/terrain';
-import { loadImageTexture } from './imageAssets';
+import { loadImageTexture, loadRgbaPngTexture } from './imageAssets';
 
 const images = import.meta.glob<string>('./sunlit-shallows/*.png', {
   eager: true,
@@ -60,6 +60,21 @@ export async function loadShallowsSeabed(): Promise<Texture | null> {
     return await loadImageTexture(url, 1960, SEABED_DEPTH);
   } catch (error) {
     console.warn('Sunlit Shallows seabed artwork could not be loaded. Using procedural terrain.', error);
+    return null;
+  }
+}
+
+export async function loadShallowsKelp(): Promise<readonly Texture[] | null> {
+  const ribbon = images['./sunlit-shallows/kelp-ribbon.png'];
+  const narrow = images['./sunlit-shallows/kelp-narrow.png'];
+  const torn = images['./sunlit-shallows/kelp-torn.png'];
+  if (!ribbon || !narrow || !torn) return null;
+
+  try {
+    // MeshRope follows the texture's logical height. At 2x it stays 48 world units wide.
+    return await Promise.all([ribbon, narrow, torn].map((url) => loadRgbaPngTexture(url, 512, 96, 2)));
+  } catch (error) {
+    console.warn('Sunlit Shallows kelp artwork could not be loaded. Using procedural kelp.', error);
     return null;
   }
 }

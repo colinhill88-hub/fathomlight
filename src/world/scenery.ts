@@ -675,7 +675,7 @@ export class Scenery {
   private beaconLight!: PointLight;
   private anemones: { core: Graphics; halo: Graphics; light: PointLight; phase: number }[] = [];
 
-  constructor(renderer: Renderer, detail: number, reef?: ReefTextures, seabed?: Texture) {
+  constructor(renderer: Renderer, detail: number, reef?: ReefTextures, seabed?: Texture, kelp?: readonly Texture[]) {
     // Same seed every time, so switching presets rebuilds the identical world.
     rand = mulberry32(WORLD_SEED ^ 0x5ce9);
 
@@ -783,8 +783,12 @@ export class Scenery {
       const n = 12;
       const baseY = base ?? gy(x) + 6;
       const points = Array.from({ length: n }, (_, i) => new Point(x, baseY - (height * i) / (n - 1)));
-      const rope = new MeshRope({ texture: tex, points, textureScale: 0 });
-      rope.tint = tint;
+      // Use the existing anchor to choose a texture without advancing the placement RNG.
+      const painted = kelp && layer !== this.front && x >= BUOY_X && x <= ANCHOR_X
+        ? kelp[Math.floor(x) % kelp.length]
+        : undefined;
+      const rope = new MeshRope({ texture: painted ?? tex, points, textureScale: 0 });
+      rope.tint = painted ? 0xffffff : tint;
       layer.addChild(rope);
       this.kelps.push({ rope, points, baseX: x, baseY, height, phase: rand() * 10, bend: 0 });
       if (layer !== this.front) this.scanPoints.kelp.push({ x, y: baseY - height * 0.4 });
