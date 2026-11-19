@@ -41,6 +41,8 @@ export interface DockDeps {
   refreshInventory(): void;
   persist(): void;
   droneReady(): boolean;
+  /** Seconds until KD-1 is back from a delivery run, or null if it is here (after milestone 12). */
+  droneAway(): number | null;
   /** The drone is welding the sub frame right now. */
   weldingSub(): boolean;
   /** A sub was started, or its modules changed: update the drawing. */
@@ -143,6 +145,8 @@ export class DockMode {
     if (!d || save.sub) return;
     if (!layout.powered.has(d.id)) return this.deps.toast('The dock needs power before it can build anything', 'warn');
     if (!this.deps.droneReady()) return this.deps.toast('The build drone has to weld the sub. Repair it first (by the survey sled wreck).', 'warn');
+    const away = this.deps.droneAway();
+    if (away !== null) return this.deps.toast(`KD-1 is out on a delivery run: the sub frame waits until it's back (about ${away} s).`, 'warn');
     if (!payFor(save, SUB_COST)) return this.deps.toast(`To build the sub you still need ${missingText(save, SUB_COST)}`, 'warn');
     startSub(save, d);
     this.deps.subChanged();

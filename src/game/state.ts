@@ -327,9 +327,15 @@ export interface SaveData {
   /**
    * The kit found out in the world (Colin, before milestone 11: the diver's kit
    * builds up as things are found). The specimen jar, and the hip thruster:
-   * 0 none, 1 TH-1, 2 the TH-2 upgrade (a bigger boost).
+   * 0 none, 1 TH-1, 2 the TH-2 upgrade (a bigger boost). `carrier`: KD-1's cargo cradle,
+   * found in the kelp forest (Colin, after milestone 12): the drone can ferry the dive bag home.
    */
-  kit: { jar: boolean; thruster: 0 | 1 | 2 };
+  kit: { jar: boolean; thruster: 0 | 1 | 2; carrier?: boolean };
+  /**
+   * What KD-1 holds in its cargo cradle: on the way to base storage, or kept
+   * when storage was full. It is delivered with the next trip.
+   */
+  droneCargo?: Partial<Record<MaterialId, number>>;
   /** Wild creature or egg spot id -> play time when it was collected (they come back). */
   caught: Record<string, number>;
   /**
@@ -528,7 +534,9 @@ export function loadSave(spawnX: number, spawnY: number): { data: SaveData; load
       kit: {
         jar: d.kit?.jar === true,
         thruster: d.kit?.thruster === 2 ? 2 : d.kit?.thruster === 1 ? 1 : 0,
+        carrier: d.kit?.carrier === true,
       },
+      droneCargo: d.droneCargo && typeof d.droneCargo === 'object' ? d.droneCargo : {},
       lines: Array.isArray(d.lines) ? d.lines : [],
       machines: d.machines && typeof d.machines === 'object' ? d.machines : {},
       whorls: Array.isArray(d.whorls) ? d.whorls : [],
