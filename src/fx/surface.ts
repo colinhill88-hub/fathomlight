@@ -1,5 +1,6 @@
 import { Container, Graphics } from 'pixi.js';
 import { mulberry32 } from '../rng';
+import type { SurfaceMotion } from './surfaceMotion';
 
 /**
  * Effects where the diver meets the surface (Colin's request after milestone 2):
@@ -52,13 +53,16 @@ export class SurfaceFx {
   private puffs: Puff[] = [];
   private rippleClock = 0;
 
-  constructor() {
+  constructor(private readonly motion?: SurfaceMotion) {
     this.view.addChild(this.line, this.g);
   }
 
+  private wave(x: number, t: number): number { return this.motion?.height(x, t) ?? surfaceWave(x, t); }
+
   /** A splash at x. strength 0..1: a gentle surfacing is small, bursting up at speed is big. */
-  splash(x: number, strength: number, time: number): void {
-    const y = surfaceWave(x, time);
+  splash(x: number, strength: number, time: number, vx = 0, entering = false): void {
+    const y = this.wave(x, time);
+    this.motion?.strike(x, strength * (entering ? 0.80 : 1), vx);
     const n = Math.round(10 + 34 * strength);
     for (let i = 0; i < n; i++) {
       const side = rand() < 0.5 ? -1 : 1;
@@ -66,14 +70,18 @@ export class SurfaceFx {
       this.drops.push({
         x: x + side * rand() * 22,
         y: y - 2,
-        vx: side * (20 + rand() * 150) * (0.5 + strength * 0.6),
-        vy: -up,
+        vx: side * (20 + rand() * 150) * (0.5 + strength * 0.6) + vx * 0.42,
+        vy: -up * (entering ? 0.72 : 1),
         r: 1 + rand() * 2.6 * (0.6 + strength * 0.6),
         life: 1,
       });
     }
     for (let i = 0; i < 2 + Math.round(strength * 2); i++) {
       this.rings.push({ x, r: 6 + i * 6, speed: 60 + i * 35 + strength * 60, life: 1, max: 1.1 + i * 0.3 });
+    }
+    if (this.motion) {
+      if (this.drops.length > 144) this.drops.splice(0, this.drops.length - 144);
+      if (this.rings.length > 24) this.rings.splice(0, this.rings.length - 24);
     }
   }
 
@@ -101,9 +109,9 @@ export class SurfaceFx {
       d.vx *= 1 - dt * 0.6;
       d.x += d.vx * dt;
       d.y += d.vy * dt;
-      if (d.vy > 0 && d.y > surfaceWave(d.x, time)) {
+      if (d.vy > 0 && d.y > this.wave(d.x, time)) {
         d.life = 0;
-        if (d.r > 2.2) this.rings.push({ x: d.x, r: 2, speed: 18, life: 1, max: 0.6 });
+        if (d.r > 2.2 && (!this.motion || this.rings.length < 28)) this.rings.push({ x: d.x, r: 2, speed: 18, life: 1, max: 0.6 });
         continue;
       }
       const stretch = Math.min(3, 1 + Math.abs(d.vy) / 260);
@@ -118,12 +126,22 @@ export class SurfaceFx {
       r.r += r.speed * dt;
       r.speed *= 1 - dt * 1.2;
       if (r.life <= 0) continue;
-      const y = surfaceWave(r.x, time);
-      g.ellipse(r.x, y + 1, r.r, Math.max(1.5, r.r * 0.12)).stroke({ color: 0xffffff, width: 1.6, alpha: 0.7 * r.life });
+      const y = this.wave(r.x, time);
+      if (this.motion) {
+        for (const side of [-1, 1]) {
+          const x = r.x + side * r.r;
+          const crest = this.wave(x, time);
+          g.moveTo(x - side * 14, this.wave(x - side * 14, time) + 4)
+            .quadraticCurveTo(x, crest - 0.5, x + side * 6, this.wave(x + side * 6, time) + 3)
+            .stroke({ color: 0xe5fff1, width: 1.25, alpha: 0.68 * r.life, cap: 'round' });
+        }
+      } else g.ellipse(r.x, y + 1, r.r, Math.max(1.5, r.r * 0.12)).stroke({ color: 0xffffff, width: 1.6, alpha: 0.7 * r.life });
       // Bits of foam on the ring.
       for (let k = 0; k < 4; k++) {
         const a = k * 1.7 + r.x;
-        g.circle(r.x + Math.cos(a) * r.r, y + 1 + Math.sin(a) * r.r * 0.12, 1.4).fill({ color: 0xffffff, alpha: 0.55 * r.life });
+        const x = r.x + Math.cos(a) * r.r;
+        const lineY = this.motion ? this.wave(x, time) + 1 + Math.sin(a) * 3 : y + 1 + Math.sin(a) * r.r * 0.12;
+        g.circle(x, lineY, 1.4).fill({ color: 0xffffff, alpha: 0.55 * r.life });
       }
     }
     this.rings = this.rings.filter((r) => r.life > 0);
@@ -144,13 +162,13 @@ export class SurfaceFx {
     if (viewY0 > 30) return;
     const step = 8;
     const x0 = Math.floor(viewX0 / step) * step - step;
-    l.moveTo(x0, surfaceWave(x0, time));
-    for (let x = x0 + step; x <= viewX1 + step; x += step) l.lineTo(x, surfaceWave(x, time));
+    l.moveTo(x0, this.wave(x0, time));
+    for (let x = x0 + step; x <= viewX1 + step; x += step) l.lineTo(x, this.wave(x, time));
     l.stroke({ color: 0xffffff, width: 1.6, alpha: 0.5 });
     // A thin, faint film of water just under the line.
-    l.moveTo(x0, surfaceWave(x0, time));
-    for (let x = x0 + step; x <= viewX1 + step; x += step) l.lineTo(x, surfaceWave(x, time));
-    for (let x = viewX1 + step; x >= x0; x -= step) l.lineTo(x, surfaceWave(x, time) + 7);
+    l.moveTo(x0, this.wave(x0, time));
+    for (let x = x0 + step; x <= viewX1 + step; x += step) l.lineTo(x, this.wave(x, time));
+    for (let x = viewX1 + step; x >= x0; x -= step) l.lineTo(x, this.wave(x, time) + 7);
     l.closePath().fill({ color: 0xcfeee8, alpha: 0.13 });
   }
 }

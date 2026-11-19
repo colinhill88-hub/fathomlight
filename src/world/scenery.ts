@@ -1,6 +1,7 @@
 import { Color, Container, FillGradient, Graphics, MeshRope, Point, Renderer, Sprite, Text, Texture, type FillStyle } from 'pixi.js';
 import { createShallowsSeabed, type ReefTextures } from '../art/shallows';
 import { materialFill, type Material, type WorldArt } from '../art/worldArt';
+import type { WaterMotion } from '../scene/waterMotion';
 import { mulberry32, WORLD_SEED } from '../rng';
 import { TrenchScenery } from './trenchgfx';
 import { SanctumScenery } from './sanctumgfx';
@@ -698,7 +699,8 @@ export class Scenery {
   /** Milestone 11: the sanctum under the trench floor. */
   sanctum!: SanctumScenery;
   private kelps: Kelp[] = [];
-  private grass: { g: Graphics | Sprite; phase: number; x: number }[] = [];
+  private grass: { g: Graphics | Sprite; phase: number; x: number; bend?: number }[] = [];
+  private readonly plantFlow = { x: 0, y: 0, silt: 0, energy: 0 };
   private slices: Slice[] = [];
   private buoy = new Container();
   private beaconLamp = new Graphics();
@@ -2164,9 +2166,9 @@ export class Scenery {
   }
 
   /** viewX0..viewX1 is the part of the world the camera can see. */
-  update(time: number, diverX: number, diverY: number, diverVX: number, viewX0: number, viewX1: number): void {
+  update(time: number, diverX: number, diverY: number, diverVX: number, viewX0: number, viewX1: number, motion?: WaterMotion, dt = 1 / 60): void {
     for (const s of this.slices) s.obj.visible = s.x1 > viewX0 && s.x0 < viewX1;
-    this.trench.update(time, viewX0, viewX1);
+    this.trench.update(time, viewX0, viewX1, motion);
     this.sanctum.update(time, viewX0, viewX1, diverY - 1400, diverY + 1400);
 
     const t = time % 2.4;
@@ -2201,7 +2203,13 @@ export class Scenery {
       g.g.visible = vis;
       if (!vis) continue;
       const near = Math.abs(g.x - diverX) < 60 && diverY > groundY(g.x) - 120 ? Math.sign(g.x - diverX || 1) * 0.25 : 0;
-      g.g.skew.x = Math.sin(time * 1.1 + g.phase + g.x * 0.004) * 0.12 + near;
+      if (motion) {
+        const flow = motion.sample(g.x, groundY(g.x) - 43, this.plantFlow);
+        const bend = Math.max(-0.54, Math.min(0.54, flow.x * 0.011 + near));
+        const last = g.bend ?? 0;
+        g.bend = last + (bend - last) * (1 - Math.exp(-dt * 4.8));
+        g.g.skew.x = g.bend + Math.sin(time * 1.6 + g.phase) * (0.063 + flow.energy * 0.045);
+      } else g.g.skew.x = Math.sin(time * 1.1 + g.phase + g.x * 0.004) * 0.12 + near;
     }
 
     // Kelp sways in the swell, and leans away when the diver brushes past.
@@ -2214,14 +2222,17 @@ export class Scenery {
       const dx = k.baseX - diverX;
       const near = diverY > k.baseY - k.height - 40 && diverY < k.baseY + 20 && Math.abs(dx) < 90;
       const push = near ? Math.sign(dx || 1) * (1 - Math.abs(dx) / 90) * 60 + diverVX * 0.12 : 0;
-      k.bend += (push - k.bend) * 0.06;
+      const flow = motion && k.rope.parent !== this.front ? motion.sample(k.baseX, Math.max(24, k.baseY - k.height * 0.39), this.plantFlow) : undefined;
+      const current = flow ? Math.max(-100, Math.min(100, flow.x * 2.55)) : 0;
+      k.bend += (push + current - k.bend) * (motion ? 1 - Math.exp(-dt * 3.1) : 0.06);
       const n = k.points.length;
       for (let i = 0; i < n; i++) {
         const f = i / (n - 1);
-        const sway = Math.sin(time * 0.8 + k.phase + f * 2.2) * 26 * f + Math.sin(time * 1.9 + k.phase * 2 + f * 4) * 6 * f;
+        const sway = Math.sin(time * 0.8 + k.phase + f * 2.2) * (flow ? 14 : 26) * f
+          + Math.sin(time * 1.9 + k.phase * 2 + f * 4) * 6 * f;
         const lean = k.bend * f * f;
         k.points[i].x = k.baseX + sway + lean;
-        k.points[i].y = k.baseY - k.height * f + Math.abs(lean) * 0.2 * f;
+        k.points[i].y = k.baseY - k.height * f + Math.abs(lean) * 0.2 * f + (flow?.y ?? 0) * f ** 3 * 0.3;
       }
     }
   }

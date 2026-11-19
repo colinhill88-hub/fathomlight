@@ -1,5 +1,6 @@
 import { Container, Graphics, Sprite, Text } from 'pixi.js';
 import { materialFill, type WorldArt } from '../art/worldArt';
+import type { WaterMotion } from '../scene/waterMotion';
 import { mulberry32, WORLD_SEED } from '../rng';
 import {
   CLEFT,
@@ -62,6 +63,7 @@ export class TrenchScenery {
   private hatchOpen = new Graphics();
   private specks: { g: Graphics; x0: number; x1: number }[] = [];
   private rand: () => number;
+  private readonly plumeFlow = { x: 0, y: 0, silt: 0, energy: 0 };
 
   constructor(detail: number, art?: WorldArt) {
     this.rand = mulberry32(WORLD_SEED ^ 0x7e3c);
@@ -412,7 +414,7 @@ export class TrenchScenery {
     this.hatchOpen.visible = open;
   }
 
-  update(time: number, viewX0: number, viewX1: number): void {
+  update(time: number, viewX0: number, viewX1: number, motion?: WaterMotion): void {
     for (const s of this.slices) s.obj.visible = s.x1 > viewX0 && s.x0 < viewX1;
     for (const s of this.specks) s.g.visible = s.x1 > viewX0 && s.x0 < viewX1;
     for (const v of this.ventGlow) {
@@ -433,6 +435,20 @@ export class TrenchScenery {
     if (viewX1 < TR_VENTS[0].x - 400 || viewX0 > TR_VENTS[TR_VENTS.length - 1].x + 400) return;
     for (const [i, v] of TR_VENTS.entries()) {
       const top = gy(v.x) + 4 - v.h;
+      if (motion) {
+        for (let k = 0; k < 16; k++) {
+          const f = (time * (0.28 + (k % 3) * 0.03) + k / 16 + i * 0.13) % 1;
+          const y = top - f * 380;
+          const flow = motion.sample(v.x, y, this.plumeFlow);
+          const x = v.x + Math.sin(time * 1.23 + k * 1.71 + f * 5) * (7 + f * 38) + flow.x * f * 0.48;
+          const spread = 7 + f * 26;
+          const alpha = Math.sin(Math.PI * f) * (1 - f * 0.65);
+          g.moveTo(x - spread, y + 11).bezierCurveTo(x + spread * 0.72, y + 4, x + spread * 1.18, y - 17, x + flow.x * 0.21, y - 24)
+            .stroke({ color: 0xc4a68a, width: 3.5 + spread * 0.31, alpha: 0.13 * alpha, cap: 'round' });
+          g.circle(x, y - 5, 1.8 + (k % 4) * 0.55).fill({ color: 0xe5bd90, alpha: 0.35 * alpha });
+        }
+        continue;
+      }
       for (let k = 0; k < 9; k++) {
         const f = ((time * 0.35 + k / 9 + i * 0.13) % 1);
         const y = top - f * 360;

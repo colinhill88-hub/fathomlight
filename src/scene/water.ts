@@ -1,3 +1,4 @@
+import { GLSL_SURFACE_MOTION, type SurfaceMotion } from '../fx/surfaceMotion';
 import { Geometry, Mesh, Shader, Texture } from 'pixi.js';
 import { RT_VERTEX, GLSL_COMMON } from '../fx/shared';
 import { WORLD_H, WORLD_SPAN, WORLD_X0 } from '../world/terrain';
@@ -28,6 +29,7 @@ uniform sampler2D uMask;
 uniform float uShimmer;
 
 ${GLSL_COMMON}
+${GLSL_SURFACE_MOTION}
 
 void main() {
   vec2 wp = uCam + vUV * uView;
@@ -40,6 +42,7 @@ void main() {
 
   // Light shafts: slanted bands that sway slowly and fade with depth.
   float x = (wp.x * 0.8 + d * 0.42) / 560.0;
+  if (uLivingWater > 0.5) x += 0.09 * sin(wp.x * 0.002 + uTime * 0.22) + 0.12 * sin(d * 0.006 - uTime * 0.47);
   float shafts = 0.0;
   shafts += pow(0.5 + 0.5 * sin(x * 5.0 + uTime * 0.15), 6.0) * 0.55;
   shafts += pow(0.5 + 0.5 * sin(x * 8.3 - uTime * 0.11 + 1.7), 8.0) * 0.40;
@@ -61,8 +64,7 @@ void main() {
   }
 
   // The surface seen from below: a bright, rippling mirror.
-  float wave = sin(wp.x * 0.021 + uTime * 1.3) * 4.0 + sin(wp.x * 0.047 - uTime * 1.9) * 2.5
-             + sin(wp.x * 0.11 + uTime * 2.7) * 1.0;
+  float wave = d > 65.0 ? 0.0 : waterline(wp.x, uTime);
   float above = smoothstep(wave + 1.5, wave - 1.5, d);
   float ripple = noise(vec2(wp.x * 0.03 + uTime * 0.4, wp.y * 0.08 - uTime * 0.3));
   vec3 surf = mix(vec3(0.70, 0.86, 0.84), vec3(0.93, 0.98, 0.96), ripple);
@@ -74,6 +76,10 @@ void main() {
   sky += (noise(vec2(wp.x / 220.0 + uTime * 0.01, wp.y / 60.0)) - 0.5) * 0.05;
   surf = mix(surf, sky, smoothstep(0.04, 0.3, h));
   col = mix(col, surf, above);
+  if (uLivingWater > 0.5 && d >= wave && d < 44.0) {
+    float film = exp(-(d - wave) * 0.072) * (0.4 + 0.6 * ripple);
+    col += film * vec3(0.105, 0.18, 0.16) * vis;
+  }
   col += vec3(1.0) * smoothstep(3.5, 0.0, abs(d - wave)) * 0.25; // bright line at the surface
 
   // Slow murk so the water never looks like a flat gradient.
@@ -99,7 +105,7 @@ export class Water {
     uShimmer: number;
   };
 
-  constructor(mask: Texture) {
+  constructor(mask: Texture, surface?: SurfaceMotion) {
     const geometry = new Geometry({
       attributes: { aPosition: [0, 0, 1, 0, 1, 1, 0, 1] },
       indexBuffer: [0, 1, 2, 0, 2, 3],
@@ -115,6 +121,8 @@ export class Water {
           uWorld: { value: new Float32Array([WORLD_SPAN, WORLD_H]), type: 'vec2<f32>' },
           uOrigin: { value: new Float32Array([WORLD_X0, 0]), type: 'vec2<f32>' },
           uShimmer: { value: 0, type: 'f32' },
+          uLivingWater: { value: surface ? 1 : 0, type: 'f32' },
+          uImpacts: { value: surface?.data ?? new Float32Array(16), type: 'vec4<f32>', size: 4 },
         },
         uMask: mask.source,
       },
