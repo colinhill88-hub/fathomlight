@@ -184,8 +184,22 @@ interface Ghost {
   gy: number;
 }
 
-/** How far above a piece's port its marker floats (world units). */
+/** How far above a piece's port its marker floats (world units), at marker scale 1. */
 const MARK_LIFT = 30;
+/** A port marker's radius at marker scale 1 (world units). */
+const MARK_R = 12;
+
+/** A port marker: where it is drawn (x, y) and the port it stands over (px, py). */
+export interface PortMarker {
+  piece: Placed;
+  kind: LineKind;
+  x: number;
+  y: number;
+  px: number;
+  py: number;
+  out: boolean;
+  in: boolean;
+}
 
 export class BuildMode {
   active = false;
@@ -251,13 +265,17 @@ export class BuildMode {
   /** After milestone 12: a line being dragged out of a port marker, and where the pointer is (world). */
   private portDrag: { id: number; moved: boolean; sx: number; sy: number } | null = null;
   dragPoint: { x: number; y: number } | null = null;
+  /** Where the pointer dragging a line is on screen (CSS px), for panning at the screen's edges. */
+  private dragScreen: { x: number; y: number } | null = null;
+  /** Why the piece under a dragged line can't take it (shown in the info box). */
+  private hoverWhy: string | null = null;
   /** Unsnapped centre of the ghost while dragging. */
   private float = { x: 0, y: 0 };
   private padPrev: boolean[] = [];
   private padRepeat = 0;
 
   constructor(
-    host: HTMLElement,
+    private readonly host: HTMLElement,
     private readonly deps: BuildDeps,
   ) {
     // Category tabs (All / Modules / Structure) stand beside a row of cards that scrolls sideways.
@@ -372,6 +390,7 @@ export class BuildMode {
     host.addEventListener('pointercancel', (e) => {
       this.drag = null;
       this.pan = null;
+      if (this.portDrag?.id === e.pointerId) this.endPortDrag();
       this.touches.delete(e.pointerId);
       if (this.touches.size < 2) this.pinch = null;
     });
@@ -413,6 +432,7 @@ export class BuildMode {
     this.drag = null;
     this.pan = null;
     this.pinch = null;
+    this.endPortDrag();
     this.touches.clear();
     document.body.classList.remove('building');
     this.btn.setAttribute('aria-pressed', 'false');
@@ -754,17 +774,39 @@ export class BuildMode {
     return this.deps.layout.pieces.filter((p) => p.id !== a.id && !this.linkWhy(p));
   }
 
+  /** World units per CSS pixel in the build camera. */
+  private wpp(): number {
+    return this.cam.h / window.innerHeight;
+  }
+
+  private isTouch(): boolean {
+    return document.body.classList.contains('touch');
+  }
+
+  /**
+   * How big port markers are drawn (1 = 12 world units across the radius).
+   * Sized on screen, so they stay a thumb's size on a phone however far out the view is.
+   */
+  markScale(): number {
+    return Math.max(0.9, this.wpp() * (this.isTouch() ? 1.3 : 1));
+  }
+
   /**
    * After milestone 12: the port markers build mode shows on every finished
    * piece that takes or sends lines (one per kind: amber conveyors, teal
    * pipes), and which way they go. Drag from one to another piece to connect.
    */
-  portMarkers(): { piece: Placed; kind: LineKind; x: number; y: number; out: boolean; in: boolean }[] {
-    const out: { piece: Placed; kind: LineKind; x: number; y: number; out: boolean; in: boolean }[] = [];
+  portMarkers(): PortMarker[] {
+    const out: PortMarker[] = [];
+    const s = this.markScale();
+    const lift = 14 + 16 * s;
+    // Markers on one piece stand at least this far apart, so neither hides the other.
+    const gap = MARK_R * s * 2.5;
     for (const p of this.deps.layout.pieces) {
       if (!isDone(p)) continue;
       const ports = PIECES[p.kind].ports;
       if (!ports) continue;
+      const mine: PortMarker[] = [];
       for (const kind of ['belt', 'pipe'] as const) {
         const o = !!ports[kind === 'belt' ? 'beltOut' : 'pipeOut'];
         const i = !!ports[kind === 'belt' ? 'beltIn' : 'pipeIn'];
@@ -773,20 +815,40 @@ export class BuildMode {
         if (p.kind === 'press' && o && i) {
           const a = portPoint(p, kind, 'in');
           const b = portPoint(p, kind, 'out');
-          out.push({ piece: p, kind, x: a.x, y: a.y - MARK_LIFT, out: false, in: true }, { piece: p, kind, x: b.x, y: b.y - MARK_LIFT, out: true, in: false });
+          mine.push({ piece: p, kind, x: a.x, y: a.y - lift, px: a.x, py: a.y, out: false, in: true }, { piece: p, kind, x: b.x, y: b.y - lift, px: b.x, py: b.y, out: true, in: false });
           continue;
         }
         const pt = portPoint(p, kind, o ? 'out' : 'in');
-        out.push({ piece: p, kind, x: pt.x, y: pt.y - MARK_LIFT, out: o, in: i });
+        mine.push({ piece: p, kind, x: pt.x, y: pt.y - lift, px: pt.x, py: pt.y, out: o, in: i });
       }
+      out.push(...mine);
+    }
+    // Spread markers that would overlap (on one piece, or neighbours seen from far out) sideways.
+    for (let pass = 0; pass < 4; pass++) {
+      let moved = false;
+      for (let i = 0; i < out.length; i++)
+        for (let j = i + 1; j < out.length; j++) {
+          const a = out[i];
+          const b = out[j];
+          if (Math.abs(a.y - b.y) >= gap) continue;
+          const dx = b.x - a.x;
+          if (Math.abs(dx) >= gap - 0.01) continue;
+          // Ties keep the conveyor marker on the left.
+          const dir = dx > 0.01 || (Math.abs(dx) <= 0.01 && a.kind === 'belt') ? 1 : -1;
+          const push = (gap - Math.abs(dx)) / 2;
+          a.x -= dir * push;
+          b.x += dir * push;
+          moved = true;
+        }
+      if (!moved) break;
     }
     return out;
   }
 
-  /** The port marker under a world point, if any. */
-  private markerAt(x: number, y: number): ReturnType<BuildMode['portMarkers']>[number] | null {
-    const reach = Math.max(26, this.cam.h * 0.035);
-    let best: ReturnType<BuildMode['portMarkers']>[number] | null = null;
+  /** The port marker under a world point, if any (a thumb-sized reach on a phone). */
+  private markerAt(x: number, y: number): PortMarker | null {
+    const reach = Math.max((this.isTouch() ? 30 : 18) * this.wpp(), MARK_R * this.markScale() * 1.3);
+    let best: PortMarker | null = null;
     let bd = reach;
     for (const m of this.portMarkers()) {
       const d = Math.hypot(m.x - x, m.y - y);
@@ -798,8 +860,145 @@ export class BuildMode {
     return best;
   }
 
-  /** What the line being drawn would look like and cost, for the overlay. */
-  linkPreview(): { from: Placed; targets: Placed[]; route: [number, number][] | null; ok: boolean; drag?: { x0: number; y0: number; x1: number; y1: number; kind: LineKind } } | null {
+  /** Which ends a line of this kind can have at a piece: 'from' if it sends, 'to' if it takes. */
+  private endsOf(p: Placed, kind: LineKind): ('from' | 'to')[] {
+    const ports = PIECES[p.kind].ports;
+    const out: ('from' | 'to')[] = [];
+    if (ports?.[kind === 'belt' ? 'beltOut' : 'pipeOut']) out.push('from');
+    if (ports?.[kind === 'belt' ? 'beltIn' : 'pipeIn']) out.push('to');
+    return out;
+  }
+
+  /**
+   * Every piece the line being drawn could go to, and which end the anchor
+   * would be. A piece that sends and takes the same kind (storage) can go
+   * either way, so it is tried both ways (the way it was started first).
+   */
+  private dropTargets(): { piece: Placed; anchor: 'from' | 'to' }[] {
+    const l = this.link;
+    const a = this.linkAnchor();
+    if (!l || !a) return [];
+    const { save, layout } = this.deps;
+    const dirs = this.endsOf(a, l.kind).sort((p, q) => (p === l.anchor ? -1 : 0) - (q === l.anchor ? -1 : 0));
+    const out: { piece: Placed; anchor: 'from' | 'to' }[] = [];
+    for (const dir of dirs)
+      for (const p of layout.pieces) {
+        if (p.id === a.id || out.some((t) => t.piece.id === p.id)) continue;
+        const why = dir === 'from' ? linkProblem(save, layout, l.kind, a, p) : linkProblem(save, layout, l.kind, p, a);
+        if (!why) out.push({ piece: p, anchor: dir });
+      }
+    return out;
+  }
+
+  /**
+   * Where a line aimed at a world point would land: the target nearest the
+   * point, measured to the piece's outline or its port marker, within a
+   * forgiving reach (so a finger doesn't have to cover the piece exactly).
+   * Over a piece that can't take the line, nothing (and hoverWhy says why).
+   */
+  private dropAt(x: number, y: number): { piece: Placed; anchor: 'from' | 'to' } | null {
+    const l = this.link;
+    const a = this.linkAnchor();
+    this.hoverWhy = null;
+    if (!l || !a) return null;
+    const targets = this.dropTargets();
+    // A target's own marker wins (markers float above their piece, over whatever is above it).
+    const m = this.markerAt(x, y);
+    const onMarker = m && m.kind === l.kind ? targets.find((q) => q.piece.id === m.piece.id) : undefined;
+    if (onMarker) return onMarker;
+    const c = cellAt(x, y);
+    const under = this.deps.layout.pieceAt(c.gx, c.gy);
+    if (under) {
+      const t = targets.find((q) => q.piece.id === under.id);
+      if (t) return t;
+      if (under.id !== a.id) {
+        this.hoverWhy = this.linkWhy(under);
+        return null;
+      }
+    }
+    const k = this.wpp();
+    const s = this.markScale();
+    const markers = this.portMarkers();
+    let best: { piece: Placed; anchor: 'from' | 'to' } | null = null;
+    let bd = (this.isTouch() ? 48 : 28) * k;
+    for (const t of targets) {
+      const r = pieceRect(t.piece);
+      let d = Math.hypot(Math.max(r.x - x, 0, x - r.x - r.w), Math.max(r.y - y, 0, y - r.y - r.h));
+      for (const m of markers) if (m.piece.id === t.piece.id && m.kind === l.kind) d = Math.min(d, Math.max(0, Math.hypot(m.x - x, m.y - y) - MARK_R * s));
+      if (d < bd - 1e-6) {
+        bd = d;
+        best = t;
+      }
+    }
+    return best;
+  }
+
+  /** Aim the line being drawn at a world point: snap its other end to the target there, if any. */
+  private aimAt(x: number, y: number): void {
+    const l = this.link;
+    const a = this.linkAnchor();
+    if (!l || !a) return;
+    const why = this.hoverWhy;
+    const drop = this.dropAt(x, y);
+    const before = `${l.anchor}|${l.from}|${l.to}`;
+    if (drop) {
+      if (drop.anchor !== l.anchor) this.link = { ...l, anchor: drop.anchor, from: drop.anchor === 'from' ? a.id : drop.piece.id, to: drop.anchor === 'to' ? a.id : drop.piece.id };
+      else this.setLinkOther(drop.piece.id);
+    } else this.setLinkOther(null);
+    const l2 = this.link!;
+    if (before !== `${l2.anchor}|${l2.from}|${l2.to}` || why !== this.hoverWhy) this.refresh();
+  }
+
+  /** Let go of a line being dragged (the line itself, if any, stays waiting for a tap). */
+  private endPortDrag(): void {
+    const pd = this.portDrag;
+    if (pd) {
+      try {
+        if (this.host.hasPointerCapture?.(pd.id)) this.host.releasePointerCapture(pd.id);
+      } catch {
+        /* already released */
+      }
+    }
+    this.portDrag = null;
+    this.dragPoint = null;
+    this.dragScreen = null;
+    this.hoverWhy = null;
+  }
+
+  /**
+   * Every frame: while a line is dragged near the screen's edge, the view
+   * pans that way, so a piece off screen can still be reached.
+   */
+  tick(dt: number): void {
+    if (!this.active || !this.portDrag || !this.dragScreen || !this.link) return;
+    const { x, y } = this.dragScreen;
+    const W = window.innerWidth;
+    const H = window.innerHeight;
+    const band = this.isTouch() ? 52 : 40;
+    const push = (v: number, lo: number, hi: number) => (v < lo + band ? -Math.min(1, (lo + band - v) / band) : v > hi - band ? Math.min(1, (v - (hi - band)) / band) : 0);
+    const ex = push(x, 0, W);
+    const ey = push(y, 0, H);
+    if (!ex && !ey) return;
+    const speed = this.cam.h * 0.9 * dt;
+    this.panBy(ex * speed, ey * speed);
+    const w = this.deps.toWorld(x, y);
+    this.dragPoint = w;
+    this.aimAt(w.x, w.y);
+  }
+
+  /**
+   * What the line being drawn would look like and cost, for the overlay.
+   * `other` is the piece its far end has snapped to; `drag` is the rubber
+   * band from the anchor's marker to the pointer while it is dragged.
+   */
+  linkPreview(): {
+    from: Placed;
+    other: Placed | null;
+    targets: Placed[];
+    route: [number, number][] | null;
+    ok: boolean;
+    drag?: { x0: number; y0: number; x1: number; y1: number; kind: LineKind };
+  } | null {
     const l = this.link;
     const anchor = this.linkAnchor();
     if (!l || !anchor) return null;
@@ -807,11 +1006,17 @@ export class BuildMode {
     const { save } = this.deps;
     const route = from && to ? lineRoute(from, to, l.kind, save.lines.filter((q) => q.kind === l.kind && q.from === from.id).length).pts : null;
     let drag: { x0: number; y0: number; x1: number; y1: number; kind: LineKind } | undefined;
-    if (this.dragPoint && !route) {
-      const pt = portPoint(anchor, l.kind, l.anchor === 'from' ? 'out' : 'in');
-      drag = { x0: pt.x, y0: pt.y - MARK_LIFT, x1: this.dragPoint.x, y1: this.dragPoint.y, kind: l.kind };
+    if (this.dragPoint) {
+      const want = l.anchor === 'from' ? 'out' : 'in';
+      const ms = this.portMarkers().filter((m) => m.piece.id === anchor.id && m.kind === l.kind);
+      const m = ms.find((q) => q[want]) ?? ms[0];
+      const pt = m ?? { x: portPoint(anchor, l.kind, want).x, y: portPoint(anchor, l.kind, want).y - MARK_LIFT };
+      drag = { x0: pt.x, y0: pt.y, x1: this.dragPoint.x, y1: this.dragPoint.y, kind: l.kind };
     }
-    return { from: anchor, targets: this.linkTargets(), route, ok: !this.reason, drag };
+    const other = this.piece(this.linkOther()) ?? null;
+    // While dragging, storage can go either way, so light up both kinds of target.
+    const targets = this.portDrag ? this.dropTargets().map((t) => t.piece) : this.linkTargets();
+    return { from: anchor, other, targets, route, ok: !this.reason, drag };
   }
 
   private buildLink(): void {
@@ -1048,6 +1253,12 @@ export class BuildMode {
         this.pinch = { d0: Math.max(20, Math.hypot(a.x - b.x, a.y - b.y)), h0: this.cam.h, wx: w.x, wy: w.y };
         this.drag = null;
         this.pan = null;
+        // A second finger while dragging a line: zoom and pan instead; the line waits for a tap on its far end.
+        if (this.portDrag) {
+          this.endPortDrag();
+          this.setLinkOther(null);
+          this.refresh();
+        }
         return;
       }
       if (this.touches.size > 2) return;
@@ -1056,13 +1267,28 @@ export class BuildMode {
     // After milestone 12: press on a port marker and drag to another piece to draw a line.
     if (!this.ghost) {
       const m = this.markerAt(w.x, w.y);
-      if (m && (!this.link || this.link.kind !== m.kind || this.linkAnchor()?.id !== m.piece.id)) {
-        this.selected = m.piece;
-        this.selectedLine = null;
-        this.startLink(m.kind, m.out ? 'from' : 'to');
+      // With a line already waiting, a marker on a piece it can go to is a tap on that piece (handled in up()).
+      const waitingFor = m && this.link && this.linkAnchor()?.id !== m.piece.id && this.dropTargets().some((t) => t.piece.id === m.piece.id);
+      if (m && !waitingFor) {
+        // Pressing the waiting line's own marker again picks it back up to drag.
+        const same = !!this.link && this.link.kind === m.kind && this.linkAnchor()?.id === m.piece.id;
+        if (!same) {
+          this.selected = m.piece;
+          this.selectedLine = null;
+          this.startLink(m.kind, m.out ? 'from' : 'to');
+        }
+        this.setLinkOther(null);
         this.portDrag = { id: e.pointerId, moved: false, sx: e.clientX, sy: e.clientY };
         this.dragPoint = { x: w.x, y: w.y };
+        this.dragScreen = { x: e.clientX, y: e.clientY };
+        // Keep the drag even if the pointer crosses the build bar or the info box.
+        try {
+          this.host.setPointerCapture(e.pointerId);
+        } catch {
+          /* not capturable: fine */
+        }
         this.markTip();
+        this.refresh();
         return;
       }
     }
@@ -1091,22 +1317,8 @@ export class BuildMode {
       if (Math.hypot(e.clientX - pd.sx, e.clientY - pd.sy) > 8) pd.moved = true;
       const w = this.deps.toWorld(e.clientX, e.clientY);
       this.dragPoint = { x: w.x, y: w.y };
-      const c = cellAt(w.x, w.y);
-      const p = this.deps.layout.pieceAt(c.gx, c.gy);
-      // A piece that sends and takes the same kind (storage): drop on a piece that can only feed it to draw the line the other way.
-      if (p && this.link.anchor === 'from' && !this.linkTargets().includes(p)) {
-        const ports = PIECES[this.linkAnchor()!.kind].ports;
-        if (ports?.[this.link.kind === 'belt' ? 'beltIn' : 'pipeIn']) {
-          const keep = this.link;
-          this.link = { ...keep, anchor: 'to', to: keep.from, from: null };
-          if (!this.linkTargets().includes(p)) this.link = keep;
-        }
-      }
-      const other = p && this.linkTargets().includes(p) ? p.id : null;
-      if (other !== this.linkOther()) {
-        this.setLinkOther(other);
-        this.refresh();
-      }
+      this.dragScreen = { x: e.clientX, y: e.clientY };
+      this.aimAt(w.x, w.y);
       return;
     }
     const pan = this.pan;
@@ -1130,15 +1342,9 @@ export class BuildMode {
       return;
     }
     if (e.pointerType === 'mouse' && this.link && !this.drag) {
-      // Hovering over a piece previews the line to it.
+      // Hovering near a piece previews the line to it.
       const w = this.deps.toWorld(e.clientX, e.clientY);
-      const c = cellAt(w.x, w.y);
-      const p = this.deps.layout.pieceAt(c.gx, c.gy);
-      const other = p && this.linkTargets().includes(p) ? p.id : null;
-      if (other !== this.linkOther()) {
-        this.setLinkOther(other);
-        this.refresh();
-      }
+      this.aimAt(w.x, w.y);
       return;
     }
     const d = this.drag;
@@ -1168,16 +1374,13 @@ export class BuildMode {
     if (this.pan?.id === e.pointerId) this.pan = null;
     const pd = this.portDrag;
     if (pd && pd.id === e.pointerId) {
-      this.portDrag = null;
-      this.dragPoint = null;
+      const why = this.hoverWhy;
+      this.endPortDrag();
       if (!this.active || !this.link) return;
-      // Dropped on a piece that can take it: build the line. A tap on the marker (no drag)
-      // leaves the line waiting for a tap on its other end, as before.
+      // Dropped on (or near) a piece that can take it: build the line. Anywhere else, or a
+      // tap on the marker, leaves the line waiting for a tap on its far end.
       if (this.linkOther() !== null) this.place();
-      else if (pd.moved) {
-        this.link = null;
-        this.deps.toast('Drop the line on a piece that lights up to connect it.', 'warn');
-      }
+      else if (pd.moved && why) this.deps.toast(why, 'warn');
       this.refresh();
       return;
     }
@@ -1200,20 +1403,23 @@ export class BuildMode {
     const c = cellAt(w.x, w.y);
     const hit = this.deps.layout.pieceAt(c.gx, c.gy) ?? null;
     if (this.link) {
-      // Choose the other end of the line.
-      if (!hit) return;
+      // Choose the other end of the line: a tap on or near a piece that lights up (or its marker).
+      this.aimAt(w.x, w.y);
+      if (this.linkOther() !== null) {
+        // On a computer, a click on a valid target builds straight away.
+        if (d.mouse) this.place();
+        return;
+      }
       const anchor = this.linkAnchor();
-      if (anchor && hit.id === anchor.id) {
+      const why = this.hoverWhy;
+      // A tap on empty water or on the piece it started from lets go of the line.
+      if (!hit || (anchor && hit.id === anchor.id)) {
         this.link = null;
+        this.hoverWhy = null;
         this.refresh();
         return;
       }
-      const why = this.linkWhy(hit);
       if (why) this.deps.toast(why, 'warn');
-      this.setLinkOther(why ? null : hit.id);
-      this.refresh();
-      // On a computer, a click on a valid target builds straight away.
-      if (!why && d.mouse) this.place();
       return;
     }
     // Lines are thin: prefer one under the tap, then a piece.
@@ -1480,9 +1686,7 @@ export class BuildMode {
     }
     if (link) {
       this.reason = !linkFrom || !linkTo
-        ? link.anchor === 'from'
-          ? 'Tap the piece to run it to'
-          : 'Tap the piece to run it from'
+        ? 'No far end yet'
         : linkProblem(save, layout, link.kind, linkFrom, linkTo) ??
           (MATERIAL_ORDER.some((k) => have[k] < (linkCost[k] ?? 0)) ? `Need more ${MATERIAL_ORDER.filter((k) => have[k] < (linkCost[k] ?? 0)).map((k) => MATERIALS[k].plural.toLowerCase()).join(' and ')}` : null);
     } else this.reason = g ? (drone ? layout.check(g) : 'Needs the build drone first (lost by the survey sled wreck)') : null;
@@ -1546,14 +1750,20 @@ export class BuildMode {
         const other = link.anchor === 'from' ? linkTo : linkFrom;
         text += ` ${link.anchor === 'from' ? 'To' : 'From'} the ${PIECES[other.kind].name.toLowerCase()} (${pieceCode(layout, other)}): ${linkCells} cell${linkCells > 1 ? 's' : ''} · ${costTxt}`;
       }
-      text += this.reason
-        ? `<span class="why">${this.reason}</span>`
-        : this.portDrag
-          ? linkFrom && linkTo
-            ? '<span class="ok">Let go to connect (no welding needed)</span>'
-            : '<span class="ok">Drag onto a piece that lights up</span>'
-          : '<span class="ok">Tap ✓ to build it (no welding needed)</span>';
-      if ((!linkFrom || !linkTo) && !this.linkTargets().length)
+      const touch = this.isTouch();
+      text +=
+        !linkFrom || !linkTo
+          ? this.hoverWhy
+            ? `<span class="why">${this.hoverWhy}</span>`
+            : this.portDrag
+              ? `<span class="ok">Drag onto a piece that lights up${touch ? ' (near it is close enough; the view pans at the edges)' : ''}</span>`
+              : `<span class="ok">${touch ? 'Tap' : 'Click'} a piece that lights up, or drag from the marker. ${touch ? 'Tap' : 'Click'} empty water to cancel.</span>`
+          : this.reason
+            ? `<span class="why">${this.reason}</span>`
+            : this.portDrag
+              ? '<span class="ok">Let go to connect (no welding needed)</span>'
+              : '<span class="ok">Tap ✓ to build it (no welding needed)</span>';
+      if ((!linkFrom || !linkTo) && !this.dropTargets().length)
         text += `<span class="why">Nothing here can ${link.anchor === 'from' ? 'take it' : 'feed it'} yet.</span>`;
     } else if (g) {
       text = `<b>${PIECES[g.kind].name}</b>: ${PIECES[g.kind].job}${POWER_MAKE[g.kind] ? ` <span class="rate">Makes ${POWER_MAKE[g.kind]} W</span>` : POWER_DRAW[g.kind] ? ` <span class="rate">Draws ${POWER_DRAW[g.kind]} W</span>` : ''}`;

@@ -1718,6 +1718,7 @@ async function boot(): Promise<void> {
     build.setAvailable(atSite && blackout === 0 && !care.active && !dockUI.active && !station.active);
     const aboardNow = !!save.sub?.aboard;
     if (!padNav.active) build.pollPad(dt);
+    build.tick(dt);
     if (!build.active && rates.open) rates.close();
     rates.update(dt);
     // The walkable base: tanks, Labs and Workshops are used from inside now. A console
@@ -3304,7 +3305,7 @@ async function boot(): Promise<void> {
         build.linkPreview(),
         build.selectedLine !== null ? linesView.route(build.selectedLine) : null,
         build.portMarkers(),
-        Math.max(0.9, Math.min(2.6, build.cam.h / 760)),
+        build.markScale(),
       );
     }
     for (const sc of schools) sc.update(dt, time, diver.x, diver.y, camX, camX + viewW);
