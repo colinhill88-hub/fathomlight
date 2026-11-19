@@ -25,7 +25,8 @@ export class WaterWake {
   constructor(private readonly water: WaterMotion) {}
 
   /** A tracked swimmer emits from its trailing edge based on speed and velocity changes. */
-  track(dt: number, x: number, y: number, vx: number, vy: number, radius: number, active: boolean, swimmer: boolean): void {
+  track(dt: number, x: number, y: number, vx: number, vy: number, radius: number, active: boolean, swimmer: boolean,
+    stroke?: { x: number; y: number; strength: number }): void {
     const continuous = active && this.tracking && this.trackingSwimmer === swimmer && Math.hypot(x - this.x, y - this.y) < 150;
     this.wait = Math.max(-dt, this.wait - dt);
     this.brakeWait -= dt;
@@ -58,9 +59,12 @@ export class WaterWake {
       if (Math.max(speed, before) > 57) {
         const dx = speed > 34 ? vx / speed : this.vx / Math.max(1, before);
         const dy = speed > 34 ? vy / speed : this.vy / Math.max(1, before);
-        const strength = Math.min(1.5, Math.max(speed, before) / 240 + surge * 0.52);
-        this.emit(x - dx * radius, y - dy * radius, dx, dy, strength, radius);
-        this.water.disturb({ x: x - dx * radius, y: y - dy * radius, vx: dx * speed, vy: dy * speed, radius: radius + 65, strength });
+        const strength = Math.min(1.5, (Math.max(speed, before) / 240 + surge * 0.52) * (stroke?.strength ?? 1));
+        const wetStroke = stroke && !isWaterAir(stroke.x, stroke.y) && !isSolid(stroke.x, stroke.y) ? stroke : undefined;
+        const originX = wetStroke?.x ?? x - dx * radius;
+        const originY = wetStroke?.y ?? y - dy * radius;
+        this.emit(originX, originY, dx, dy, strength, wetStroke ? 28 : radius);
+        this.water.disturb({ x: originX, y: originY, vx: dx * speed, vy: dy * speed, radius: radius + 65, strength });
         this.wait += 0.059 + (1 - Math.min(1, strength)) * 0.065;
       }
     } else if (!continuous && this.tracking && active) {

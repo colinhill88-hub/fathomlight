@@ -254,14 +254,16 @@ async function boot(): Promise<void> {
   if (BENCH) seedBenchSave(save);
 
   const visualMode = (flag: string, approved = 'painted') => (urlq.get(flag) ?? approved) === approved;
+  const redesigned = urlq.get('character') !== 'original';
+  const compact = redesigned && urlq.get('character') !== 'phase9';
   // art=procedural still switches the whole Shallows pilot back to procedural art.
   const useShallowsArt = visualMode('art', 'shallows');
   const [shallowsArt, shallowsSeabed, shallowsKelp, paintedFace, paintedSuit, forestMidground, forestOutcrop, shelfMidground, worldArt] = await Promise.all([
     useShallowsArt ? loadShallowsArt() : null,
     useShallowsArt && visualMode('terrain') ? loadShallowsSeabed() : null,
     useShallowsArt && visualMode('kelp') ? loadShallowsKelp() : null,
-    visualMode('diver') ? loadPaintedDiver() : undefined,
-    visualMode('suit') ? loadPaintedSuit() : undefined,
+    !redesigned && visualMode('diver') ? loadPaintedDiver() : undefined,
+    !redesigned && visualMode('suit') ? loadPaintedSuit() : undefined,
     visualMode('forest') ? loadForestMidground() : undefined,
     visualMode('forestTerrain') ? loadForestOutcrop() : undefined,
     visualMode('shelf') ? loadWreckShelfMidground() : undefined,
@@ -272,7 +274,7 @@ async function boot(): Promise<void> {
   const shallowsBackdrop = shallowsArt ? new ShallowsBackdrop(shallowsArt) : null;
   let scenery = new Scenery(renderer, preset.detail, shallowsArt?.reef, shallowsSeabed ?? undefined, shallowsKelp ?? undefined, forestOutcrop, worldArt);
   const pickups = new Pickups();
-  const diver = new Diver(paintedFace, paintedSuit?.swimmer, visualMode('personality', 'surface'));
+  const diver = new Diver(paintedFace, paintedSuit?.swimmer, visualMode('personality', 'surface'), redesigned, compact);
   diver.x = save.x;
   diver.y = save.y;
   diver.lampOn = save.lampOn;
@@ -480,7 +482,7 @@ async function boot(): Promise<void> {
   // On the stage after the post pass, so the scanner, the build grid and the collect rings stay crisp.
   app.stage.addChild(post.view, overlayCam);
   // After milestone 8 part 2: dry interiors on foot, drawn over the (hidden) world.
-  const interior = new Interior(renderer, paintedFace, paintedSuit?.walker, worldArt);
+  const interior = new Interior(renderer, paintedFace, paintedSuit?.walker, worldArt, redesigned, compact);
   hdrRoot.addChild(interior.view);
   worldLayers.push(overlayCam);
   /** Which interior you're on foot in, if any. */
@@ -1810,6 +1812,12 @@ async function boot(): Promise<void> {
     input.update();
     const s = input.state;
     const inControl = blackout === 0 && !build.active && !care.active && !dockUI.active && !station.active && !boarding && !(grapple && grapple.phase === 'reel');
+    if (redesigned) {
+      diver.visualAction = grapple ? 'grapple' : !inControl || input.suspended || s.collect || s.board || s.flare || s.dart
+        ? 'busy' : s.scan ? 'scan' : 'free';
+      diver.visualTarget = s.scan ? scanner.target : wildlife.target ?? scanner.target;
+      diver.visualCurrent = motion ? Math.max(-1, Math.min(1, motion.sample(diver.x, diver.y, cameraFlow, true).x * diver.facing / 65)) : 0;
+    }
 
     // ---- The submersible (milestone 6) ----
     const S = save.sub;
@@ -3319,7 +3327,8 @@ async function boot(): Promise<void> {
     if (wake && motion) {
       const source = aboard ? sub : diver;
       const active = blackout === 0 && !peek && !isWaterAir(source.x, source.y) && (aboard ? !S?.docked : !diver.surfaced && !pocketAir);
-      wake.track(dt, source.x, source.y, source.vx, source.vy, aboard ? 83 : 45, active, !aboard);
+      wake.track(dt, source.x, source.y, source.vx, source.vy, aboard ? 83 : 45, active, !aboard,
+        redesigned && !aboard ? diver.strokeWake : undefined);
       wake.update(dt, time);
       const flow = motion.sample(camCX, camCY, cameraFlow);
       lighting.setWaterFlow(flow.x, flow.y);

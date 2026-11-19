@@ -265,8 +265,8 @@ export class Interior {
   private shownKey = '';
   private opts: InteriorOptions = {};
 
-  constructor(private readonly renderer: Renderer, paintedFace?: Texture, paintedSuit?: Texture, private readonly art?: WorldArt) {
-    this.walker = new Walker(paintedFace, paintedSuit);
+  constructor(private readonly renderer: Renderer, paintedFace?: Texture, paintedSuit?: Texture, private readonly art?: WorldArt, redesigned = false, compact = false) {
+    this.walker = new Walker(paintedFace, paintedSuit, redesigned, compact);
     this.lighting = new InteriorLighting(this.sceneRT);
     this.glowSprite = new Sprite(this.glowRT);
     this.glowSprite.blendMode = 'add';
@@ -945,7 +945,7 @@ export class Interior {
     }
 
     // ---- Things to hold Collect at ----
-    let act: { key: string; label: string; seconds: number; done: () => void } | null = null;
+    let act: { key: string; label: string; seconds: number; done: () => void; breaker?: boolean } | null = null;
     let info = '';
     if (this.hooks) {
       const r = this.hooks.act(w.x, w.y);
@@ -963,6 +963,7 @@ export class Interior {
           key: 'b' + idx,
           label: 'Throw the breaker',
           seconds: 1.2,
+          breaker: true,
           done: () => {
             this.state.breakers[idx] = true;
             ev.push({ type: 'breaker', index: idx, power: this.power });
@@ -1047,6 +1048,7 @@ export class Interior {
     const holding = !!act && act.key !== 'grapple' && inp.collect && w.onGround && this.progress > 0;
     w.visorTarget = holding && leaving ? 0 : 1;
     w.working += ((holding && !leaving ? 1 : 0) - w.working) * Math.min(1, dt * 10);
+    w.breakerPull = holding && act?.breaker ? this.progress : 0;
     this.label = act ? act.label : info || null;
 
     // ---- Movement ----
