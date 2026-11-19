@@ -472,7 +472,7 @@ async function boot(): Promise<void> {
   // On the stage after the post pass, so the scanner, the build grid and the collect rings stay crisp.
   app.stage.addChild(post.view, overlayCam);
   // After milestone 8 part 2: dry interiors on foot, drawn over the (hidden) world.
-  const interior = new Interior(renderer, paintedFace, paintedSuit?.walker);
+  const interior = new Interior(renderer, paintedFace, paintedSuit?.walker, worldArt);
   hdrRoot.addChild(interior.view);
   worldLayers.push(overlayCam);
   /** Which interior you're on foot in, if any. */

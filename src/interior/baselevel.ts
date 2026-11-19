@@ -1,4 +1,4 @@
-import { Container, Graphics, Text } from 'pixi.js';
+import { Container, Graphics, Text, type Texture } from 'pixi.js';
 import { DC, bolts, ceilingBeam, flangeRect, floorGrime, hazard, pipeRun, pipeUp, rivet, skirting, wallPanels } from './detail';
 import type { Light } from '../fx/lighting';
 import { T, type InteriorAct, type InteriorHooks } from './interior';
@@ -810,11 +810,11 @@ export class BaseHooks implements InteriorHooks {
 
   // -------------------------------------------------------------------------
 
-  decorate(g: Graphics, e: Graphics, gl: Graphics, addLamp: (x: number, y: number, zone: number) => void, addText: (t: Text) => void, phase: 'back' | 'front'): void {
+  decorate(g: Graphics, e: Graphics, gl: Graphics, addLamp: (x: number, y: number, zone: number) => void, addText: (t: Text) => void, phase: 'back' | 'front', wallTexture?: Texture): void {
     const rand = mulberry32(WORLD_SEED ^ 0x5eba5e);
     if (phase === 'back') {
       this.screens = [];
-      for (const r of this.level.rooms) this.drawRoom(r, g, e, gl, addLamp, addText, rand);
+      for (const r of this.level.rooms) this.drawRoom(r, g, e, gl, addLamp, addText, rand, wallTexture);
       return;
     }
     // Doorways: chrome flanges round each one, or a shut hatch where the next piece is a frame.
@@ -914,12 +914,12 @@ export class BaseHooks implements InteriorHooks {
     }
   }
 
-  private drawRoom(r: Room, g: Graphics, e: Graphics, gl: Graphics, addLamp: (x: number, y: number, zone: number) => void, addText: (t: Text) => void, rand: () => number): void {
+  private drawRoom(r: Room, g: Graphics, e: Graphics, gl: Graphics, addLamp: (x: number, y: number, zone: number) => void, addText: (t: Text) => void, rand: () => number, wallTexture?: Texture): void {
     const b = this.box(r);
     const id = r.piece.id;
     const code = pieceCode(this.ctx.layout, r.piece);
     // Back wall: bevelled, riveted charcoal plates with vents, hatches and fittings (interior art pass).
-    wallPanels(g, b.ox, b.oy, b.ow, b.oh, rand);
+    wallPanels(g, b.ox, b.oy, b.ow, b.oh, rand, wallTexture);
     // A conduit along the wall, under the line lanes, where the machines leave the wall clear.
     const conduit = r.kind === 'storage' || r.kind === 'sorter' || r.kind === 'lab' || r.kind === 'workshop' || r.kind === 'filter' || r.kind === 'dock';
     for (let k = 0; k < r.h; k++) {

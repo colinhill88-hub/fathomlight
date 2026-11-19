@@ -1,3 +1,4 @@
+import { materialFill, type WorldArt } from '../art/worldArt';
 import { perf } from '../dev/perf';
 import { BlurFilter, Container, Graphics, RenderTexture, Renderer, Sprite, Text, type Texture } from 'pixi.js';
 import type { Light } from '../fx/lighting';
@@ -69,7 +70,7 @@ export interface InteriorHooks {
   /** Things to do where the walker stands: an action, a line of information, or nothing. */
   act(x: number, y: number): InteriorAct | string | null;
   /** Extra art over the tiles, drawn once: lit, unlit (emissive) and glow layers, and signs. */
-  decorate(g: Graphics, e: Graphics, gl: Graphics, addLamp: (x: number, y: number, zone: number) => void, addText: (t: Text) => void, phase: 'back' | 'front'): void;
+  decorate(g: Graphics, e: Graphics, gl: Graphics, addLamp: (x: number, y: number, zone: number) => void, addText: (t: Text) => void, phase: 'back' | 'front', wallTexture?: Texture): void;
   /** Moving art, every frame. */
   /** view: the world rectangle on screen, so far-off rooms can be skipped (milestone 12). */
   animate(d: Graphics, de: Graphics, time: number, view?: { x0: number; y0: number; x1: number; y1: number }): void;
@@ -114,7 +115,7 @@ export interface InteriorOptions {
    * lift runs on light), falling into its light pool ('~') only puts you back
    * where you last stood, and doors (by letter) open once a find is taken.
    */
-  style?: 'wreck' | 'sanctum';
+  style?: 'wreck' | 'fulmar' | 'sanctum';
   powered?: boolean;
   gates?: Record<string, string>;
   /** Moving art and lights of the level's own (the Choir rising, in the heart). */
@@ -264,7 +265,7 @@ export class Interior {
   private shownKey = '';
   private opts: InteriorOptions = {};
 
-  constructor(private readonly renderer: Renderer, paintedFace?: Texture, paintedSuit?: Texture) {
+  constructor(private readonly renderer: Renderer, paintedFace?: Texture, paintedSuit?: Texture, private readonly art?: WorldArt) {
     this.walker = new Walker(paintedFace, paintedSuit);
     this.lighting = new InteriorLighting(this.sceneRT);
     this.glowSprite = new Sprite(this.glowRT);
@@ -474,10 +475,12 @@ export class Interior {
       return;
     }
     // Back wall: riveted plates, ribs, pipes and a few portholes onto the black water.
+    const steel = this.art?.materials[this.opts.style === 'fulmar' ? 'fulmar' : 'corvina'];
     g.rect(0, 0, PW, PH).fill({ color: 0x23292b });
+    if (steel) g.rect(0, 0, PW, PH).fill(materialFill(steel, 0x23292b, 0.74, 1050, 620));
     for (let y = 0; y < PH; y += 120)
       for (let x = 0; x < PW; x += 160) {
-        g.rect(x + 2, y + 2, 156, 116).fill({ color: rand() < 0.5 ? 0x283033 : 0x262c2e });
+        g.rect(x + 2, y + 2, 156, 116).fill({ color: rand() < 0.5 ? 0x283033 : 0x262c2e, alpha: steel ? 0.42 : 1 });
         for (let k = 8; k < 156; k += 22) g.circle(x + k, y + 6, 1.4).fill({ color: 0x3a4245 });
       }
     for (let x = 0; x < PW; x += 240) g.rect(x, 0, 18, PH).fill({ color: 0x1c2123 });
@@ -506,6 +509,7 @@ export class Interior {
         const y = ty * T;
         if (c === '#') {
           g.rect(x, y, T + 0.5, T + 0.5).fill({ color: 0x4a5052 });
+          if (steel) g.rect(x, y, T + 0.5, T + 0.5).fill(materialFill(steel, 0x4a5052, 0.67, 860, 520));
           if (!this.solidTileStatic(tx, ty - 1)) {
             g.rect(x, y, T + 0.5, 6).fill({ color: 0x6e7476 });
             g.rect(x, y + 6, T + 0.5, 2).fill({ color: 0x2c3234 });
@@ -651,7 +655,7 @@ export class Interior {
       this.litCam.addChildAt(t, 1);
       this.texts.push(t);
     };
-    this.hooks!.decorate(g, e, gl, addLamp, addText, 'back');
+    this.hooks!.decorate(g, e, gl, addLamp, addText, 'back', this.art?.materials.kestrel);
     const hull = (tx: number, ty: number) => {
       const c = this.ch(tx, ty);
       return c === '#' || c === 'P';
@@ -721,7 +725,9 @@ export class Interior {
     const R = (a: number, b: number) => a + rand() * (b - a);
     const CH = [0x5ff0ff, 0xa27cff, 0xff5ad8];
     // Far back: a violet dark, with great faint rings and drifting motes.
+    const stone = this.art?.materials.heart;
     g.rect(0, 0, PW, PH).fill({ color: 0x0e0c22 });
+    if (stone) g.rect(0, 0, PW, PH).fill(materialFill(stone, 0x0e0c22, 0.52, 1380, 920));
     for (let y = 0; y < PH; y += 80) g.rect(0, y, PW, 80).fill({ color: 0x1a1640, alpha: 0.5 * Math.sin((y / PH) * Math.PI) });
     for (let i = 0; i < 7; i++) {
       const x = R(0, PW);
@@ -739,6 +745,7 @@ export class Interior {
         const y = ty * T;
         if (c === '#') {
           g.rect(x, y, T + 0.5, T + 0.5).fill({ color: 0x5a5e7a });
+          if (stone) g.rect(x, y, T + 0.5, T + 0.5).fill(materialFill(stone, 0x5a5e7a, 0.74, 990, 630));
           if (rand() < 0.4) g.ellipse(x + R(8, 32), y + R(8, 32), R(6, 14), R(3, 7)).fill({ color: 0x7a7e9c, alpha: 0.5 });
           // Faces onto the air: a nacre lip and a glowing seam.
           if (!solid(tx, ty - 1)) {

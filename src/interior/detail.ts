@@ -1,3 +1,5 @@
+import { materialFill } from '../art/worldArt';
+import type { Texture } from 'pixi.js';
 import { Graphics } from 'pixi.js';
 
 /**
@@ -51,14 +53,15 @@ export function bolts(g: Graphics, x0: number, y0: number, x1: number, y1: numbe
  * shadowed under and to the right), corner rivets, and now and then a vent
  * grille, an access hatch, a gauge, a valve wheel or a label plate.
  */
-export function wallPanels(g: Graphics, x0: number, y0: number, w: number, h: number, rand: Rand, pw = 120, ph = 80): void {
+export function wallPanels(g: Graphics, x0: number, y0: number, w: number, h: number, rand: Rand, texture?: Texture, pw = 120, ph = 80): void {
   g.rect(x0, y0, w, h).fill({ color: DC.wall });
+  if (texture) g.rect(x0, y0, w, h).fill(materialFill(texture, DC.wall, 0.66, 790, 510));
   for (let y = y0; y < y0 + h - 4; y += ph)
     for (let x = x0; x < x0 + w - 4; x += pw) {
       const cw = Math.min(pw, x0 + w - x);
       const chh = Math.min(ph, y0 + h - y);
       const tone = rand();
-      g.rect(x + 2, y + 2, cw - 4, chh - 4).fill({ color: tone < 0.45 ? DC.wallLight : tone < 0.85 ? DC.wall : 0x343b40, alpha: 0.75 });
+      g.rect(x + 2, y + 2, cw - 4, chh - 4).fill({ color: tone < 0.45 ? DC.wallLight : tone < 0.85 ? DC.wall : 0x343b40, alpha: texture ? 0.45 : 0.75 });
       // Bevel: light from above.
       g.rect(x + 2, y + 2, cw - 4, 1.4).fill({ color: DC.bevelHi, alpha: 0.55 });
       g.rect(x + 2, y + 2, 1.4, chh - 4).fill({ color: DC.bevelHi, alpha: 0.3 });
