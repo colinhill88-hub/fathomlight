@@ -35,6 +35,10 @@ export const CH = 6;
 /** Milestone 9: creatures and plants in the indoor tanks are drawn this much bigger than outside. */
 export const TANK_SCALE = 1.45;
 
+function habitatStations(left: number, width: number) {
+  return { consoleX: left + width * 0.31, trayX: left + width * 0.68 };
+}
+
 export interface Room {
   piece: Placed;
   kind: PieceKind;
@@ -202,6 +206,7 @@ export interface BaseCtx {
   save: SaveData;
   layout: BaseLayout;
   livingCreatures: boolean;
+  livingBases: boolean;
   carried(): number;
   storageText(): string;
   unload(pieceId: number): void;
@@ -296,7 +301,7 @@ interface Spot {
   x: number;
   y: number;
   r: number;
-  what: 'airlock' | 'planner' | 'unload' | 'tank' | 'station' | 'dock' | 'recomp' | 'info' | 'sealed' | 'lift' | 'board' | 'tune' | 'hatch' | 'farm' | 'farmtray' | 'revive' | 'signal';
+  what: 'airlock' | 'planner' | 'unload' | 'tank' | 'habitat' | 'habitat-tray' | 'station' | 'dock' | 'recomp' | 'info' | 'sealed' | 'lift' | 'board' | 'tune' | 'hatch' | 'farm' | 'farmtray' | 'revive' | 'signal';
   other?: Placed;
   to?: { x: number; y: number };
   up?: boolean;
@@ -645,8 +650,14 @@ export class BaseHooks implements InteriorHooks {
         const top = b.oy + 14;
         const bot = b.bottom - 22;
         this.tanks.push({ room: r, x: b.ox + 30, y: top, w: b.ow - 60, h: bot - top });
-        add(b.cx, b.bottom, 'tank', b.ow / 2 - 20);
-        if (r.h > 1) add(b.cx, b.floor(0), 'tank', b.ow / 2 - 60);
+        if (this.ctx.livingBases) {
+          const { consoleX, trayX } = habitatStations(b.ox, b.ow);
+          for (let k = 0; k < r.h; k++) add(consoleX, b.floor(k), 'habitat', 100);
+          add(trayX, b.bottom, 'habitat-tray', 100);
+        } else {
+          add(b.cx, b.bottom, 'tank', b.ow / 2 - 20);
+          if (r.h > 1) add(b.cx, b.floor(0), 'tank', b.ow / 2 - 60);
+        }
         break;
       }
       case 'lab':
@@ -747,6 +758,14 @@ export class BaseHooks implements InteriorHooks {
         const n = c.trayCount(p.id);
         if (n && Math.abs(x - best.x) < 80) return { key: 'tray', label: `Take ${n} from the output tray`, seconds: 0.5, done: () => c.takeTray(p.id) };
         return { key: 'tend', label: `Tend ${code}`, seconds: 0.4, done: () => c.tend(p.id) };
+      }
+      case 'habitat':
+        return { key: `habitat-${p.id}`, label: 'Manage Habitat', seconds: 0.35, done: () => c.tend(p.id) };
+      case 'habitat-tray': {
+        const count = c.trayCount(p.id);
+        return count > 0
+          ? { key: `habitat-tray-${p.id}`, label: `Collect Items (${count})`, seconds: 0.35, done: () => c.takeTray(p.id) }
+          : 'Collection tray empty';
       }
       case 'station':
         return { key: 'station', label: `Use the ${p.kind === 'lab' ? 'Lab' : 'Workshop'} (${code})`, seconds: 0.4, done: () => c.station(p.id) };
@@ -1151,6 +1170,21 @@ export class BaseHooks implements InteriorHooks {
           const f = b.floor(k);
           g.rect(b.ox + 10, f - 40, b.ow - 20, 4).fill({ color: COL.chrome });
           for (let x = b.ox + 20; x < b.ox + b.ow - 10; x += 60) g.rect(x, f - 40, 3, 40).fill({ color: COL.chromeDark });
+        }
+        if (this.ctx.livingBases) {
+          const { consoleX, trayX } = habitatStations(b.ox, b.ow);
+          for (let k = 0; k < r.h; k++) {
+            const floor = b.floor(k);
+            g.poly([consoleX - 53, floor - 71, consoleX + 53, floor - 71, consoleX + 42, floor - 35, consoleX - 42, floor - 35]).fill(0x24363b);
+            g.roundRect(consoleX - 23, floor - 37, 46, 37, 7).fill(0x34494a);
+            g.roundRect(consoleX - 44, floor - 65, 88, 22, 5).fill(0x0d2e34);
+            g.moveTo(consoleX - 52, floor - 71).lineTo(consoleX + 52, floor - 71).stroke({ color: 0x789d96, width: 3 });
+            addText(sign('HABITAT', consoleX, floor - 54, 13, 0xb5e5d9, 0.95));
+          }
+          g.roundRect(trayX - 62, bot - 32, 124, 32, 6).fill(0x513c30);
+          g.poly([trayX - 69, bot - 39, trayX + 69, bot - 39, trayX + 57, bot - 21, trayX - 57, bot - 21]).fill(0x98714e);
+          g.roundRect(trayX - 56, bot - 36, 112, 12, 4).fill(0x352b28);
+          addText(sign('COLLECTION', trayX, bot - 11, 12, 0xffd7a1, 0.95));
         }
         this.screens.push({ x: t.x + t.w / 2, y: t.y + t.h / 2, radius: Math.max(t.w, t.h) * 0.7, intensity: 0.45, color: [0.3, 0.75, 0.8] });
         break;
@@ -1609,7 +1643,21 @@ export class BaseHooks implements InteriorHooks {
 
   private drawTank(r: Room, d: Graphics, de: Graphics, time: number, on: boolean): void {
     const t = this.tanks.find((q) => q.room === r)!;
-    void d;
+    if (this.ctx.livingBases) {
+      const b = this.box(r);
+      const { consoleX, trayX } = habitatStations(b.ox, b.ow);
+      for (let level = 0; level < r.h; level++) {
+        de.circle(consoleX + 37, b.floor(level) - 54, 2.7).fill({ color: on ? 0x96e3c7 : 0xc08955, alpha: 0.91 });
+      }
+      const count = this.ctx.trayCount(r.piece.id);
+      if (count) {
+        for (let i = 0; i < Math.min(count, 5); i++) {
+          const x = trayX - 37 + i * 17;
+          d.poly([x - 6, b.bottom - 30, x - 3, b.bottom - 42, x + 5, b.bottom - 46, x + 9, b.bottom - 35, x + 6, b.bottom - 30]).fill(0xb49871);
+        }
+      }
+      de.circle(trayX + 58, b.bottom - 29, 3.2).fill({ color: count ? 0xffc770 : 0x695944, alpha: count ? 0.85 + 0.15 * Math.sin(time * 1.6) : 0.65 });
+    }
     // Bubbles from the filter inlet, when powered.
     if (on) for (let i = 0; i < 8; i++) de.circle(t.x + t.w - 30 + Math.sin(time * 2 + i) * 4, t.y + t.h - 20 - ((time * 50 + i * 37) % (t.h - 30)), 2 + (i % 3)).fill({ color: 0xc8ffff, alpha: 0.35 });
 

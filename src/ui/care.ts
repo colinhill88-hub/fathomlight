@@ -22,7 +22,7 @@ import { TRAY_CAP, trayCount, TROUGH_CAP, whorlMult } from '../game/factory';
 import { MATERIAL_ORDER, TankData } from '../game/state';
 
 /** The output tray (milestone 5 part 2): what is waiting, and how it leaves. */
-function trayLine(save: SaveData, td: TankData): string {
+function trayLine(save: SaveData, td: TankData, living: boolean): string {
   const n = trayCount(td);
   const what = MATERIAL_ORDER.filter((k) => td.out?.[k])
     .map((k) => `${td.out![k]} ${MATERIALS[k].name.toLowerCase()}`)
@@ -30,7 +30,7 @@ function trayLine(save: SaveData, td: TankData): string {
   const belt = save.lines.some((l) => l.kind === 'belt' && save.tankData[String(l.from)] === td);
   const good = n < TRAY_CAP;
   return `<li class="${good ? 'good' : 'bad'}">${good ? '✓' : '✗'} Output tray ${n}/${TRAY_CAP}${what ? ` (${what})` : ''}${
-    belt ? ': a conveyor carries it away' : n ? ': stop by the tank and tap Collect to take it, or run a conveyor from the tank' : ''
+    belt ? ': a conveyor carries it away' : n ? (living ? ' · Collect at the amber tray' : ': stop by the tank and tap Collect to take it, or run a conveyor from the tank') : ''
   }${good ? '' : '. Full: making is paused'}</li>`;
 }
 
@@ -50,6 +50,8 @@ function trayLine(save: SaveData, td: TankData): string {
 export interface CareDeps {
   save: SaveData;
   layout: BaseLayout;
+  livingBases: boolean;
+  deposit(tankId: number): void;
   toast(text: string, kind?: 'item' | 'scan' | 'big' | 'warn'): void;
   refreshInventory(): void;
   persist(): void;
@@ -88,6 +90,10 @@ export class CareMode {
   private clock = 0;
 
   constructor(private readonly deps: CareDeps) {
+    if (deps.livingBases) {
+      this.panel.setAttribute('aria-label', 'Habitat Console');
+      this.panel.classList.add('habitat-console');
+    }
     this.btn.addEventListener('click', () => this.toggle());
     this.panel.addEventListener('pointerdown', (e) => e.stopPropagation());
     this.panel.addEventListener('click', (e) => {
@@ -100,6 +106,11 @@ export class CareMode {
       else if (act === 'plant') this.plant(el.dataset.id as keyof typeof PLANTS, 1);
       else if (act === 'plant2') this.plant(el.dataset.id as keyof typeof PLANTS, 2);
       else if (act === 'take') this.takeOut();
+      else if (act === 'deposit' && this.tankId !== null) {
+        this.deps.deposit(this.tankId);
+        this.selected ??= this.here()[0]?.id ?? null;
+        this.render(true);
+      }
       else if (act === 'release') this.release();
       else if (act === 'close') this.close();
     });
@@ -109,7 +120,7 @@ export class CareMode {
       if (k === 't') this.toggle();
       else if (!this.active) return;
       else if (k === 'escape') this.close();
-      else if (k === 'tab') this.cycle();
+      else if (k === 'tab' && !this.deps.livingBases) this.cycle();
       else if (k === 'f') this.feed();
       else if (k === 'c') this.clean();
       else return;
@@ -135,9 +146,11 @@ export class CareMode {
     this.tankId = tankId;
     const first = creaturesIn(this.deps.save, tankId)[0];
     this.selected = first?.id ?? null;
+    this.releaseArmed = 0;
     document.body.classList.add('caring');
     this.btn.setAttribute('aria-pressed', 'true');
     this.render(true);
+    if (this.deps.livingBases) this.panel.querySelector<HTMLButtonElement>('[data-act="close"]')?.focus({ preventScroll: true });
   }
 
   close(): void {
@@ -199,6 +212,7 @@ export class CareMode {
     td.water = Math.min(1, td.water + CLEAN_AMOUNT);
     this.deps.scrubFx(this.tankId);
     this.deps.toast('Glass scrubbed and filter bed stirred');
+    if (this.deps.livingBases) this.deps.persist();
     this.render(true);
   }
 
@@ -288,7 +302,7 @@ export class CareMode {
 
   private render(force: boolean): void {
     if (!this.active || this.tankId === null) return;
-    const { save, layout } = this.deps;
+    const { save, layout, livingBases } = this.deps;
     const list = this.here();
     if (this.selected !== null && !list.some((c) => c.id === this.selected)) this.selected = list[0]?.id ?? null;
     this.deps.highlight(this.selected);
@@ -311,7 +325,7 @@ export class CareMode {
     const c = list.find((x) => x.id === this.selected);
     let body = '';
     if (!c) {
-      body = `<p class="status">This tank is empty. Collect a young creature or an egg clutch out on the reef with Collect, then stop by this tank and tap Collect to put it in.</p>`;
+      body = `<p class="status">${livingBases ? 'This habitat is empty. Bring a young creature or an egg clutch from the reef to start a colony.' : 'This tank is empty. Collect a young creature or an egg clutch out on the reef with Collect, then stop by this tank and tap Collect to put it in.'}</p>`;
     } else if (c.stage === 'egg') {
       body = `<p class="status">${statusLine(save, c)}</p><p class="note">Eggs only need time. The fry will need feeding once they hatch.</p>`;
     } else {
@@ -319,12 +333,12 @@ export class CareMode {
       body = `<p class="status${c.sickness > 0.02 ? ' sick' : ''}">${statusLine(save, c)}</p>
         ${bar('Fed', c.fed, 'fed')}
         ${bar('Comfort', c.comfort, 'comfort')}
-        ${bar('Water quality', td.water, 'water')}
+        ${livingBases ? '' : bar('Water quality', td.water, 'water')}
         <ul class="notes">${[...ct.notes, ...[breedNote(save, layout, c)].filter((n) => !!n)].map((n) => `<li class="${n!.good ? 'good' : 'bad'}">${n!.good ? '✓' : '✗'} ${n!.text}</li>`).join('')}<li class="${
           filtered ? 'good' : 'bad'
         }">${filtered ? '✓ Filter pump keeps the water clean' : '✗ No filter pump: the water slowly gets dirty'}</li>${
           piped ? `<li class="good">✓ Feed pipe: ${Math.round(td.mash ?? 0)}/${TROUGH_CAP} L of mash in the trough</li>` : ''
-        }${trayLine(save, td)}${mult > 1 ? `<li class="good">✓ ${mult - 1} Echo whorl${mult > 2 ? 's' : ''}: ×${mult} output, eats and fouls ×${mult}</li>` : ''}</ul>${
+        }${livingBases ? '' : trayLine(save, td, false)}${mult > 1 ? `<li class="good">✓ ${mult - 1} Echo whorl${mult > 2 ? 's' : ''}: ×${mult} output, eats and fouls ×${mult}</li>` : ''}</ul>${
           c.stage === 'grown' ? `<p class="note">${makeLine(save, layout, c)}</p>` : ''
         }`;
     }
@@ -341,21 +355,37 @@ export class CareMode {
     const grand = layout.pieces.find((q) => q.id === this.tankId)?.kind === 'gtank';
     const plants = grand ? `${planter(1)}</div><div class="plants"><span>Planter 2:</span>${planter(2)}` : planter(1);
     const armed = Date.now() - this.releaseArmed < 3000;
+    const capacity = tankCapacity(layout, this.tankId);
+    const feed = '<button type="button" class="big" data-act="feed">Feed kelp flakes <small>1 fibre</small></button>';
+    const clean = '<button type="button" data-act="clean">Clean tank</button>';
+    const overview = livingBases ? `<section class="habitat-care" aria-label="Habitat care">
+      ${bar('Water quality', td.water, 'water')}
+      ${filtered ? '<p class="note">Filter pump running</p>' : ''}
+      <div class="acts">${feed}${clean}${save.jar ? `<button type="button" data-act="deposit" ${list.length >= capacity ? 'disabled' : ''}>${list.length >= capacity ? 'Habitat full' : 'Move specimen from jar'}</button>` : ''}</div>
+      <ul class="notes">${trayLine(save, td, true)}</ul>
+    </section>` : '';
     const html = `
-      <div class="care-head"><b>${this.code()}</b><span>${list.length}/${tankCapacity(layout, this.tankId)} · ${powered ? 'powered' : 'no power'}</span>
+      <div class="care-head"><b>${livingBases ? `Habitat Console · ${this.code()}` : this.code()}</b><span>${list.length}/${capacity} · ${powered ? 'powered' : 'no power'}</span>
         <button type="button" class="x" data-act="close" aria-label="Close">✕</button></div>
+      ${overview}
       ${list.length ? `<div class="tabs">${tabs}</div>` : ''}
       ${c ? `<h3>${c.stage === 'egg' ? SPECIES[c.species].eggName.replace(/^./, (m) => m.toUpperCase()) : SPECIES[c.species].name}</h3><p class="traits${isRare(traitsOf(c)) ? ' rare' : ''}">${traitText(c.species, traitsOf(c))} <small>· ${genText(traitsOf(c))}</small></p>` : ''}
       ${body}
       <div class="plants"><span>${grand ? 'Planter 1:' : 'Plant:'}</span>${plants}</div>
       <div class="acts">
-        <button type="button" class="big" data-act="feed">Feed kelp flakes <small>1 fibre</small></button>
-        <button type="button" data-act="clean">Clean tank</button>
+        ${livingBases ? '' : feed + clean}
         ${c ? `<button type="button" data-act="take">To jar</button><button type="button" data-act="release" class="${armed ? 'armed' : ''}">${armed ? 'Tap again' : 'Release'}</button>` : ''}
       </div>`;
     if (force || html !== this.lastHtml) {
+      const active = document.activeElement;
+      const previous = livingBases && active instanceof HTMLButtonElement && this.panel.contains(active) ? active.dataset : null;
       this.lastHtml = html;
       this.panel.innerHTML = html;
+      if (previous) {
+        const next = Array.from(this.panel.querySelectorAll<HTMLButtonElement>('[data-act]')).find((button) =>
+          !button.disabled && button.dataset.act === previous.act && button.dataset.id === previous.id);
+        (next ?? this.panel.querySelector<HTMLButtonElement>('[data-act="close"]'))?.focus({ preventScroll: true });
+      }
     }
   }
 }

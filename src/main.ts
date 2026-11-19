@@ -187,6 +187,7 @@ async function boot(): Promise<void> {
   const host = document.getElementById('game')!;
   const urlq = new URLSearchParams(location.search);
   const livingCreatures = urlq.get('creatures') !== 'original';
+  const livingBases = urlq.get('bases') !== 'original';
   let choice: PresetChoice = loadChoice();
   let preset: Preset = resolveChoice(choice);
 
@@ -572,6 +573,8 @@ async function boot(): Promise<void> {
   const care = new CareMode({
     save,
     layout,
+    livingBases,
+    deposit: (id) => depositJar(id),
     toast: (t, k) => hud.toast(t, k),
     refreshInventory: () => hud.refreshInventory(),
     persist: () => persist(),
@@ -886,9 +889,10 @@ async function boot(): Promise<void> {
     } else newCreature(save, j.species, j.stage === 'egg' ? 'egg' : 'young', tankId, j.traits);
     save.jar = null;
     tankLife.sync(save, layout);
+    baseHooks?.syncTanks();
     drone.cheer();
     const sp = SPECIES[j.species];
-    hud.toast(`${j.stage === 'egg' ? `The ${sp.eggName} is` : `The ${sp.name.toLowerCase()} is`} in tank ${tankNumber(layout, tankId)}. Tap Tend to look after it.`, 'big');
+    hud.toast(`${j.stage === 'egg' ? `The ${sp.eggName} is` : `The ${sp.name.toLowerCase()} is`} in tank ${tankNumber(layout, tankId)}. ${livingBases ? 'Use the Habitat Console for care.' : 'Tap Tend to look after it.'}`, 'big');
     if (!save.tips.includes('care')) {
       save.tips.push('care');
       setTimeout(
@@ -899,23 +903,24 @@ async function boot(): Promise<void> {
     persist();
   }
   function takeTray(tankId: number): void {
-    const td = save.tankData[String(tankId)];
-    if (!td?.out) return;
+    const out = save.tankData[String(tankId)]?.out;
+    if (!out) return;
     let took = 0;
     const what: string[] = [];
     for (const k of MATERIALS_LIST) {
       let n = 0;
-      while ((td.out[k] ?? 0) > 0 && bagHasRoom(save, k)) {
-        td.out[k]!--;
+      while ((out[k] ?? 0) > 0 && bagHasRoom(save, k)) {
+        out[k]!--;
         save.bag[k]++;
         n++;
       }
-      if (!td.out[k]) delete td.out[k];
+      if (!out[k]) delete out[k];
       if (n) what.push(`${n} ${MATERIALS[k].name.toLowerCase()}`);
       took += n;
     }
     if (took) {
-      hud.toast(`Took ${what.join(' and ')} from tank ${tankNumber(layout, tankId)}'s output tray`, 'item');
+      const partial = livingBases && MATERIALS_LIST.some((k) => (out[k] ?? 0) > 0);
+      hud.toast(`Took ${what.join(' and ')} from tank ${tankNumber(layout, tankId)}'s output tray${partial ? ' · Remaining items are still in the tray' : ''}`, 'item');
       hud.refreshInventory();
       persist();
     } else hud.toast('Dive bag full: the output tray stays where it is', 'warn');
@@ -3860,6 +3865,7 @@ async function boot(): Promise<void> {
     save,
     layout,
     livingCreatures,
+    livingBases,
     carried: () => MATERIALS_LIST.reduce((a, k) => a + save.bag[k], 0),
     storageText: () => {
       const n = MATERIALS_LIST.reduce((a, k) => a + save.stored[k], 0);
