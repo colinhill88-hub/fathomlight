@@ -169,7 +169,7 @@ function wrap(a: number): number {
 // ---------------------------------------------------------------------------
 // The pieces, drawn once.
 
-function buildLeg(far: boolean, redesigned: boolean): Leg {
+function buildLeg(far: boolean, redesigned: boolean, compact: boolean): Leg {
   const tint = far ? FAR_TINT : 0xffffff;
   const thigh = new Container();
   const tg = segment(THIGH, 12, C.suit, C.suitShade);
@@ -178,7 +178,7 @@ function buildLeg(far: boolean, redesigned: boolean): Leg {
   // Chrome knee guard, as on the diver.
   chromeBands(tg, THIGH - 5, -6.5, 9, 13, 3);
   rivets(tg, [[THIGH - 0.5, -3.5], [THIGH - 0.5, 3.5]], 0.8);
-  thigh.addChild(playerPart(tg, redesigned ? kestrelLimb(THIGH, 12, 'thigh') : undefined, tint));
+  thigh.addChild(playerPart(tg, redesigned ? kestrelLimb(THIGH, compact ? 15 : 12, 'thigh') : undefined, tint));
 
   const shin = new Container();
   shin.x = THIGH;
@@ -212,13 +212,13 @@ function buildLeg(far: boolean, redesigned: boolean): Leg {
   bg.moveTo(7.5, -3.1).lineTo(11, -2.6).quadraticCurveTo(13.5, -1.6, 12.5, 0).lineTo(7.5, 0).closePath().fill({ color: C.red });
   bg.moveTo(11, -2.6).quadraticCurveTo(13.5, -1.6, 12.5, 0).stroke({ color: C.redShade, width: 1.2, alpha: 0.9 });
   bg.moveTo(1, -2).lineTo(7, -1.5).stroke({ color: 0x3e4140, width: 0.8, alpha: 0.7 });
-  blade.addChild(playerPart(bg, redesigned ? kestrelFin(true, true) : undefined, tint));
+  blade.addChild(playerPart(bg, redesigned ? kestrelFin(true, true, compact) : undefined, tint));
   foot.addChild(playerPart(fg, redesigned ? kestrelFin(true, false) : undefined, tint), blade);
   shin.addChild(foot);
   return { thigh, shin, foot, blade };
 }
 
-function buildArm(far: boolean, redesigned: boolean): Arm {
+function buildArm(far: boolean, redesigned: boolean, compact: boolean): Arm {
   const tint = far ? FAR_TINT : 0xffffff;
   const upper = new Container();
   const ug = segment(UPPER, 9, C.sleeve, C.sleeveShade);
@@ -227,7 +227,7 @@ function buildArm(far: boolean, redesigned: boolean): Arm {
   ug.circle(0, 0, 5.2).stroke({ color: C.chromeDark, width: 1 });
   accentBand(ug, 8.5, -4.5, 2.4, 9);
   scratches(ug, 4, -3.5, 10, 7, 2, 0.22, rand);
-  upper.addChild(playerPart(ug, redesigned ? kestrelLimb(UPPER, 9.5, 'upper') : undefined, tint));
+  upper.addChild(playerPart(ug, redesigned ? kestrelLimb(UPPER, compact ? 13 : 9.5, 'upper') : undefined, tint));
   const fore = new Container();
   fore.x = UPPER;
   const fg = segment(10.5, 8, C.sleeve, C.sleeveShade);
@@ -236,9 +236,9 @@ function buildArm(far: boolean, redesigned: boolean): Arm {
   fg.roundRect(11.5, 0.8, 7, 3, 1.4).fill({ color: C.redShade, alpha: 0.7 });
   fg.rect(9, -4.5, 2.6, 9).fill({ color: C.chrome });
   fore.addChild(playerPart(fg, redesigned ? kestrelLimb(11, 8.5, 'fore') : undefined, tint));
-  const hand = redesigned ? kestrelHand() : undefined;
+  const hand = redesigned ? kestrelHand(compact) : undefined;
   if (hand) {
-    hand.position.set(10.8, 0);
+    hand.position.set(compact ? FORE : 10.8, 0);
     hand.tint = tint;
     fore.addChild(hand);
   }
@@ -420,6 +420,7 @@ export class Walker {
   climbPhase = 0;
   /** Holding Collect at something (0..1): the near hand works at it. */
   working = 0;
+  breakerPull = 0;
   /** How heavy the dive bag is (0 empty, 1 rated): shows the bag, as on the diver. */
   load = 0;
   /** Whether the shoulder lamp is on (its lens glows). */
@@ -438,6 +439,8 @@ export class Walker {
   private idleGesture = 0;
   private idleClock = 0;
   private arrival = 0;
+  private brace = 0;
+  private pull = 0;
   private readonly torsoMaterials: ReturnType<typeof buildTorso>;
   private torso = new Container();
   private pack = new Container();
@@ -545,13 +548,13 @@ export class Walker {
   private sinL = 0;
   private sxw = 1;
 
-  constructor(paintedFace?: Texture, paintedSuit?: Texture, redesigned = false) {
-    this.nearLeg = buildLeg(false, redesigned);
-    this.farLeg = buildLeg(true, redesigned);
-    this.nearArm = buildArm(false, redesigned);
-    this.farArm = buildArm(true, redesigned);
+  constructor(paintedFace?: Texture, paintedSuit?: Texture, redesigned = false, private readonly compact = false) {
+    this.nearLeg = buildLeg(false, redesigned, compact);
+    this.farLeg = buildLeg(true, redesigned, compact);
+    this.nearArm = buildArm(false, redesigned, compact);
+    this.farArm = buildArm(true, redesigned, compact);
     this.torsoMaterials = buildTorso(paintedSuit);
-    const hel = playerHelmet(redesigned, true, paintedFace);
+    const hel = playerHelmet(redesigned, true, paintedFace, compact);
     const helmetScale = redesigned ? 0.65 : HELMET_K;
     hel.scale.set(helmetScale);
     hel.position.set(-64 * helmetScale, -16 * helmetScale);
@@ -570,7 +573,8 @@ export class Walker {
     }
     this.helmet.addChild(hel);
     // Coiled hose: from the tank valves, up past the side of the helmet, down to the chest port.
-    coiledHose(this.hose, [[-15, -42], [-17, -57], [17, -50], [PORT_X, PORT_Y]], 3);
+    coiledHose(this.hose, compact ? [[-19, -32], [-20, -42], [11, -42], [PORT_X, PORT_Y]]
+      : [[-15, -42], [-17, -57], [17, -50], [PORT_X, PORT_Y]], 3);
     this.hose.pivot.set(PORT_X, PORT_Y);
     // Shoulder lamp (the diver's), on the chest strap, pointing forward.
     const lamp = buildShoulderLamp();
@@ -622,9 +626,9 @@ export class Walker {
     };
     for (const part of [this.nearLeg.thigh, this.farLeg.thigh, this.nearArm.upper, this.farArm.upper]) collect(part);
     if (redesigned) {
-      const fit = kestrelTorso();
+      const fit = kestrelTorso(compact);
       this.chest = fit.getChildByLabel('kestrelChest')! as Graphics;
-      fit.scale.set(0.88, 0.90);
+      fit.scale.set(compact ? 1.08 : 0.88, 0.90);
       this.torso.addChildAt(fit, painted ? 2 : 1);
       collect(fit);
     }
@@ -657,6 +661,12 @@ export class Walker {
     this.kitShown = key;
     const k = this.kit;
     drawPack(this.packG.clear(), k);
+    if (this.compact) {
+      this.packG.moveTo(-18, -9).quadraticCurveTo(-24, 5, -17, 16).lineTo(-8, 15)
+        .quadraticCurveTo(-3, 3, -10, -10).closePath().fill(0x30474a);
+      this.packG.moveTo(-16, -6).quadraticCurveTo(-20, 4, -15, 13)
+        .stroke({ color: 0xc28b52, width: 3.2, cap: 'round' });
+    }
     this.packSpear.clear();
     if (k.spear) drawPackSpear(this.packSpear, k);
     drawWalkerThruster(this.thrusterG.clear(), k.thruster);
@@ -724,6 +734,7 @@ export class Walker {
     this.plateDelay = crouch > 0 ? 0.7 : 0;
     this.arrival = crouch > 0 ? 0.95 : 0;
     this.idleClock = this.idleGesture = 0;
+    this.breakerPull = this.brace = this.pull = 0;
     this.chestFlex.set(0);
   }
 
@@ -781,7 +792,8 @@ export class Walker {
     this.faceS.step(this.face, 17, 1, dt);
     const fa = this.faceS.x;
     // Never thinner than about a third: a person turning shows their front, not an edge.
-    const sx = Math.abs(fa) < 0.3 ? (fa < 0 ? -0.3 : 0.3) : fa;
+    const minTurnWidth = this.compact ? 0.64 : 0.3;
+    const sx = Math.abs(fa) < minTurnWidth ? (fa < 0 ? -minTurnWidth : minTurnWidth) : fa;
     this.view.scale.x = sx;
     this.view.position.set(this.x, this.y);
     // Swinging on the grapple: the whole body turns about the hands to hang along the line.
@@ -821,6 +833,15 @@ export class Walker {
       hipXT = r.hipX;
       leanT = r.lean;
       lookT = r.look;
+      if (this.compact) {
+        const bracing = this.breakerPull > 0 && speed < 16 ? 1 : 0;
+        this.brace = approach(this.brace, bracing, bracing ? 18 : 13, dt);
+        this.pull = approach(this.pull, smoothstep((this.breakerPull - 0.34) / 0.62), 16, dt);
+        hipY += 4.3 + this.brace * (2.5 + this.pull * 5);
+        hipXT -= this.pull * 5;
+        leanT += this.brace * (0.16 - 0.39 * this.pull);
+        lookT -= this.brace * 0.14;
+      }
     } else if (mode === 'air') {
       const r = this.air(dt, vxL);
       hipY = r.hipY;
@@ -1006,12 +1027,13 @@ export class Walker {
         }
         // A planted foot left too far behind (slowing hard) lifts early.
         const behind = f.planted && (f.wx - this.x) * face < -REACH * 0.72;
-        if (f.planted && (psi >= beta || behind) && psi > 0.02) {
+        const outsideReach = this.compact && this.outsideStance(f, sxw);
+        if (f.planted && ((psi >= beta || behind) && psi > 0.02 || outsideReach)) {
           // The swing starts where the ankle is at toe-off (up on the ball).
           f.planted = false;
           f.liftX = this.x + f.ax * sxw;
           f.liftY = f.ay;
-          f.swingB = behind ? Math.min(psi, 0.98) : beta;
+          f.swingB = behind || outsideReach ? Math.min(psi, 0.98) : beta;
           s = (((psi - f.swingB) % 1) + 1) % 1 / (1 - f.swingB);
         }
         if (f.planted) {
@@ -1044,6 +1066,15 @@ export class Walker {
       this.stepCool = Math.max(0, this.stepCool - dt);
       let stepping = -1;
       for (let i = 0; i < 2; i++) if (this.feet[i].stepT >= 0) stepping = i;
+      if (this.compact) {
+        for (let i = 0; i < 2; i++) {
+          const f = this.feet[i];
+          if (!f.planted || !this.outsideStance(f, sxw)) continue;
+          const start = this.x + (this.hipX.x + clamp((f.wx - this.x) / sxw - this.hipX.x, -REACH * 0.76, REACH * 0.76)) * sxw;
+          this.settleStep(i, start);
+          stepping = i;
+        }
+      }
       if (stepping < 0 && this.stepCool <= 0) {
         let worst = -1;
         let err = 0;
@@ -1057,13 +1088,7 @@ export class Walker {
           }
         }
         if (worst >= 0) {
-          const f = this.feet[worst];
-          f.stepT = 0;
-          f.stepFrom = f.wx;
-          f.stepTo = this.rest(worst);
-          f.stepH0 = 0;
-          f.stepDur = 0.22 + Math.min(0.1, Math.abs(f.stepTo - f.stepFrom) * 0.003);
-          f.planted = false;
+          this.settleStep(worst, this.feet[worst].wx);
           stepping = worst;
         }
       }
@@ -1117,6 +1142,21 @@ export class Walker {
   /** Where a foot rests standing (world x): just apart, the near one a little ahead. */
   private rest(i: number): number {
     return this.x + this.face * (i === 0 ? 3.5 : -3.5);
+  }
+
+  /** Ankle reach after projecting a planted world point through the turn. */
+  private outsideStance(foot: Foot, facingScale: number): boolean {
+    return Math.abs((foot.wx - this.x) / facingScale - this.hipX.x) > REACH * 0.82;
+  }
+
+  private settleStep(index: number, from: number): void {
+    const foot = this.feet[index];
+    foot.stepT = 0;
+    foot.stepFrom = from;
+    foot.stepTo = this.rest(index);
+    foot.stepH0 = 0;
+    foot.stepDur = 0.22 + Math.min(0.1, Math.abs(foot.stepTo - from) * 0.003);
+    foot.planted = false;
   }
 
   /** A planted foot's ankle: flat, rolled back on the heel (roll < 0) or up on the ball (roll > 0). */
@@ -1473,7 +1513,10 @@ export class Walker {
           sw += this.idleGesture * (i === 0 ? 0.73 : 0.32);
           el += this.idleGesture * (i === 0 ? 0.54 : 0.23);
         }
-        if (this.working > 0 && i === 0 && !this.gaitOn) {
+        if (this.compact && this.brace > 0.08 && !this.gaitOn) {
+          ikx = (i === 0 ? 23 : 29) - this.pull * 8;
+          iky = (i === 0 ? -72 : -60) + this.pull * 10;
+        } else if (this.working > 0 && i === 0 && !this.gaitOn) {
           // Working at something in front: the near hand reaches out and taps at it.
           ikx = 22;
           iky = -66 + Math.sin(this.time * 9) * 1.2 * this.working;

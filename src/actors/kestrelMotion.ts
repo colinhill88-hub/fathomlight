@@ -13,6 +13,7 @@ export class KestrelSwimMotion {
   look = 0;
   relief = 0;
   trim = 0;
+  compression = 0;
   private idleTime = 0;
   private nextIdle = 2.1;
   private gestureTime = 0;
@@ -21,6 +22,9 @@ export class KestrelSwimMotion {
   private prevVy = 0;
   private nextNotice = 0;
   private noticed = '';
+  private launchTime = 0;
+
+  constructor(private readonly compact = false) {}
 
   get adjust(): number { return this.gestureIndex % 2 === 0 ? this.interest : 0; }
 
@@ -38,8 +42,14 @@ export class KestrelSwimMotion {
     this.travel = approach(this.travel, surfaced ? 0 : smoothstep(speed / 140), speed > 100 ? 6 : 3.4, dt);
     this.power = approach(this.power, surfaced ? 0.32 : Math.max(boosted, smoothstep((speed - 85) / 180) * input), 5.5, dt);
     const start = !surfaced && !reversing && action === 'free' ? input * (1 - smoothstep(speed / 200)) : 0;
-    this.reach = approach(this.reach, start, start > this.reach ? 11 : 4, dt);
-    this.stroke = (this.stroke + dt * (surfaced ? 5.5 : 1.5 + input * 2.7 + this.power * 5.8)) % (Math.PI * 2);
+    if (this.compact) {
+      this.launchTime = input > 0.08 && !surfaced && action === 'free' ? this.launchTime + dt : 0;
+      const coil = start * (1 - smoothstep(this.launchTime / 0.23));
+      this.compression = approach(this.compression, coil, coil > this.compression ? 28 : 15, dt);
+    }
+    const extension = start * (this.compact ? smoothstep(this.launchTime / 0.19) : 1);
+    this.reach = approach(this.reach, extension, extension > this.reach ? (this.compact ? 18 : 11) : 4, dt);
+    this.stroke = (this.stroke + dt * (surfaced ? 5.5 : 1.5 + input * 2.7 + this.power * (this.compact ? 7.6 : 5.8))) % (Math.PI * 2);
     this.relief = surfaced ? smoothstep(surfaceTime / 0.16) * (1 - smoothstep((surfaceTime - 0.29) / 0.93)) * (0.6 + impact * 0.4) : 0;
 
     const idle = !surfaced && action === 'free' && input < 0.08 && speed < 40;

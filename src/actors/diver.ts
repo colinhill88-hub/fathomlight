@@ -1,4 +1,4 @@
-import { Container, Graphics, Sprite, Text, type Texture } from 'pixi.js';
+import { Container, Graphics, Point, Sprite, Text, type Texture } from 'pixi.js';
 import { isSolid } from '../world/terrain';
 import { mulberry32 } from '../rng';
 import { BREATH_OUT, Glance, Spring, approach, batchAll, breathShape } from './animkit';
@@ -118,7 +118,7 @@ export const BRASS_DARK = 0x7a5e1e;
  * Rows of tanks stack away from the body: A next to the suit, then B, then
  * C (short with three tanks, full with four). With none yet, a pony bottle.
  */
-function drawDiverBack(g: Graphics, kit: KitLook): void {
+function drawDiverBack(g: Graphics, kit: KitLook, compact: boolean): void {
   const n = Math.min(4, kit.tanks);
   const tank = (x0: number, x1: number, y: number, shade: number) => {
     const w = x1 - x0;
@@ -154,6 +154,14 @@ function drawDiverBack(g: Graphics, kit: KitLook): void {
       tank(-30, 32, -49, C.chromeDark);
       top = -49;
     }
+  }
+  if (compact) {
+    // The armored saddle wraps around the rear ribs; valves and the tool rail remain exposed.
+    g.moveTo(-25, -14).quadraticCurveTo(-33, -27, -19, -31).quadraticCurveTo(-1, -34, 16, -28)
+      .lineTo(23, -15).quadraticCurveTo(0, -8, -25, -14).closePath().fill(0x293e42);
+    g.moveTo(-25, -25).quadraticCurveTo(-9, -32, 12, -27)
+      .stroke({ color: 0xc28b52, width: 4.2, cap: 'round' });
+    g.circle(-19, -24, 2.1).fill(0xe6be78);
   }
   // The regulator hose meets a chrome riser off the topmost valve.
   const vy = n === 0 ? -23 : top + 6;
@@ -339,7 +347,7 @@ interface Arm {
   hand?: Container;
 }
 
-function buildLeg(far: boolean, redesigned: boolean): Leg {
+function buildLeg(far: boolean, redesigned: boolean, compact: boolean): Leg {
   const tint = far ? 0x9a9a9a : 0xffffff;
   const thigh = new Container();
   const tg = segment(24, 13, C.suit, C.suitShade);
@@ -348,7 +356,7 @@ function buildLeg(far: boolean, redesigned: boolean): Leg {
   // Chrome knee guard.
   chromeBands(tg, 19, -6.5, 9, 13, 3);
   rivets(tg, [[23.5, -3.5], [23.5, 3.5]], 0.9);
-  thigh.addChild(playerPart(tg, redesigned ? kestrelLimb(24, 13, 'thigh') : undefined, tint));
+  thigh.addChild(playerPart(tg, redesigned ? kestrelLimb(24, compact ? 16 : 13, 'thigh') : undefined, tint));
 
   const shin = new Container();
   shin.x = 24;
@@ -385,13 +393,13 @@ function buildLeg(far: boolean, redesigned: boolean): Leg {
       .lineTo(5, y * 1.1)
       .stroke({ color: 0x3e4140, width: 1, alpha: 0.7 });
   tg2.moveTo(0, -2.3).lineTo(2, -2.4).stroke({ color: C.visor, width: 1, alpha: 0.7 });
-  tip.addChild(playerPart(tg2, redesigned ? kestrelFin(false, true) : undefined, tint));
+  tip.addChild(playerPart(tg2, redesigned ? kestrelFin(false, true, compact) : undefined, tint));
   fin.addChild(playerPart(fg, redesigned ? kestrelFin(false, false) : undefined, tint), tip);
   shin.addChild(fin);
   return { thigh, shin, fin, tip, finAng: -0.3, finVel: 0, prevShin: Math.PI };
 }
 
-function buildArm(far: boolean, redesigned: boolean): Arm {
+function buildArm(far: boolean, redesigned: boolean, compact: boolean): Arm {
   const tint = far ? 0x9a9a9a : 0xffffff;
   const upper = new Container();
   const ug = segment(17, 10, C.sleeve, C.sleeveShade);
@@ -400,7 +408,7 @@ function buildArm(far: boolean, redesigned: boolean): Arm {
   ug.circle(0, 0, 6).stroke({ color: C.chromeDark, width: 1 });
   accentBand(ug, 9, -5, 2.6, 10);
   scratches(ug, 4, -4, 14, 8, 2);
-  upper.addChild(playerPart(ug, redesigned ? kestrelLimb(17, 11, 'upper') : undefined, tint));
+  upper.addChild(playerPart(ug, redesigned ? kestrelLimb(17, compact ? 15 : 11, 'upper') : undefined, tint));
 
   const fore = new Container();
   fore.x = 17;
@@ -410,9 +418,9 @@ function buildArm(far: boolean, redesigned: boolean): Arm {
   fg.roundRect(13, 1, 8, 3.5, 1.5).fill({ color: C.redShade, alpha: 0.7 });
   fg.rect(10, -5, 3, 10).fill({ color: C.chrome });
   fore.addChild(playerPart(fg, redesigned ? kestrelLimb(13, 9, 'fore') : undefined, tint));
-  const hand = redesigned ? kestrelHand() : undefined;
+  const hand = redesigned ? kestrelHand(compact) : undefined;
   if (hand) {
-    hand.position.set(12, 0);
+    hand.position.set(compact ? 15 : 12, 0);
     hand.tint = tint;
     fore.addChild(hand);
   }
@@ -907,11 +915,11 @@ export function buildHelmet(plate = false, paintedFace?: Texture): Container {
   return c;
 }
 
-export function playerHelmet(redesigned: boolean, opening: boolean, paintedFace?: Texture): Container {
+export function playerHelmet(redesigned: boolean, opening: boolean, paintedFace?: Texture, compact = false): Container {
   if (!redesigned) return buildHelmet(opening, paintedFace);
-  const helmet = kestrelHelmet(opening);
+  const helmet = kestrelHelmet(opening, compact);
   const hose = new Graphics({ label: 'hose' });
-  coiledHose(hose, [[44, -42], [59, -46], [55, -9], [51, 3]], 4.2);
+  coiledHose(hose, compact ? [[43, -28], [37, -23], [57, -10], [51, 3]] : [[44, -42], [59, -46], [55, -9], [51, 3]], 4.2);
   helmet.addChild(hose);
   return helmet;
 }
@@ -975,6 +983,8 @@ export class Diver {
   private readonly helmet: Container;
   private readonly chestFlex = new Spring(0);
   private readonly tankSwing = new Spring(0);
+  private readonly wakeTip = new Point(13.3, -6.8);
+  private readonly wakeGlobal = new Point();
   readonly strokeWake = { x: 0, y: 0, strength: 1 };
   visualAction: KestrelAction = 'free';
   visualTarget: { id: string; x: number; y: number } | null = null;
@@ -1062,11 +1072,12 @@ export class Diver {
   /** With the TH-2 thruster head (found in the kelp forest). */
   private static readonly BOOST_SPEED_2 = 540;
 
-  constructor(paintedFace?: Texture, paintedSuit?: Texture, private readonly surfacePersonality = false, redesigned = false) {
-    this.nearLeg = buildLeg(false, redesigned);
-    this.farLeg = buildLeg(true, redesigned);
-    this.nearArm = buildArm(false, redesigned);
-    this.farArm = buildArm(true, redesigned);
+  constructor(paintedFace?: Texture, paintedSuit?: Texture, private readonly surfacePersonality = false, redesigned = false,
+    private readonly compact = false) {
+    this.nearLeg = buildLeg(false, redesigned, compact);
+    this.farLeg = buildLeg(true, redesigned, compact);
+    this.nearArm = buildArm(false, redesigned, compact);
+    this.farArm = buildArm(true, redesigned, compact);
     // The torso is drawn long and compressed a little here for a stockier build.
     this.torsoMaterials = buildTorso(paintedSuit);
     const torso = this.torsoMaterials.view;
@@ -1134,16 +1145,16 @@ export class Diver {
     for (const part of [this.nearLeg.thigh, this.farLeg.thigh, this.nearArm.upper, this.farArm.upper]) collect(part);
     for (const ch of torso.children) if (ch instanceof Graphics && ch !== this.backG && ch !== this.psuitTorso && ch !== this.ps2Torso) this.tinted.push({ g: ch, base: ch.tint });
     if (redesigned) {
-      this.character = new KestrelSwimMotion();
-      const fit = kestrelTorso();
+      this.character = new KestrelSwimMotion(compact);
+      const fit = kestrelTorso(compact);
       this.chest = fit.getChildByLabel('kestrelChest')! as Graphics;
-      fit.position.set(-29, 0);
-      fit.scale.set(1.15, 1.65);
+      fit.position.set(compact ? -27 : -29, 0);
+      fit.scale.set(compact ? 1.42 : 1.15, compact ? 1.54 : 1.65);
       fit.rotation = Math.PI * 0.5;
       torso.addChildAt(fit, 2);
       collect(fit);
     }
-    const helmet = this.helmet = playerHelmet(redesigned, false, paintedFace);
+    const helmet = this.helmet = playerHelmet(redesigned, false, paintedFace, compact);
     helmet.x = -6;
     this.visorFog = helmet.getChildByLabel('visorFog')!;
     this.visorDrops = helmet.getChildByLabel('visorDrops')!;
@@ -1156,7 +1167,7 @@ export class Diver {
       this.expression = new KestrelExpression(this.headRig);
       helmet.pivot.set(63, 17);
       helmet.position.set(57, 17);
-      helmet.scale.set(1.08);
+      helmet.scale.set(compact ? 1.06 : 1.08, compact ? 1.14 : 1.08);
     }
     // The hose sways about its chest fitting; it lives on the body, over the helmet.
     this.hose = helmet.getChildByLabel('hose')!;
@@ -1203,7 +1214,7 @@ export class Diver {
     if (key === this.kitShown) return;
     this.kitShown = key;
     const k = this.kit;
-    drawDiverBack(this.backG.clear(), k);
+    drawDiverBack(this.backG.clear(), k, this.compact);
     const t = this.thruster.clear();
     if (k.thruster === 1) {
       t.roundRect(-30, 8, 24, 12, 5).fill({ color: 0xd8dde0 });
@@ -1312,9 +1323,8 @@ export class Diver {
    * the body's pitch.
    */
   private toWorld(lx: number, ly: number): [number, number] {
-    const S = Diver.SCALE;
-    lx *= S;
-    ly *= S;
+    lx *= this.compact ? this.body.scale.x : Diver.SCALE;
+    ly *= this.compact ? this.body.scale.y : Diver.SCALE;
     const r = this.body.rotation;
     const c = Math.cos(r);
     const s = Math.sin(r);
@@ -1592,20 +1602,25 @@ export class Diver {
     const action = this.working ? 'busy' : this.visualAction;
     motion.update(dt, this.vx, this.vy, mx, my, this.face, this.boostLvl, this.surfaced, this.surfaceTime,
       this.popStrength, action, this.visualTarget, this.x, this.y, this.pitch);
-    const curl = motion.brake * 0.23 + motion.interest * motion.look * 0.16 + motion.relief * 0.15;
+    const curl = motion.brake * (this.compact ? 0.51 : 0.23) + motion.interest * motion.look * 0.16 + motion.relief * 0.15;
     const flex = this.chestFlex.step(curl + Math.sin(motion.stroke - 0.5) * (0.034 + motion.power * 0.038)
       - motion.reach * 0.13, 10, 0.84, dt);
     this.chest!.rotation = flex;
-    this.chest!.scale.y = 1 + this.heave * 0.045 + motion.reach * 0.10 - motion.brake * 0.11;
+    this.chest!.scale.y = 1 + this.heave * 0.045 + motion.reach * 0.10 - motion.brake * (this.compact ? 0.25 : 0.11);
     this.helmet.rotation = flex * 0.54 - motion.relief * 0.17 - motion.trim * 0.18;
-    this.helmet.position.set(57 - motion.brake * 5 + motion.reach * 2.4, 17 + flex * 13 - motion.relief * 2);
-    this.view.scale.x = Math.sign(this.view.scale.x) * Math.max(0.26, Math.abs(this.view.scale.x));
+    this.helmet.position.set((this.compact ? 51 : 57) - motion.brake * (this.compact ? 9 : 5) + motion.reach * 2.4, 17 + flex * 13 - motion.relief * 2);
+    this.view.scale.x = Math.sign(this.view.scale.x) * Math.max(this.compact ? 0.47 : 0.26, Math.abs(this.view.scale.x));
     this.body.y += Math.sin(this.time * 1.7) * 1.75 * (1 - motion.travel) - motion.relief * 2.2;
     this.nearArm.upper.position.set(25 - motion.brake * 2.4, 8 + flex * 16);
     this.farArm.upper.position.set(27 - motion.brake * 3.1, 1 + flex * 12);
     this.nearLeg.thigh.position.set(-26 + motion.brake * 1.5, 7 + motion.brake * 3);
     this.farLeg.thigh.position.set(-24 + motion.brake * 1.8, 2 + motion.brake * 1.5);
     this.backG.rotation = this.tankSwing.step(motion.brake * 0.09 - motion.reach * 0.06, 8.5, 0.63, dt);
+    if (this.compact && !this.surfaced && action === 'free') {
+      this.body.rotation -= motion.brake * 0.30 + motion.reach * 0.13 + motion.interest * 0.19;
+      this.body.scale.x *= 1 - motion.compression * 0.14 + motion.reach * 0.08;
+      this.body.scale.y *= 1 + motion.compression * 0.09;
+    }
   }
 
   private poseKestrelLimbs(dt: number, motion: KestrelSwimMotion): void {
@@ -1627,6 +1642,10 @@ export class Diver {
         - brake * (0.69 + i * 0.23) + trim * 0.24 - relief * 0.18;
       leg.shin.rotation = 0.10 + hover * (0.55 + 0.14 * i) + spread * (0.55 + delay * 0.55)
         + brake * 0.49 - reach * 0.14;
+      if (this.compact) {
+        leg.thigh.rotation -= brake * 0.55 + motion.compression * 0.48;
+        leg.shin.rotation += brake * 0.75 + motion.compression * 0.78;
+      }
       const target = -0.11 - hover * 0.23 - delay * spread * 1.1 + brake * 0.25 - this.visualCurrent * hover * 0.12;
       leg.finAng = approach(leg.finAng, target, 9, dt);
       leg.fin.rotation = leg.finAng;
@@ -1639,6 +1658,10 @@ export class Diver {
       let elbow = -0.78 + travel * (0.71 + 0.26 * pull);
       upper -= reach * (near ? 1.04 : 0.63) + brake * (near ? 1.07 : 1.19);
       elbow -= brake * 0.89 + reach * 0.28;
+      if (this.compact) {
+        upper += brake * 0.46 + motion.compression * 0.47 - reach * 0.35 - interest * (near ? 0.33 : 0.17);
+        elbow -= brake * 0.48 + motion.compression * 0.34 + interest * (near ? 0.18 : 0.1);
+      }
       upper += interest * (near ? 0.09 : 0.31) - relief * (near ? 0.67 : 0.23) - trim * 0.37;
       elbow -= (near ? adjust * 0.85 : 0) + relief * 0.29;
       if (near && (scanning || grappling)) {
@@ -1655,6 +1678,14 @@ export class Diver {
     // Switch feet close to the recovery stroke. Reuse the actual visible rig joints.
     const side = Math.cos(motion.stroke) > 0 ? 0 : 1;
     const leg = side === 0 ? this.nearLeg : this.farLeg;
+    if (this.compact && this.view.parent) {
+      leg.tip.toGlobal(this.wakeTip, this.wakeGlobal);
+      this.view.parent.toLocal(this.wakeGlobal, undefined, this.wakeGlobal);
+      this.strokeWake.x = this.wakeGlobal.x;
+      this.strokeWake.y = this.wakeGlobal.y;
+      this.strokeWake.strength = 0.58 + 0.37 * Math.abs(Math.cos(motion.stroke)) + motion.power * 0.3;
+      return;
+    }
     let angle = leg.thigh.rotation;
     let x = leg.thigh.x + Math.cos(angle) * leg.shin.x;
     let y = leg.thigh.y + Math.sin(angle) * leg.shin.x;

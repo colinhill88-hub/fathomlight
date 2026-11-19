@@ -255,6 +255,7 @@ async function boot(): Promise<void> {
 
   const visualMode = (flag: string, approved = 'painted') => (urlq.get(flag) ?? approved) === approved;
   const redesigned = urlq.get('character') !== 'original';
+  const compact = redesigned && urlq.get('character') !== 'phase9';
   // art=procedural still switches the whole Shallows pilot back to procedural art.
   const useShallowsArt = visualMode('art', 'shallows');
   const [shallowsArt, shallowsSeabed, shallowsKelp, paintedFace, paintedSuit, forestMidground, forestOutcrop, shelfMidground, worldArt] = await Promise.all([
@@ -273,7 +274,7 @@ async function boot(): Promise<void> {
   const shallowsBackdrop = shallowsArt ? new ShallowsBackdrop(shallowsArt) : null;
   let scenery = new Scenery(renderer, preset.detail, shallowsArt?.reef, shallowsSeabed ?? undefined, shallowsKelp ?? undefined, forestOutcrop, worldArt);
   const pickups = new Pickups();
-  const diver = new Diver(paintedFace, paintedSuit?.swimmer, visualMode('personality', 'surface'), redesigned);
+  const diver = new Diver(paintedFace, paintedSuit?.swimmer, visualMode('personality', 'surface'), redesigned, compact);
   diver.x = save.x;
   diver.y = save.y;
   diver.lampOn = save.lampOn;
@@ -481,7 +482,7 @@ async function boot(): Promise<void> {
   // On the stage after the post pass, so the scanner, the build grid and the collect rings stay crisp.
   app.stage.addChild(post.view, overlayCam);
   // After milestone 8 part 2: dry interiors on foot, drawn over the (hidden) world.
-  const interior = new Interior(renderer, paintedFace, paintedSuit?.walker, worldArt, redesigned);
+  const interior = new Interior(renderer, paintedFace, paintedSuit?.walker, worldArt, redesigned, compact);
   hdrRoot.addChild(interior.view);
   worldLayers.push(overlayCam);
   /** Which interior you're on foot in, if any. */

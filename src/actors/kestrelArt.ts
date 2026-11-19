@@ -20,9 +20,11 @@ const scarlet = ramp(0xf9ac79, 0xc46043, 0x713c38);
 const skin = ramp(0xffd9a6, 0xc98761, 0x75463c);
 const hair = ramp(0xad7751, 0x563930, 0x2a272a);
 const shell = ramp(0xe6f299, 0x8ba550, 0x2f5344);
+const enamel = ramp(0xf6cf83, 0xc48a4c, 0x72482f);
+const glass = ramp(0x89b8aa, 0x426f70, 0x21383f);
 
 /** Upright around the pelvis. The swimmer rotates and stretches this same cut into its own proportions. */
-export function kestrelTorso(): Container {
+export function kestrelTorso(compact = false): Container {
   const view = new Container();
   const hips = new Graphics();
   hips.moveTo(-13, -18).quadraticCurveTo(0, -20, 13, -17).lineTo(12, -4)
@@ -48,6 +50,13 @@ export function kestrelTorso(): Container {
   chest.circle(11, -29, 5.3).fill(steel).circle(12, -29, 3.15).fill(ink)
     .circle(10.5, -30.5, 0.85).fill(bone).circle(-8, -37, 1.26).fill(ochre);
   chest.moveTo(-9, -17).lineTo(-4, -15.8).stroke({ color: bone, width: 0.74, alpha: 0.53, cap: 'round' });
+  if (compact) {
+    chest.moveTo(-16, -30).quadraticCurveTo(-12, -36, -5, -34).lineTo(-1, -19)
+      .quadraticCurveTo(-8, -18, -14, -21).closePath().fill(enamel);
+    chest.moveTo(6, -28).lineTo(17, -28).lineTo(13, -21).lineTo(8, -22).closePath().fill(enamel);
+    chest.moveTo(-13, -30).quadraticCurveTo(-10, -32, -7, -31)
+      .stroke({ color: 0xf5df9a, width: 1.2, cap: 'round', alpha: 0.78 });
+  }
   view.addChild(hips, chest);
   return view;
 }
@@ -78,16 +87,40 @@ export function kestrelLimb(length: number, width: number, type: 'thigh' | 'shin
   return g;
 }
 
-export function kestrelHand(): Container {
+export function kestrelHand(compact = false): Container {
   const hand = new Container();
+  if (compact) {
+    hand.addChild(new Graphics().moveTo(-2, -5.8).lineTo(5, -7.4)
+      .quadraticCurveTo(11.8, -6.7, 12.3, 1.5).quadraticCurveTo(10, 8.6, 2, 8)
+      .lineTo(-1, 5.5).lineTo(-4, 4).quadraticCurveTo(-5, 0, -2, -1).closePath().fill(scarlet)
+      .moveTo(-3, -5.7).quadraticCurveTo(0, -7.3, 2, -6.9).lineTo(2.8, 6.8)
+      .quadraticCurveTo(-1, 8, -3.5, 5).closePath().fill(steel)
+      .moveTo(4.2, -4.1).quadraticCurveTo(7.5, -4.1, 9.2, -2)
+      .stroke({ color: 0xffd099, width: 1.4, alpha: 0.64, cap: 'round' }));
+    hand.pivot.set(4, 0);
+    return hand;
+  }
   hand.addChild(new Graphics().moveTo(-1, -3.8).quadraticCurveTo(5.5, -6, 9.5, -2.3)
     .quadraticCurveTo(12, 1.4, 8.5, 4.8).quadraticCurveTo(4, 5.5, 0, 3.3).closePath().fill(scarlet)
     .moveTo(1, 0).quadraticCurveTo(4.6, -1.5, 6, 1).stroke({ color: 0xffba81, width: 1.4, alpha: 0.64 }));
   return hand;
 }
 
-export function kestrelFin(standing: boolean, tip: boolean): Graphics {
+export function kestrelFin(standing: boolean, tip: boolean, compact = false): Graphics {
   const g = new Graphics();
+  if (compact && tip) {
+    const edge = standing ? 11.8 : 13.7;
+    const top = standing ? -5.9 : -10;
+    const bottom = standing ? 0 : 8.9;
+    const middle = (top + bottom) / 2;
+    g.moveTo(-2, top + 1.1).quadraticCurveTo(5, top - 0.4, edge, top)
+      .lineTo(edge - 0.5, middle - 1.55).lineTo(edge - 5, middle)
+      .lineTo(edge - 0.5, middle + 1.55).lineTo(edge, bottom)
+      .quadraticCurveTo(5, bottom + 0.4, -2, bottom - 1.1).closePath().fill(scarlet);
+    g.moveTo(0, top + 2).lineTo(edge - 4, top + 1.4)
+      .stroke({ color: 0xf1ab74, width: 1.15, alpha: 0.7, cap: 'round' });
+    return g;
+  }
   if (standing) {
     if (tip) {
       g.moveTo(-1, -4.5).quadraticCurveTo(8, -5.6, 14, -2.5).lineTo(14, 0).lineTo(-1, 0).closePath().fill(rubber);
@@ -128,16 +161,27 @@ function face() {
   return g;
 }
 
-export function kestrelHelmet(opening: boolean): Container {
+export function kestrelHelmet(opening: boolean, compact = false): Container {
   const view = new Container();
   const rear = new Graphics();
-  rear.moveTo(48, 15).bezierCurveTo(35, 6, 33, -18, 47, -29).quadraticCurveTo(60, -40, 76, -31)
-    .lineTo(68, -18).lineTo(67, 13).quadraticCurveTo(57, 22, 48, 15).closePath().fill(shell);
-  rear.moveTo(44, -22).quadraticCurveTo(37, -37, 30, -38).quadraticCurveTo(53, -49, 65, -42)
-    .quadraticCurveTo(71, -39, 75, -31).quadraticCurveTo(55, -36, 44, -22).closePath().fill(shell);
-  rear.moveTo(36, -39).quadraticCurveTo(57, -46, 68, -37).stroke({ color: moss, width: 2.1, alpha: 0.88, cap: 'round' });
-  rear.ellipse(50, -5, 9.4, 13.2).fill(steel).ellipse(50, -5, 6.3, 9.6).fill(ink);
-  rear.arc(50, -5, 5.9, 2.5, 5.1).stroke({ color: moss, width: 1.25, alpha: 0.85 });
+  if (compact) {
+    rear.moveTo(43, 14).quadraticCurveTo(34, 5, 36, -14).lineTo(39, -24)
+      .lineTo(40, -34).lineTo(54, -36).lineTo(61, -32).lineTo(73, -32).lineTo(85, -27)
+      .lineTo(75, -20).lineTo(72, 9).lineTo(77, 16).quadraticCurveTo(55, 26, 43, 14)
+      .closePath().fill(enamel).stroke({ color: 0x4b4235, width: 2 });
+    rear.moveTo(42, -31).lineTo(52, -33).lineTo(60, -29).lineTo(72, -29)
+      .stroke({ color: ochre, width: 2.3, alpha: 0.8, cap: 'round' });
+    rear.ellipse(48, -4, 9, 10.5).fill(steel).ellipse(48, -4, 6.8, 8.1).fill(ink)
+      .ellipse(46.5, -5, 2.8, 3.6).fill(enamel);
+  } else {
+    rear.moveTo(48, 15).bezierCurveTo(35, 6, 33, -18, 47, -29).quadraticCurveTo(60, -40, 76, -31)
+      .lineTo(68, -18).lineTo(67, 13).quadraticCurveTo(57, 22, 48, 15).closePath().fill(shell);
+    rear.moveTo(44, -22).quadraticCurveTo(37, -37, 30, -38).quadraticCurveTo(53, -49, 65, -42)
+      .quadraticCurveTo(71, -39, 75, -31).quadraticCurveTo(55, -36, 44, -22).closePath().fill(shell);
+    rear.moveTo(36, -39).quadraticCurveTo(57, -46, 68, -37).stroke({ color: moss, width: 2.1, alpha: 0.88, cap: 'round' });
+    rear.ellipse(50, -5, 9.4, 13.2).fill(steel).ellipse(50, -5, 6.3, 9.6).fill(ink);
+    rear.arc(50, -5, 5.9, 2.5, 5.1).stroke({ color: moss, width: 1.25, alpha: 0.85 });
+  }
   const head = new Container({ label: 'headRig' });
   const iris = new Container({ label: 'kestrelIris' });
   iris.position.set(82, -6.9);
@@ -159,21 +203,36 @@ export function kestrelHelmet(opening: boolean): Container {
   gasp.ellipse(82, 6.2, 2.15, 2.45).fill(0x714134).ellipse(81.7, 5.3, 1.15, 0.65).fill(0xc18063);
   head.addChild(face(), eye, brow, lid, smile, gasp);
   const plate = new Graphics({ label: 'plate' });
-  const pane = () => plate.moveTo(61, -29).bezierCurveTo(76, -37, 94, -26, 96, -13)
-    .quadraticCurveTo(101, 5, 89, 15).quadraticCurveTo(73, 23, 59, 13)
-    .bezierCurveTo(65, 5, 64, -17, 61, -29).closePath();
-  pane().fill({ color: 0xa7d5ab, alpha: 0.09 });
-  pane().stroke({ color: 0x456e50, width: 3.55, alpha: 0.9 });
-  plate.moveTo(62, -30).bezierCurveTo(76, -36, 94, -25, 96, -13)
-    .stroke({ color: moss, width: 2.8, cap: 'round' });
-  plate.moveTo(72, -25).quadraticCurveTo(86, -28, 92, -16)
-    .stroke({ color: 0xfff6ca, width: 1.8, alpha: 0.48, cap: 'round' });
-  plate.moveTo(94, -4).quadraticCurveTo(95, 7, 87, 12).stroke({ color: 0xbadecc, width: 1.6, alpha: 0.59, cap: 'round' });
+  if (compact) {
+    const porthole = () => plate.moveTo(62, -23).quadraticCurveTo(79, -29, 90, -21)
+      .lineTo(97, -9).quadraticCurveTo(98, 8, 85, 13).quadraticCurveTo(69, 19, 61, 7)
+      .quadraticCurveTo(54, -6, 62, -23).closePath();
+    porthole().fill({ color: 0x3e7680, alpha: 0.28 });
+    porthole().stroke({ color: 0x30383a, width: 6 });
+    porthole().stroke({ color: 0xb18450, width: 2.4 });
+    plate.moveTo(62, -20).quadraticCurveTo(76, -27, 88, -20)
+      .stroke({ color: 0xe6c58c, width: 2.6, cap: 'round' });
+    plate.moveTo(93, -11).quadraticCurveTo(99, 3, 87, 10)
+      .stroke({ fill: glass, width: 2.5, cap: 'round' });
+    plate.circle(62, 2, 1.5).fill(bone).circle(91, -16, 1.3).fill(bone);
+  } else {
+    const pane = () => plate.moveTo(61, -29).bezierCurveTo(76, -37, 94, -26, 96, -13)
+      .quadraticCurveTo(101, 5, 89, 15).quadraticCurveTo(73, 23, 59, 13)
+      .bezierCurveTo(65, 5, 64, -17, 61, -29).closePath();
+    pane().fill({ color: 0xa7d5ab, alpha: 0.09 });
+    pane().stroke({ color: 0x456e50, width: 3.55, alpha: 0.9 });
+    plate.moveTo(62, -30).bezierCurveTo(76, -36, 94, -25, 96, -13)
+      .stroke({ color: moss, width: 2.8, cap: 'round' });
+    plate.moveTo(72, -25).quadraticCurveTo(86, -28, 92, -16)
+      .stroke({ color: 0xfff6ca, width: 1.8, alpha: 0.48, cap: 'round' });
+    plate.moveTo(94, -4).quadraticCurveTo(95, 7, 87, 12).stroke({ color: 0xbadecc, width: 1.6, alpha: 0.59, cap: 'round' });
+  }
   const collar = new Graphics().moveTo(47, 11).quadraticCurveTo(66, 17, 87, 12).lineTo(83, 22)
     .quadraticCurveTo(61, 26, 48, 20).closePath().fill(steel);
   collar.moveTo(50, 17).quadraticCurveTo(67, 22, 82, 17).stroke({ color: bone, width: 1.4, alpha: 0.66 });
   if (opening) {
-    plate.pivot.set(65, -31); plate.position.set(65, -31);
+    const hingeY = compact ? -24 : -31;
+    plate.pivot.set(65, hingeY); plate.position.set(65, hingeY);
   }
   const fog = new Graphics({ label: 'visorFog', alpha: 0 }).ellipse(85, 6, 9, 5).fill({ color: 0xe7f4de, alpha: 0.47 });
   const drops = new Graphics({ label: 'visorDrops', alpha: 0 });
