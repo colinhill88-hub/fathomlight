@@ -1800,6 +1800,21 @@ Colin: dragging pipes from one piece to another wasn't working well. What was wr
 - **The drag could get stuck.** The pointer is captured during the drag, so crossing the build bar or info box no longer loses it; a cancelled touch ends it cleanly; a second finger turns it into a pinch/pan and leaves the line waiting for a tap.
 - Storage (sends and takes conveyors) still works both ways: both kinds of target light up while dragging from it.
 
+### More copper in the basin (2026-11-19)
+
+Colin: copper was the early-game bottleneck. Three more copper nodules lie on the flat floor at the bottom of the basin's west side, at x -2110, -1930 and -1720 (ids `copper-b0` to `copper-b2`, appended at the end of `SPOTS` in `src/world/pickups.ts` so saved ids and random draws keep their places). That makes 10 copper spots in all; they regrow like the others.
+
+### KD-1 delivery runs: the cargo cradle (2026-11-19)
+
+Colin: the companion robot should find a dive-bag attachment in the kelp forest and ferry materials back to base storage on its own, on a key that isn't C, taking longer the further out you are, travelling through the real world, and with no building until it's back.
+
+- **The find:** KD-1's **cargo cradle** lies in the kelp forest sand at x 12500 (between the crab-picked wreckage and the moss). Picked up by touch like the jar and thrusters (`'carrier'` kit find in `src/world/pickups.ts`; `save.kit.carrier`). Once found, KD-1 wears two little rails under its belly, and a net pouch hangs from them while it holds cargo.
+- **Sending it:** **H** on the keyboard, **d-pad down** on a gamepad, the **Send** button on touch (shown once the cradle is found, dimmed while KD-1 is away). Deliberately not Collect (C / X / the Collect button), so reaching for a material never sends it off. KD-1 takes every material in the dive bag (the jar's creature stays with you) to the nearest finished, powered storage pod. It won't go while welding a frame, with an empty bag, without a powered pod, or if no way through the water is found; a toast says which.
+- **Through the world, not a teleport:** `src/world/navgrid.ts` finds a route through open water with A* on a 40-unit grid over the terrain's own `isSolid` (rock, caves, wrecks, and every gate still shut, such as the kelp wall). Cells are tested only as the search reaches them, and the route is pulled tight to straight runs. KD-1 then flies it (`haul` mode in `src/actors/drone.ts`): out at 340 units/s with a full cradle, 1.8 s hovering over the pod to unload, then a fresh route back to the diver at 430 units/s, re-planned every few seconds as the diver moves. Trip time is simply the route's length, so the further out you are, the longer it takes.
+- **Storage full:** what doesn't fit stays in the cradle (`save.droneCargo`) and goes with the next trip. The cradle is in the save, so quitting mid-trip loses nothing (KD-1 comes back to you holding it).
+- **No building while it's away:** build mode won't open (a toast gives the seconds left), and the dock won't start a sub frame. Toasts when it sets off (with an estimate), when it unloads, and when it's back.
+- The benchmark save has the cradle, and exposes `window.__haul` for headless checks.
+
 ## Next
 
 **Next session: more polish** (Colin wants more before the Steam build). Ideas to choose from:
