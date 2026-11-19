@@ -186,6 +186,7 @@ const SURFACE_Y = 40;
 async function boot(): Promise<void> {
   const host = document.getElementById('game')!;
   const urlq = new URLSearchParams(location.search);
+  const livingCreatures = urlq.get('creatures') !== 'original';
   let choice: PresetChoice = loadChoice();
   let preset: Preset = resolveChoice(choice);
 
@@ -272,7 +273,7 @@ async function boot(): Promise<void> {
   const zoneBackdrop = new ZoneBackdrop(forestMidground, shelfMidground, worldArt);
   zoneBackdrop.build();
   const shallowsBackdrop = shallowsArt ? new ShallowsBackdrop(shallowsArt) : null;
-  let scenery = new Scenery(renderer, preset.detail, shallowsArt?.reef, shallowsSeabed ?? undefined, shallowsKelp ?? undefined, forestOutcrop, worldArt);
+  let scenery = new Scenery(renderer, preset.detail, shallowsArt?.reef, shallowsSeabed ?? undefined, shallowsKelp ?? undefined, forestOutcrop, worldArt, livingCreatures);
   const pickups = new Pickups();
   const diver = new Diver(paintedFace, paintedSuit?.swimmer, visualMode('personality', 'surface'), redesigned, compact);
   diver.x = save.x;
@@ -294,7 +295,6 @@ async function boot(): Promise<void> {
       diver.y = sub.y - 10;
     }
   }
-  const livingCreatures = urlq.get('creatures') !== 'original';
   const fish = [0, 0, 1].map((look) => new Glowfin(look, GROTTO, livingCreatures));
   // Milestone 4: wild creatures to collect, and life inside the creature tanks.
   const wildlife = new Wildlife(livingCreatures);
@@ -489,7 +489,7 @@ async function boot(): Promise<void> {
   /** Which interior you're on foot in, if any. */
   let inside: 'corvina' | 'base' | 'fulmar' | 'sanctum' | null = null;
   /** Milestone 11: the Choir in the sanctum's heart, and first contact (the ending). */
-  const choir = new ChoirForm();
+  const choir = new ChoirForm(livingCreatures);
   const contact = new Contact(choir);
   /** Milestone 11: the Signal array's zone map (opened at its console). */
   const zoneMap = new ZoneMap();
@@ -1232,7 +1232,7 @@ async function boot(): Promise<void> {
     snow.build(renderer, preset.particleDensity, cssW, cssH, fx.litSnow ? preset.bokeh : 0);
     if (builtDetail !== preset.detail) {
       scenery.view.destroy({ children: true });
-      scenery = new Scenery(renderer, preset.detail, shallowsArt?.reef, shallowsSeabed ?? undefined, shallowsKelp ?? undefined, forestOutcrop, worldArt);
+      scenery = new Scenery(renderer, preset.detail, shallowsArt?.reef, shallowsSeabed ?? undefined, shallowsKelp ?? undefined, forestOutcrop, worldArt, livingCreatures);
       builtDetail = preset.detail;
       populate();
     }

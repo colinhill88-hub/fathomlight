@@ -5,6 +5,7 @@ import type { WaterMotion } from '../scene/waterMotion';
 import { mulberry32, WORLD_SEED } from '../rng';
 import { TrenchScenery } from './trenchgfx';
 import { SanctumScenery } from './sanctumgfx';
+import { AnemoneCrown, BottomAnimal } from '../actors/bottomLife';
 import {
   ANCHOR_X,
   BEACON_X,
@@ -706,9 +707,11 @@ export class Scenery {
   private beaconLamp = new Graphics();
   private beaconGlow = new Graphics();
   private beaconLight!: PointLight;
-  private anemones: { core: Graphics; halo: Graphics; light: PointLight; phase: number }[] = [];
+  private anemones: { core: Container; halo: Graphics; light: PointLight; phase: number; crown?: AnemoneCrown }[] = [];
+  private readonly anemoneFlow = { x: 0, y: 0, silt: 0, energy: 0 };
+  private readonly shelfAnimals: BottomAnimal[] = [];
 
-  constructor(renderer: Renderer, detail: number, reef?: ReefTextures, seabed?: Texture, kelp?: readonly Texture[], forestOutcrop?: Texture, private readonly art?: WorldArt) {
+  constructor(renderer: Renderer, detail: number, reef?: ReefTextures, seabed?: Texture, kelp?: readonly Texture[], forestOutcrop?: Texture, private readonly art?: WorldArt, living = false) {
     // Same seed every time, so switching presets rebuilds the identical world.
     rand = mulberry32(WORLD_SEED ^ 0x5ce9);
 
@@ -938,11 +941,13 @@ export class Scenery {
       core.position.set(x, y);
       halo.circle(0, dir * -12, 34).fill({ color });
       halo.position.set(x, y);
-      this.emissive.addChild(core);
+      const crown = living ? new AnemoneCrown(x, y, dir > 0 ? 0xa1b079 : 0xb8bd84, dir) : undefined;
+      if (crown) core.destroy();
+      this.emissive.addChild(crown?.view ?? core);
       this.glow.addChild(halo);
       const light: PointLight = { x, y: y - dir * 18, radius: 230, intensity: 0.9, color: [0.62, 0.95, 0.45] };
       this.lights.push(light);
-      this.anemones.push({ core, halo, light, phase: rand() * 6 });
+      this.anemones.push({ core: crown?.view ?? core, crown, halo, light, phase: rand() * 6 });
       this.scanPoints.anemone.push({ x, y: y - dir * 14 });
     }
 
@@ -1011,11 +1016,13 @@ export class Scenery {
       core.position.set(x, y);
       halo.circle(0, -12, 34).fill({ color: 0xd8e07a });
       halo.position.set(x, y);
-      this.emissive.addChild(core);
+      const crown = living ? new AnemoneCrown(x, y, 0xc4b47a, -1) : undefined;
+      if (crown) core.destroy();
+      this.emissive.addChild(crown?.view ?? core);
       this.glow.addChild(halo);
       const light: PointLight = { x, y: y - 18, radius: 260, intensity: 0.9, color: [0.85, 0.9, 0.45] };
       this.lights.push(light);
-      this.anemones.push({ core, halo, light, phase: rand() * 6 });
+      this.anemones.push({ core: crown?.view ?? core, crown, halo, light, phase: rand() * 6 });
       this.scanPoints.anemone.push({ x, y: y - 14 });
     }
 
@@ -1023,14 +1030,14 @@ export class Scenery {
     rand = mulberry32(WORLD_SEED ^ 0xf0e57);
     this.buildForest(renderer, detail, rock, addKelp, kelpBack, kelpFront, decorLayer, forestOutcrop);
     this.buildKelpCaves(detail, rock, decorLayer);
-    this.buildShelf(detail, rock, decorLayer);
+    this.buildShelf(detail, rock, decorLayer, living);
     this.addPaintedLife(decorLayer, detail);
     if (seabed) {
       const strip = groundLayer.addChild(createShallowsSeabed(seabed));
       this.slices.push({ obj: strip, x0: BUOY_X, x1: ANCHOR_X });
     }
     // Milestone 10: the trench.
-    this.trench = new TrenchScenery(detail, this.art);
+    this.trench = new TrenchScenery(detail, this.art, living);
     this.view.addChild(this.trench.view);
     this.emissive.addChild(this.trench.emissive);
     this.glow.addChild(this.trench.glow);
@@ -1557,7 +1564,7 @@ export class Scenery {
   /** The grapple's target marker, drawn unlit so it shows in the dark. */
   private markG = new Graphics();
 
-  private buildShelf(detail: number, rock: (x0: number, x1: number, build: (g: Graphics) => void) => void, decorLayer: Container): void {
+  private buildShelf(detail: number, rock: (x0: number, x1: number, build: (g: Graphics) => void) => void, decorLayer: Container, living: boolean): void {
     // The shelf edge: rock from the plateau down to the shelf floor.
     rock(19050, 19950, (g) => {
       const pts: [number, number][] = [];
@@ -1612,10 +1619,20 @@ export class Scenery {
     for (let i = 0; i < Math.round(40 * detail); i++) {
       const x = R(19900, 26600);
       const y = gy(x) + 3;
-      const g = dg(x);
       const h = R(14, 34);
-      g.moveTo(x, y).lineTo(x + R(-3, 3), y - h).stroke({ color: 0x9a9480, width: 1.6, alpha: 0.8 });
-      for (let k = 0; k < 5; k++) g.circle(x + R(-4, 4), y - h * (0.6 + k * 0.08), R(1.5, 3)).fill({ color: 0xc8b8a0, alpha: 0.6 });
+      const lean = R(-3, 3);
+      if (living) {
+        // Maintain the legacy random sequence so the rest of the shelf stays registered.
+        for (let k = 0; k < 10; k++) rand();
+        const animal = new BottomAnimal(i % 3 === 0 ? 'worm' : 'pen', x, y, h, lean);
+        animal.view.visible = false;
+        this.shelfAnimals.push(animal);
+        decorLayer.addChild(animal.view);
+      } else {
+        const g = dg(x);
+        g.moveTo(x, y).lineTo(x + lean, y - h).stroke({ color: 0x9a9480, width: 1.6, alpha: 0.8 });
+        for (let k = 0; k < 5; k++) g.circle(x + R(-4, 4), y - h * (0.6 + k * 0.08), R(1.5, 3)).fill({ color: 0xc8b8a0, alpha: 0.6 });
+      }
     }
 
     // Anchor rings across the race.
@@ -2168,7 +2185,14 @@ export class Scenery {
   /** viewX0..viewX1 is the part of the world the camera can see. */
   update(time: number, diverX: number, diverY: number, diverVX: number, viewX0: number, viewX1: number, motion?: WaterMotion, dt = 1 / 60, diverVY = 0): void {
     for (const s of this.slices) s.obj.visible = s.x1 > viewX0 && s.x0 < viewX1;
-    this.trench.update(time, viewX0, viewX1, motion);
+    this.trench.update(time, viewX0, viewX1, motion, diverX, diverY);
+    for (const a of this.shelfAnimals) {
+      a.view.visible = a.x > viewX0 - 100 && a.x < viewX1 + 100;
+      if (!a.view.visible) continue;
+      const flow = motion ? motion.sample(a.x, a.y - 16, this.anemoneFlow).x / 65 : 0;
+      const passing = Math.max(0, 1 - Math.hypot(a.x - diverX, a.y - diverY) / 110);
+      a.update(time, flow, passing);
+    }
     this.sanctum.update(time, viewX0, viewX1, diverY - 1400, diverY + 1400);
 
     const t = time % 2.4;
@@ -2185,6 +2209,11 @@ export class Scenery {
       a.halo.alpha = 0.55 * p;
       a.light.intensity = 0.85 * p;
       a.core.rotation = Math.sin(time * 0.7 + a.phase) * 0.06;
+      if (a.crown && a.core.x > viewX0 - 100 && a.core.x < viewX1 + 100) {
+        const flow = motion ? motion.sample(a.core.x, a.core.y, this.anemoneFlow).x / 65 : 0;
+        const passing = Math.max(0, 1 - Math.hypot(diverX - a.core.x, diverY - a.core.y) / 98);
+        a.crown.update(time + a.phase, flow, passing);
+      }
     }
 
     for (const m of this.mossGlows) {
