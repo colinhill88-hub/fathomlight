@@ -4,6 +4,9 @@ import { PostStack, ZoneWeights } from './fx/post';
 import { Bench, BENCH, BENCH_SCENES, STILL, scenePos, seedBenchSave } from './dev/bench';
 import { FxToggles, loadChoice, loadFx, pixelRatioFor, renderBoost, renderScale, RENDER_SCALE_MIN, Preset, PresetChoice, resolveChoice, saveChoice, saveFx } from './presets';
 import { Water } from './scene/water';
+import { isWaterAir, ventLensAt, WaterMotion } from './scene/waterMotion';
+import { SurfaceMotion } from './fx/surfaceMotion';
+import { WaterWake } from './fx/waterWake';
 import { Backdrop } from './scene/backdrop';
 import { MarineSnow, SnowLight } from './scene/particles';
 import { ZoneBackdrop } from './scene/zonebackdrop';
@@ -217,11 +220,15 @@ async function boot(): Promise<void> {
   /** Everything of the world that goes through the post stack. Not on the stage: it is drawn into `post.sceneRT`. */
   const hdrRoot = new Container();
 
-  const water = new Water(mask);
+  const motion = urlq.get('water') === 'original' ? undefined : new WaterMotion();
+  const surfaceMotion = motion ? new SurfaceMotion() : undefined;
+  const wake = motion ? new WaterWake(motion) : undefined;
+  const cameraFlow = { x: 0, y: 0, silt: 0, energy: 0 };
+  const water = new Water(mask, surfaceMotion);
   const backdrop = new Backdrop();
   // G3: a soft blur for the near foreground kelp (Ultra).
   const dofBlur = new BlurFilter({ strength: 2, quality: 2 });
-  const lighting = new Lighting(litRT, mask);
+  const lighting = new Lighting(litRT, mask, surfaceMotion);
   const snow = new MarineSnow();
 
   const glowSprite = new Sprite(glowRT);
@@ -367,7 +374,7 @@ async function boot(): Promise<void> {
     { id: 'slock', points: () => scenery.sanctum.scanPoints.slock.filter((_, i) => !sanctum.locks[i]) },
     { id: 'sheart', points: () => scenery.sanctum.scanPoints.sheart },
   );
-  const surfaceFx = new SurfaceFx();
+  const surfaceFx = new SurfaceFx(surfaceMotion);
 
   // The base at the Kestrel site.
   const layout = new BaseLayout(save.pieces);
@@ -461,6 +468,7 @@ async function boot(): Promise<void> {
     );
     frontCam.addChild(scenery.front);
     emissiveCam.addChild(gearFx.emissive, scenery.emissive, baseView.emissive, tankLife.emissive, pickups.emissive, wildlife.emissive, escort.emissive, lurkers.emissive, hunters.emissive, sub.emissive, drone.emissive, ...fish.map((f) => f.lure), diver.lens, diver.resonDot, surfaceFx.view);
+    if (wake) emissiveCam.addChildAt(wake.view, 0);
     glowCam.addChild(scenery.glow, baseView.glow, tankLife.glow, pickups.glow, wildlife.glow, escort.glow, lurkers.glow, hunters.glow, sub.glow, drone.glow, ...fish.map((f) => f.halo), diver.lensGlow, diver.resonGlow);
   }
   populate();
@@ -1715,6 +1723,9 @@ async function boot(): Promise<void> {
       return;
     }
 
+    motion?.advance(time);
+    surfaceMotion?.update(dt);
+    const incomingVY = diver.vy;
     // Build mode: only at the Kestrel site, and not while blacking out.
     const atSite = diver.x > GRID_X0 - 260 && diver.x < GRID_X1 + 260 && diver.y < GRID_BASE + 120;
     build.setAvailable(atSite && blackout === 0 && !care.active && !dockUI.active && !station.active);
@@ -2117,7 +2128,12 @@ async function boot(): Promise<void> {
 
     // Breaking the surface: a splash, then breath vapour with each breath out.
     const [hx, hy] = diver.helmetPoint();
-    if (diver.splash > 0) surfaceFx.splash(hx, diver.splash, time);
+    if (diver.splash > 0) {
+      if (surfaceMotion && !aboard) {
+        const strength = Math.min(1.20, diver.splash * 0.67 + Math.max(Math.abs(incomingVY), Math.abs(diver.vy)) / 620 + Math.abs(diver.vx) / 1000);
+        surfaceFx.splash(hx, strength, time, diver.vx, !diver.surfaced);
+      } else surfaceFx.splash(hx, diver.splash, time);
+    }
     if (diver.exhale && hy < 0) surfaceFx.breath(hx + (hx > diver.x ? 10 : -10), hy - 4, hx > diver.x ? 1 : -1);
 
     // The cave in the east cliff is too dark to go further in without the
@@ -3214,7 +3230,16 @@ async function boot(): Promise<void> {
     // ---- After milestone 12: suit attachments and the sub's new modules ----
     gearFrame(dt, aboard, s, inControl);
 
-    for (const f of fish) f.update(dt, time, diver.x, diver.y);
+    for (const f of fish) {
+      const x = f.view.x;
+      const y = f.view.y;
+      f.update(dt, time, diver.x, diver.y);
+      if (motion && dt > 0 && Math.floor(time * 4) !== Math.floor((time - dt) * 4) && Math.abs(f.view.x - camCX) < 800 && Math.abs(f.view.y - camCY) < 480) {
+        const vx = (f.view.x - x) / dt;
+        const vy = (f.view.y - y) / dt;
+        if (Math.hypot(vx, vy) > 35) motion.disturb({ x: f.view.x, y: f.view.y, vx, vy, radius: 49, strength: 0.64 });
+      }
+    }
     const [bx, by] = diver.bubblePoint();
     bubbles.update(dt, bx, aboard ? 0 : by, diver.vx, diver.vy, diver.takeBubbles());
 
@@ -3291,7 +3316,18 @@ async function boot(): Promise<void> {
     const jy = shake > 0 ? Math.cos(time * 53) * shake * 7 : 0;
     camX = camCX - viewW / 2 + jx;
     camY = camCY - viewH / 2 + jy;
-    scenery.update(time, diver.x, diver.y, diver.vx, camX, camX + viewW);
+    if (wake && motion) {
+      const source = aboard ? sub : diver;
+      const active = blackout === 0 && !peek && !isWaterAir(source.x, source.y) && (aboard ? !S?.docked : !diver.surfaced && !pocketAir);
+      wake.track(dt, source.x, source.y, source.vx, source.vy, aboard ? 83 : 45, active, !aboard);
+      wake.update(dt, time);
+      const flow = motion.sample(camCX, camCY, cameraFlow);
+      lighting.setWaterFlow(flow.x, flow.y);
+      const plume = ventLensAt(camCX, camCY);
+      if (plume) lighting.setWaterLocal(plume.x, plume.y - 114, 2.6, 185);
+      else lighting.setWaterLocal(source.x - source.vx * 0.24, source.y - source.vy * 0.24, active ? Math.min(0.79, Math.hypot(source.vx, source.vy) / 370) : 0, 108);
+    }
+    scenery.update(time, diver.x, diver.y, diver.vx, camX, camX + viewW, motion, dt, diver.vy);
     const storedNow = MATERIALS_LIST.reduce((a, k) => a + save.stored[k], 0);
     const cap = storageCapacity(layout);
     baseView.update(dt, time, layout, cap ? storedNow / cap : 0, camX, camX + viewW, drone.welding?.id ?? null, readings);
@@ -3444,7 +3480,7 @@ async function boot(): Promise<void> {
           .slice(0, 4)
           .map((l) => ({ x: (l.x - camX) * zoom, y: (l.y - camY) * zoom, r: l.radius * zoom, k: preset.snowLight * Math.min(1.2, l.intensity), dirX: l.dirX ?? 0, dirY: l.dirY ?? 0, cone: l.coneCos ?? -2 }))
       : [];
-    snow.update(dt, time, (camCX - prevX) * zoom, (camCY - prevY) * zoom, Math.max(0.25, 1 - camCY / 1400), snowLamps);
+    snow.update(dt, time, (camCX - prevX) * zoom, (camCY - prevY) * zoom, Math.max(0.25, 1 - camCY / 1400), snowLamps, motion, camX, camY, zoom);
 
     perf.lights = lighting.lightCount;
     perf.pass('lit', () => renderer.render({ container: litRoot, target: litRT, clear: true, clearColor: [0, 0, 0, 0] }));
@@ -3535,6 +3571,9 @@ async function boot(): Promise<void> {
   // ---- Dry interiors on foot (after milestone 8 part 2) ----
   /** Hide the world and its buttons while on foot. */
   function goOnFoot(): void {
+    motion?.reset();
+    wake?.reset();
+    surfaceMotion?.reset();
     for (const l of worldLayers) l.visible = false;
     build.setAvailable(false);
     care.setAvailable(null);

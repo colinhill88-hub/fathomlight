@@ -1,6 +1,7 @@
+import { GLSL_SURFACE_MOTION, type SurfaceMotion } from './surfaceMotion';
 import { Geometry, Mesh, Shader, Texture } from 'pixi.js';
 import { RT_VERTEX, GLSL_COMMON } from './shared';
-import { WORLD_H, WORLD_SPAN, WORLD_X0 } from '../world/terrain';
+import { AIR_POCKETS, WORLD_H, WORLD_SPAN, WORLD_X0 } from '../world/terrain';
 
 /**
  * Scene lighting. Everything solid (sand, rock, plants, the diver) is first
@@ -48,6 +49,16 @@ uniform vec4 uContact[${MAX_CONTACTS}]; // x, y, radius, strength: soft ellipses
 uniform vec4 uFlags;
 
 ${GLSL_COMMON}
+${GLSL_SURFACE_MOTION}
+
+uniform vec4 uWaterLocal;
+uniform vec2 uWaterFlow;
+
+bool inDryPocket(vec2 wp) {
+  ${AIR_POCKETS.map(({ shape: s, waterY }) => `
+  if (wp.y < ${waterY.toFixed(1)} && length((wp - vec2(${s.x.toFixed(1)}, ${s.y.toFixed(1)})) / vec2(${s.rx.toFixed(1)}, ${s.ry.toFixed(1)})) < 0.97) return true;`).join('')}
+  return false;
+}
 
 vec2 hash2(vec2 p) {
   p = vec2(dot(p, vec2(127.1, 311.7)), dot(p, vec2(269.5, 183.3)));
@@ -76,6 +87,11 @@ float cellEdge(vec2 p, float t) {
 
 float caustics(vec2 wp, float t) {
   vec2 p = wp / 72.0;
+  if (uLivingWater > 0.5) {
+    p += vec2(sin(p.y * 0.42 + p.x * 0.26 - t * 0.58) * 0.49, cos(p.x * 0.53 + t * 0.41) * 0.31)
+      + uWaterFlow * (sin(t * 0.29) / 105.0);
+    t += sin(p.x * 0.38 - p.y * 0.29 + t * 0.29) * 0.73;
+  }
   p += vec2(sin(p.y * 0.7 + t * 0.4), cos(p.x * 0.6 + t * 0.3)) * 0.35;
   float a = 1.0 - smoothstep(0.0, 0.16, cellEdge(p, t * 0.9));
   float b = 1.0 - smoothstep(0.0, 0.2, cellEdge(p * 1.37 + 3.7, t * 1.15));
@@ -114,12 +130,26 @@ void main() {
   vec2 wp = uCam + vUV * uView;
   float d = wp.y;
   // 1 above the water (a head out at the surface), 0 below. Same wave as the water shader.
-  float wave = sin(wp.x * 0.021 + uTime * 1.3) * 4.0 + sin(wp.x * 0.047 - uTime * 1.9) * 2.5 + sin(wp.x * 0.11 + uTime * 2.7) * 1.0;
+  float wave = d > 65.0 ? 0.0 : waterline(wp.x, uTime);
   float air = smoothstep(wave + 1.0, wave - 1.0, d);
+  bool dry = uLivingWater > 0.5 && wp.x > 15420.0 && wp.x < 17440.0 && inDryPocket(wp);
 
   // Water distortion: nudge where we read the picture by a pixel or so.
   vec2 wob = vec2(sin(wp.y * 0.05 + uTime * 1.6) + 0.5 * sin(wp.x * 0.031 - uTime * 1.1),
                   cos(wp.x * 0.043 + uTime * 1.3) + 0.5 * sin(wp.y * 0.027 + uTime * 0.9));
+  if (uLivingWater > 0.5) {
+    // Sheltered water stays sharp. Only the nearby wake/thermal plume adds refraction.
+    wob *= 0.58;
+    if (uWaterLocal.z > 0.0) {
+      vec2 off = wp - uWaterLocal.xy;
+      float r = dot(off, off) / (uWaterLocal.w * uWaterLocal.w);
+      if (r < 1.0) {
+        float k = (1.0 - r) * (1.0 - r) * uWaterLocal.z;
+        wob += vec2(sin(off.y * 0.092 - uTime * 3.6), cos(off.x * 0.064 + uTime * 3.1)) * k;
+      }
+    }
+  }
+  if (dry) wob = vec2(0.0);
   vec2 uv = vUV + wob * (1.0 - air) * uFlags.y / uResolution;
   vec4 c = texture(uScene, uv);
 
@@ -235,6 +265,10 @@ void main() {
 
   // Light scattered by the water itself (visible beams), added on top.
   float dark = 1.0 - 0.75 * clamp(dot(absorb(d), vec3(0.33)), 0.0, 1.0);
+  if (uLivingWater > 0.5 && !dry && d > 15.0 && max(haze.r, max(haze.g, haze.b)) > 0.005) {
+    float drift = sin(wp.x * 0.018 + wp.y * 0.038 + uTime * 0.68);
+    haze *= 0.95 + 0.105 * drift;
+  }
   outRgb += haze * dark * (1.0 - c.a * 0.6) * (1.0 - air * 0.7);
 
   // Fine grain against banding.
@@ -282,12 +316,24 @@ export class Lighting {
     uContactCount: number;
     uContact: Float32Array;
     uFlags: Float32Array;
+    uWaterLocal: Float32Array;
+    uWaterFlow: Float32Array;
   };
   private readonly shader: Shader;
+  setWaterLocal(x: number, y: number, strength: number, radius: number): void {
+    const data = this.u.uWaterLocal;
+    data[0] = x; data[1] = y; data[2] = strength; data[3] = radius;
+  }
+
+  setWaterFlow(x: number, y: number): void {
+    this.u.uWaterFlow[0] = x;
+    this.u.uWaterFlow[1] = y;
+  }
+
   /** How many lights the last update sent to the shader. */
   lightCount = 0;
 
-  constructor(scene: Texture, mask: Texture) {
+  constructor(scene: Texture, mask: Texture, surface?: SurfaceMotion) {
     const geometry = new Geometry({
       attributes: { aPosition: [0, 0, 1, 0, 1, 1, 0, 1] },
       indexBuffer: [0, 1, 2, 0, 2, 3],
@@ -312,6 +358,10 @@ export class Lighting {
           uContactCount: { value: 0, type: 'f32' },
           uContact: { value: new Float32Array(4 * MAX_CONTACTS), type: 'vec4<f32>', size: MAX_CONTACTS },
           uFlags: { value: new Float32Array([0, 1, 0.6, 0]), type: 'vec4<f32>' },
+          uLivingWater: { value: surface ? 1 : 0, type: 'f32' },
+          uImpacts: { value: surface?.data ?? new Float32Array(16), type: 'vec4<f32>', size: 4 },
+          uWaterLocal: { value: new Float32Array(4), type: 'vec4<f32>' },
+          uWaterFlow: { value: new Float32Array(2), type: 'vec2<f32>' },
         },
         uScene: scene.source,
         uMask: mask.source,

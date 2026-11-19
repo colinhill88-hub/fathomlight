@@ -1,5 +1,6 @@
 import { Graphics, Particle, ParticleContainer, Renderer, Texture } from 'pixi.js';
 import { mulberry32 } from '../rng';
+import { isWaterAir, type FlowSample, type WaterMotion } from './waterMotion';
 
 /**
  * "Marine snow": tiny specks drifting in the water. Each speck has its own
@@ -38,6 +39,23 @@ export class MarineSnow {
   private texture: Texture | null = null;
   private width = 1;
   private height = 1;
+  private readonly motionGrid: FlowSample[] = Array.from({ length: 48 }, () => ({ x: 0, y: 0, silt: 0, energy: 0 }));
+  private readonly flow = { x: 0, y: 0, silt: 0, energy: 0 };
+
+  private flowAt(x: number, y: number): FlowSample {
+    const gx = Math.max(0, Math.min(7, x * 8 / this.width - 0.5));
+    const gy = Math.max(0, Math.min(5, y * 6 / this.height - 0.5));
+    const col = Math.min(6, Math.floor(gx)), row = Math.min(4, Math.floor(gy));
+    const i = row * 8 + col;
+    const tx = gx - col, ty = gy - row;
+    const a = this.motionGrid[i], b = this.motionGrid[i + 1], c = this.motionGrid[i + 8], d = this.motionGrid[i + 9];
+    const wa = (1 - tx) * (1 - ty), wb = tx * (1 - ty), wc = (1 - tx) * ty, wd = tx * ty;
+    this.flow.x = a.x * wa + b.x * wb + c.x * wc + d.x * wd;
+    this.flow.y = a.y * wa + b.y * wb + c.y * wc + d.y * wd;
+    this.flow.silt = a.silt * wa + b.silt * wb + c.silt * wc + d.silt * wd;
+    this.flow.energy = a.energy * wa + b.energy * wb + c.energy * wc + d.energy * wd;
+    return this.flow;
+  }
 
   build(renderer: Renderer, density: number, width: number, height: number, bokeh = 0): void {
     if (!this.texture) {
@@ -94,18 +112,27 @@ export class MarineSnow {
    * frame, so near specks stream past faster than far ones. `fade` dims the
    * specks in the dark depths.
    */
-  update(dt: number, time: number, driftX: number, driftY: number, fade: number, lamps: SnowLight[] = []): void {
+  update(dt: number, time: number, driftX: number, driftY: number, fade: number, lamps: SnowLight[] = [], motion?: WaterMotion, camX = 0, camY = 0, zoom = 1): void {
     const w = this.width + 20;
     const h = this.height + 20;
+    if (motion) {
+      for (let i = 0; i < this.motionGrid.length; i++) {
+        motion.sample(camX + ((i % 8 + 0.5) * this.width) / (8 * zoom), camY + ((Math.floor(i / 8) + 0.5) * this.height) / (6 * zoom), this.motionGrid[i]);
+      }
+    }
     for (const s of this.specks) {
       const p = s.p;
       const par = s.par;
-      p.x += (s.vx + Math.sin(time * 0.5 + s.phase) * 3) * dt - driftX * par;
-      p.y += s.vy * (0.4 + s.depth) * dt - driftY * par;
+      const flow = motion ? this.flowAt(p.x, p.y) : undefined;
+      p.x += (s.vx + Math.sin(time * 0.5 + s.phase) * 3 + (flow?.x ?? 0) * zoom * par) * dt - driftX * par;
+      p.y += (s.vy * (flow ? 0.3 + s.depth * 0.75 : 0.4 + s.depth) + (flow?.y ?? 0) * zoom * par) * dt - driftY * par;
       if (p.x < -10) p.x += w;
       else if (p.x > w - 10) p.x -= w;
       if (p.y > h - 10) p.y -= h;
       else if (p.y < -10) p.y += h;
+      const wx = camX + p.x / zoom;
+      const wy = camY + p.y / zoom;
+      if (flow && isWaterAir(wx, wy)) { p.alpha = 0; continue; }
       // G3: specks inside a lamp's light catch it: brighter and warm.
       let lit = 0;
       for (const l of lamps) {
@@ -119,8 +146,11 @@ export class MarineSnow {
         lit += k * l.k;
       }
       lit = Math.min(1.5, lit);
-      p.alpha = Math.min(1, s.base * (0.75 + 0.25 * Math.sin(time * 1.3 + s.phase)) * fade * (1 + lit * (s.bokeh ? 2.5 : 5)));
-      p.tint = lit > 0.04 ? 0xfff0c8 : 0xffffff;
+      // Slow sediment ribbons amongst sparse fast near motes. Sanctum water is much clearer.
+      const band = flow ? (0.55 + 0.36 * Math.sin(wx * 0.005 + wy * 0.014 + time * 0.28 + s.depth * 2.2) + flow.silt * 0.66) : 1;
+      const density = flow && flow.energy < 0.12 ? 0.55 : 1;
+      p.alpha = Math.min(1, s.base * (0.75 + 0.25 * Math.sin(time * 1.3 + s.phase)) * fade * band * density * (1 + lit * (s.bokeh ? 2.5 : 5)));
+      p.tint = lit > 0.04 ? 0xfff0c8 : flow ? (flow.silt > 0.51 ? 0xb5a590 : 0xb4d7db) : 0xffffff;
     }
   }
 }
