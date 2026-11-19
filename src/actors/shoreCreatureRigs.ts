@@ -31,6 +31,7 @@ export abstract class ShoreRig {
   readonly markings = new Graphics();
   readonly halo = new Graphics();
   readonly stroke: Stroke = { x: 0, y: 0, vx: 0, vy: 0, radius: 36, strength: 0 };
+  readonly eye = { x: 0, y: 0 };
   angle = 0;
   offset = 0;
   protected phase: number;
@@ -104,6 +105,8 @@ export class PuffcapRig extends ShoreRig {
     const recover = Math.sin(this.phase * Math.PI);
     this.bell.scale.set(1 - squeeze * 0.28 + recover * 0.07, 1 + squeeze * 0.23);
     this.markings.scale.copyFrom(this.bell.scale);
+    this.eye.x = 5 * this.bell.scale.x;
+    this.eye.y = 2 * this.bell.scale.y;
     this.halo.scale.copyFrom(this.bell.scale);
     this.offset = -squeeze * 4;
     this.angle = Math.sin(p.time * 0.62) * 0.12 + p.flow * 0.23;
@@ -184,6 +187,8 @@ export class TinkerRig extends ShoreRig {
     const bodyY = -Math.abs(Math.sin(this.phase * Math.PI * 2)) * walk * 2 + brace * 2;
     this.shell.y = this.shoulder.y = this.markings.y = this.halo.y = bodyY;
     this.eyes.rotation = -p.curious * 0.24 + Math.sin(p.time * 0.9) * 0.13 + p.flow * 0.13;
+    this.eye.x = 16 + 6 * Math.cos(this.eyes.rotation) + Math.sin(this.eyes.rotation);
+    this.eye.y = -13 + bodyY + 6 * Math.sin(this.eyes.rotation) - Math.cos(this.eyes.rotation);
     this.claw.rotation = -0.22 + probe * 0.46 - p.curious * 0.48 + brace * 0.59;
     this.finger.rotation = 0.16 + probe * (0.28 + Math.sin(p.time * 12) * 0.2) + p.curious * 0.38;
     this.legs.forEach(({ limb, shin, foot, far }, i) => {
@@ -258,6 +263,8 @@ export class LanternShrimpRig extends ShoreRig {
       else this.markings.ellipse(x, pattern === 2 ? -3 - i : 5 - i, i === 3 ? 2.8 : 1.8, 1.3).fill(0xffe2a5);
     }
     this.halo.ellipse(8, 2, 24, 17).fill({ color: 0xffc784, alpha: 0.35 });
+    this.eye.x = 24;
+    this.eye.y = -12;
     Object.assign(this.stroke, { radius: 44, vx: -58, vy: 18 });
   }
 
@@ -297,9 +304,11 @@ export class CinderRig extends ShoreRig {
   private readonly head: Container;
   private readonly feelers: Container[] = [];
   private readonly frill: Container[] = [];
+  private readonly eyeHeight: number;
 
   constructor(young: boolean, pattern: number, phase: number) {
     super(phase);
+    this.eyeHeight = young ? 10 : 15;
     this.head = joint(this.view, 13, 0);
     this.head.addChild(new Graphics().moveTo(-5, 3).quadraticCurveTo(3, -9, 15, -9).quadraticCurveTo(24, -4, 17, 4)
       .lineTo(-4, 6).fill(0x9b7d67).moveTo(4, 0).quadraticCurveTo(11, -7, 17, -4).stroke({ color: 0xcab296, width: 2.4 }));
@@ -357,6 +366,11 @@ export class CinderRig extends ShoreRig {
       part.rotation = Math.sin(p.time * (0.98 + i * 0.56) + i) * 0.29 + retract * 0.59 + p.flow * 0.38;
       part.scale.y = 1 - retract * 0.47;
     });
+    const front = this.feelers[1];
+    const eyeX = (front.x + 6.6 * Math.cos(front.rotation) + this.eyeHeight * front.scale.y * Math.sin(front.rotation)) * this.head.scale.x;
+    const eyeY = front.y + 6.6 * Math.sin(front.rotation) - this.eyeHeight * front.scale.y * Math.cos(front.rotation);
+    this.eye.x = this.head.x + eyeX * Math.cos(this.head.rotation) - eyeY * Math.sin(this.head.rotation);
+    this.eye.y = this.head.y + eyeX * Math.sin(this.head.rotation) + eyeY * Math.cos(this.head.rotation);
     this.frill.forEach((lobe, i) => { lobe.scale.y = 0.83 + Math.sin(wave - i * 0.88) * walk * 0.29 - retract * 0.31; });
     this.angle = Math.atan(p.floor) * 0.52;
     if (step && walk > 0.7) this.stroke.strength = 0.09;

@@ -163,8 +163,10 @@ export class Wildlife {
     if (!lamp.on || strength <= 0) return;
     for (const w of this.all) {
       if (!w.present || w.stage === 'egg') continue;
-      const hx = w.x + w.critter.face * w.size * 7;
-      const hy = w.y - w.size * 1.5;
+      if (this.living && !w.critter.view.visible) continue;
+      const eye = w.critter.eyeshine();
+      const hx = eye?.x ?? w.x + w.critter.face * w.size * 7;
+      const hy = eye?.y ?? w.y - w.size * 1.5;
       const dx = hx - lamp.x;
       const dy = hy - lamp.y;
       const d = Math.hypot(dx, dy);

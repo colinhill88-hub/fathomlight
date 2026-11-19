@@ -21,11 +21,13 @@ function dapples(g: Graphics, spots: readonly (readonly [number, number, number]
 export class DappleRayRig {
   readonly view = new Container();
   readonly tip = new Point();
+  readonly eye = { x: 16.6, y: -6.2 };
   readonly stroke: Stroke = { x: 0, y: 0, vx: -38, vy: 32, radius: 42, strength: 0 };
   private readonly wings = [new Container(), new Container()];
   private readonly tips = [new Container(), new Container()];
   private readonly tail: Container[] = [];
   private readonly segmentLength: number;
+  private readonly wingReach: number;
   private phase: number;
   rest = 0;
   bank = 0;
@@ -33,6 +35,7 @@ export class DappleRayRig {
   constructor(young: boolean, phase: number) {
     this.phase = phase;
     this.segmentLength = young ? 4.9 : 6;
+    this.wingReach = young ? 13 : 23;
     let mount = this.view;
     for (let i = 0; i < 5; i++) {
       const joint = new Container();
@@ -50,21 +53,24 @@ export class DappleRayRig {
       const root = this.wings[i];
       const outer = this.tips[i];
       const span = young ? 0.82 : 1;
+      const reach = this.wingReach;
       root.position.set(-3.5, 0);
       const edge = far ? 0x837c63 : 0xddc18e;
       const upper = new Graphics().moveTo(-18, 0.7).quadraticCurveTo(-17, 7.2, -11, 11.3 * span)
         .lineTo(4, 10.5 * span).quadraticCurveTo(14, 5.2, 22, -1.4)
         .quadraticCurveTo(6, -4.2, -18, 0.7).closePath().fill(far ? 0x8e826a : sand);
-      outer.position.set(-5.2, 9 * span);
+      outer.position.set(-5.2, 9.6 * span);
       const tip = new Graphics().moveTo(-9, -2.8).lineTo(-7.5, 1.9)
-        .quadraticCurveTo(-6.9, 10.7 * span, -4.2, 12.3 * span)
-        .quadraticCurveTo(1.5, 12.5 * span, 7.4, 7.8 * span).quadraticCurveTo(12, 3.8, 18, -6.2)
+        .quadraticCurveTo(-9.4, reach * 0.75, -13.2, reach)
+        .quadraticCurveTo(-0.9, reach * 0.92, 7.4, reach * 0.51).quadraticCurveTo(13, reach * 0.18, 18, -6.2)
         .quadraticCurveTo(7.3, 0.4, -9, -2.8).closePath().fill(far ? 0x958a6c : sand);
-      tip.moveTo(-4.3, 12 * span).quadraticCurveTo(3.6, 12.5 * span, 11, 3)
-        .stroke({ color: edge, width: 1.1, alpha: 0.67, cap: 'round' });
+      tip.moveTo(-12.1, reach - 0.96).quadraticCurveTo(5.6, reach * 0.72, 12, 3)
+        .stroke({ color: edge, width: 2.05, alpha: 0.81, cap: 'round' });
+      tip.moveTo(-10, reach - 2).quadraticCurveTo(-5, reach * 0.41, -2.3, 0)
+        .stroke({ color: far ? 0x7d7d6a : 0x837357, width: 1.85, alpha: 0.75 });
       if (!far) {
         dapples(upper, [[-10.3, 3.3, 2.2], [-3.7, 6.6, 2], [5.2, 3.4, 2.45]]);
-        dapples(tip, [[-3, 5.2, 2], [3.7, 3.8, 1.55]]);
+        dapples(tip, [[-3, reach * 0.61, 2.8], [3.7, reach * 0.36, 2.1]]);
       }
       outer.addChild(tip);
       root.addChild(outer, upper);
@@ -104,8 +110,8 @@ export class DappleRayRig {
     }
     const near = this.wings[1];
     const outer = this.tips[1];
-    const tipX = outer.x - Math.sin(outer.rotation) * 10;
-    const tipY = (outer.y + Math.cos(outer.rotation) * 10) * near.scale.y;
+    const tipX = outer.x - 13 * Math.cos(outer.rotation) - Math.sin(outer.rotation) * this.wingReach;
+    const tipY = (outer.y - 13 * Math.sin(outer.rotation) + Math.cos(outer.rotation) * this.wingReach) * near.scale.y;
     this.stroke.x = near.x + tipX * Math.cos(near.rotation) - tipY * Math.sin(near.rotation);
     this.stroke.y = near.y + tipX * Math.sin(near.rotation) + tipY * Math.cos(near.rotation);
     this.stroke.strength = dt > 0 && this.phase < previous && speed > 25 && span > 0.3 ? 0.27 + alarm * 0.15 : 0;

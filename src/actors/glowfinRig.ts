@@ -46,17 +46,19 @@ export class GlowfinRig {
   constructor(color: GlowfinColors, young: boolean, phase: number) {
     this.phase = phase;
     // Fry have a fuller forehead, a shorter stalk and a rounder tail paddle.
-    const back = young ? -13 : -17;
-    const brow = young ? -13 : -11;
-    const finLength = young ? 10 : 15;
+    const back = young ? -13 : -20;
+    const brow = young ? -16 : -23;
+    const finLength = young ? 10 : 19;
     this.finTip = new Point(-finLength + 1, 0);
     const hull = new Graphics();
-    hull.moveTo(back, 2).bezierCurveTo(back - 1, -6, -9, brow, 4, brow)
-      .bezierCurveTo(14, brow, 20.5, -6, 20.5, -1)
-      .bezierCurveTo(20.5, 7, 11, 11.8, 0, 11.5)
+    hull.moveTo(back, 2).bezierCurveTo(back - 5, -9, -12, brow, 4, brow)
+      .bezierCurveTo(19, brow, 24, -11, 22.8, -1)
+      .bezierCurveTo(22, 11, 11, 18.2, 0, 14)
       .quadraticCurveTo(back + 2, 11, back, 2).closePath().fill(material(color));
-    hull.moveTo(-13, -6).bezierCurveTo(-10, -13, -1, -17, 6, -10)
-      .quadraticCurveTo(-3, -8, -13, -6).closePath().fill({ color: color.fin, alpha: 0.88 });
+    hull.moveTo(back + 2, -4).bezierCurveTo(back + 1, brow * 0.87, -6, brow - 3, 7, brow + 2)
+      .quadraticCurveTo(-5, brow + 5, back + 2, -4).fill({ color: color.belly, alpha: 0.47 });
+    hull.moveTo(-13, -5).quadraticCurveTo(-6, -13, 1, -12).quadraticCurveTo(-4, -4, -5, 5)
+      .quadraticCurveTo(-12, 6, -13, -5).fill({ color: color.stripe, alpha: 0.63 });
     for (const x of [-11, -5, 1]) {
       hull.moveTo(x, -8.7).quadraticCurveTo(x + 3.7, -1, x + 1.3, 7.9)
         .stroke({ color: color.stripe, width: young ? 1.75 : 2.5, alpha: 0.72, cap: 'round' });
@@ -65,12 +67,11 @@ export class GlowfinRig {
       .stroke({ color: color.belly, width: 1.8, alpha: 0.52, cap: 'round' });
     hull.moveTo(6.5, -6.4).quadraticCurveTo(9.3, 1.5, 6.5, 7.5)
       .stroke({ color: color.stripe, width: 1.45, alpha: 0.75, cap: 'round' });
-    const eye = young ? 4.7 : 3.7;
-    hull.circle(13.1, -3.8, eye + 0.65).fill({ color: color.belly, alpha: 0.9 })
-      .circle(13.1, -3.8, eye).fill(0x242229)
-      .circle(14.2, -5, eye * 0.29).fill(0xfff1d0);
-    hull.moveTo(16.2, 2.2).quadraticCurveTo(18.6, 2.6, 19.5, 1.1)
-      .stroke({ color: color.stripe, width: 0.85, cap: 'round' });
+    const eye = young ? 5.3 : 5.8;
+    hull.ellipse(12.5, -7.2, eye + 2.6, eye + 1.4).fill({ color: color.belly, alpha: 0.85 })
+      .circle(14.1, -7.7, eye).fill(0x242229).circle(15.8, -9.3, eye * 0.37).fill(0xfff1d0);
+    hull.moveTo(15.3, 5).quadraticCurveTo(19.5, 7, 21.3, 3.6)
+      .stroke({ color: color.stripe, width: 1.25, cap: 'round' });
 
     this.wrist.position.set(back + 1.4, 1.8);
     this.wrist.addChild(new Graphics().moveTo(2.5, -3.4).lineTo(-5.7, -1.9)
@@ -88,20 +89,21 @@ export class GlowfinRig {
     this.wrist.addChild(this.paddle);
     this.near.position.set(5.6, 1.7);
     this.far.position.set(3.8, 0.9);
+    const finReach = young ? 13 : 21;
     const flipper = (dark: boolean) => new Graphics().moveTo(0, -0.8)
-      .bezierCurveTo(-3.8, -1.3, -11, 1.4, -13, 7.5)
-      .quadraticCurveTo(-7.2, 11.3, -3.4, 7.5).quadraticCurveTo(0.6, 4.9, 0, -0.8)
+      .bezierCurveTo(-5.8, -2.7, -finReach + 2, 4, -finReach, 13.5)
+      .quadraticCurveTo(-finReach * 0.44, 17.5, -3.4, 10.5).quadraticCurveTo(0.6, 6, 0, -0.8)
       .closePath().fill({ color: dark ? color.stripe : color.fin, alpha: dark ? 0.83 : 0.95 })
-      .moveTo(-1.4, 1.5).quadraticCurveTo(-6, 2.1, -10.1, 7)
-      .stroke({ color: color.belly, alpha: 0.53, width: 0.95, cap: 'round' });
+      .moveTo(-1.4, 1.5).quadraticCurveTo(-finReach * 0.51, 4.3, -finReach + 2, 12)
+      .stroke({ color: color.belly, alpha: 0.7, width: 1.45, cap: 'round' });
     this.near.addChild(flipper(false));
     this.far.addChild(flipper(true));
 
     this.stalk.position.set(6, brow + 0.3);
-    this.tip.set(young ? 8.6 : 13, young ? -8.4 : -13);
+    this.tip.set(young ? 8.6 : 19, young ? -8.4 : -16);
     const stalk = new Graphics().moveTo(-0.8, 1.9)
-      .bezierCurveTo(-1.6, -7.1, this.tip.x - 5.2, this.tip.y - 4.3, this.tip.x, this.tip.y)
-      .stroke({ color: color.stripe, width: 1.55, cap: 'round' });
+      .bezierCurveTo(-1.6, -8.1, this.tip.x - 3.2, this.tip.y - 13.3, this.tip.x, this.tip.y)
+      .stroke({ color: color.stripe, width: 2.05, cap: 'round' });
     this.stalk.addChild(stalk);
     this.body.addChild(this.far, this.wrist, hull, this.near, this.stalk);
     batchAll(this.body);

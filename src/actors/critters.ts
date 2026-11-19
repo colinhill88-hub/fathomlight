@@ -97,6 +97,7 @@ export class Critter {
   private shoreRig?: ShoreRig;
   private eggs?: Container;
   readonly stroke: Stroke = { x: 0, y: 0, vx: 0, vy: 0, radius: 0, strength: 0 };
+  private readonly eye = { x: 0, y: 0 };
 
   constructor(
     readonly species: SpeciesId,
@@ -780,6 +781,19 @@ export class Critter {
     this.stroke.vy = stroke.vx * Math.sign(sx) * s + stroke.vy * c;
     this.stroke.radius = stroke.radius;
     this.stroke.strength = stroke.strength;
+  }
+
+  eyeshine(): { x: number; y: number } | undefined {
+    const eye = this.shoreRig?.eye ?? this.rayRig?.eye;
+    if (!eye) return undefined;
+    const { x, y, rotation, scale } = this.view;
+    const dx = eye.x * scale.x;
+    const dy = eye.y * scale.y;
+    const c = Math.cos(rotation);
+    const s = Math.sin(rotation);
+    this.eye.x = x + dx * c - dy * s;
+    this.eye.y = y + dx * s + dy * c;
+    return this.eye;
   }
 
   setVisible(v: boolean): void {

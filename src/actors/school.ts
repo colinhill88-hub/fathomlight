@@ -52,6 +52,7 @@ export class School {
   private retarget = 0;
   private fish: Fish[] = [];
   private readonly flow = { x: 0, y: 0, silt: 0, energy: 0 };
+  private wakeDelay = 0;
 
   constructor(
     count: number,
@@ -111,6 +112,7 @@ export class School {
     const visible = this.cx > viewX0 - 300 && this.cx < viewX1 + 300;
     this.view.visible = visible;
     const waterY = this.living && visible && water ? water.sample(this.cx, this.cy, this.flow).y : 0;
+    this.wakeDelay = Math.max(0, this.wakeDelay - dt);
 
     for (const f of this.fish) {
       // Each fish wants to be at its place in the school, plus a slow wobble.
@@ -152,6 +154,11 @@ export class School {
       f.g.position.set(f.x, f.y);
       if (f.silverbar) {
         f.silverbar.update(f.g, dt, f.vx, f.vy, f.face, Math.min(1, sp / 130), waterY);
+        if (water && !this.wakeDelay && fd < 266 && sp > 125) {
+          const tip = f.silverbar.tailTip;
+          water.disturb({ x: tip.x, y: tip.y, vx: -f.vx * 0.35, vy: -f.vy * 0.35, radius: 32, strength: 0.28 });
+          this.wakeDelay = 0.38;
+        }
       } else if (f.tail) {
         f.g.scale.x = Math.abs(f.g.scale.y) * f.face;
         f.g.rotation = Math.atan2(f.vy, Math.abs(f.vx) + 15) * 0.6 * f.face;
