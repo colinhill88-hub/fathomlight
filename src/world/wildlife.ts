@@ -5,6 +5,7 @@ import { Critter } from '../actors/critters';
 import type { Traits } from '../game/traits';
 import { REGROW_SECONDS, SaveData, SpeciesId } from '../game/state';
 import type { PointLight } from './scenery';
+import type { FlowSample, WaterMotion } from '../scene/waterMotion';
 
 /**
  * Wild creatures you can collect (milestone 4), with fixed homes so the
@@ -78,6 +79,8 @@ export class Wildlife {
   working = false;
   private lastTarget = '';
   private eggLights = new Map<string, PointLight>();
+  private readonly flow: FlowSample = { x: 0, y: 0, silt: 0, energy: 0 };
+  private strokeDelay = 0;
 
   constructor(private readonly living = false) {
     const add = (w: Omit<Wild, 'critter' | 'x' | 'y' | 'vx' | 'vy' | 'tx' | 'ty' | 'retarget' | 'scared' | 'rest' | 'pull' | 'present'>) => {
@@ -204,8 +207,9 @@ export class Wildlife {
    * held: Collect is held and the diver can take this creature (jar empty,
    * species scanned). Returns caught events.
    */
-  update(dt: number, time: number, dx: number, dy: number, diverSpeed: number, boosting: boolean, save: SaveData, held: boolean, viewX0: number, viewX1: number): WildEvent[] {
+  update(dt: number, time: number, dx: number, dy: number, diverSpeed: number, boosting: boolean, save: SaveData, held: boolean, viewX0: number, viewX1: number, water?: WaterMotion): WildEvent[] {
     const events: WildEvent[] = [];
+    this.strokeDelay = Math.max(0, this.strokeDelay - dt);
     const now = save.playSeconds;
     let best: Wild | null = null;
     let bestD = REACH;
@@ -313,13 +317,25 @@ export class Wildlife {
       }
       w.critter.setVisible(near);
       if (near) {
-        const ray = this.living && w.species === 'ray' && w.stage !== 'egg';
+        const animate = this.living && w.stage !== 'egg';
+        const ray = animate && w.species === 'ray';
+        const ground = animate && (w.species === 'crab' || w.species === 'snail');
+        const curious = animate && (w.species === 'crab' || w.species === 'shrimp') && diverSpeed < 45 && !held && !w.scared
+          ? Math.max(0, 1 - Math.abs(fd - 165) / 135) : 0;
+        const current = animate && water ? Math.max(-1, Math.min(1, water.sample(w.x, w.y, this.flow).x / 70)) : 0;
         w.critter.update(dt, time, w.x, w.y, w.vx, w.vy, {
           vigour: 1, sick: 0, size: w.size,
           resting: ray && w.rest > 0,
           floorGap: ray ? groundY(w.x) - w.y : undefined,
-          notice: ray ? Math.min(1, w.scared / 3) : undefined,
+          notice: animate ? Math.min(1, w.scared / 3) : undefined,
+          curious, current,
+          floorSlope: ground ? (groundY(w.x + 12) - groundY(w.x - 12)) / 24 : 0,
         });
+        const stroke = w.critter.stroke;
+        if (animate && water && stroke.strength && this.strokeDelay === 0 && fd < 440) {
+          water.disturb(stroke);
+          this.strokeDelay = 0.24;
+        }
       }
       if (w.collectible && w.scared <= 0 && fd < bestD) {
         bestD = fd;

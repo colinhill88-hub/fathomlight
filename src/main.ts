@@ -2639,7 +2639,7 @@ async function boot(): Promise<void> {
     // After milestone 12: the specimen satchel is a second slot.
     const jarFull = !!save.jar && (!hasGear(save, 'satchel') || !!save.jar2);
     const wildOk = !!wt && wtKnown && wildSpare && save.kit.jar && !jarFull && !diver.surfaced && !atDrone;
-    for (const ev of wildlife.update(dt, time, reachPt.x, reachPt.y, Math.hypot(diver.vx, diver.vy), aboard ? sub.thrust > 0 : diver.boosting, save, collectHeld && wildOk, camX - 200, camX + lastViewW + 200)) {
+    for (const ev of wildlife.update(dt, time, reachPt.x, reachPt.y, Math.hypot(diver.vx, diver.vy), aboard ? sub.thrust > 0 : diver.boosting, save, collectHeld && wildOk, camX - 200, camX + lastViewW + 200, motion)) {
       const caughtJar = { species: ev.species, stage: ev.stage, traits: wildlife.traitsOf(ev.id) };
       if (save.jar) save.jar2 = caughtJar;
       else save.jar = caughtJar;

@@ -1,5 +1,6 @@
 import { Container, FillGradient, Graphics, Point } from 'pixi.js';
 import { approach, batchAll, clamp } from './animkit';
+import type { Stroke } from './shoreCreatureRigs';
 
 const sand = new FillGradient({
   type: 'linear', start: { x: 0.3, y: 0 }, end: { x: 0.72, y: 1 },
@@ -20,6 +21,7 @@ function dapples(g: Graphics, spots: readonly (readonly [number, number, number]
 export class DappleRayRig {
   readonly view = new Container();
   readonly tip = new Point();
+  readonly stroke: Stroke = { x: 0, y: 0, vx: -38, vy: 32, radius: 42, strength: 0 };
   private readonly wings = [new Container(), new Container()];
   private readonly tips = [new Container(), new Container()];
   private readonly tail: Container[] = [];
@@ -84,9 +86,10 @@ export class DappleRayRig {
     this.update(0, 0, false, Infinity, 0, 0);
   }
 
-  update(dt: number, speed: number, resting: boolean, floorGap: number, vy: number, alarm: number): void {
+  update(dt: number, speed: number, resting: boolean, floorGap: number, vy: number, alarm: number, current = 0): void {
     this.rest = approach(this.rest, resting ? 1 : 0, resting ? 4.8 : 8.8, dt);
     this.bank = approach(this.bank, clamp(vy / 90, -0.48, 0.48), 4.3, dt);
+    const previous = this.phase;
     this.phase = (this.phase + dt * (1.85 + Math.min(1, speed / 112) * 2.7 + alarm * 1.2)) % (Math.PI * 2);
     const stroke = Math.sin(this.phase);
     const clear = clamp((floorGap - 7) / 37, 0.18, 1);
@@ -97,8 +100,15 @@ export class DappleRayRig {
       const wingbeat = far ? Math.sin(this.phase - 0.82) : stroke;
       root.scale.y = (far ? -1 : 1) * (far ? 0.58 : 0.91) * span * (0.83 + wingbeat * 0.23);
       root.rotation = (wingbeat * 0.17 + (far ? -this.bank : this.bank) * 0.27) * span;
-      this.tips[i].rotation = Math.sin(this.phase - (far ? 1.62 : 0.94)) * 0.32 * span;
+      this.tips[i].rotation = (Math.sin(this.phase - (far ? 1.62 : 0.94)) * 0.32 + current * 0.21) * span;
     }
+    const near = this.wings[1];
+    const outer = this.tips[1];
+    const tipX = outer.x - Math.sin(outer.rotation) * 10;
+    const tipY = (outer.y + Math.cos(outer.rotation) * 10) * near.scale.y;
+    this.stroke.x = near.x + tipX * Math.cos(near.rotation) - tipY * Math.sin(near.rotation);
+    this.stroke.y = near.y + tipX * Math.sin(near.rotation) + tipY * Math.cos(near.rotation);
+    this.stroke.strength = dt > 0 && this.phase < previous && speed > 25 && span > 0.3 ? 0.27 + alarm * 0.15 : 0;
     let x = -19;
     let y = 0;
     let angle = 0;

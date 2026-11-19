@@ -4,6 +4,8 @@ import type { SpeciesId } from '../game/state';
 import { traitsOf, type Traits } from '../game/traits';
 import { GlowfinRig } from './glowfinRig';
 import { DappleRayRig } from './dappleRayRig';
+import { CinderRig, LanternShrimpRig, PuffcapRig, ShoreRig, TinkerRig, type Stroke } from './shoreCreatureRigs';
+import { batchAll } from './animkit';
 
 /**
  * The keepable creatures of the sunlit shallows, drawn with code
@@ -71,6 +73,9 @@ export interface CritterPose {
   resting?: boolean;
   /** Clearance in rig units. Only supplied for a ray in the wild. */
   floorGap?: number;
+  curious?: number;
+  current?: number;
+  floorSlope?: number;
 }
 
 export class Critter {
@@ -89,6 +94,9 @@ export class Critter {
   private aura: Graphics | null = null;
   private glowfinRig?: GlowfinRig;
   private rayRig?: DappleRayRig;
+  private shoreRig?: ShoreRig;
+  private eggs?: Container;
+  readonly stroke: Stroke = { x: 0, y: 0, vx: 0, vy: 0, radius: 0, strength: 0 };
 
   constructor(
     readonly species: SpeciesId,
@@ -104,14 +112,25 @@ export class Critter {
     this.look = Math.max(0, Math.min(3, this.traits.colour));
     this.tint = BODY_TINTS[species][this.look] ?? 0xffffff;
     this.view.addChild(this.body);
-    if (stage === 'egg') this.drawEggs(r);
-    else if (species === 'glowfin') this.drawGlowfin(living);
-    else if (species === 'puffcap') this.drawPuffcap();
+    if (stage === 'egg') {
+      if (living) this.drawLivingEggs();
+      else this.drawEggs(r);
+    } else if (species === 'glowfin') this.drawGlowfin(living);
+    else if (living && species !== 'ray') {
+      const Rig = { puffcap: PuffcapRig, crab: TinkerRig, shrimp: LanternShrimpRig, snail: CinderRig }[species];
+      const rig = this.shoreRig = new Rig(stage === 'young', this.traits.pattern, this.phase);
+      this.body.addChild(rig.view);
+      this.emissive.addChild(rig.markings);
+      this.glow.addChild(rig.halo);
+      this.parts.dots = rig.markings;
+      this.parts.halo = rig.halo;
+      batchAll(rig.view);
+    } else if (species === 'puffcap') this.drawPuffcap();
     else if (species === 'crab') this.drawCrab(r);
     else if (species === 'shrimp') this.drawShrimp();
     else if (species === 'snail') this.drawSnail();
     else this.drawRay(living);
-    if (stage !== 'egg') this.drawPattern();
+    if (stage !== 'egg' && !this.shoreRig) this.drawPattern();
     if (stage !== 'egg' && this.traits.radiant) {
       // Radiant: a wider, brighter glow, and a soft aura around the whole body.
       this.parts.halo.scale.set(1.7);
@@ -454,6 +473,49 @@ export class Critter {
   }
 
   // ---- Eggs ----
+  private drawLivingEggs(): void {
+    const g = new Graphics();
+    const em = new Graphics();
+    const embryo = new Graphics();
+    this.eggs = new Container();
+    const sp = this.species;
+    const colours: Record<SpeciesId, number> = { glowfin: 0x97a87c, puffcap: 0xda8a8e, ray: 0xad7955, crab: 0xb87563, shrimp: 0xd5a587, snail: 0xc37b50 };
+    const colour = colours[sp];
+    g.ellipse(0, 2, 17, 3).fill({ color: 0x56493f, alpha: 0.55 });
+    if (sp === 'ray') {
+      g.moveTo(-18, 0).quadraticCurveTo(-14, -8, -17, -17).quadraticCurveTo(0, -22, 15, -16)
+        .quadraticCurveTo(12, -9, 18, 0).quadraticCurveTo(0, -5, -18, 0).fill(0x624b44)
+        .moveTo(-13, -13).quadraticCurveTo(0, -18, 12, -13).quadraticCurveTo(8, -7, 13, -4)
+        .quadraticCurveTo(0, -7, -13, -4).fill({ color: colour, alpha: 0.87 });
+      for (const sign of [-1, 1]) g.moveTo(sign * 14, -14).quadraticCurveTo(sign * 22, -21, sign * 23, -14)
+        .moveTo(sign * 15, -2).quadraticCurveTo(sign * 22, 2, sign * 24, -2).stroke({ color: 0x9d785c, width: 1.7 });
+      embryo.moveTo(-9, -9).quadraticCurveTo(0, -19, 8, -9).quadraticCurveTo(0, -5, -9, -9).fill(0xd9ab7c)
+        .moveTo(-4, -9).quadraticCurveTo(-9, -6, -12, -8).stroke({ color: 0xd7a684, width: 1.1 });
+      em.circle(4, -10, 1.15).fill(0xffcd89);
+    } else {
+      const count = sp === 'shrimp' ? 7 : sp === 'crab' ? 8 : sp === 'puffcap' ? 3 : 5;
+      for (let i = 0; i < count; i++) {
+        const x = (i - (count - 1) * 0.5) * (sp === 'puffcap' ? 9 : 5);
+        const rise = Math.sin((i + 0.5) / count * Math.PI);
+        const y = sp === 'puffcap' ? -8 - rise * 12 : -4 - rise * 5 + i % 2 * 3;
+        if (sp === 'puffcap') g.moveTo(x * 0.4, 1).quadraticCurveTo(x - 3, y + 9, x, y).stroke({ color: 0xba8583, width: 2.3 });
+        const rx = sp === 'puffcap' ? 6.6 : sp === 'glowfin' ? 5.8 : 4.2;
+        const ry = sp === 'snail' ? 7 : sp === 'puffcap' ? 4.1 : 4.7;
+        g.ellipse(x, y, rx, ry).fill({ color: colour, alpha: 0.92 })
+          .ellipse(x - 1, y - 1.5, rx * 0.73, ry * 0.57).fill({ color: 0xf1d8a6, alpha: 0.5 });
+        embryo.moveTo(x - rx * 0.45, y + 0.8).quadraticCurveTo(x - 0.5, y + ry * 0.69, x + rx * 0.42, y - 0.6)
+          .stroke({ color: 0x755456, width: 1.5, alpha: 0.84 });
+        em.circle(x + 0.9, y - 0.9, 1.2).fill({ color: 0xffcf92, alpha: 0.78 });
+      }
+    }
+    this.eggs.addChild(embryo);
+    this.body.addChild(g, this.eggs);
+    this.emissive.addChild(em);
+    this.parts.dots = em;
+    this.parts.halo = new Graphics().ellipse(0, -6, 20, 13).fill({ color: 0xffc788, alpha: 0.48 });
+    this.glow.addChild(this.parts.halo);
+  }
+
   private drawEggs(r: () => number): void {
     if (this.species === 'ray') return this.drawEggCase();
     if (this.species === 'puffcap') return this.drawPolyp();
@@ -528,6 +590,7 @@ export class Critter {
 
   /** Move and animate. vx, vy: current velocity (sets facing and tilt). */
   update(dt: number, time: number, x: number, y: number, vx: number, vy: number, pose: CritterPose): void {
+    this.stroke.strength = 0;
     const sick = pose.sick;
     const vig = pose.vigour;
     const slow = 1 - sick * 0.6;
@@ -545,6 +608,22 @@ export class Critter {
     if (this.stage === 'egg') {
       // Eggs only pulse gently.
       sy = s * (1 + Math.sin(t * 1.5) * 0.02);
+      if (this.eggs) this.eggs.scale.y = 1 + Math.sin(t * 3) * (0.07 + 0.06 * vig);
+    } else if (this.shoreRig) {
+      const rig = this.shoreRig;
+      const ground = this.species === 'crab' || this.species === 'snail';
+      // A crawler reverses over its planted legs rather than spinning edge-on.
+      const slope = (pose.floorSlope ?? 0) * this.face;
+      rig.update({ dt, time: t, speed: sp * slow, notice: pose.notice ?? 0, curious: pose.curious ?? 0,
+        flow: (pose.current ?? 0) * this.face, floor: slope });
+      rot = (rig.angle + (ground ? 0 : Math.atan2(vy, Math.abs(vx) + 30) * 0.25)) * this.face;
+      bob = rig.offset;
+      this.parts.dots.alpha = (this.stage === 'young' ? 0.64 : 1) * (0.36 + vig * 0.64);
+      this.parts.halo.alpha = (0.4 + 0.2 * Math.sin(t * 2.1)) * vig;
+      if (this.species === 'puffcap' && this.traits.radiant) {
+        rig.halo.scale.set(rig.halo.scale.x * 1.7, rig.halo.scale.y * 1.7);
+      }
+      this.positionStroke(rig.stroke, x, y + bob, sx * fx, sy, rot);
     } else if (this.species === 'glowfin') {
       rot = Math.atan2(vy, Math.abs(vx) + 20) * 0.5 * this.face + sick * 0.25 * this.face;
       bob = Math.sin(t * 1.7) * 2;
@@ -647,11 +726,12 @@ export class Critter {
       bob = Math.sin(t * 1.3) * 1.5;
       if (this.rayRig) {
         const rig = this.rayRig;
-        rig.update(dt, sp * slow, pose.resting ?? false, (pose.floorGap ?? Infinity) / s, vy, pose.notice ?? 0);
+        rig.update(dt, sp * slow, pose.resting ?? false, (pose.floorGap ?? Infinity) / s, vy, pose.notice ?? 0, pose.current ?? 0);
         rot = (rot + rig.bank * 0.21 * this.face) * (1 - rig.rest * 0.9);
         bob *= 1 - rig.rest * 0.95;
         this.parts.tip.position.copyFrom(rig.tip);
         this.parts.halo.position.copyFrom(rig.tip);
+        this.positionStroke(rig.stroke, x, y + bob, sx * fx, sy, rot);
       } else {
         this.paintRay(t, sp, sick * 3);
         const tg = this.parts.tail;
@@ -688,6 +768,18 @@ export class Critter {
       c.scale.set(sx * (this.stage === 'egg' ? 1 : fx), sy);
       c.rotation = rot;
     }
+  }
+
+  private positionStroke(stroke: Stroke, x: number, y: number, sx: number, sy: number, angle: number): void {
+    if (!stroke.strength) return;
+    const c = Math.cos(angle);
+    const s = Math.sin(angle);
+    this.stroke.x = x + stroke.x * sx * c - stroke.y * sy * s;
+    this.stroke.y = y + stroke.x * sx * s + stroke.y * sy * c;
+    this.stroke.vx = stroke.vx * Math.sign(sx) * c - stroke.vy * s;
+    this.stroke.vy = stroke.vx * Math.sign(sx) * s + stroke.vy * c;
+    this.stroke.radius = stroke.radius;
+    this.stroke.strength = stroke.strength;
   }
 
   setVisible(v: boolean): void {
