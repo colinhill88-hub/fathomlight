@@ -299,9 +299,9 @@ async function boot(): Promise<void> {
   // Milestone 4: wild creatures to collect, and life inside the creature tanks.
   const wildlife = new Wildlife(livingCreatures);
   // Milestone 8: wreck lurkers in their dens on the shelf.
-  const lurkers = new Lurkers(LURKER_DENS);
+  const lurkers = new Lurkers(LURKER_DENS, livingCreatures);
   // Milestone 10: the trench's predators.
-  const hunters = new DeepHunters(TR_LANTERNJAWS, TR_STALKERS, TR_SPIDERS);
+  const hunters = new DeepHunters(TR_LANTERNJAWS, TR_STALKERS, TR_SPIDERS, livingCreatures);
   // After milestone 12: flares, darts, visor marks, the tractor beam and drill sparks.
   const gearFx = new GearFx();
   const tankLife = new TankLife({ livingCreatures });
@@ -2307,7 +2307,7 @@ async function boot(): Promise<void> {
       if (diver.vx > 0) diver.vx = 0;
     }
     // ---- The wreck shelf (milestone 8): lurkers ----
-    const lk = lurkers.update(dt, diver.x, diver.y, diver.lampOn, !aboard && blackout === 0 && !boarding, camX, camX + lastViewW);
+    const lk = lurkers.update(dt, diver.x, diver.y, diver.lampOn, !aboard && blackout === 0 && !boarding, camX, camX + lastViewW, motion);
     if (lk.warn && !save.tips.includes('lurker')) {
       save.tips.push('lurker');
       hud.toast('Something stirs in the den ahead: a glowing lure, eyes catching your light. Back off, or wait for it to strike and pull back.', 'warn');
@@ -2330,7 +2330,7 @@ async function boot(): Promise<void> {
       );
     }
     // ---- The trench (milestone 10): predators ----
-    for (const ev of hunters.update(dt, { x: diver.x, y: diver.y, lampOn: diver.lampOn && diver.lamp > 0.3, speed: Math.hypot(diver.vx, diver.vy) }, !aboard && blackout === 0 && !boarding, camX, camX + lastViewW, camY, camY + viewH)) {
+    for (const ev of hunters.update(dt, { x: diver.x, y: diver.y, lampOn: diver.lampOn && diver.lamp > 0.3, speed: Math.hypot(diver.vx, diver.vy) }, !aboard && blackout === 0 && !boarding, camX, camX + lastViewW, camY, camY + viewH, motion)) {
       if (ev.type === 'bite') {
         save.suit = Math.max(0, save.suit - ev.damage);
         suitCalm = 0;

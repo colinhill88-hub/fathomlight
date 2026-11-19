@@ -2,6 +2,8 @@ import { Container, Graphics } from 'pixi.js';
 import type { Light } from '../fx/lighting';
 import { groundY, isSolid } from '../world/terrain';
 import { mulberry32, WORLD_SEED } from '../rng';
+import type { FlowSample, WaterMotion } from '../scene/waterMotion';
+import { drawRibbonStalker, drawSailJaw, drawTrestleStrider } from './predatorArt';
 
 /**
  * Milestone 10: the trench's predators (Colin: the angler, the stalker, and a
@@ -49,6 +51,9 @@ abstract class Hunter {
   y = 0;
   face = 1;
   protected time = rand() * 20;
+  visualFlow = 0;
+  wake: { x: number; y: number } | undefined;
+  protected constructor(protected readonly living: boolean) {}
   abstract readonly kind: HunterKind;
   abstract update(dt: number, d: DiverView, target: boolean, visible: boolean): HunterEvent | null;
   /** A sonar pulse: returns true if it was hunting (it backs off either way). */
@@ -56,6 +61,7 @@ abstract class Hunter {
   head(): { x: number; y: number } {
     return { x: this.x, y: this.y };
   }
+  get stirring(): boolean { return false; }
   protected show(v: boolean): void {
     this.view.visible = this.emissive.visible = this.glow.visible = v;
     if (!v) this.light.intensity = 0;
@@ -79,8 +85,9 @@ class Lanternjaw extends Hunter {
   constructor(
     readonly hx: number,
     readonly hy: number,
+    living: boolean,
   ) {
-    super();
+    super(living);
     this.x = hx;
     this.y = hy;
     this.face = rand() < 0.5 ? -1 : 1;
@@ -169,9 +176,16 @@ class Lanternjaw extends Hunter {
     const wantJaw = this.state === 'snap' ? 1 : this.state === 'drift' && dist < 260 ? 0.35 : 0.05;
     this.jaw += (wantJaw - this.jaw) * Math.min(1, dt * 10);
     this.show(visible);
-    if (visible) this.draw();
+    if (visible) {
+      if (this.living) {
+        const bright = this.state === 'rest' ? 0.25 : this.state === 'back' ? 0.4 : 0.75 + 0.25 * Math.sin(this.time * 3);
+        this.wake = drawSailJaw(this, this.x, this.y, this.face, this.time, this.jaw, Math.hypot(this.vx, this.vy), bright, this.visualFlow);
+      } else this.draw();
+    }
     return ev;
   }
+
+  get stirring(): boolean { return this.state === 'snap' || Math.hypot(this.vx, this.vy) > 98; }
 
   head(): { x: number; y: number } {
     return { x: this.x + this.face * 40, y: this.y };
@@ -242,8 +256,8 @@ class Stalker extends Hunter {
   private trail: { x: number; y: number }[] = [];
   private side = 1;
 
-  constructor(readonly area: { x0: number; x1: number; y0: number; y1: number }) {
-    super();
+  constructor(readonly area: { x0: number; x1: number; y0: number; y1: number }, living: boolean) {
+    super(living);
     this.x = this.tx = (area.x0 + area.x1) / 2;
     this.y = this.ty = (area.y0 + area.y1) / 2;
     for (let i = 0; i < 22; i++) this.trail.push({ x: this.x - i * 8, y: this.y });
@@ -356,9 +370,16 @@ class Stalker extends Hunter {
       tr[i] = { x: p.x + (ddx / l) * step, y: p.y + (ddy / l) * step };
     }
     this.show(visible);
-    if (visible) this.draw();
+    if (visible) {
+      if (this.living) {
+        drawRibbonStalker(this, tr, this.time, this.state === 'strike', this.state === 'follow', this.visualFlow);
+        this.wake = tr[tr.length - 1];
+      } else this.draw();
+    }
     return ev;
   }
+
+  get stirring(): boolean { return this.state === 'strike' || this.state === 'flee'; }
 
   private draw(): void {
     const g = this.view.clear();
@@ -427,8 +448,8 @@ class Spider extends Hunter {
   private static readonly BODY_H = 96;
   private static readonly OFFS = [-120, -78, -40, -10, 14, 44, 82, 124];
 
-  constructor(readonly area: { x0: number; x1: number }) {
-    super();
+  constructor(readonly area: { x0: number; x1: number }, living: boolean) {
+    super(living);
     this.x = this.tx = (area.x0 + area.x1) / 2;
     this.y = groundY(this.x) - Spider.BODY_H;
     for (const o of Spider.OFFS) this.feet.push({ x: this.x + o, y: groundY(this.x + o), px: this.x + o, lift: 0 });
@@ -518,9 +539,16 @@ class Spider extends Hunter {
       } else f.y = groundY(f.x);
     });
     this.show(visible);
-    if (visible) this.draw(d);
+    if (visible) {
+      if (this.living) {
+        drawTrestleStrider(this, this.feet, Spider.OFFS, this.x, this.y, this.face, this.reach, this.time, this.state !== 'wander', d, this.visualFlow);
+        this.wake = this.feet.find((f) => f.lift > 0.88);
+      } else this.draw(d);
+    }
     return ev;
   }
+
+  get stirring(): boolean { return this.state !== 'wander'; }
 
   head(): { x: number; y: number } {
     return { x: this.x + this.face * 30, y: this.y };
@@ -573,15 +601,18 @@ export class DeepHunters {
   readonly emissive = new Container();
   readonly glow = new Container();
   readonly list: Hunter[] = [];
+  private readonly flow: FlowSample = { x: 0, y: 0, silt: 0, energy: 0 };
+  private wakeDelay = 0;
 
   constructor(
     jaws: readonly { x: number; y: number }[],
     stalkers: readonly { x0: number; x1: number; y0: number; y1: number }[],
     spiders: readonly { x0: number; x1: number }[],
+    private readonly living = false,
   ) {
-    for (const j of jaws) this.list.push(new Lanternjaw(j.x, j.y));
-    for (const s of stalkers) this.list.push(new Stalker(s));
-    for (const s of spiders) this.list.push(new Spider(s));
+    for (const j of jaws) this.list.push(new Lanternjaw(j.x, j.y, living));
+    for (const s of stalkers) this.list.push(new Stalker(s, living));
+    for (const s of spiders) this.list.push(new Spider(s, living));
     for (const h of this.list) {
       this.view.addChild(h.view);
       this.emissive.addChild(h.emissive);
@@ -604,8 +635,9 @@ export class DeepHunters {
     return n;
   }
 
-  update(dt: number, d: DiverView, target: boolean, viewX0: number, viewX1: number, viewY0: number, viewY1: number): HunterEvent[] {
+  update(dt: number, d: DiverView, target: boolean, viewX0: number, viewX1: number, viewY0: number, viewY1: number, water?: WaterMotion): HunterEvent[] {
     const out: HunterEvent[] = [];
+    this.wakeDelay = Math.max(0, this.wakeDelay - dt);
     for (const h of this.list) {
       const vis = h.x > viewX0 - 400 && h.x < viewX1 + 400 && h.y > viewY0 - 400 && h.y < viewY1 + 400;
       // Far away (more than two screens), they idle without moving to save time.
@@ -614,7 +646,14 @@ export class DeepHunters {
         h.light.intensity = 0;
         continue;
       }
+      h.visualFlow = vis && this.living && water ? water.sample(h.x, h.y, this.flow, true).y / 70 : 0;
       const ev = h.update(dt, d, target, vis);
+      if (vis && this.living && water && !this.wakeDelay && h.wake && h.stirring && Math.hypot(h.x - d.x, h.y - d.y) < 500) {
+        const crabLike = h.kind === 'spider';
+        water.disturb({ x: h.wake.x, y: h.wake.y - (crabLike ? 4 : 0), vx: h.face * (crabLike ? -20 : -66), vy: crabLike ? -25 : 8,
+          radius: crabLike ? 42 : 72, strength: crabLike ? 0.22 : 0.49 });
+        this.wakeDelay = 0.42;
+      }
       if (ev) out.push(ev);
     }
     return out;
