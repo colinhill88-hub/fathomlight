@@ -1,7 +1,8 @@
 import { Container, Graphics, type Texture } from 'pixi.js';
 import { mulberry32 } from '../rng';
-import { BRASS, BeltJar, C, choirColour, drawResonatorBracer, drawResonatorHoop, FULL_KIT, JarLook, KitLook, PSUIT2_TINT, PSUIT_TINT, accentBand, buildDiveBag, kitKey, mulColour, buildHelmet, buildShoulderLamp, chromeBands, coiledHose, etching, rimEdge, rivets, scratches, segment, suitMaterialLayer } from './diver';
+import { BRASS, BeltJar, C, choirColour, drawResonatorBracer, drawResonatorHoop, FULL_KIT, JarLook, KitLook, PSUIT2_TINT, PSUIT_TINT, accentBand, buildDiveBag, kitKey, mulColour, playerHelmet, playerPart, buildShoulderLamp, chromeBands, coiledHose, etching, rimEdge, rivets, scratches, segment, suitMaterialLayer } from './diver';
 import { Glance, Spring, approach, batchAll, breathShape, clamp, smoothstep } from './animkit';
+import { KestrelExpression, kestrelFin, kestrelHand, kestrelLimb, kestrelTorso } from './kestrelArt';
 
 /**
  * The explorer on foot (after milestone 8 part 2: dry interiors with
@@ -79,6 +80,7 @@ interface Leg {
 interface Arm {
   upper: Container;
   fore: Container;
+  hand?: Container;
 }
 interface Foot {
   /** Planted: where the ankle is, in world x (with the foot flat). */
@@ -167,7 +169,7 @@ function wrap(a: number): number {
 // ---------------------------------------------------------------------------
 // The pieces, drawn once.
 
-function buildLeg(far: boolean): Leg {
+function buildLeg(far: boolean, redesigned: boolean): Leg {
   const tint = far ? FAR_TINT : 0xffffff;
   const thigh = new Container();
   const tg = segment(THIGH, 12, C.suit, C.suitShade);
@@ -176,8 +178,7 @@ function buildLeg(far: boolean): Leg {
   // Chrome knee guard, as on the diver.
   chromeBands(tg, THIGH - 5, -6.5, 9, 13, 3);
   rivets(tg, [[THIGH - 0.5, -3.5], [THIGH - 0.5, 3.5]], 0.8);
-  tg.tint = tint;
-  thigh.addChild(tg);
+  thigh.addChild(playerPart(tg, redesigned ? kestrelLimb(THIGH, 12, 'thigh') : undefined, tint));
 
   const shin = new Container();
   shin.x = THIGH;
@@ -185,8 +186,7 @@ function buildLeg(far: boolean): Leg {
   etching(sg, 3, -3.5, 12, 7, 2, rand);
   sg.rect(SHIN - 8, -5.4, 4, 10.8).fill({ color: C.red, alpha: 0.9 }); // ankle strap
   scratches(sg, 2, -4, 16, 6, 3, 0.22, rand);
-  sg.tint = tint;
-  shin.addChild(sg);
+  shin.addChild(playerPart(sg, redesigned ? kestrelLimb(SHIN, 10.5, 'shin') : undefined, tint));
   thigh.addChild(shin);
 
   // The boot: heel, sole and instep, with the short fin blade on its own
@@ -205,7 +205,6 @@ function buildLeg(far: boolean): Leg {
     .fill({ color: C.rubber });
   fg.moveTo(-HEEL, ANKLE_H - 0.6).lineTo(BALL + 1, ANKLE_H - 0.6).stroke({ color: C.rubberEdge, width: 1.2 });
   fg.moveTo(-1, -1.5).lineTo(5.5, 0.5).stroke({ color: C.visor, width: 0.9, alpha: 0.6 });
-  fg.tint = tint;
   const blade = new Container();
   blade.position.set(BALL - 1, ANKLE_H);
   const bg = new Graphics();
@@ -213,14 +212,13 @@ function buildLeg(far: boolean): Leg {
   bg.moveTo(7.5, -3.1).lineTo(11, -2.6).quadraticCurveTo(13.5, -1.6, 12.5, 0).lineTo(7.5, 0).closePath().fill({ color: C.red });
   bg.moveTo(11, -2.6).quadraticCurveTo(13.5, -1.6, 12.5, 0).stroke({ color: C.redShade, width: 1.2, alpha: 0.9 });
   bg.moveTo(1, -2).lineTo(7, -1.5).stroke({ color: 0x3e4140, width: 0.8, alpha: 0.7 });
-  bg.tint = tint;
-  blade.addChild(bg);
-  foot.addChild(fg, blade);
+  blade.addChild(playerPart(bg, redesigned ? kestrelFin(true, true) : undefined, tint));
+  foot.addChild(playerPart(fg, redesigned ? kestrelFin(true, false) : undefined, tint), blade);
   shin.addChild(foot);
   return { thigh, shin, foot, blade };
 }
 
-function buildArm(far: boolean): Arm {
+function buildArm(far: boolean, redesigned: boolean): Arm {
   const tint = far ? FAR_TINT : 0xffffff;
   const upper = new Container();
   const ug = segment(UPPER, 9, C.sleeve, C.sleeveShade);
@@ -229,8 +227,7 @@ function buildArm(far: boolean): Arm {
   ug.circle(0, 0, 5.2).stroke({ color: C.chromeDark, width: 1 });
   accentBand(ug, 8.5, -4.5, 2.4, 9);
   scratches(ug, 4, -3.5, 10, 7, 2, 0.22, rand);
-  ug.tint = tint;
-  upper.addChild(ug);
+  upper.addChild(playerPart(ug, redesigned ? kestrelLimb(UPPER, 9.5, 'upper') : undefined, tint));
   const fore = new Container();
   fore.x = UPPER;
   const fg = segment(10.5, 8, C.sleeve, C.sleeveShade);
@@ -238,10 +235,15 @@ function buildArm(far: boolean): Arm {
   fg.roundRect(10, -4.6, 9.5, 9.2, 4).fill({ color: C.red });
   fg.roundRect(11.5, 0.8, 7, 3, 1.4).fill({ color: C.redShade, alpha: 0.7 });
   fg.rect(9, -4.5, 2.6, 9).fill({ color: C.chrome });
-  fg.tint = tint;
-  fore.addChild(fg);
+  fore.addChild(playerPart(fg, redesigned ? kestrelLimb(11, 8.5, 'fore') : undefined, tint));
+  const hand = redesigned ? kestrelHand() : undefined;
+  if (hand) {
+    hand.position.set(10.8, 0);
+    hand.tint = tint;
+    fore.addChild(hand);
+  }
   upper.addChild(fore);
-  return { upper, fore };
+  return { upper, fore, hand };
 }
 
 /** The suit's body, upright: origin at the pelvis, up is -y, front is +x. */
@@ -426,10 +428,16 @@ export class Walker {
   hangTo: { x: number; y: number } | null = null;
 
   private rig = new Container();
-  private nearLeg = buildLeg(false);
-  private farLeg = buildLeg(true);
-  private nearArm = buildArm(false);
-  private farArm = buildArm(true);
+  private readonly nearLeg: Leg;
+  private readonly farLeg: Leg;
+  private readonly nearArm: Arm;
+  private readonly farArm: Arm;
+  private readonly expression?: KestrelExpression;
+  private readonly chest?: Graphics;
+  private readonly chestFlex = new Spring(0);
+  private idleGesture = 0;
+  private idleClock = 0;
+  private arrival = 0;
   private readonly torsoMaterials: ReturnType<typeof buildTorso>;
   private torso = new Container();
   private pack = new Container();
@@ -537,15 +545,21 @@ export class Walker {
   private sinL = 0;
   private sxw = 1;
 
-  constructor(paintedFace?: Texture, paintedSuit?: Texture) {
+  constructor(paintedFace?: Texture, paintedSuit?: Texture, redesigned = false) {
+    this.nearLeg = buildLeg(false, redesigned);
+    this.farLeg = buildLeg(true, redesigned);
+    this.nearArm = buildArm(false, redesigned);
+    this.farArm = buildArm(true, redesigned);
     this.torsoMaterials = buildTorso(paintedSuit);
-    const hel = buildHelmet(true, paintedFace);
-    hel.scale.set(HELMET_K);
-    hel.position.set(-64 * HELMET_K, -16 * HELMET_K);
+    const hel = playerHelmet(redesigned, true, paintedFace);
+    const helmetScale = redesigned ? 0.65 : HELMET_K;
+    hel.scale.set(helmetScale);
+    hel.position.set(-64 * helmetScale, -16 * helmetScale);
     this.headRig = hel.getChildByLabel('headRig')!;
     this.headRig.pivot.set(66, 8);
     this.headRig.position.set(66, 8);
     this.eyelid = this.headRig.getChildByLabel('eyelid', true)!;
+    if (redesigned) this.expression = new KestrelExpression(this.headRig);
     this.plate = hel.getChildByLabel('plate')!;
     // The hose comes off the helmet and is laid out for the upright body instead.
     const dh = hel.getChildByLabel('hose');
@@ -607,6 +621,13 @@ export class Walker {
       }
     };
     for (const part of [this.nearLeg.thigh, this.farLeg.thigh, this.nearArm.upper, this.farArm.upper]) collect(part);
+    if (redesigned) {
+      const fit = kestrelTorso();
+      this.chest = fit.getChildByLabel('kestrelChest')! as Graphics;
+      fit.scale.set(0.88, 0.90);
+      this.torso.addChildAt(fit, painted ? 2 : 1);
+      collect(fit);
+    }
     this.tinted.push({ g: procedural, base: procedural.tint });
     this.applyKit();
     this.rig.addChild(
@@ -651,6 +672,10 @@ export class Walker {
     if (painted) {
       painted.visible = k.psuit === 0;
       procedural.visible = !painted.visible;
+    }
+    if (this.chest) {
+      procedural.visible = false;
+      if (painted) painted.visible = false;
     }
   }
 
@@ -697,6 +722,9 @@ export class Walker {
     this.packS.set(0);
     this.bagS.set(0);
     this.plateDelay = crouch > 0 ? 0.7 : 0;
+    this.arrival = crouch > 0 ? 0.95 : 0;
+    this.idleClock = this.idleGesture = 0;
+    this.chestFlex.set(0);
   }
 
   private settleFeet(): void {
@@ -1280,6 +1308,20 @@ export class Walker {
     this.torso.position.set(px, py);
     this.torso.rotation = L;
     this.torso.scale.set(1, 1 + this.heave * (0.015 + 0.01 * (1 - this.walkAmt) * (this.mode === 'ground' ? 1 : 0)));
+    if (this.chest) {
+      this.arrival = Math.max(0, this.arrival - dt * 1.1);
+      const resting = mode === 'ground' && Math.abs(this.vx) < 12 && this.working < 0.05
+        && this.spear === 'back' && this.visorTarget > 0 && this.arrival === 0;
+      this.idleClock = resting ? this.idleClock + dt : 0;
+      const gesture = this.idleClock >= 2.5 ? (this.idleClock - 2.5) % 7.1 : 2;
+      this.idleGesture = approach(this.idleGesture, smoothstep(gesture / 0.39) * (1 - smoothstep((gesture - 0.68) / 0.68)), 12, dt);
+      const step = Math.sin(this.phase * Math.PI * 2) * this.walkAmt;
+      const landing = clamp(this.hipDrop.x / 17, -0.2, 0.9);
+      const flex = this.chestFlex.step(step * 0.11 + landing * 0.21 + this.turnT * 0.17
+        + this.working * 0.16 + this.arrival * 0.24 - this.idleGesture * 0.075, 10, 0.82, dt);
+      this.chest.rotation = flex;
+      this.chest.scale.y = 1 + this.heave * 0.032 - landing * 0.065;
+    }
     // The tanks bob on their straps with each step and landing, and tip back when speeding up.
     this.packS.step(0, 15, 0.35, dt, -hipA * 0.05);
     this.packS.clamp(-2.5, 2.5);
@@ -1294,7 +1336,13 @@ export class Walker {
     this.glance.update(dt);
     this.headS.step(clamp(lookT - L * 0.6, -0.2, 0.2), 8, 1, dt);
     this.headRig.rotation = this.headS.x;
-    this.eyelid.visible = this.glance.blinking;
+    if (this.expression) {
+      const inspect = this.working * 0.86;
+      this.helmet.rotation += this.chestFlex.x * 0.46 - this.idleGesture * 0.19;
+      this.headRig.rotation += this.idleGesture * 0.22 + inspect * 0.16;
+      this.expression.apply(this.glance.blinking, this.glance.target * 4 + inspect * 0.27,
+        this.idleGesture * 0.66 + this.arrival * 0.24, this.walkAmt * 0.47 + inspect * 0.42);
+    } else this.eyelid.visible = this.glance.blinking;
     // The face plate: lifted inside (after a moment when arriving), shut to go back out.
     this.plateDelay = Math.max(0, this.plateDelay - dt);
     const vt = this.plateDelay > 0 ? 0 : this.visorTarget;
@@ -1421,6 +1469,10 @@ export class Walker {
         el = el + (0.25 + 0.6 * run + 0.45 * spr) * this.walkAmt + Math.max(0, swing) * (0.4 + 0.3 * spr);
         // Idle: the arms hang and move a little with the breath.
         sw += (1 - this.walkAmt) * this.heave * 0.03;
+        if (this.chest && this.idleGesture > 0.001) {
+          sw += this.idleGesture * (i === 0 ? 0.73 : 0.32);
+          el += this.idleGesture * (i === 0 ? 0.54 : 0.23);
+        }
         if (this.working > 0 && i === 0 && !this.gaitOn) {
           // Working at something in front: the near hand reaches out and taps at it.
           ikx = 22;
@@ -1494,6 +1546,11 @@ export class Walker {
       a.f = a.sf + a.of.x + a.jolt.x * 1.6;
       arm.upper.rotation = a.u;
       arm.fore.rotation = a.f - a.u;
+      if (arm.hand) {
+        const grip = mode === 'climb' || mode === 'hang' || (i === 0 && this.spear === 'hand');
+        const target = grip ? clamp(-a.f - 0.25, -0.38, 0.38) : this.working > 0.1 ? 0.27 : -0.12 + Math.sin(a.u) * 0.2;
+        arm.hand.rotation = approach(arm.hand.rotation, target, grip ? 21 : 12, dt);
+      }
       if (i === 0) {
         // The near hand in world space, for the grapple line.
         const ex = shx + Math.cos(a.u) * UPPER;

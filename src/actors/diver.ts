@@ -1,7 +1,9 @@
 import { Container, Graphics, Sprite, Text, type Texture } from 'pixi.js';
 import { isSolid } from '../world/terrain';
 import { mulberry32 } from '../rng';
-import { BREATH_OUT, Glance, Spring, batchAll, breathShape } from './animkit';
+import { BREATH_OUT, Glance, Spring, approach, batchAll, breathShape } from './animkit';
+import { KestrelExpression, kestrelFin, kestrelHand, kestrelHelmet, kestrelLimb, kestrelTorso } from './kestrelArt';
+import { KestrelSwimMotion, type KestrelAction } from './kestrelMotion';
 
 /**
  * The explorer, drawn entirely with code. The suit takes its inspiration
@@ -334,9 +336,10 @@ interface Leg {
 interface Arm {
   upper: Container;
   fore: Container;
+  hand?: Container;
 }
 
-function buildLeg(far: boolean): Leg {
+function buildLeg(far: boolean, redesigned: boolean): Leg {
   const tint = far ? 0x9a9a9a : 0xffffff;
   const thigh = new Container();
   const tg = segment(24, 13, C.suit, C.suitShade);
@@ -345,8 +348,7 @@ function buildLeg(far: boolean): Leg {
   // Chrome knee guard.
   chromeBands(tg, 19, -6.5, 9, 13, 3);
   rivets(tg, [[23.5, -3.5], [23.5, 3.5]], 0.9);
-  tg.tint = tint;
-  thigh.addChild(tg);
+  thigh.addChild(playerPart(tg, redesigned ? kestrelLimb(24, 13, 'thigh') : undefined, tint));
 
   const shin = new Container();
   shin.x = 24;
@@ -354,8 +356,7 @@ function buildLeg(far: boolean): Leg {
   etching(sg, 2, -4, 16, 8, 2);
   sg.rect(14, -5.5, 5, 11).fill({ color: C.red, alpha: 0.9 }); // ankle strap
   scratches(sg, 2, -4, 18, 6, 3);
-  sg.tint = tint;
-  shin.addChild(sg);
+  shin.addChild(playerPart(sg, redesigned ? kestrelLimb(21, 11, 'shin') : undefined, tint));
   thigh.addChild(shin);
 
   // The fin is two pieces so the blade can flex: the foot pocket and the
@@ -372,7 +373,6 @@ function buildLeg(far: boolean): Leg {
       .lineTo(19, y * 1.03)
       .stroke({ color: 0x3e4140, width: 1, alpha: 0.7 });
   fg.moveTo(10, -2).lineTo(19, -2.3).stroke({ color: C.visor, width: 1, alpha: 0.7 });
-  fg.tint = tint;
   const tip = new Container();
   tip.x = 18;
   const tg2 = new Graphics();
@@ -385,14 +385,13 @@ function buildLeg(far: boolean): Leg {
       .lineTo(5, y * 1.1)
       .stroke({ color: 0x3e4140, width: 1, alpha: 0.7 });
   tg2.moveTo(0, -2.3).lineTo(2, -2.4).stroke({ color: C.visor, width: 1, alpha: 0.7 });
-  tg2.tint = tint;
-  tip.addChild(tg2);
-  fin.addChild(fg, tip);
+  tip.addChild(playerPart(tg2, redesigned ? kestrelFin(false, true) : undefined, tint));
+  fin.addChild(playerPart(fg, redesigned ? kestrelFin(false, false) : undefined, tint), tip);
   shin.addChild(fin);
   return { thigh, shin, fin, tip, finAng: -0.3, finVel: 0, prevShin: Math.PI };
 }
 
-function buildArm(far: boolean): Arm {
+function buildArm(far: boolean, redesigned: boolean): Arm {
   const tint = far ? 0x9a9a9a : 0xffffff;
   const upper = new Container();
   const ug = segment(17, 10, C.sleeve, C.sleeveShade);
@@ -401,8 +400,7 @@ function buildArm(far: boolean): Arm {
   ug.circle(0, 0, 6).stroke({ color: C.chromeDark, width: 1 });
   accentBand(ug, 9, -5, 2.6, 10);
   scratches(ug, 4, -4, 14, 8, 2);
-  ug.tint = tint;
-  upper.addChild(ug);
+  upper.addChild(playerPart(ug, redesigned ? kestrelLimb(17, 11, 'upper') : undefined, tint));
 
   const fore = new Container();
   fore.x = 17;
@@ -411,10 +409,22 @@ function buildArm(far: boolean): Arm {
   fg.roundRect(11, -5.2, 11, 10.4, 4.5).fill({ color: C.red });
   fg.roundRect(13, 1, 8, 3.5, 1.5).fill({ color: C.redShade, alpha: 0.7 });
   fg.rect(10, -5, 3, 10).fill({ color: C.chrome });
-  fg.tint = tint;
-  fore.addChild(fg);
+  fore.addChild(playerPart(fg, redesigned ? kestrelLimb(13, 9, 'fore') : undefined, tint));
+  const hand = redesigned ? kestrelHand() : undefined;
+  if (hand) {
+    hand.position.set(12, 0);
+    hand.tint = tint;
+    fore.addChild(hand);
+  }
   upper.addChild(fore);
-  return { upper, fore };
+  return { upper, fore, hand };
+}
+
+export function playerPart(legacy: Graphics, replacement: Graphics | undefined, tint: number): Graphics {
+  if (replacement) legacy.destroy();
+  const part = replacement ?? legacy;
+  part.tint = tint;
+  return part;
 }
 
 export function suitMaterialLayer(texture: Texture, trim: Graphics, x: number, y: number): Container {
@@ -897,6 +907,15 @@ export function buildHelmet(plate = false, paintedFace?: Texture): Container {
   return c;
 }
 
+export function playerHelmet(redesigned: boolean, opening: boolean, paintedFace?: Texture): Container {
+  if (!redesigned) return buildHelmet(opening, paintedFace);
+  const helmet = kestrelHelmet(opening);
+  const hose = new Graphics({ label: 'hose' });
+  coiledHose(hose, [[44, -42], [59, -46], [55, -9], [51, 3]], 4.2);
+  helmet.addChild(hose);
+  return helmet;
+}
+
 export interface LampPose {
   x: number;
   y: number;
@@ -946,10 +965,20 @@ export class Diver {
   current = { x: 0, y: 0 };
 
   private body = new Container();
-  private nearLeg = buildLeg(false);
-  private farLeg = buildLeg(true);
-  private nearArm = buildArm(false);
-  private farArm = buildArm(true);
+  private readonly nearLeg: Leg;
+  private readonly farLeg: Leg;
+  private readonly nearArm: Arm;
+  private readonly farArm: Arm;
+  private readonly character?: KestrelSwimMotion;
+  private readonly expression?: KestrelExpression;
+  private readonly chest?: Graphics;
+  private readonly helmet: Container;
+  private readonly chestFlex = new Spring(0);
+  private readonly tankSwing = new Spring(0);
+  readonly strokeWake = { x: 0, y: 0, strength: 1 };
+  visualAction: KestrelAction = 'free';
+  visualTarget: { id: string; x: number; y: number } | null = null;
+  visualCurrent = 0;
   private face = 1; // 1 right, -1 left
   /** The facing mirror (a critically damped spring) and the body's angle. */
   private faceS = new Spring(1);
@@ -1033,7 +1062,11 @@ export class Diver {
   /** With the TH-2 thruster head (found in the kelp forest). */
   private static readonly BOOST_SPEED_2 = 540;
 
-  constructor(paintedFace?: Texture, paintedSuit?: Texture, private readonly surfacePersonality = false) {
+  constructor(paintedFace?: Texture, paintedSuit?: Texture, private readonly surfacePersonality = false, redesigned = false) {
+    this.nearLeg = buildLeg(false, redesigned);
+    this.farLeg = buildLeg(true, redesigned);
+    this.nearArm = buildArm(false, redesigned);
+    this.farArm = buildArm(true, redesigned);
     // The torso is drawn long and compressed a little here for a stockier build.
     this.torsoMaterials = buildTorso(paintedSuit);
     const torso = this.torsoMaterials.view;
@@ -1100,7 +1133,17 @@ export class Diver {
     };
     for (const part of [this.nearLeg.thigh, this.farLeg.thigh, this.nearArm.upper, this.farArm.upper]) collect(part);
     for (const ch of torso.children) if (ch instanceof Graphics && ch !== this.backG && ch !== this.psuitTorso && ch !== this.ps2Torso) this.tinted.push({ g: ch, base: ch.tint });
-    const helmet = buildHelmet(false, paintedFace);
+    if (redesigned) {
+      this.character = new KestrelSwimMotion();
+      const fit = kestrelTorso();
+      this.chest = fit.getChildByLabel('kestrelChest')! as Graphics;
+      fit.position.set(-29, 0);
+      fit.scale.set(1.15, 1.65);
+      fit.rotation = Math.PI * 0.5;
+      torso.addChildAt(fit, 2);
+      collect(fit);
+    }
+    const helmet = this.helmet = playerHelmet(redesigned, false, paintedFace);
     helmet.x = -6;
     this.visorFog = helmet.getChildByLabel('visorFog')!;
     this.visorDrops = helmet.getChildByLabel('visorDrops')!;
@@ -1109,6 +1152,12 @@ export class Diver {
     this.headRig.pivot.set(66, 8);
     this.headRig.position.set(66, 8);
     this.eyelid = this.headRig.getChildByLabel('eyelid', true)!;
+    if (redesigned) {
+      this.expression = new KestrelExpression(this.headRig);
+      helmet.pivot.set(63, 17);
+      helmet.position.set(57, 17);
+      helmet.scale.set(1.08);
+    }
     // The hose sways about its chest fitting; it lives on the body, over the helmet.
     this.hose = helmet.getChildByLabel('hose')!;
     helmet.removeChild(this.hose);
@@ -1143,7 +1192,7 @@ export class Diver {
     this.view.addChild(this.body);
 
     this.lens.circle(0, 0, 2.4).fill({ color: 0xfff3d0 });
-    this.lensGlow.circle(0, 0, 14).fill({ color: 0xffe9b0, alpha: 0.9 });
+    this.lensGlow.circle(0, 0, redesigned ? 9 : 14).fill({ color: 0xffe9b0, alpha: redesigned ? 0.63 : 0.9 });
     this.resonDot.visible = this.resonGlow.visible = false;
     batchAll(this.view);
   }
@@ -1217,6 +1266,10 @@ export class Diver {
     if (painted) {
       painted.visible = k.psuit === 0;
       procedural.visible = !painted.visible;
+    }
+    if (this.character) {
+      procedural.visible = false;
+      if (painted) painted.visible = false;
     }
   }
 
@@ -1526,9 +1579,99 @@ export class Diver {
     this.body.rotation = this.pitch + Math.sin(this.kick - 0.6) * A * 0.04 * this.swimBlend;
     this.body.y = Math.sin(this.kick * 2) * A * 1.4 * this.swimBlend - this.heave * (1.2 + 0.9 * still) * (1 - this.swimBlend);
 
+    if (this.character) this.poseKestrel(dt, moveX, moveY);
     this.animateHead(dt, input);
     this.animateGear(dt);
-    this.animateLimbs(dt);
+    if (this.character && !this.working) this.poseKestrelLimbs(dt, this.character);
+    else this.animateLimbs(dt);
+    if (this.character) this.placeStrokeWake(this.character);
+  }
+
+  private poseKestrel(dt: number, mx: number, my: number): void {
+    const motion = this.character!;
+    const action = this.working ? 'busy' : this.visualAction;
+    motion.update(dt, this.vx, this.vy, mx, my, this.face, this.boostLvl, this.surfaced, this.surfaceTime,
+      this.popStrength, action, this.visualTarget, this.x, this.y, this.pitch);
+    const curl = motion.brake * 0.23 + motion.interest * motion.look * 0.16 + motion.relief * 0.15;
+    const flex = this.chestFlex.step(curl + Math.sin(motion.stroke - 0.5) * (0.034 + motion.power * 0.038)
+      - motion.reach * 0.13, 10, 0.84, dt);
+    this.chest!.rotation = flex;
+    this.chest!.scale.y = 1 + this.heave * 0.045 + motion.reach * 0.10 - motion.brake * 0.11;
+    this.helmet.rotation = flex * 0.54 - motion.relief * 0.17 - motion.trim * 0.18;
+    this.helmet.position.set(57 - motion.brake * 5 + motion.reach * 2.4, 17 + flex * 13 - motion.relief * 2);
+    this.view.scale.x = Math.sign(this.view.scale.x) * Math.max(0.26, Math.abs(this.view.scale.x));
+    this.body.y += Math.sin(this.time * 1.7) * 1.75 * (1 - motion.travel) - motion.relief * 2.2;
+    this.nearArm.upper.position.set(25 - motion.brake * 2.4, 8 + flex * 16);
+    this.farArm.upper.position.set(27 - motion.brake * 3.1, 1 + flex * 12);
+    this.nearLeg.thigh.position.set(-26 + motion.brake * 1.5, 7 + motion.brake * 3);
+    this.farLeg.thigh.position.set(-24 + motion.brake * 1.8, 2 + motion.brake * 1.5);
+    this.backG.rotation = this.tankSwing.step(motion.brake * 0.09 - motion.reach * 0.06, 8.5, 0.63, dt);
+  }
+
+  private poseKestrelLimbs(dt: number, motion: KestrelSwimMotion): void {
+    const { stroke, travel, power, reach, brake, trim, interest, adjust, relief } = motion;
+    const hover = 1 - travel;
+    const scanning = this.visualAction === 'scan';
+    const grappling = this.visualAction === 'grapple';
+    const nearFloor = !this.surfaced && isSolid(this.x - this.face * 48, this.y + 29);
+    const spread = (this.surfaced ? 0.35 : 0.12 + power * 0.43) * (nearFloor ? 0.58 : 1);
+    for (let i = 0; i < 2; i++) {
+      const near = i === 0;
+      const leg = near ? this.nearLeg : this.farLeg;
+      const arm = near ? this.nearArm : this.farArm;
+      const phase = stroke + i * Math.PI;
+      const beat = Math.sin(phase);
+      const delay = Math.sin(phase - 0.76);
+      // Power travels from the hip to the knee and then out through the two fin joints.
+      leg.thigh.rotation = Math.PI - hover * (0.38 + i * 0.19) + spread * beat
+        - brake * (0.69 + i * 0.23) + trim * 0.24 - relief * 0.18;
+      leg.shin.rotation = 0.10 + hover * (0.55 + 0.14 * i) + spread * (0.55 + delay * 0.55)
+        + brake * 0.49 - reach * 0.14;
+      const target = -0.11 - hover * 0.23 - delay * spread * 1.1 + brake * 0.25 - this.visualCurrent * hover * 0.12;
+      leg.finAng = approach(leg.finAng, target, 9, dt);
+      leg.fin.rotation = leg.finAng;
+      leg.tip.rotation = approach(leg.tip.rotation, (leg.finAng - target) * 0.63 - delay * spread * 0.34, 13, dt);
+
+      // An easy figure-eight scull becomes a longer recovery and pull as speed builds.
+      const pull = 0.5 + 0.5 * Math.sin(phase - 0.33);
+      let upper = 1.05 + Math.sin(phase * 1.0 + 0.2) * 0.19 + i * 0.23;
+      upper += travel * (1.50 + 0.50 * power - 0.58 * (1 - power) * pull);
+      let elbow = -0.78 + travel * (0.71 + 0.26 * pull);
+      upper -= reach * (near ? 1.04 : 0.63) + brake * (near ? 1.07 : 1.19);
+      elbow -= brake * 0.89 + reach * 0.28;
+      upper += interest * (near ? 0.09 : 0.31) - relief * (near ? 0.67 : 0.23) - trim * 0.37;
+      elbow -= (near ? adjust * 0.85 : 0) + relief * 0.29;
+      if (near && (scanning || grappling)) {
+        upper = scanning ? 0.68 + motion.look * 0.52 : 0.14 + trim * 0.4;
+        elbow = scanning ? -0.85 : -0.17;
+      }
+      arm.upper.rotation = approach(arm.upper.rotation, upper, 14, dt);
+      arm.fore.rotation = approach(arm.fore.rotation, elbow, 15, dt);
+      arm.hand!.rotation = approach(arm.hand!.rotation, -0.22 - delay * 0.20 + brake * 0.62 - reach * 0.25, 12, dt);
+    }
+  }
+
+  private placeStrokeWake(motion: KestrelSwimMotion): void {
+    // Switch feet close to the recovery stroke. Reuse the actual visible rig joints.
+    const side = Math.cos(motion.stroke) > 0 ? 0 : 1;
+    const leg = side === 0 ? this.nearLeg : this.farLeg;
+    let angle = leg.thigh.rotation;
+    let x = leg.thigh.x + Math.cos(angle) * leg.shin.x;
+    let y = leg.thigh.y + Math.sin(angle) * leg.shin.x;
+    angle += leg.shin.rotation;
+    x += Math.cos(angle) * leg.fin.x;
+    y += Math.sin(angle) * leg.fin.x;
+    angle += leg.fin.rotation;
+    x += Math.cos(angle) * leg.tip.x * leg.fin.scale.x;
+    y += Math.sin(angle) * leg.tip.x * leg.fin.scale.x;
+    angle += leg.tip.rotation;
+    x += Math.cos(angle) * 13;
+    y += Math.sin(angle) * 13;
+    const c = Math.cos(this.body.rotation);
+    const s = Math.sin(this.body.rotation);
+    this.strokeWake.x = this.x + this.view.scale.x * (x * this.body.scale.x * c - y * this.body.scale.y * s);
+    this.strokeWake.y = this.y + this.body.y + x * this.body.scale.x * s + y * this.body.scale.y * c;
+    this.strokeWake.strength = 0.53 + 0.46 * Math.abs(Math.cos(motion.stroke)) + motion.power * 0.28;
   }
 
   /**
@@ -1585,7 +1728,14 @@ export class Diver {
     // Add the tip to the head drawing alone. The hose still follows the breathing spring.
     const tip = reacting && t < reactionDuration ? (Math.PI / 60) * Math.sin(Math.PI * t / reactionDuration) ** 2 : 0;
     this.headRig.rotation = head - tip;
-    this.eyelid.visible = reacting ? (t >= 0.14 && t < 0.24) || (t >= 0.375 && t < 0.475) : this.glance.blinking;
+    const blink = reacting ? (t >= 0.14 && t < 0.24) || (t >= 0.375 && t < 0.475) : this.glance.blinking;
+    if (this.character && this.expression) {
+      const m = this.character;
+      const inspect = this.visualAction === 'scan' ? 0.9 : m.interest;
+      this.headRig.rotation += m.look * inspect * 0.37 - m.relief * 0.17 - m.trim * 0.09 + m.brake * 0.11;
+      this.expression.apply(blink, m.look * 1.6, Math.min(1, m.relief + m.interest * 0.7 + m.brake * 0.37),
+        Math.max(m.power * 0.66, this.visualAction === 'scan' ? 0.65 : 0), m.relief * 0.94);
+    } else this.eyelid.visible = blink;
   }
 
   /**
