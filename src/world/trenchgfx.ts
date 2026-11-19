@@ -1,4 +1,5 @@
-import { Container, Graphics, Text } from 'pixi.js';
+import { Container, Graphics, Sprite, Text } from 'pixi.js';
+import { materialFill, type WorldArt } from '../art/worldArt';
 import { mulberry32, WORLD_SEED } from '../rng';
 import {
   CLEFT,
@@ -62,7 +63,7 @@ export class TrenchScenery {
   private specks: { g: Graphics; x0: number; x1: number }[] = [];
   private rand: () => number;
 
-  constructor(detail: number) {
+  constructor(detail: number, art?: WorldArt) {
     this.rand = mulberry32(WORLD_SEED ^ 0x7e3c);
     const R = (a: number, b: number) => a + this.rand() * (b - a);
     const rock = new Container();
@@ -78,6 +79,8 @@ export class TrenchScenery {
       for (let x = x0 - 2; x <= x1 + 2; x += 8) pts.push(x, gy(x));
       pts.push(x1 + 2, WORLD_H + 300, x0 - 2, WORLD_H + 300);
       g.poly(pts).fill({ color: 0x39474b });
+      const basalt = art?.materials.basalt;
+      if (basalt) g.poly(pts).fill(materialFill(basalt, 0x39474b, 0.84, 1600, 1200));
       // Dabs near the surface of the rock (cliff faces too: a point is "near" if a column beside it is open lower down).
       const top = (x: number) => Math.min(gy(x), gy(x - 140), gy(x + 140));
       const n = Math.round(((x1 - x0) / 700) * 1100 * detail);
@@ -110,6 +113,18 @@ export class TrenchScenery {
       }
       rock.addChild(g);
       this.slices.push({ obj: g, x0: x0 - 60, x1: x1 + 60 });
+    }
+
+    // Low colonies stay away from the moving vent plumes and the Fulmar hatch.
+    for (const [i, x] of [27570, 28090, 28490, 29080, 29520, 30070, 30830, 31100, 32210].entries()) {
+      const texture = art?.life[4 + i % 2];
+      if (!texture || Math.abs(gy(x - 26) - gy(x + 26)) > 35 || TR_VENTS.some((vent) => Math.abs(x - vent.x) < 135)) continue;
+      const life = new Sprite({ texture, label: 'paintedTrenchColony', alpha: 0.76 });
+      life.anchor.set(0.5, 0.91);
+      life.position.set(x, gy(x));
+      life.width = life.height = 95 + (i % 3) * 16;
+      decorL.addChild(life);
+      this.slices.push({ obj: life, x0: x - 120, x1: x + 120 });
     }
 
     // ---- Decor per chunk ----
@@ -239,6 +254,8 @@ export class TrenchScenery {
         pts.push(v.x + w * (1 - f * 0.55) + Math.sin(k * 1.7 + i) * 4, y - v.h * f);
       }
       g.poly(pts).fill({ color: 0x2e2a28 });
+      const mineral = art?.materials.silt;
+      if (mineral) g.poly(pts).fill(materialFill(mineral, 0x2e2a28, 0.57, 165, 190));
       for (let k = 0; k < 7; k++) dab(g, v.x + R(-w * 0.6, w * 0.6), y - R(0, v.h), R(4, 10), R(4, 8), this.rand() < 0.5 ? 0x4a3e34 : 0x1e1a18, 0.6);
       // Little side spires.
       for (const s of [-1, 1]) g.poly([v.x + s * w * 0.8, y, v.x + s * w * 1.2, y - v.h * 0.35, v.x + s * w * 0.4, y - v.h * 0.2]).fill({ color: 0x3a322c });
@@ -272,6 +289,8 @@ export class TrenchScenery {
       const fn = (x: number, y: number) => Math.max(shapesField([CLEFT.tunnel, CLEFT.room], x, y), gy(x) + 2 - y);
       traceField(o, (x, y) => fn(x, y) - 10, 28740, 29520, 3900, 4190, 5, 0x2c3a3f, 0.7);
       traceField(o, fn, 28740, 29520, 3900, 4190, 5, 0x10181b, 1);
+      const walls = art?.materials.basalt;
+      if (walls) traceField(o, fn, 28740, 29520, 3900, 4190, 5, materialFill(walls, 0x10181b, 0.68, 930, 520));
       // A crashed cargo pod from the station in the chamber: the drawings and a pattern spool are in it.
       const r = CLEFT.room;
       const fy = r.y + r.ry - 14;
@@ -317,6 +336,8 @@ export class TrenchScenery {
       for (let x = FULMAR.x0; x <= FULMAR.x1; x += 6) pts.push(x, fulmarTop(x));
       pts.push(FULMAR.x1, f + 20, FULMAR.x0, f + 20);
       g2.poly(pts).fill({ color: 0x4a4a46 });
+      const hull = art?.materials.fulmar;
+      if (hull) g2.poly(pts).fill(materialFill(hull, 0x4a4a46, 0.73, 1050, 540));
       // Hull bands, rivets and portholes.
       for (let x = FULMAR.x0 + 50; x < FULMAR.x1 - 20; x += 90) {
         const t = fulmarTop(x);

@@ -12,6 +12,7 @@ import { loadPaintedDiver } from './art/paintedDiver';
 import { loadPaintedSuit } from './art/paintedSuit';
 import { loadForestMidground, loadForestOutcrop } from './art/forest';
 import { loadWreckShelfMidground } from './art/wreckShelf';
+import { loadWorldArt } from './art/worldArt';
 import { initSettingsUI } from './ui';
 import { Input } from './input';
 import { Diver, type KitLook } from './actors/diver';
@@ -248,7 +249,7 @@ async function boot(): Promise<void> {
   const visualMode = (flag: string, approved = 'painted') => (urlq.get(flag) ?? approved) === approved;
   // art=procedural still switches the whole Shallows pilot back to procedural art.
   const useShallowsArt = visualMode('art', 'shallows');
-  const [shallowsArt, shallowsSeabed, shallowsKelp, paintedFace, paintedSuit, forestMidground, forestOutcrop, shelfMidground] = await Promise.all([
+  const [shallowsArt, shallowsSeabed, shallowsKelp, paintedFace, paintedSuit, forestMidground, forestOutcrop, shelfMidground, worldArt] = await Promise.all([
     useShallowsArt ? loadShallowsArt() : null,
     useShallowsArt && visualMode('terrain') ? loadShallowsSeabed() : null,
     useShallowsArt && visualMode('kelp') ? loadShallowsKelp() : null,
@@ -257,11 +258,12 @@ async function boot(): Promise<void> {
     visualMode('forest') ? loadForestMidground() : undefined,
     visualMode('forestTerrain') ? loadForestOutcrop() : undefined,
     visualMode('shelf') ? loadWreckShelfMidground() : undefined,
+    visualMode('worldArt') ? loadWorldArt() : undefined,
   ]);
-  const zoneBackdrop = new ZoneBackdrop(forestMidground, shelfMidground);
+  const zoneBackdrop = new ZoneBackdrop(forestMidground, shelfMidground, worldArt);
   zoneBackdrop.build();
   const shallowsBackdrop = shallowsArt ? new ShallowsBackdrop(shallowsArt) : null;
-  let scenery = new Scenery(renderer, preset.detail, shallowsArt?.reef, shallowsSeabed ?? undefined, shallowsKelp ?? undefined, forestOutcrop);
+  let scenery = new Scenery(renderer, preset.detail, shallowsArt?.reef, shallowsSeabed ?? undefined, shallowsKelp ?? undefined, forestOutcrop, worldArt);
   const pickups = new Pickups();
   const diver = new Diver(paintedFace, paintedSuit?.swimmer, visualMode('personality', 'surface'));
   diver.x = save.x;
@@ -470,7 +472,7 @@ async function boot(): Promise<void> {
   // On the stage after the post pass, so the scanner, the build grid and the collect rings stay crisp.
   app.stage.addChild(post.view, overlayCam);
   // After milestone 8 part 2: dry interiors on foot, drawn over the (hidden) world.
-  const interior = new Interior(renderer, paintedFace, paintedSuit?.walker);
+  const interior = new Interior(renderer, paintedFace, paintedSuit?.walker, worldArt);
   hdrRoot.addChild(interior.view);
   worldLayers.push(overlayCam);
   /** Which interior you're on foot in, if any. */
@@ -1217,7 +1219,7 @@ async function boot(): Promise<void> {
     snow.build(renderer, preset.particleDensity, cssW, cssH, fx.litSnow ? preset.bokeh : 0);
     if (builtDetail !== preset.detail) {
       scenery.view.destroy({ children: true });
-      scenery = new Scenery(renderer, preset.detail, shallowsArt?.reef, shallowsSeabed ?? undefined, shallowsKelp ?? undefined, forestOutcrop);
+      scenery = new Scenery(renderer, preset.detail, shallowsArt?.reef, shallowsSeabed ?? undefined, shallowsKelp ?? undefined, forestOutcrop, worldArt);
       builtDetail = preset.detail;
       populate();
     }

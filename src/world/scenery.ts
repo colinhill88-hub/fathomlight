@@ -1,5 +1,6 @@
-import { Color, Container, FillGradient, Graphics, MeshRope, Point, Renderer, Sprite, Text, Texture } from 'pixi.js';
+import { Color, Container, FillGradient, Graphics, MeshRope, Point, Renderer, Sprite, Text, Texture, type FillStyle } from 'pixi.js';
 import { createShallowsSeabed, type ReefTextures } from '../art/shallows';
+import { materialFill, type Material, type WorldArt } from '../art/worldArt';
 import { mulberry32, WORLD_SEED } from '../rng';
 import { TrenchScenery } from './trenchgfx';
 import { SanctumScenery } from './sanctumgfx';
@@ -115,8 +116,33 @@ function siltAt(x: number): number {
   );
 }
 
+const geology: readonly [number, number, Material][] = [
+  [WORLD_X0 - 80, BUOY_X, 'shale'], [ANCHOR_X, 5930, 'limestone'], [5930, 6910, 'grotto'],
+  [6910, 8340, 'limestone'], [8340, 9960, 'grotto'], [9960, 14800, 'forest'],
+  [14800, 19550, 'cave'], [19550, 26870, 'silt'],
+];
+
+function groundPaint(g: Graphics, art: WorldArt, x0: number, x1: number): void {
+  for (const [start, end, key] of geology) {
+    const texture = art.materials[key];
+    if (!texture || start >= x1 || end <= x0) continue;
+    // Fade the rock treatments where their ranges meet and retain the procedural sand below.
+    const stops = [start, start + 28, start + 57, start + 90, end - 90, end - 57, end - 28, end];
+    for (let i = 1; i < stops.length; i++) {
+      const left = Math.max(x0, stops[i - 1]);
+      const right = Math.min(x1, stops[i]);
+      if (right <= left) continue;
+      const opacity = [0.17, 0.38, 0.58, 0.76, 0.58, 0.38, 0.17][i - 1];
+      const points = [left, WORLD_H + 300, left, gy(left) + 0.5];
+      for (let x = (Math.floor(left / 10) + 1) * 10; x < right; x += 10) points.push(x, gy(x) + 0.5);
+      points.push(right, gy(right) + 0.5, right, WORLD_H + 300);
+      g.poly(points).fill(materialFill(texture, PAL.sand, opacity, 1360, 710));
+    }
+  }
+}
+
 /** Sand for one slice of the world, from x0 to x1. */
-function drawGround(g: Graphics, detail: number, x0: number, x1: number): void {
+function drawGround(g: Graphics, detail: number, x0: number, x1: number, art?: WorldArt): void {
   const step = 10;
   g.moveTo(x0 - 2, WORLD_H + 300);
   for (let x = x0 - 2; x <= x1 + 2; x += step) g.lineTo(x, gy(x));
@@ -127,6 +153,7 @@ function drawGround(g: Graphics, detail: number, x0: number, x1: number): void {
     if (t < 0.02) continue;
     g.poly([x, gy(x), x + 14.5, gy(x + 14.5), x + 14.5, WORLD_H + 300, x, WORLD_H + 300]).fill({ color: PAL.silt, alpha: t * 0.75 });
   }
+  if (art) groundPaint(g, art, x0 - 2, x1 + 2);
 
   const per = (x1 - x0) / 3600;
   const n = Math.round(900 * detail * per);
@@ -185,6 +212,7 @@ function paintRock(
   topOf: (x: number) => number,
   detail: number,
   featherFrom?: number,
+  material?: Texture,
 ): void {
   let minX = Infinity;
   let maxX = -Infinity;
@@ -208,6 +236,7 @@ function paintRock(
     });
   }
   g.poly(outline.flat()).fill(baseFade ? { fill: baseFade } : { color: PAL.rock });
+  if (material && !baseFade) g.poly(outline.flat()).fill(materialFill(material, PAL.rock, 0.84, 1130, 650));
   const area = ((maxX - minX) * (Math.min(maxY, WORLD_H + 40) - minY)) / 1000;
   const n = Math.round(Math.min(1400, area * 1.1) * detail);
   for (let i = 0; i < n; i++) {
@@ -265,7 +294,8 @@ function paintRock(
  * step S (after milestone 7 part 2): smooth, interpolated edges, with whole rows
  * of inside cells merged into single rectangles.
  */
-export function traceField(g: Graphics, fn: (x: number, y: number) => number, X0: number, X1: number, Y0: number, Y1: number, S: number, color: number, alpha: number): void {
+export function traceField(g: Graphics, fn: (x: number, y: number) => number, X0: number, X1: number, Y0: number, Y1: number, S: number, color: number | FillStyle, alpha = 1): void {
+  const fill = typeof color === 'number' ? { color, alpha } : color;
   const nx = Math.ceil((X1 - X0) / S) + 1;
   const ny = Math.ceil((Y1 - Y0) / S) + 1;
   const F = new Float32Array(nx * ny);
@@ -273,7 +303,7 @@ export function traceField(g: Graphics, fn: (x: number, y: number) => number, X0
   for (let j = 0; j < ny - 1; j++) {
     let run = -1;
     const flush = (iEnd: number) => {
-      if (run >= 0) g.rect(X0 + run * S, Y0 + j * S, (iEnd - run) * S, S).fill({ color, alpha });
+      if (run >= 0) g.rect(X0 + run * S, Y0 + j * S, (iEnd - run) * S, S).fill(fill);
       run = -1;
     };
     for (let i = 0; i < nx - 1; i++) {
@@ -296,14 +326,14 @@ export function traceField(g: Graphics, fn: (x: number, y: number) => number, X0
           pts.push(cx[k] + (cx[k2] - cx[k]) * t, cy[k] + (cy[k2] - cy[k]) * t);
         }
       }
-      if (pts.length >= 6) g.poly(pts).fill({ color, alpha });
+      if (pts.length >= 6) g.poly(pts).fill(fill);
     }
     flush(nx - 1);
   }
 }
 
 /** A rock patch that follows the ground line and tapers into the sand at both ends. */
-function rockPatch(g: Graphics, x0: number, x1: number, thick: number, d: number): void {
+function rockPatch(g: Graphics, x0: number, x1: number, thick: number, d: number, material?: Texture): void {
   const pts: [number, number][] = [];
   for (let x = x0; x <= x1; x += 8) pts.push([x, gy(x) - 1]);
   for (let x = x1; x >= x0; x -= 16) {
@@ -311,7 +341,7 @@ function rockPatch(g: Graphics, x0: number, x1: number, thick: number, d: number
     const k = Math.pow(Math.sin(Math.PI * t), 1.5);
     pts.push([x, gy(x) + 4 + thick * k + Math.sin(x * 0.05) * 6 * k]);
   }
-  paintRock(g, pts, (x) => (x >= x0 && x <= x1 ? gy(x) : NaN), d);
+  paintRock(g, pts, (x) => (x >= x0 && x <= x1 ? gy(x) : NaN), d, undefined, material);
 }
 
 function ledgeTop(x: number): number {
@@ -325,7 +355,7 @@ function ledgeTop(x: number): number {
 }
 
 /** The cave in the east cliff: a dark back wall, and a black throat where it goes deeper than any lamp reaches. */
-function drawCave(g: Graphics, dark: Graphics): void {
+function drawCave(g: Graphics, dark: Graphics, stone?: Texture): void {
   const top = (x: number) => Math.max(caveSpan(x)[0], gy(x));
   const caveBottom = (x: number) => caveSpan(x)[1];
   const pts: [number, number][] = [];
@@ -334,6 +364,7 @@ function drawCave(g: Graphics, dark: Graphics): void {
   for (const x of xs) pts.push([x, top(x)]);
   for (const x of [...xs].reverse()) pts.push([x, caveBottom(x)]);
   g.poly(pts.flat()).fill({ color: 0x1f2a2d });
+  if (stone) g.poly(pts.flat()).fill(materialFill(stone, 0x1f2a2d, 0.68, 1040, 540));
   for (let i = 0; i < 160; i++) {
     const x = R(CAVE.x0, CAVE.x1 - 40);
     const y = R(top(x) + 6, caveBottom(x) - 6);
@@ -667,7 +698,7 @@ export class Scenery {
   /** Milestone 11: the sanctum under the trench floor. */
   sanctum!: SanctumScenery;
   private kelps: Kelp[] = [];
-  private grass: { g: Graphics; phase: number; x: number }[] = [];
+  private grass: { g: Graphics | Sprite; phase: number; x: number }[] = [];
   private slices: Slice[] = [];
   private buoy = new Container();
   private beaconLamp = new Graphics();
@@ -675,7 +706,7 @@ export class Scenery {
   private beaconLight!: PointLight;
   private anemones: { core: Graphics; halo: Graphics; light: PointLight; phase: number }[] = [];
 
-  constructor(renderer: Renderer, detail: number, reef?: ReefTextures, seabed?: Texture, kelp?: readonly Texture[], forestOutcrop?: Texture) {
+  constructor(renderer: Renderer, detail: number, reef?: ReefTextures, seabed?: Texture, kelp?: readonly Texture[], forestOutcrop?: Texture, private readonly art?: WorldArt) {
     // Same seed every time, so switching presets rebuilds the identical world.
     rand = mulberry32(WORLD_SEED ^ 0x5ce9);
 
@@ -692,7 +723,7 @@ export class Scenery {
       const x0 = i * SLICE;
       const x1 = Math.min(WORLD_W, x0 + SLICE);
       const g = new Graphics();
-      drawGround(g, detail, i === 0 ? -60 : x0, i === nSlices - 1 ? WORLD_W + 60 : x1);
+      drawGround(g, detail, i === 0 ? -60 : x0, i === nSlices - 1 ? WORLD_W + 60 : x1, this.art);
       groundLayer.addChild(g);
       this.slices.push({ obj: g, x0: x0 - 80, x1: x1 + 80 });
       const d = new Graphics();
@@ -723,11 +754,11 @@ export class Scenery {
     });
     rock(2080, 2500, (g) => rockPatch(g, 2080, 2500, 60, detail));
     rock(3020, 3290, (g) => rockPatch(g, 3020, 3290, 45, detail));
-    rock(4580, 4990, (g) => rockPatch(g, 4580, 4990, 60, detail));
-    rock(4950, 5810, (g) => rockPatch(g, 4950, 5810, 700, detail * 0.8));
-    rock(6370, 7100, (g) => rockPatch(g, 6370, 7100, 900, detail * 0.8));
-    rock(8280, 10400, (g) => rockPatch(g, 8280, 10400, 1300, detail * 0.8));
-    rock(5690, 6880, (g) => paintRock(g, LEDGE, ledgeTop, detail));
+    rock(4580, 4990, (g) => rockPatch(g, 4580, 4990, 60, detail, this.art?.materials.limestone));
+    rock(4950, 5810, (g) => rockPatch(g, 4950, 5810, 700, detail * 0.8, this.art?.materials.grotto));
+    rock(6370, 7100, (g) => rockPatch(g, 6370, 7100, 900, detail * 0.8, this.art?.materials.grotto));
+    rock(8280, 10400, (g) => rockPatch(g, 8280, 10400, 1300, detail * 0.8, this.art?.materials.grotto));
+    rock(5690, 6880, (g) => paintRock(g, LEDGE, ledgeTop, detail, undefined, this.art?.materials.grotto));
     rock(5300, 6560, (g) => {
       for (let i = 0; i < 14; i++) {
         const x = R(5300, 6550);
@@ -743,7 +774,7 @@ export class Scenery {
     });
     rock(CAVE.x0 - 60, CAVE.x1, (g) => {
       this.caveDark = this.over.addChild(new Graphics()) as Graphics;
-      drawCave(g, this.caveDark);
+      drawCave(g, this.caveDark, this.art?.materials.grotto);
     });
     this.scanPoints.cave.push({ x: CAVE.x0 + 40, y: (caveTop(CAVE.x0 + 40) + caveBottom(CAVE.x0 + 40)) / 2 });
 
@@ -756,6 +787,11 @@ export class Scenery {
       addReefSprite(reefLayer, reef.rock[0], 2110, gy(2110) + 4, 48);
       addReefSprite(reefLayer, reef.rock[1], 2740, gy(2740) + 4, 48);
     }
+    const outerReefLayer = this.art?.reef.some(Boolean) ? new Container() : undefined;
+    if (outerReefLayer) {
+      decorLayer.addChildAt(outerReefLayer, 0);
+      this.slices.push({ obj: outerReefLayer, x0: ANCHOR_X - 80, x1: 8400 });
+    }
     for (let i = 0; i < Math.round(60 * detail); i++) {
       const p = rand();
       const x = p < 0.6 ? R(1750, 3580) : p < 0.72 ? R(400, 1700) : p < 0.86 ? R(5300, 6500) : R(6900, 8300);
@@ -764,17 +800,21 @@ export class Scenery {
       // Advance the original drawing RNG even when a sprite takes over. Later
       // coral, kelp, and scanner positions depend on the same sequence.
       const authored = reefLayer && reef && x >= BUOY_X && x <= ANCHOR_X;
-      const g = authored ? undefined : decorAt(x);
+      const outer = x > ANCHOR_X ? this.art?.reef : undefined;
       if (rand() < 0.65) {
         const color = corals[Math.floor(rand() * corals.length)];
         const size = R(0.7, 1.3) * (deep ? 0.8 : 1);
-        drawCoral(g, x, y, color, size);
+        const texture = outer?.[1 + i % 3];
+        drawCoral(authored || texture ? undefined : decorAt(x), x, y, color, size);
         if (authored) addReefSprite(reefLayer, reef.coral[i % reef.coral.length], x, y + 4, 76 * size);
+        if (texture && outerReefLayer) addReefSprite(outerReefLayer, texture, x, y, 78 * size);
         this.scanPoints.coral.push({ x, y: y - 20 });
       } else {
         const size = R(0.8, 1.4);
-        drawFan(g, x, y, deep ? 0x8c5a7a : 0xb86a8e, size);
+        const texture = outer?.[0];
+        drawFan(authored || texture ? undefined : decorAt(x), x, y, deep ? 0x8c5a7a : 0xb86a8e, size);
         if (authored) addReefSprite(reefLayer, reef.fan[i % reef.fan.length], x, y, 64 * size);
+        if (texture && outerReefLayer) addReefSprite(outerReefLayer, texture, x, y, 68 * size);
         this.scanPoints.fan.push({ x, y: y - 25 });
       }
     }
@@ -787,9 +827,9 @@ export class Scenery {
       const baseY = base ?? gy(x) + 6;
       const points = Array.from({ length: n }, (_, i) => new Point(x, baseY - (height * i) / (n - 1)));
       // Use the existing anchor to choose a texture without advancing the placement RNG.
-      const painted = kelp && layer !== this.front && x >= BUOY_X && x <= ANCHOR_X
-        ? kelp[Math.floor(x) % kelp.length]
-        : undefined;
+      const forest = x >= 9880 && x <= FOREST.x1 ? this.art?.forestKelp : undefined;
+      const ribbons = x >= BUOY_X && x <= ANCHOR_X ? kelp : forest;
+      const painted = layer !== this.front && ribbons?.length ? ribbons[Math.floor(x) % ribbons.length] : undefined;
       const rope = new MeshRope({ texture: painted ?? tex, points, textureScale: 0 });
       rope.tint = painted ? 0xffffff : tint;
       layer.addChild(rope);
@@ -911,7 +951,7 @@ export class Scenery {
     for (let x0 = WORLD_X0 - 60; x0 < -60; x0 += 1000) {
       const x1 = Math.min(-60, x0 + 1000);
       const g = new Graphics();
-      drawGround(g, detail, x0, x1);
+      drawGround(g, detail, x0, x1, this.art);
       groundLayer.addChildAt(g, 0);
       this.slices.push({ obj: g, x0: x0 - 80, x1: x1 + 80 });
     }
@@ -920,7 +960,7 @@ export class Scenery {
       const pts: [number, number][] = [];
       for (let x = WORLD_X0 - 60; x <= BASIN_WEST + 80; x += 8) pts.push([x, gy(x)]);
       pts.push([BASIN_WEST + 80, WORLD_H + 300], [WORLD_X0 - 60, WORLD_H + 300]);
-      paintRock(g, pts, (x) => (x >= WORLD_X0 - 60 && x <= BASIN_WEST + 80 ? gy(x) : NaN), detail * 0.7);
+      paintRock(g, pts, (x) => (x >= WORLD_X0 - 60 && x <= BASIN_WEST + 80 ? gy(x) : NaN), detail * 0.7, undefined, this.art?.materials.shale);
     });
     // Boulders on the basin floor, mostly near the walls (the middle is for building).
     rock(-2700, 300, (g) => {
@@ -982,18 +1022,19 @@ export class Scenery {
     this.buildForest(renderer, detail, rock, addKelp, kelpBack, kelpFront, decorLayer, forestOutcrop);
     this.buildKelpCaves(detail, rock, decorLayer);
     this.buildShelf(detail, rock, decorLayer);
+    this.addPaintedLife(decorLayer, detail);
     if (seabed) {
       const strip = groundLayer.addChild(createShallowsSeabed(seabed));
       this.slices.push({ obj: strip, x0: BUOY_X, x1: ANCHOR_X });
     }
     // Milestone 10: the trench.
-    this.trench = new TrenchScenery(detail);
+    this.trench = new TrenchScenery(detail, this.art);
     this.view.addChild(this.trench.view);
     this.emissive.addChild(this.trench.emissive);
     this.glow.addChild(this.trench.glow);
     this.lights.push(...this.trench.lights);
     // Milestone 11: the sanctum.
-    this.sanctum = new SanctumScenery(detail);
+    this.sanctum = new SanctumScenery(detail, this.art);
     this.view.addChild(this.sanctum.view);
     this.emissive.addChild(this.sanctum.emissive);
     this.glow.addChild(this.sanctum.glow);
@@ -1026,14 +1067,14 @@ export class Scenery {
       const painted = forestOutcrop && x0 === 12560
         ? new Sprite({ texture: forestOutcrop, label: 'paintedForestOutcrop', x: 12536, y: 1144 })
         : undefined;
-      rock(x0, x1, (g) => rockPatch(g, x0, x1, th, detail), painted);
+      rock(x0, x1, (g) => rockPatch(g, x0, x1, th, detail, this.art?.materials.forest), painted);
     }
     // The east wall, with the kelp caves' mouth.
     rock(14560, 19400, (g) => {
       const pts: [number, number][] = [];
       for (let x = 14560; x <= 19400; x += 8) pts.push([x, gy(x)]);
       pts.push([19400, WORLD_H + 300], [14560, WORLD_H + 300]);
-      paintRock(g, pts, (x) => (x >= 14560 && x <= 19400 ? gy(x) : NaN), detail * 0.7);
+      paintRock(g, pts, (x) => (x >= 14560 && x <= 19400 ? gy(x) : NaN), detail * 0.7, undefined, this.art?.materials.cave);
       // The mouth: a dark recess in the wall that grows black further in.
       // The mouth of the kelp caves is drawn with the caves (buildKelpCaves), as one smooth opening.
     });
@@ -1169,7 +1210,37 @@ export class Scenery {
    * water is painted over the wall's rock as a dark cave interior; the black
    * chamber gets a darkness layer that lit brackets push back.
    */
+  private addPaintedLife(layer: Container, detail: number): void {
+    if (!this.art) return;
+    const bands = [[3100, 4800, 1], [7100, 8150, 0], [13300, 14740, 2], [20030, 25400, 3]];
+    const rng = mulberry32(WORLD_SEED ^ 0x6127);
+    for (const [start, end, tile] of bands) {
+      const texture = this.art.life[tile];
+      if (!texture) continue;
+      for (let x = start + 35; x < end; x += 110 + rng() * (detail > 0.8 ? 125 : 200)) {
+        const y = gy(x);
+        if (Math.abs(gy(x + 20) - gy(x - 20)) > 32) continue;
+        const size = 50 + rng() * 48;
+        const plant = new Sprite({ texture, label: 'paintedBenthicGrowth', alpha: 0.83 });
+        plant.anchor.set(0.5, 0.9);
+        plant.position.set(x, y + 2);
+        plant.width = plant.height = size;
+        layer.addChild(plant);
+        this.grass.push({ g: plant, x, phase: rng() * Math.PI * 2 });
+      }
+    }
+  }
+
   private buildKelpCaves(detail: number, rock: (x0: number, x1: number, build: (g: Graphics) => void) => void, decorLayer: Container): void {
+    const encrustation = this.art?.life[7];
+    if (encrustation) {
+      const colonies = new Container();
+      decorLayer.addChild(colonies);
+      this.slices.push({ obj: colonies, x0: KC_BOUNDS.x0, x1: KC_BOUNDS.x1 });
+      for (const [x, y] of [[15580, 1175], [15790, 1170], [16690, 1255], [17070, 1330], [18410, 1710]]) {
+        if (caveField(x, y) < 0) addReefSprite(colonies, encrustation, x, caveFloor(x, y), 55);
+      }
+    }
     rock(KC_BOUNDS.x0 - 40, KC_BOUNDS.x1 + 40, (g) => {
       // One smooth shape (after milestone 7 part 2): the caves' field, cut off at the
       // seabed so the mouth meets the wall face exactly, traced with marching squares.
@@ -1179,6 +1250,12 @@ export class Scenery {
       // A soft dark rim just inside the rock, then the cave's back wall.
       trace(12, 0x2c3a3f, 0.6);
       trace(0, 0x151e21, 1);
+      const paint = this.art?.materials.cave;
+      const plate = this.art?.plates.caves;
+      if (paint) traceField(g, (x, y) => field(x, y) + 2, KC_BOUNDS.x0, KC_BOUNDS.x1, 740, 1980, 8,
+        materialFill(paint, 0x151e21, 0.64, 1480, 620));
+      if (plate) traceField(g, (x, y) => field(x, y) + 4, 14940, 18640, 880, 1950, 12,
+        materialFill(plate, 0x151e21, 0.64, 3700, 1070, 14940, 880));
       // Brushed texture on the back wall.
       for (let i = 0; i < Math.round(900 * detail); i++) {
         const x = R(KC_BOUNDS.x0, KC_BOUNDS.x1);
@@ -1210,7 +1287,7 @@ export class Scenery {
           const a = (k / 28) * Math.PI * 2;
           pts.push([p.x + Math.cos(a) * p.rx * R(0.92, 1.06), p.y + Math.sin(a) * p.ry * R(0.95, 1.04)]);
         }
-        paintRock(g, pts, (x) => (Math.abs(x - p.x) < p.rx ? ellTop(p, x) : NaN), 0.6);
+        paintRock(g, pts, (x) => (Math.abs(x - p.x) < p.rx ? ellTop(p, x) : NaN), 0.6, undefined, this.art?.materials.cave);
       }
       // Air pockets: trapped air filling the roof down to a waterline. Traced from the
       // caves' own shape, so the air follows the real roof (after milestone 8 part 1).
@@ -1484,14 +1561,14 @@ export class Scenery {
       const pts: [number, number][] = [];
       for (let x = 19050; x <= 19950; x += 8) pts.push([x, gy(x)]);
       pts.push([19950, gy(19950) + 60], [19800, WORLD_H + 300], [19050, WORLD_H + 300]);
-      paintRock(g, pts, (x) => (x >= 19050 && x <= 19950 ? gy(x) : NaN), detail * 0.7);
+      paintRock(g, pts, (x) => (x >= 19050 && x <= 19950 ? gy(x) : NaN), detail * 0.7, undefined, this.art?.materials.silt);
     });
     for (const [x0, x1, th] of [
       [20450, 20800, 70],
       [23500, 23850, 60],
       [24850, 25100, 50],
     ] as const)
-      rock(x0, x1, (g) => rockPatch(g, x0, x1, th, detail));
+      rock(x0, x1, (g) => rockPatch(g, x0, x1, th, detail, this.art?.materials.silt));
     // (Milestone 10: the old east wall is now the trench's rim, drawn by TrenchScenery.)
 
     const decor = new Graphics();
@@ -1501,6 +1578,16 @@ export class Scenery {
     decorLayer.addChild(decor2);
     this.slices.push({ obj: decor2, x0: 23200, x1: 27400 });
     const dg = (x: number) => (x < 23300 ? decor : decor2);
+
+    if (this.art?.debris.some(Boolean)) {
+      const fragments = new Container();
+      decorLayer.addChildAt(fragments, decorLayer.getChildIndex(decor));
+      this.slices.push({ obj: fragments, x0: 19800, x1: 27080 });
+      for (const [i, x] of [20010, 20340, 20680, 20970, 21650, 22130, 22490, 23420, 23890, 24690, 25110, 26920].entries()) {
+        const texture = this.art.debris[i % 4];
+        if (texture && Math.abs(gy(x + 28) - gy(x - 28)) < 25) addReefSprite(fragments, texture, x, gy(x) + 2, 105 + (i % 4) * 23);
+      }
+    }
 
     // Debris on the shelf floor: rusted plates, ribs, chain and cable.
     for (let i = 0; i < Math.round(70 * detail); i++) {
@@ -1629,6 +1716,8 @@ export class Scenery {
     const fn = (x: number, y: number) => Math.max(shapesField([HIDDEN.tunnel, HIDDEN.room], x, y), gy(x) + 2 - y);
     traceField(o, (x, y) => fn(x, y) - 8, 19340, 19860, 1440, 1640, 5, 0x2c3a3f, 0.7);
     traceField(o, fn, 19340, 19860, 1440, 1640, 5, 0x151e21, 1);
+    const walls = this.art?.materials.silt;
+    if (walls) traceField(o, fn, 19340, 19860, 1440, 1640, 5, materialFill(walls, 0x151e21, 0.58, 620, 375));
     // An old salvage locker in the hollow.
     const r = HIDDEN.room;
     o.roundRect(r.x - 30, r.y + 22, 60, 32, 4).fill({ color: 0x5a4a3e });
@@ -1654,6 +1743,8 @@ export class Scenery {
     const fn = (x: number, y: number) => shapesField([SEAM.tunnel, SEAM.room], x, y);
     traceField(o, (x, y) => fn(x, y) - 10, 26580, 27480, 1990, 2340, 6, 0x2a2430, 0.7);
     traceField(o, fn, 26580, 27480, 1990, 2340, 6, 0x120f18, 1);
+    const walls = this.art?.materials.basalt;
+    if (walls) traceField(o, fn, 26580, 27480, 1990, 2340, 6, materialFill(walls, 0x120f18, 0.68, 1050, 430));
     // Bore marks round the tunnel, and pale crystal in the grotto's walls.
     for (let i = 0; i < 12; i++) {
       const x = R(27080, 27380);
@@ -1892,8 +1983,9 @@ export class Scenery {
     }
   }
 
-  private hull(g: Graphics, pts: number[], color: number): void {
+  private hull(g: Graphics, pts: number[], color: number, texture?: Texture): void {
     g.poly(pts).fill({ color });
+    if (texture) g.poly(pts).fill(materialFill(texture, color, 0.72, 1320, 610));
     // Plate seams and rivets along the hull.
     let minX = Infinity;
     let maxX = -Infinity;
@@ -1949,11 +2041,13 @@ export class Scenery {
     const hull = corvinaHull();
     const H = corvinaHouse();
     // A big survey ship lying on the shelf: a long dark hull, her bow raised on a rock.
-    this.hull(g, hull.flat(), 0x4a4240);
+    this.hull(g, hull.flat(), 0x4a4240, this.art?.materials.corvina);
     g.rect(x0, hull[0][1] - 2, x1 - x0 - 150, 10).fill({ color: 0x7a3a2a });
     for (let k = 0; k < 18; k++) g.circle(x0 + 160 + k * 52, f(x0) - 230, 9).fill({ color: 0x0c1012 });
     // Superstructure and two masts.
     g.roundRect(H.x, H.y, H.w, H.h, 8).fill({ color: 0x5a524c });
+    const steel = this.art?.materials.corvina;
+    if (steel) g.roundRect(H.x, H.y, H.w, H.h, 8).fill(materialFill(steel, 0x5a524c, 0.68, 1180, 490));
     for (let k = 0; k < 6; k++) g.roundRect(H.x + 20 + k * 58, H.y + 14, 38, 24, 4).fill({ color: 0x0c1012 });
     g.moveTo(x0 + 620, hull[0][1]).lineTo(x0 + 640, f(x0) - 640).stroke({ color: 0x3e3632, width: 9 });
     g.moveTo(x0 + 860, hull[0][1]).lineTo(x0 + 900, f(x0) - 560).stroke({ color: 0x3e3632, width: 7 });

@@ -62,6 +62,7 @@ export const FULMAR_MAP: string[] = [
 
 /** The Collect labels and the sign for her finds. */
 export const FULMAR_OPTS = {
+  style: 'fulmar' as const,
   labels: {
     '4': 'Take the comms room pattern spool',
     '5': 'Take the last pattern spool',

@@ -1,6 +1,7 @@
 import { Container, Graphics, Sprite, type Texture } from 'pixi.js';
 import { mulberry32 } from '../rng';
 import { waterColor } from '../fx/shared';
+import type { WorldArt } from '../art/worldArt';
 import { BASIN_EAST, BASIN_WEST, FOREST, WRECK_SHELF, groundY, smooth } from '../world/terrain';
 
 /**
@@ -52,6 +53,27 @@ interface Zone {
   strength: number;
   plate?: { sprite: Sprite; placement: PlatePlacement };
 }
+
+interface Landscape {
+  asset: keyof WorldArt['plates'];
+  x: [number, number];
+  y: [number, number];
+  center: [number, number];
+  width: number;
+  depth: number;
+  opacity: number;
+}
+
+const landscapes: Landscape[] = [
+  { asset: 'basin', x: [-5700, 750], y: [190, 1680], center: [-2650, 985], width: 2460, depth: 0.29, opacity: 0.71 },
+  { asset: 'meadow', x: [2600, 8900], y: [-450, 1030], center: [5610, 408], width: 2620, depth: 0.32, opacity: 0.77 },
+  { asset: 'cliff', x: [5480, 10300], y: [-300, 1570], center: [8110, 660], width: 2280, depth: 0.48, opacity: 0.68 },
+  { asset: 'forest-east', x: [13210, 15260], y: [320, 1540], center: [14150, 1100], width: 1570, depth: 0.4, opacity: 0.7 },
+  { asset: 'shelf', x: [19150, 23730], y: [435, 1900], center: [21250, 1380], width: 1980, depth: 0.32, opacity: 0.64 },
+  { asset: 'shelf-east', x: [24700, 28170], y: [500, 2060], center: [26640, 1195], width: 1830, depth: 0.38, opacity: 0.59 },
+  { asset: 'trench', x: [26600, 30920], y: [1600, 5220], center: [29000, 3350], width: 2540, depth: 0.36, opacity: 0.67 },
+  { asset: 'abyss', x: [29100, 33280], y: [4350, 7990], center: [31020, 6000], width: 2610, depth: 0.33, opacity: 0.62 },
+];
 
 function toHex([r, g, b]: [number, number, number]): number {
   const c = (v: number) => Math.max(0, Math.min(255, Math.round(v * 255)));
@@ -153,12 +175,31 @@ function hulk(g: Graphics, cx: number, base: number, len: number, h: number, til
 export class ZoneBackdrop {
   readonly view = new Container();
   private zones: Zone[] = [];
+  private landscapes: { placement: Landscape; sprite: Sprite }[] = [];
+  private landscapeView?: Container;
+  private waterline?: Graphics;
 
-  constructor(private readonly forestMidground?: Texture, private readonly shelfMidground?: Texture) {}
+  constructor(private readonly forestMidground?: Texture, private readonly shelfMidground?: Texture, private readonly art?: WorldArt) {}
 
   build(): void {
     this.view.removeChildren().forEach((c) => c.destroy({ children: true }));
     this.zones = [];
+    this.landscapes = [];
+    this.landscapeView = undefined;
+    this.waterline = undefined;
+    for (const placement of landscapes) {
+      const texture = this.art?.plates[placement.asset];
+      if (!texture) continue;
+      const sprite = new Sprite({ texture, label: `world-${placement.asset}` });
+      sprite.anchor.set(0.5, 0.55);
+      sprite.visible = false;
+      this.landscapes.push({ placement, sprite });
+    }
+    if (this.landscapes.length) {
+      this.landscapeView = this.view.addChild(new Container());
+      this.waterline = this.view.addChild(new Graphics());
+      this.landscapeView.addChild(...this.landscapes.map(({ sprite }) => sprite));
+    }
     const rand = mulberry32(4242);
     const mk = (x0: number, x1: number, strength: number, draw: (g: Graphics) => void) => {
       const c = new Container();
@@ -202,6 +243,31 @@ export class ZoneBackdrop {
     const ox = camCX * PARALLAX;
     const oy = REF_DEPTH + (camCY - REF_DEPTH) * PARALLAX;
     const fog = waterColor(camCY + 80);
+    if (this.landscapeView && this.waterline) {
+      // Keep plate silhouettes under the water shader's animated surface.
+      const surface = cssH / 2 + (9 - camCY) * zoom;
+      if (surface > 0) {
+        this.waterline.clear().rect(0, surface, cssW, Math.max(0, cssH - surface)).fill(0xffffff);
+        if (!this.landscapeView.mask) this.landscapeView.mask = this.waterline;
+      } else if (this.landscapeView.mask) {
+        this.landscapeView.mask = null;
+        this.waterline.clear();
+      }
+    }
+    for (const { placement, sprite } of this.landscapes) {
+      const { x, y, center, width, depth, opacity } = placement;
+      const edgeX = Math.min(camCX - x[0], x[1] - camCX);
+      const edgeY = Math.min(camCY - y[0], y[1] - camCY);
+      const coverage = smooth(edgeX / 430) * smooth(edgeY / 260);
+      sprite.visible = coverage > 0;
+      if (!sprite.visible) continue;
+      sprite.position.set(cssW / 2 + (center[0] - camCX) * zoom * depth, cssH / 2 + (center[1] - camCY) * zoom * depth);
+      sprite.width = width * zoom;
+      sprite.height = width * 0.5 * zoom;
+      const reference = waterColor(Math.max(0, center[1]) + 80);
+      sprite.tint = toHex([Math.min(1, fog[0] / reference[0]), Math.min(1, fog[1] / reference[1]), Math.min(1, fog[2] / reference[2])]);
+      sprite.alpha = coverage * opacity;
+    }
     for (const z of this.zones) {
       const near = camCX > z.x0 - 1800 && camCX < z.x1 + 1800;
       z.c.visible = near;
