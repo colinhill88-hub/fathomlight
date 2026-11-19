@@ -1,4 +1,4 @@
-import { Container, Graphics, Text } from 'pixi.js';
+import { Container, Graphics, Sprite, Text, type Texture } from 'pixi.js';
 import { isSolid } from '../world/terrain';
 import { mulberry32 } from '../rng';
 import { BREATH_OUT, Glance, Spring, batchAll, breathShape } from './animkit';
@@ -417,9 +417,17 @@ function buildArm(far: boolean): Arm {
   return { upper, fore };
 }
 
-function buildTorso(): Container {
+export function suitMaterialLayer(texture: Texture, trim: Graphics, x: number, y: number): Container {
+  const layer = new Container({ label: 'paintedSuit' });
+  const material = new Sprite({ texture, label: 'suitMaterial' });
+  material.position.set(x, y);
+  layer.addChild(material, trim);
+  return layer;
+}
+
+function buildTorso(texture?: Texture) {
   const c = new Container();
-  const g = new Graphics();
+  const g = new Graphics({ label: 'proceduralSuit' });
 
   // The tanks and the harpoon on the back are drawn by drawDiverBack (they come with the kit).
 
@@ -431,36 +439,44 @@ function buildTorso(): Container {
   accentBand(g, -12, -15, 4, 30);
   accentBand(g, 22, -15, 2.6, 30);
   rimEdge(g, -26, -14.5, 28, -14.5, 0.55);
-  // Belt with a chrome buckle.
+  // Belt, chrome buckle, and harness strap from the back unit.
   g.rect(-28, -15, 7, 30).fill({ color: C.suitShade });
   chromeBands(g, -36, -5, 9, 12, 3);
-  // Harness strap from the back unit.
   g.rect(14, -15, 5, 30).fill({ color: C.chromeDark, alpha: 0.85 });
   scratches(g, -30, -12, 70, 24, 6);
   for (let i = 0; i < 8; i++)
     g.circle(-30 + rand() * 60, 10 + rand() * 4, 0.8 + rand() * 1.1).fill({ color: 0x5f7a3a, alpha: 0.45 });
 
   // Collar yoke: the chrome ring that wraps the shoulders and seats the helmet.
-  g.moveTo(30, -26)
+  const collar = (q: Graphics) => q.moveTo(30, -26)
     .lineTo(44, -24)
     .quadraticCurveTo(52, -10, 52, 6)
     .quadraticCurveTo(52, 18, 42, 19)
     .lineTo(30, 16)
     .quadraticCurveTo(34, -4, 30, -26)
-    .closePath()
-    .fill({ color: C.chrome })
-    .stroke({ color: C.chromeDark, width: 1.2 });
+    .closePath();
+  collar(g).fill({ color: C.chrome }).stroke({ color: C.chromeDark, width: 1.2 });
   g.moveTo(36, -22).quadraticCurveTo(44, -8, 43, 12).stroke({ color: C.chromeHi, width: 2.2, alpha: 0.7, cap: 'round' });
   g.moveTo(47, -12).quadraticCurveTo(50, 2, 47, 14).stroke({ color: C.chromeMid, width: 2, alpha: 0.9, cap: 'round' });
-  rivets(g, [[34, -20], [33, 12], [48, 15]], 1);
-
-  // Regulator port on the chest: a round chrome fitting with a dark mouth
-  // and grille slots below.
-  g.circle(50, 9, 7).fill({ color: C.chrome }).stroke({ color: C.chromeDark, width: 1.2 });
-  g.circle(51, 9, 3.2).fill({ color: 0x0d1114 });
-  g.circle(48, 6.5, 1.6).fill({ color: C.chromeHi, alpha: 0.8 });
-  for (let i = 0; i < 3; i++) g.rect(42 + i * 3.2, 15.5, 2, 3.2).fill({ color: C.chromeDark });
+  const fittings = (q: Graphics) => {
+    rivets(q, [[34, -20], [33, 12], [48, 15]], 1);
+    // Regulator port and grille.
+    q.circle(50, 9, 7).fill({ color: C.chrome }).stroke({ color: C.chromeDark, width: 1.2 });
+    q.circle(51, 9, 3.2).fill({ color: 0x0d1114 });
+    q.circle(48, 6.5, 1.6).fill({ color: C.chromeHi, alpha: 0.8 });
+    for (let i = 0; i < 3; i++) q.rect(42 + i * 3.2, 15.5, 2, 3.2).fill({ color: C.chromeDark });
+  };
+  fittings(g);
   c.addChild(g);
+  let painted: Container | undefined;
+  if (texture) {
+    // The atlas already includes the bands, straps and buckle. Keep mechanical details above it.
+    const fittingsLayer = new Graphics();
+    collar(fittingsLayer).stroke({ color: C.chromeDark, width: 1.2 });
+    fittings(fittingsLayer);
+    painted = suitMaterialLayer(texture, fittingsLayer, -40, -32);
+    c.addChild(painted);
+  }
 
   const stencil = new Text({
     text: 'K7',
@@ -471,7 +487,7 @@ function buildTorso(): Container {
   stencil.anchor.set(0.5);
   stencil.position.set(-1, -19);
   c.addChild(stencil);
-  return c;
+  return { view: c, procedural: g, painted };
 }
 
 /** Ribbed hose: a curve with closely spaced light and dark rings across it. */
@@ -691,7 +707,7 @@ export const PLATE_HINGE = { x: 70, y: -28 };
  * separate piece labelled 'plate' so the face plate can lift; drawn shut it
  * looks the same as the diver's.
  */
-export function buildHelmet(plate = false): Container {
+export function buildHelmet(plate = false, paintedFace?: Texture): Container {
   const c = new Container();
   const g = new Graphics();
   const shell = (q: Graphics) =>
@@ -771,13 +787,24 @@ export function buildHelmet(plate = false): Container {
   lid.visible = false;
   const headRig = new Container();
   headRig.label = 'headRig';
-  headRig.addChild(hd, lid);
+  if (paintedFace) {
+    const portrait = new Sprite(paintedFace);
+    portrait.label = hd.label;
+    // The 4x texture shares the original helmet-local coordinates and head pivot.
+    portrait.position.set(48, -24);
+    headRig.addChild(portrait);
+    hd.destroy();
+  } else {
+    headRig.addChild(hd);
+  }
+  headRig.addChild(lid);
   c.addChild(headRig);
   const f = new Graphics();
   // The suit's neck seal: a dark rubber collar with a metal ring, sitting in
   // the bottom of the helmet.
   f.moveTo(52, 13).quadraticCurveTo(64, 10.5, 77, 12.5).lineTo(79, 20).quadraticCurveTo(64, 22, 50, 19).closePath().fill({ color: C.suit });
   f.moveTo(52, 13).quadraticCurveTo(64, 10.5, 77, 12.5).stroke({ color: C.chrome, width: 1.6 });
+  const clearPaintedVisor = !plate && !!paintedFace;
   // Tinted glass shell (on foot, only the back of it: the front is the face plate).
   const CUT = PLATE_HINGE.x;
   const pl = new Graphics();
@@ -795,7 +822,7 @@ export function buildHelmet(plate = false): Container {
     pl.poly(front).fill({ color: C.visor, alpha: 0.3 });
     pl.poly(front).stroke({ color: C.visorEdge, width: 2, alpha: 0.95 });
   } else {
-    shell(f).fill({ color: C.visor, alpha: 0.3 });
+    shell(f).fill(clearPaintedVisor ? { color: 0x9bc568, alpha: 0.13 } : { color: C.visor, alpha: 0.3 });
     shell(f).stroke({ color: C.visorEdge, width: 2, alpha: 0.95 });
   }
   // The face plate's details go on the plate when it is a separate piece.
@@ -820,8 +847,13 @@ export function buildHelmet(plate = false): Container {
   fp.moveTo(82, -17).bezierCurveTo(87, -8, 87, 5, 81, 13).stroke({ color: C.visorEdge, width: 2, alpha: 0.9 });
 
   // Reflections.
-  f.moveTo(60, -21).quadraticCurveTo(71, -26, 81, -18).stroke({ color: 0xf6ffe0, width: 2.4, alpha: 0.55, cap: 'round' });
-  fp.circle(85, -9, 1.7).fill({ color: 0xffffff, alpha: 0.7 });
+  if (clearPaintedVisor) {
+    f.moveTo(61, -23).quadraticCurveTo(70, -27, 79, -22).stroke({ color: 0xf6ffe0, width: 1.6, alpha: 0.27, cap: 'round' });
+    fp.circle(86.3, -12.2, 1).fill({ color: 0xffffff, alpha: 0.26 });
+  } else {
+    f.moveTo(60, -21).quadraticCurveTo(71, -26, 81, -18).stroke({ color: 0xf6ffe0, width: 2.4, alpha: paintedFace ? 0.28 : 0.55, cap: 'round' });
+    fp.circle(85, -9, 1.7).fill({ color: 0xffffff, alpha: paintedFace ? 0.42 : 0.7 });
+  }
   fp.moveTo(87.5, -2).quadraticCurveTo(88, 3, 86, 8).stroke({ color: 0xffffff, width: 1.2, alpha: 0.35, cap: 'round' });
 
 
@@ -935,6 +967,9 @@ export class Diver {
   private breaths = 0;
   private heave = 0;
   private diveCooldown = 0;
+  private surfaceReactionReady = false;
+  private surfaceReactionActive = false;
+  private nextSurfaceReactionAt = 0;
   private diveBag = buildDiveBag();
   /** The specimen jar on the belt (set from the save each frame). */
   jar: JarLook | null = null;
@@ -948,6 +983,7 @@ export class Diver {
   private ps2Torso = new Graphics();
   private ps2Bits: Graphics[] = [];
   private tinted: { g: Graphics; base: number }[] = [];
+  private readonly torsoMaterials: ReturnType<typeof buildTorso>;
   /** Hip thruster rig: a white housing with a lime nozzle, and the plume while boosting. */
   private thruster = new Graphics();
   /** After milestone 12: the suit attachments (satchel, visor, cowl) in body space, and the limb pieces (boots, flare tube). */
@@ -997,9 +1033,10 @@ export class Diver {
   /** With the TH-2 thruster head (found in the kelp forest). */
   private static readonly BOOST_SPEED_2 = 540;
 
-  constructor() {
+  constructor(paintedFace?: Texture, paintedSuit?: Texture, private readonly surfacePersonality = false) {
     // The torso is drawn long and compressed a little here for a stockier build.
-    const torso = buildTorso();
+    this.torsoMaterials = buildTorso(paintedSuit);
+    const torso = this.torsoMaterials.view;
     torso.scale.x = 0.88;
     torso.addChildAt(this.backG, 0);
     drawDiverPsuitTorso(this.psuitTorso);
@@ -1063,7 +1100,7 @@ export class Diver {
     };
     for (const part of [this.nearLeg.thigh, this.farLeg.thigh, this.nearArm.upper, this.farArm.upper]) collect(part);
     for (const ch of torso.children) if (ch instanceof Graphics && ch !== this.backG && ch !== this.psuitTorso && ch !== this.ps2Torso) this.tinted.push({ g: ch, base: ch.tint });
-    const helmet = buildHelmet();
+    const helmet = buildHelmet(false, paintedFace);
     helmet.x = -6;
     this.visorFog = helmet.getChildByLabel('visorFog')!;
     this.visorDrops = helmet.getChildByLabel('visorDrops')!;
@@ -1176,6 +1213,11 @@ export class Diver {
     for (const b of this.ps2Bits) b.visible = k.psuit === 2;
     const tint = k.psuit === 2 ? PSUIT2_TINT : PSUIT_TINT;
     for (const { g, base } of this.tinted) g.tint = k.psuit ? mulColour(base, tint) : base;
+    const { procedural, painted } = this.torsoMaterials;
+    if (painted) {
+      painted.visible = k.psuit === 0;
+      procedural.visible = !painted.visible;
+    }
   }
 
   /** Milestone 11: the resonator's crystal, lit in the Choir's colours (brighter while it sings). */
@@ -1272,7 +1314,15 @@ export class Diver {
     return this.boostTime > 0;
   }
 
-  update(dt: number, moveX: number, moveY: number, boost: boolean, toggleLamp: boolean): void {
+  cancelSurfaceReaction(): void {
+    this.surfaceReactionReady = false;
+    if (!this.surfaceReactionActive) return;
+    this.surfaceReactionActive = false;
+    this.headRig.rotation = this.headS.x;
+    this.eyelid.visible = this.glance.blinking;
+  }
+
+  update(dt: number, moveX: number, moveY: number, boost: boolean, toggleLamp: boolean, freeSwimming = false): void {
     this.time += dt;
     if (toggleLamp) this.lampOn = !this.lampOn;
     this.lampLevel += ((this.lampOn ? 1 : 0) - this.lampLevel) * Math.min(1, dt * 10);
@@ -1299,9 +1349,19 @@ export class Diver {
     this.splash = 0;
     this.exhale = false;
     this.diveCooldown = Math.max(0, this.diveCooldown - dt);
+    if (this.surfacePersonality) {
+      if (!freeSwimming || this.working || this.boostTime > 0) {
+        this.cancelSurfaceReaction();
+      } else if (!this.surfaced) {
+        this.surfaceReactionActive = false;
+        // A fresh ascent needs real submersion. Surface bobbing and surface spawns cannot arm it.
+        if (this.y >= 110) this.surfaceReactionReady = true;
+      }
+    }
     if (this.surfaced) {
       if (moveY > 0.4) {
         this.surfaced = false;
+        this.cancelSurfaceReaction();
         this.vy = 170;
         this.splash = 0.35;
         this.diveCooldown = 0.8;
@@ -1315,6 +1375,11 @@ export class Diver {
       this.breathClock = 0.35; // first gasp straight away
       this.breaths = 0;
       if (this.splash > 0) this.visorDrops.alpha = 1;
+      if (this.surfaceReactionReady && this.splash > 0 && this.time >= this.nextSurfaceReactionAt) {
+        this.surfaceReactionActive = true;
+        this.nextSurfaceReactionAt = this.time + 2.2;
+      }
+      this.surfaceReactionReady = false;
     }
 
     // Swim physics: accelerate towards the wanted velocity, with water drag.
@@ -1353,6 +1418,7 @@ export class Diver {
    * instead of freezing mid-kick.
    */
   pose(dt: number): void {
+    this.cancelSurfaceReaction();
     this.time += dt;
     this.speedNorm = Math.min(1.6, Math.hypot(this.vx, this.vy) / Diver.SPEED);
     this.animate(dt, 0, 0);
@@ -1501,6 +1567,11 @@ export class Diver {
    */
   private animateHead(dt: number, input: number): void {
     // Restrained: a look up, a look down, or back to straight ahead (shared with the walker).
+    const t = this.surfaceTime;
+    const reactionDuration = 0.64;
+    // Reserve a brief quiet gap after the scripted blinks without changing the idle glance cadence.
+    if (t >= 0.84) this.surfaceReactionActive = false;
+    const reacting = this.surfaceReactionActive && this.surfaced;
     this.glance.update(dt);
     const still = (1 - this.swimBlend) * (this.working ? 0 : 1);
     // Looking where the body is going: a little further than the body's own angle.
@@ -1510,8 +1581,11 @@ export class Diver {
     if (this.working) want = 0.1;
     want = Math.max(-0.17, Math.min(0.14, want));
     const w = 7;
-    this.headRig.rotation = this.headS.step(want, w, 1, dt);
-    this.eyelid.visible = this.glance.blinking;
+    const head = this.headS.step(want, w, 1, dt);
+    // Add the tip to the head drawing alone. The hose still follows the breathing spring.
+    const tip = reacting && t < reactionDuration ? (Math.PI / 60) * Math.sin(Math.PI * t / reactionDuration) ** 2 : 0;
+    this.headRig.rotation = head - tip;
+    this.eyelid.visible = reacting ? (t >= 0.14 && t < 0.24) || (t >= 0.375 && t < 0.475) : this.glance.blinking;
   }
 
   /**

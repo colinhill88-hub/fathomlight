@@ -1,6 +1,6 @@
-import { Container, Graphics } from 'pixi.js';
+import { Container, Graphics, type Texture } from 'pixi.js';
 import { mulberry32 } from '../rng';
-import { BRASS, BeltJar, C, choirColour, drawResonatorBracer, drawResonatorHoop, FULL_KIT, JarLook, KitLook, PSUIT2_TINT, PSUIT_TINT, accentBand, buildDiveBag, kitKey, mulColour, buildHelmet, buildShoulderLamp, chromeBands, coiledHose, etching, rimEdge, rivets, scratches, segment } from './diver';
+import { BRASS, BeltJar, C, choirColour, drawResonatorBracer, drawResonatorHoop, FULL_KIT, JarLook, KitLook, PSUIT2_TINT, PSUIT_TINT, accentBand, buildDiveBag, kitKey, mulColour, buildHelmet, buildShoulderLamp, chromeBands, coiledHose, etching, rimEdge, rivets, scratches, segment, suitMaterialLayer } from './diver';
 import { Glance, Spring, approach, batchAll, breathShape, clamp, smoothstep } from './animkit';
 
 /**
@@ -245,8 +245,8 @@ function buildArm(far: boolean): Arm {
 }
 
 /** The suit's body, upright: origin at the pelvis, up is -y, front is +x. */
-function buildTorso(): Graphics {
-  const g = new Graphics();
+function buildTorso(texture?: Texture) {
+  const g = new Graphics({ label: 'proceduralSuit' });
   g.roundRect(-11.5, -36, 24, 41, 9).fill({ color: C.suit });
   g.roundRect(-11, -33, 6, 36, 3).fill({ color: C.suitShade, alpha: 0.75 }); // the back, away from the light
   g.roundRect(7, -32, 4, 30, 2).fill({ color: C.suitLight, alpha: 0.45 });
@@ -254,30 +254,38 @@ function buildTorso(): Graphics {
   accentBand(g, -11.5, -19, 24, 2.4);
   rimEdge(g, -6, -35.2, 8, -35.2, 0.5);
   rimEdge(g, 12.3, -30, 12.3, -6, 0.55);
-  // Harness strap round the chest, and the belt with a chrome buckle.
+  // Harness strap, belt, and buckle.
   g.rect(-11.5, -25, 24, 3.6).fill({ color: C.chromeDark, alpha: 0.85 });
   g.rect(-11.5, -3, 24, 5).fill({ color: C.suitShade });
   chromeBands(g, 6, -4, 6.5, 7, 2);
   scratches(g, -9, -32, 19, 30, 5, 0.22, rand);
   for (let i = 0; i < 5; i++) g.circle(-8 + rand() * 6, -10 + rand() * 12, 0.6 + rand() * 0.8).fill({ color: 0x5f7a3a, alpha: 0.45 });
   // Collar yoke: the chrome ring round the shoulders that seats the helmet.
-  g.moveTo(-10.5, -31)
+  const collar = (q: Graphics) => q.moveTo(-10.5, -31)
     .lineTo(-8.5, -38.5)
     .quadraticCurveTo(2, -42.5, 12.5, -37.5)
     .quadraticCurveTo(15, -31, 13, -27.5)
     .quadraticCurveTo(2, -30.5, -10.5, -31)
-    .closePath()
-    .fill({ color: C.chrome })
-    .stroke({ color: C.chromeDark, width: 1 });
+    .closePath();
+  collar(g).fill({ color: C.chrome }).stroke({ color: C.chromeDark, width: 1 });
   g.moveTo(-7, -37).quadraticCurveTo(2, -40.5, 11, -36).stroke({ color: C.chromeHi, width: 1.4, alpha: 0.7, cap: 'round' });
   g.moveTo(-8, -32.5).quadraticCurveTo(2, -33.5, 12, -30).stroke({ color: C.chromeMid, width: 1.3, alpha: 0.9, cap: 'round' });
-  rivets(g, [[-6.5, -35], [10.5, -33.5]], 0.7);
-  // Regulator port on the chest, with grille slots below.
-  g.circle(PORT_X, PORT_Y, 4.2).fill({ color: C.chrome }).stroke({ color: C.chromeDark, width: 0.9 });
-  g.circle(PORT_X + 0.6, PORT_Y, 1.9).fill({ color: 0x0d1114 });
-  g.circle(PORT_X - 1.3, PORT_Y - 1.5, 1).fill({ color: C.chromeHi, alpha: 0.8 });
-  for (let i = 0; i < 3; i++) g.rect(6.5 + i * 2, PORT_Y + 4.5, 1.2, 2).fill({ color: C.chromeDark });
-  return g;
+  const fittings = (q: Graphics) => {
+    rivets(q, [[-6.5, -35], [10.5, -33.5]], 0.7);
+    q.circle(PORT_X, PORT_Y, 4.2).fill({ color: C.chrome }).stroke({ color: C.chromeDark, width: 0.9 });
+    q.circle(PORT_X + 0.6, PORT_Y, 1.9).fill({ color: 0x0d1114 });
+    q.circle(PORT_X - 1.3, PORT_Y - 1.5, 1).fill({ color: C.chromeHi, alpha: 0.8 });
+    for (let i = 0; i < 3; i++) q.rect(6.5 + i * 2, PORT_Y + 4.5, 1.2, 2).fill({ color: C.chromeDark });
+  };
+  fittings(g);
+  let painted: Container | undefined;
+  if (texture) {
+    const fittingsLayer = new Graphics();
+    collar(fittingsLayer).stroke({ color: C.chromeDark, width: 1 });
+    fittings(fittingsLayer);
+    painted = suitMaterialLayer(texture, fittingsLayer, -16, -44);
+  }
+  return { procedural: g, painted };
 }
 
 /**
@@ -422,7 +430,7 @@ export class Walker {
   private farLeg = buildLeg(true);
   private nearArm = buildArm(false);
   private farArm = buildArm(true);
-  private torsoG = buildTorso();
+  private readonly torsoMaterials: ReturnType<typeof buildTorso>;
   private torso = new Container();
   private pack = new Container();
   private packG = new Graphics();
@@ -529,8 +537,9 @@ export class Walker {
   private sinL = 0;
   private sxw = 1;
 
-  constructor() {
-    const hel = buildHelmet(true);
+  constructor(paintedFace?: Texture, paintedSuit?: Texture) {
+    this.torsoMaterials = buildTorso(paintedSuit);
+    const hel = buildHelmet(true, paintedFace);
     hel.scale.set(HELMET_K);
     hel.position.set(-64 * HELMET_K, -16 * HELMET_K);
     this.headRig = hel.getChildByLabel('headRig')!;
@@ -557,7 +566,10 @@ export class Walker {
     this.bag.scale.set(0.5);
     this.bag.visible = false;
     this.beltJar.view.scale.set(0.8);
-    this.torso.addChild(this.torsoG, this.psuitG, this.ps2G, this.thrusterG);
+    const { procedural, painted } = this.torsoMaterials;
+    this.torso.addChild(procedural);
+    if (painted) this.torso.addChild(painted);
+    this.torso.addChild(this.psuitG, this.ps2G, this.thrusterG);
     drawWalkerPs2(this.ps2G);
     this.ps2G.visible = false;
     this.pack.addChild(this.packSpear, this.packG);
@@ -595,7 +607,7 @@ export class Walker {
       }
     };
     for (const part of [this.nearLeg.thigh, this.farLeg.thigh, this.nearArm.upper, this.farArm.upper]) collect(part);
-    this.tinted.push({ g: this.torsoG, base: this.torsoG.tint });
+    this.tinted.push({ g: procedural, base: procedural.tint });
     this.applyKit();
     this.rig.addChild(
       this.farArm.upper,
@@ -635,6 +647,11 @@ export class Walker {
     for (const b of this.ps2Bits) b.visible = k.psuit === 2;
     const tint = k.psuit === 2 ? PSUIT2_TINT : PSUIT_TINT;
     for (const { g, base } of this.tinted) g.tint = k.psuit ? mulColour(base, tint) : base;
+    const { procedural, painted } = this.torsoMaterials;
+    if (painted) {
+      painted.visible = k.psuit === 0;
+      procedural.visible = !painted.visible;
+    }
   }
 
   // ---- Points other code reads (each returns the same object every call) ----

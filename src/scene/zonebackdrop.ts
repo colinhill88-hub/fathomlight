@@ -1,7 +1,7 @@
-import { Container, Graphics } from 'pixi.js';
+import { Container, Graphics, Sprite, type Texture } from 'pixi.js';
 import { mulberry32 } from '../rng';
 import { waterColor } from '../fx/shared';
-import { BASIN_EAST, BASIN_WEST, FOREST, WRECK_SHELF, groundY } from '../world/terrain';
+import { BASIN_EAST, BASIN_WEST, FOREST, WRECK_SHELF, groundY, smooth } from '../world/terrain';
 
 /**
  * Graphics session G3: zone-aware mid-ground silhouettes. The generic sine
@@ -17,6 +17,32 @@ import { BASIN_EAST, BASIN_WEST, FOREST, WRECK_SHELF, groundY } from '../world/t
 
 const PARALLAX = 0.5;
 const REF_DEPTH = 260;
+interface PlatePlacement {
+  label: string;
+  centerX: number;
+  topY: number;
+  width: number;
+  startX: number;
+  endX: number;
+  fadeIn: number;
+  fadeOut: number;
+  referenceFog: [number, number, number];
+}
+
+const forestPlacement: PlatePlacement = {
+  label: 'paintedForestMidground',
+  centerX: 12360, topY: 140, width: 2200,
+  startX: 11020, endX: 13680, fadeIn: 420, fadeOut: 420,
+  referenceFog: waterColor(1175),
+};
+
+const shelfPlacement: PlatePlacement = {
+  label: 'paintedWreckShelfMidground',
+  // At half parallax the 3400 × 1700 sprite spans world x 19600–26400.
+  centerX: 23000, topY: -190, width: 3400,
+  startX: 19480, endX: 25900, fadeIn: 660, fadeOut: 940,
+  referenceFog: waterColor(1500),
+};
 
 interface Zone {
   c: Container;
@@ -24,6 +50,7 @@ interface Zone {
   x1: number;
   /** 0 = water colour, 1 = full rock colour. */
   strength: number;
+  plate?: { sprite: Sprite; placement: PlatePlacement };
 }
 
 function toHex([r, g, b]: [number, number, number]): number {
@@ -34,6 +61,16 @@ function toHex([r, g, b]: [number, number, number]): number {
 /** Local coordinates for a world position at this layer's parallax. */
 const lx = (wx: number) => wx * PARALLAX;
 const ly = (wy: number) => REF_DEPTH + (wy - REF_DEPTH) * PARALLAX;
+
+function addPlate(zone: Zone, texture: Texture, placement: PlatePlacement): void {
+  const sprite = new Sprite({ texture, label: placement.label });
+  sprite.anchor.x = 0.5;
+  sprite.position.set(lx(placement.centerX), ly(placement.topY));
+  sprite.width = placement.width;
+  sprite.height = placement.width / 2;
+  zone.plate = { sprite, placement };
+  zone.c.addChild(sprite);
+}
 
 function boulder(g: Graphics, cx: number, base: number, w: number, h: number, rand: () => number): void {
   g.moveTo(cx - w / 2, base);
@@ -117,6 +154,8 @@ export class ZoneBackdrop {
   readonly view = new Container();
   private zones: Zone[] = [];
 
+  constructor(private readonly forestMidground?: Texture, private readonly shelfMidground?: Texture) {}
+
   build(): void {
     this.view.removeChildren().forEach((c) => c.destroy({ children: true }));
     this.zones = [];
@@ -128,7 +167,9 @@ export class ZoneBackdrop {
       c.addChild(g);
       c.visible = false;
       this.view.addChild(c);
-      this.zones.push({ c, x0, x1, strength });
+      const zone: Zone = { c, x0, x1, strength };
+      this.zones.push(zone);
+      return zone;
     };
     // The basin: boulders now and then, an arch every so often.
     mk(BASIN_WEST, BASIN_EAST, 0.34, (g) => {
@@ -139,19 +180,21 @@ export class ZoneBackdrop {
       }
     });
     // The kelp forest: ranks of distant kelp from the floor towards the surface.
-    mk(FOREST.x0, FOREST.x1, 0.3, (g) => {
+    const forest = mk(FOREST.x0, FOREST.x1, 0.3, (g) => {
       for (let x = FOREST.x0 - 200; x < FOREST.x1 + 200; x += 70 + rand() * 90) {
         const base = groundY(Math.min(FOREST.x1, Math.max(FOREST.x0, x))) + 30;
         kelpStalk(g, lx(x), ly(base), (base - 60) * PARALLAX * (0.55 + rand() * 0.4) / PARALLAX, rand);
       }
     });
+    if (this.forestMidground) addPlate(forest, this.forestMidground, forestPlacement);
     // The wreck shelf: hulks, masts and a crane, half sunk in the silt.
-    mk(WRECK_SHELF.x0, WRECK_SHELF.x1 + 200, 0.4, (g) => {
+    const shelf = mk(WRECK_SHELF.x0, WRECK_SHELF.x1 + 200, 0.4, (g) => {
       for (let x = WRECK_SHELF.x0 + 300; x < WRECK_SHELF.x1; x += 900 + rand() * 1100) {
         const base = groundY(x) + 70;
         hulk(g, lx(x), ly(base), 640 + rand() * 420, 120 + rand() * 80, (rand() - 0.5) * 0.28, rand);
       }
     });
+    if (this.shelfMidground) addPlate(shelf, this.shelfMidground, shelfPlacement);
   }
 
   /** Camera centre in world units, zoom = CSS px per world unit. */
@@ -170,7 +213,23 @@ export class ZoneBackdrop {
       const c: [number, number, number] = [fog[0] * (1 - k * 0.8), fog[1] * (1 - k * 0.72), fog[2] * (1 - k * 0.55)];
       const g = z.c.children[0] as Graphics;
       g.tint = toHex(c);
-      g.alpha = 0.62;
+      if (z.plate) {
+        const { sprite, placement } = z.plate;
+        const edge = Math.min((camCX - placement.startX) / placement.fadeIn, (placement.endX - camCX) / placement.fadeOut);
+        // Crossfade at both ends and when the view gets too wide for a single plate.
+        const coverage = smooth(edge) * smooth((1810 - cssW / zoom) / 480);
+        sprite.visible = coverage > 0;
+        sprite.alpha = coverage * 0.85;
+        sprite.tint = toHex([
+          Math.min(1, fog[0] / placement.referenceFog[0]),
+          Math.min(1, fog[1] / placement.referenceFog[1]),
+          Math.min(1, fog[2] / placement.referenceFog[2]),
+        ]);
+        g.visible = coverage < 1;
+        g.alpha = 0.62 * (1 - coverage);
+      } else {
+        g.alpha = 0.62;
+      }
     }
   }
 }
