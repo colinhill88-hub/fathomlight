@@ -1800,6 +1800,10 @@ Colin: dragging pipes from one piece to another wasn't working well. What was wr
 - **The drag could get stuck.** The pointer is captured during the drag, so crossing the build bar or info box no longer loses it; a cancelled touch ends it cleanly; a second finger turns it into a pinch/pan and leaves the line waiting for a tap.
 - Storage (sends and takes conveyors) still works both ways: both kinds of target light up while dragging from it.
 
+### More copper in the basin (2026-11-19)
+
+Colin: copper was the early-game bottleneck. Three more copper nodules lie on the flat floor at the bottom of the basin's west side, at x -2110, -1930 and -1720 (ids `copper-b0` to `copper-b2`, appended at the end of `SPOTS` in `src/world/pickups.ts` so saved ids and random draws keep their places). That makes 10 copper spots in all; they regrow like the others.
+
 ## Next
 
 **Next session: more polish** (Colin wants more before the Steam build). Ideas to choose from:

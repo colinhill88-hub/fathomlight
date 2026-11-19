@@ -107,6 +107,10 @@ const SPOTS: Spot[] = (() => {
   s.push({ id: 'seam-ore-0', kind: 'ore', x: 26860, y: floorOf(26860) - 6 });
   s.push({ id: 'seam-ore-1', kind: 'ore', x: 27040, y: floorOf(27040) - 6 });
   s.push({ id: 'whorl-seam', kind: 'whorl', x: 26690, y: floorOf(26690) - 9 });
+  // After the line-drag pass (Colin: copper was the early-game bottleneck): three more nodules on
+  // the flat floor at the bottom of the basin's west side, between the foot of the western slope
+  // (x -2196) and the first sand mound. Appended last so earlier ids and random draws keep their places.
+  for (const [i, x] of [-2110, -1930, -1720].entries()) s.push({ id: `copper-b${i}`, kind: 'copper', x, y: groundY(x) - 5 });
   return s;
 })();
 
