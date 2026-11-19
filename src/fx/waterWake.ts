@@ -4,14 +4,19 @@ import { isSolid } from '../world/terrain';
 import { isWaterAir, type WaterMotion } from '../scene/waterMotion';
 
 interface Trace { x: number; y: number; age: number; vx: number; vy: number; nx: number; ny: number; spread: number; signal: number; silt: number; bubble: boolean; phase: number }
+interface Eddy { x: number; y: number; dx: number; dy: number; age: number; strength: number; spin: number }
 
 export class WaterWake {
   readonly view = new Graphics();
   private readonly traces: Trace[] = [];
+  private readonly eddies: Eddy[] = [];
   private readonly rand = mulberry32(0x54e8a1);
   private readonly flow = { x: 0, y: 0, silt: 0, energy: 0 };
   private wait = 0;
+  private brakeWait = 0;
+  private turnWait = 0;
   private tracking = false;
+  private trackingSwimmer = false;
   private vx = 0;
   private vy = 0;
   private x = 0;
@@ -20,9 +25,31 @@ export class WaterWake {
   constructor(private readonly water: WaterMotion) {}
 
   /** A tracked swimmer emits from its trailing edge based on speed and velocity changes. */
-  track(dt: number, x: number, y: number, vx: number, vy: number, radius: number, active: boolean): void {
-    const continuous = active && this.tracking && Math.hypot(x - this.x, y - this.y) < 150;
+  track(dt: number, x: number, y: number, vx: number, vy: number, radius: number, active: boolean, swimmer: boolean): void {
+    const continuous = active && this.tracking && this.trackingSwimmer === swimmer && Math.hypot(x - this.x, y - this.y) < 150;
     this.wait = Math.max(-dt, this.wait - dt);
+    this.brakeWait -= dt;
+    this.turnWait -= dt;
+    if (continuous && swimmer && dt > 0) {
+      const speed = Math.hypot(this.vx, this.vy);
+      if (speed > 82) {
+        const dx = this.vx / speed;
+        const dy = this.vy / speed;
+        const ax = (vx - this.vx) / dt;
+        const ay = (vy - this.vy) / dt;
+        const braking = -(ax * dx + ay * dy);
+        const across = dx * ay - dy * ax;
+        const sharp = Math.max(braking, Math.abs(across) * 1.18);
+        if (sharp > 555 && this.turnWait <= 0) {
+          this.leaveEddy(this.x, this.y, dx, dy, radius, Math.min(1, sharp / 920), Math.sign(across) || Math.sign(dx) || 1);
+          this.brakeWait = 0.85;
+          this.turnWait = 0.85;
+        } else if (braking > 220 && speed > 142 && this.brakeWait <= 0) {
+          this.leaveEddy(this.x, this.y, dx, dy, radius, Math.min(0.55, (braking - 175) / 320), 0);
+          this.brakeWait = 0.85;
+        }
+      }
+    }
     if (continuous && this.wait <= 0) {
       const speed = Math.hypot(vx, vy);
       const before = Math.hypot(this.vx, this.vy);
@@ -40,6 +67,7 @@ export class WaterWake {
       this.reset();
     }
     this.tracking = active;
+    this.trackingSwimmer = swimmer;
     this.x = x; this.y = y; this.vx = vx; this.vy = vy;
   }
 
@@ -52,16 +80,33 @@ export class WaterWake {
       const arc = (this.rand() - 0.5) * emitterRadius * 1.1;
       const side = arc < 0 ? -1 : 1;
       const spread = 7 + this.rand() * 23;
-      const trail = 12 + strength * 25;
+      const trail = 6 + strength * 38;
       if (this.traces.length >= 116) this.traces.shift();
       this.traces.push({ x: x - dy * arc, y: y + dx * arc, age: 0,
-        vx: -dx * trail - dy * side * spread, vy: -dy * trail + dx * side * spread,
+        vx: dx * trail - dy * side * spread, vy: dy * trail + dx * side * spread,
         nx: dx, ny: dy, spread, signal: Math.min(1.1, strength), silt: f.silt,
         bubble: i === 0 && this.rand() < 0.66, phase: this.rand() * 6.28 });
     }
   }
 
-  reset(): void { this.traces.length = 0; this.tracking = false; this.wait = 0; this.view.clear(); }
+  private leaveEddy(x: number, y: number, dx: number, dy: number, radius: number, strength: number, spin: number): void {
+    x -= dx * radius;
+    y -= dy * radius;
+    if (isWaterAir(x, y) || isSolid(x, y)) return;
+    const f = this.water.sample(x, y, this.flow);
+    strength *= 0.16 + 0.84 * Math.min(1, f.energy / 0.65);
+    if (this.eddies.length === 4) this.eddies.shift();
+    this.eddies.push({ x, y, dx, dy, age: 0, strength, spin });
+    this.water.disturb({ x, y, vx: dx * 160, vy: dy * 160, radius: 98, strength, spin });
+  }
+
+  reset(): void {
+    this.traces.length = 0;
+    this.eddies.length = 0;
+    this.tracking = false;
+    this.wait = this.brakeWait = this.turnWait = 0;
+    this.view.clear();
+  }
 
   update(dt: number, time: number): void {
     const g = this.view.clear();
@@ -70,7 +115,8 @@ export class WaterWake {
       p.age += dt;
       const life = p.bubble ? 1.28 : 0.92 + p.silt * 0.52;
       if (p.age >= life) continue;
-      const f = this.water.sample(p.x, p.y, this.flow);
+      // A reversing swimmer shouldn't drag in the wake they just left behind.
+      const f = this.water.sample(p.x, p.y, this.flow, true);
       const drag = Math.exp(-p.age * 1.7);
       const swirl = Math.sin(p.phase + p.age * 5.5) * 11 * drag;
       p.x += (p.vx * drag + f.x * 0.43 - p.ny * swirl) * dt;
@@ -101,5 +147,53 @@ export class WaterWake {
       }
     }
     this.traces.length = alive;
+    this.drawEddies(dt);
+  }
+
+  private drawEddies(dt: number): void {
+    const g = this.view;
+    let alive = 0;
+    for (const e of this.eddies) {
+      e.age += dt;
+      const life = e.spin ? 1.88 : 1.56;
+      if (e.age >= life) continue;
+      const f = this.water.sample(e.x, e.y, this.flow, true);
+      const drift = (e.spin ? 71 : 56) * Math.exp(-e.age * 1.4);
+      e.x += (e.dx * drift + f.x * 0.35) * dt;
+      e.y += (e.dy * drift + f.y * 0.35) * dt;
+      if (isWaterAir(e.x, e.y) || isSolid(e.x, e.y)) continue;
+      this.eddies[alive++] = e;
+      const fade = Math.min(1, e.age * 10) * (1 - e.age / life) ** 1.12 * e.strength;
+      const ink = f.silt > 0.47 ? 0xd5c8a2 : 0xc5eee4;
+      const count = e.spin ? 13 : 9;
+      let lastX = 0;
+      let lastY = 0;
+      let lastVisible = false;
+      for (let i = 0; i < count; i++) {
+        const u = i / (count - 1);
+        const wobble = Math.sin(i * 2.43) * 4;
+        const angle = u * 4.5 - 1.7 + e.age * 2.7;
+        const radius = 35 - u * 21 + e.age * 11;
+        const along = e.spin ? Math.cos(angle) * radius : (u - 0.5) * (76 + e.age * 18);
+        const across = e.spin ? Math.sin(angle) * radius * e.spin * 0.77 : Math.sin(u * 7 + e.age * 3) * 11;
+        const x = e.x + e.dx * along - e.dy * (across + wobble);
+        const y = e.y + e.dy * along + e.dx * (across + wobble);
+        if (isWaterAir(x, y) || isSolid(x, y)) { lastVisible = false; continue; }
+        if (e.spin && lastVisible && i % 3 === 1 && !isSolid((x + lastX) / 2, (y + lastY) / 2)) {
+          g.moveTo(lastX, lastY + 0.9).lineTo(x, y + 0.9)
+            .stroke({ color: 0x264950, width: 2, alpha: fade * 0.44, cap: 'round' });
+          g.moveTo(lastX, lastY).lineTo(x, y)
+            .stroke({ color: ink, width: 1.15, alpha: fade * 0.52, cap: 'round' });
+        }
+        lastX = x;
+        lastY = y;
+        lastVisible = true;
+        const r = 1.1 + (1 - u) * 1.3 + Math.cos(i * 1.6) * 0.37;
+        const alpha = fade * (0.7 + Math.sin(i * 1.8) * 0.17);
+        g.ellipse(x, y + 1.25, r + 0.9, r + 0.55).fill({ color: 0x264950, alpha: alpha * 0.77 });
+        g.ellipse(x, y, r * 1.25, r).fill({ color: ink, alpha });
+      }
+    }
+    this.eddies.length = alive;
   }
 }

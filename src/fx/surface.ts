@@ -145,6 +145,7 @@ export class SurfaceFx {
       }
     }
     this.rings = this.rings.filter((r) => r.life > 0);
+    if (this.motion && viewY0 <= 30) this.drawImpactFoam(this.motion, time, viewX0, viewX1);
 
     // Breath vapour: soft, growing, rising wisps.
     for (const p of this.puffs) {
@@ -170,5 +171,31 @@ export class SurfaceFx {
     for (let x = x0 + step; x <= viewX1 + step; x += step) l.lineTo(x, this.wave(x, time));
     for (let x = viewX1 + step; x >= x0; x -= step) l.lineTo(x, this.wave(x, time) + 7);
     l.closePath().fill({ color: 0xcfeee8, alpha: 0.13 });
+  }
+
+  private drawImpactFoam(motion: SurfaceMotion, time: number, x0: number, x1: number): void {
+    const g = this.g;
+    for (let i = 0; i < motion.data.length; i += 4) {
+      const age = motion.data[i + 1];
+      const strength = motion.data[i + 2];
+      if (strength < 0.25 || age <= 0 || age >= 1.8) continue;
+      const alpha = Math.min(0.88, strength * 0.86) * Math.min(1, age * 12) * (1 - age / 1.8) ** 1.5;
+      for (const side of [-1, 1]) {
+        const x = motion.crestX(i, side);
+        if (x < x0 - 26 || x > x1 + 26) continue;
+        const a = x - side * (13 + age * 6);
+        const b = x - side * 5;
+        const c = x + side * 5;
+        const ya = this.wave(a, time);
+        const yb = this.wave(b, time);
+        const y = this.wave(x, time);
+        const yc = this.wave(c, time);
+        g.moveTo(a, ya + 4).lineTo(b, yb + 3).lineTo(x, y + 3).lineTo(c, yc + 3)
+          .stroke({ color: 0x316471, width: 3.1, alpha: alpha * 0.73, cap: 'round' });
+        g.moveTo(a, ya + 1).lineTo(b, yb).lineTo(x, y - 0.6).lineTo(c, yc + 1)
+          .stroke({ color: 0xe5fff1, width: 2.1, alpha, cap: 'round' });
+        g.circle(a - side * 4, this.wave(a - side * 4, time) + 2, 1.25).fill({ color: 0xe5fff1, alpha: alpha * 0.72 });
+      }
+    }
   }
 }

@@ -3319,7 +3319,7 @@ async function boot(): Promise<void> {
     if (wake && motion) {
       const source = aboard ? sub : diver;
       const active = blackout === 0 && !peek && !isWaterAir(source.x, source.y) && (aboard ? !S?.docked : !diver.surfaced && !pocketAir);
-      wake.track(dt, source.x, source.y, source.vx, source.vy, aboard ? 83 : 45, active);
+      wake.track(dt, source.x, source.y, source.vx, source.vy, aboard ? 83 : 45, active, !aboard);
       wake.update(dt, time);
       const flow = motion.sample(camCX, camCY, cameraFlow);
       lighting.setWaterFlow(flow.x, flow.y);
@@ -3327,7 +3327,7 @@ async function boot(): Promise<void> {
       if (plume) lighting.setWaterLocal(plume.x, plume.y - 114, 2.6, 185);
       else lighting.setWaterLocal(source.x - source.vx * 0.24, source.y - source.vy * 0.24, active ? Math.min(0.79, Math.hypot(source.vx, source.vy) / 370) : 0, 108);
     }
-    scenery.update(time, diver.x, diver.y, diver.vx, camX, camX + viewW, motion, dt);
+    scenery.update(time, diver.x, diver.y, diver.vx, camX, camX + viewW, motion, dt, diver.vy);
     const storedNow = MATERIALS_LIST.reduce((a, k) => a + save.stored[k], 0);
     const cap = storageCapacity(layout);
     baseView.update(dt, time, layout, cap ? storedNow / cap : 0, camX, camX + viewW, drone.welding?.id ?? null, readings);

@@ -2166,7 +2166,7 @@ export class Scenery {
   }
 
   /** viewX0..viewX1 is the part of the world the camera can see. */
-  update(time: number, diverX: number, diverY: number, diverVX: number, viewX0: number, viewX1: number, motion?: WaterMotion, dt = 1 / 60): void {
+  update(time: number, diverX: number, diverY: number, diverVX: number, viewX0: number, viewX1: number, motion?: WaterMotion, dt = 1 / 60, diverVY = 0): void {
     for (const s of this.slices) s.obj.visible = s.x1 > viewX0 && s.x0 < viewX1;
     this.trench.update(time, viewX0, viewX1, motion);
     this.sanctum.update(time, viewX0, viewX1, diverY - 1400, diverY + 1400);
@@ -2198,6 +2198,7 @@ export class Scenery {
     this.buoy.y = 4 + Math.sin(time * 1.1) * 3;
     this.buoy.rotation = Math.sin(time * 0.9 + 1) * 0.08;
 
+    const passing = motion ? Math.max(0, Math.min(1, (Math.hypot(diverVX, diverVY) - 18) / 92)) : 1;
     for (const g of this.grass) {
       const vis = g.x > viewX0 - 80 && g.x < viewX1 + 80;
       g.g.visible = vis;
@@ -2205,7 +2206,7 @@ export class Scenery {
       const near = Math.abs(g.x - diverX) < 60 && diverY > groundY(g.x) - 120 ? Math.sign(g.x - diverX || 1) * 0.25 : 0;
       if (motion) {
         const flow = motion.sample(g.x, groundY(g.x) - 43, this.plantFlow);
-        const bend = Math.max(-0.54, Math.min(0.54, flow.x * 0.011 + near));
+        const bend = Math.max(-0.54, Math.min(0.54, flow.x * 0.011 + near * passing));
         const last = g.bend ?? 0;
         g.bend = last + (bend - last) * (1 - Math.exp(-dt * 4.8));
         g.g.skew.x = g.bend + Math.sin(time * 1.6 + g.phase) * (0.063 + flow.energy * 0.045);
@@ -2224,7 +2225,7 @@ export class Scenery {
       const push = near ? Math.sign(dx || 1) * (1 - Math.abs(dx) / 90) * 60 + diverVX * 0.12 : 0;
       const flow = motion && k.rope.parent !== this.front ? motion.sample(k.baseX, Math.max(24, k.baseY - k.height * 0.39), this.plantFlow) : undefined;
       const current = flow ? Math.max(-100, Math.min(100, flow.x * 2.55)) : 0;
-      k.bend += (push + current - k.bend) * (motion ? 1 - Math.exp(-dt * 3.1) : 0.06);
+      k.bend += (push * (flow ? passing : 1) + current - k.bend) * (motion ? 1 - Math.exp(-dt * 3.1) : 0.06);
       const n = k.points.length;
       for (let i = 0; i < n; i++) {
         const f = i / (n - 1);

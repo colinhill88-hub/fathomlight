@@ -3,11 +3,12 @@ import { AIR_POCKETS, FOREST, SANCTUM, TRENCH, TR_VENTS, WRECK_SHELF, groundY, i
 export interface FlowSample { x: number; y: number; silt: number; energy: number }
 
 /** World units and seconds. Emitters can describe a fin, propeller, tail, or other moving point. */
-export interface WaterImpulse { x: number; y: number; vx: number; vy: number; radius: number; strength: number }
+export interface WaterImpulse { x: number; y: number; vx: number; vy: number; radius: number; strength: number; spin?: number }
 interface Disturbance extends WaterImpulse { time: number }
 
 const CAP = 28;
 const LIFE = 1.15;
+const EDDY_LIFE = 1.85;
 const vents = TR_VENTS.map(({ x, h }) => ({ x, y: groundY(x) - h }));
 const choir = [...sanctumShapes()];
 
@@ -33,7 +34,11 @@ export class WaterMotion {
 
   advance(time: number): void {
     this.time = time;
-    while (this.impulses[0] && time - this.impulses[0].time > LIFE) this.impulses.shift();
+    let alive = 0;
+    for (const p of this.impulses) {
+      if (time - p.time < (p.spin === undefined ? LIFE : EDDY_LIFE)) this.impulses[alive++] = p;
+    }
+    this.impulses.length = alive;
   }
 
   disturb(impulse: WaterImpulse): void {
@@ -44,7 +49,7 @@ export class WaterMotion {
 
   reset(): void { this.impulses.length = 0; }
 
-  sample(x: number, y: number, into: FlowSample): FlowSample {
+  sample(x: number, y: number, into: FlowSample, ambientOnly = false): FlowSample {
     const t = this.time;
     const meadow = smooth((x - 6700) / 400) * (1 - smooth((x - 8170) / 550));
     const forest = smooth((x - FOREST.x0 + 500) / 870);
@@ -76,16 +81,22 @@ export class WaterMotion {
       vx -= dy * 0.028 * ring;
       vy += dx * 0.028 * ring;
     }
-    for (const p of this.impulses) {
+    const count = ambientOnly ? 0 : this.impulses.length;
+    for (let i = 0; i < count; i++) {
+      const p = this.impulses[i];
       const age = Math.max(0, t - p.time);
-      const dx = x - p.x - p.vx * age * 0.16;
-      const dy = y - p.y - p.vy * age * 0.16;
+      const hasMomentum = p.spin !== undefined;
+      const travel = hasMomentum ? (1 - Math.exp(-age * 1.5)) * 0.28 : age * 0.16;
+      const dx = x - p.x - p.vx * travel;
+      const dy = y - p.y - p.vy * travel;
       const radius = p.radius + age * 44;
       const r2 = (dx * dx + dy * dy) / (radius * radius);
       if (r2 >= 1) continue;
-      const gain = (1 - r2) ** 2 * (1 - age / LIFE) ** 2 * p.strength;
-      vx += (p.vx * 0.27 - dy * 0.81) * gain;
-      vy += (p.vy * 0.27 + dx * 0.81) * gain;
+      const life = hasMomentum ? EDDY_LIFE : LIFE;
+      const gain = (1 - r2) ** 2 * (1 - age / life) ** 2 * p.strength;
+      const spin = (p.spin ?? 1) * 0.81;
+      vx += (p.vx * 0.27 - dy * spin) * gain;
+      vy += (p.vy * 0.27 + dx * spin) * gain;
     }
     into.x = vx;
     into.y = vy;
