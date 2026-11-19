@@ -2,6 +2,7 @@ import { Container, Graphics } from 'pixi.js';
 import { mulberry32 } from '../rng';
 import { isSolid } from '../world/terrain';
 import type { PointLight } from '../world/scenery';
+import { GlowfinRig } from './glowfinRig';
 
 /**
  * Glowfins from the kit sheet: small striped fish with a glowing lure on a
@@ -30,8 +31,10 @@ export class Glowfin {
   readonly lure = new Graphics();
   readonly halo = new Graphics();
   readonly light: PointLight;
+  readonly wakePoint = { x: 0, y: 0 };
 
   private tail = new Graphics();
+  private readonly rig?: GlowfinRig;
   private x: number;
   private y: number;
   private vx = 0;
@@ -46,10 +49,23 @@ export class Glowfin {
   constructor(
     look: number,
     private readonly area: { x0: number; x1: number; y0: number; y1: number },
+    living = false,
   ) {
     const L = LOOKS[look % LOOKS.length];
     this.x = area.x0 + rand() * (area.x1 - area.x0);
     this.y = area.y0 + rand() * (area.y1 - area.y0);
+    if (living) {
+      this.rig = new GlowfinRig({ ...L, fin: L.body }, false, this.wiggle);
+      this.view.addChild(this.rig.body);
+    } else this.drawOriginal(L);
+    this.view.scale.set(1.1);
+    this.lure.circle(0, 0, 3).fill({ color: L.lure });
+    this.halo.circle(0, 0, 16).fill({ color: L.lure });
+    this.light = { x: this.x, y: this.y, radius: 150, intensity: 0.8, color: L.light };
+    this.pickTarget();
+  }
+
+  private drawOriginal(L: Look): void {
     const g = new Graphics();
     // Soft rounded dorsal fin (shallows creatures stay gentle: no spikes or teeth).
     g.moveTo(-10, -7).bezierCurveTo(-8, -16, 4, -17, 7, -8).closePath().fill({ color: L.stripe });
@@ -71,12 +87,6 @@ export class Glowfin {
     this.tail.moveTo(-2, 0).lineTo(-9, -6).stroke({ color: L.stripe, width: 1.2 });
     this.tail.x = -18;
     this.view.addChild(this.tail, g);
-    this.view.scale.set(1.1);
-
-    this.lure.circle(0, 0, 3).fill({ color: L.lure });
-    this.halo.circle(0, 0, 16).fill({ color: L.lure });
-    this.light = { x: this.x, y: this.y, radius: 150, intensity: 0.8, color: L.light };
-    this.pickTarget();
   }
 
   private pickTarget(): void {
@@ -89,7 +99,7 @@ export class Glowfin {
     this.retarget = 3 + rand() * 4;
   }
 
-  update(dt: number, time: number, diverX: number, diverY: number): void {
+  update(dt: number, time: number, diverX: number, diverY: number, currentY = 0): void {
     this.retarget -= dt;
     let ax = this.tx - this.x;
     let ay = this.ty - this.y;
@@ -128,18 +138,23 @@ export class Glowfin {
     this.faceAnim += (this.face - this.faceAnim) * Math.min(1, dt * 6);
     const sp = Math.hypot(this.vx, this.vy);
     this.wiggle += dt * (4 + sp * 0.08);
-    this.tail.rotation = Math.sin(this.wiggle) * 0.35;
+    if (this.rig) this.rig.update(dt, sp, Math.max(0, 1 - fd / 230), 0, currentY);
+    else this.tail.rotation = Math.sin(this.wiggle) * 0.35;
     this.view.position.set(this.x, this.y + Math.sin(time * 1.7 + this.wiggle * 0.1) * 2);
     this.view.scale.x = 1.1 * (Math.abs(this.faceAnim) < 0.1 ? 0.1 * this.face : this.faceAnim);
     this.view.rotation = Math.atan2(this.vy, Math.abs(this.vx) + 20) * 0.5 * this.face;
 
     // The lure sits at the end of the stalk; work out where that is in the world.
-    const lx = 28 * 1.1 * this.view.scale.x / 1.1;
-    const ly = -18 * 1.1;
+    const lx = (this.rig?.lure.x ?? 28) * this.view.scale.x;
+    const ly = (this.rig?.lure.y ?? -18) * this.view.scale.y;
     const c = Math.cos(this.view.rotation);
     const s = Math.sin(this.view.rotation);
     const wx = this.view.x + lx * c - ly * s;
     const wy = this.view.y + lx * s + ly * c;
+    const fxLocal = (this.rig?.wake.x ?? 0) * this.view.scale.x;
+    const fyLocal = (this.rig?.wake.y ?? 0) * this.view.scale.y;
+    this.wakePoint.x = this.view.x + fxLocal * c - fyLocal * s;
+    this.wakePoint.y = this.view.y + fxLocal * s + fyLocal * c;
     this.lure.position.set(wx, wy);
     this.halo.position.set(wx, wy);
     const pulse = 0.8 + 0.2 * Math.sin(time * 3 + this.wiggle * 0.2);

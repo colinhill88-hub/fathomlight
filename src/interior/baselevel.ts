@@ -201,6 +201,7 @@ export function buildBaseLevel(layout: BaseLayout): BaseLevel | null {
 export interface BaseCtx {
   save: SaveData;
   layout: BaseLayout;
+  livingCreatures: boolean;
   carried(): number;
   storageText(): string;
   unload(pieceId: number): void;
@@ -333,6 +334,7 @@ export class BaseHooks implements InteriorHooks {
       scale: TANK_SCALE,
       clumps: true,
       glass: false,
+      livingCreatures: ctx.livingCreatures,
     });
     for (const l of level.lifts) this.spots.push({ room: level.rooms[0], x: l.x, y: l.y, r: 40, what: 'lift', to: { x: l.toX, y: l.toY }, up: l.up });
     ctx.lines().forEach((l, i) => {
@@ -427,7 +429,7 @@ export class BaseHooks implements InteriorHooks {
       let n = this.nest.get(c.id);
       if (!n || n.stage !== c.stage) {
         n?.c.destroy();
-        const cr = new Critter(c.species, c.stage, c.id, traitsOf(c));
+        const cr = new Critter(c.species, c.stage, c.id, traitsOf(c), this.ctx.livingCreatures);
         this.extraLit.addChild(cr.view);
         this.extraEm.addChild(cr.emissive);
         this.extraGlow.addChild(cr.glow);

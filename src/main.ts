@@ -186,6 +186,7 @@ const SURFACE_Y = 40;
 async function boot(): Promise<void> {
   const host = document.getElementById('game')!;
   const urlq = new URLSearchParams(location.search);
+  const livingCreatures = urlq.get('creatures') !== 'original';
   let choice: PresetChoice = loadChoice();
   let preset: Preset = resolveChoice(choice);
 
@@ -272,7 +273,7 @@ async function boot(): Promise<void> {
   const zoneBackdrop = new ZoneBackdrop(forestMidground, shelfMidground, worldArt);
   zoneBackdrop.build();
   const shallowsBackdrop = shallowsArt ? new ShallowsBackdrop(shallowsArt) : null;
-  let scenery = new Scenery(renderer, preset.detail, shallowsArt?.reef, shallowsSeabed ?? undefined, shallowsKelp ?? undefined, forestOutcrop, worldArt);
+  let scenery = new Scenery(renderer, preset.detail, shallowsArt?.reef, shallowsSeabed ?? undefined, shallowsKelp ?? undefined, forestOutcrop, worldArt, livingCreatures);
   const pickups = new Pickups();
   const diver = new Diver(paintedFace, paintedSuit?.swimmer, visualMode('personality', 'surface'), redesigned, compact);
   diver.x = save.x;
@@ -294,24 +295,24 @@ async function boot(): Promise<void> {
       diver.y = sub.y - 10;
     }
   }
-  const fish = [0, 0, 1].map((look) => new Glowfin(look, GROTTO));
+  const fish = [0, 0, 1].map((look) => new Glowfin(look, GROTTO, livingCreatures));
   // Milestone 4: wild creatures to collect, and life inside the creature tanks.
-  const wildlife = new Wildlife();
+  const wildlife = new Wildlife(livingCreatures);
   // Milestone 8: wreck lurkers in their dens on the shelf.
-  const lurkers = new Lurkers(LURKER_DENS);
+  const lurkers = new Lurkers(LURKER_DENS, livingCreatures);
   // Milestone 10: the trench's predators.
-  const hunters = new DeepHunters(TR_LANTERNJAWS, TR_STALKERS, TR_SPIDERS);
+  const hunters = new DeepHunters(TR_LANTERNJAWS, TR_STALKERS, TR_SPIDERS, livingCreatures);
   // After milestone 12: flares, darts, visor marks, the tractor beam and drill sparks.
   const gearFx = new GearFx();
-  const tankLife = new TankLife();
+  const tankLife = new TankLife({ livingCreatures });
   // Milestone 9: a grown glowfin from the jar swims beside the diver as a light.
-  const escort = new Escort();
+  const escort = new Escort(livingCreatures);
   let llSafe = { x: 0, y: 0 };
   const schools = [
-    new School(22, { x0: 1850, x1: 3500, y0: 200, y1: 380 }),
-    new School(16, { x0: 6950, x1: 8250, y0: 300, y1: 450 }),
+    new School(22, { x0: 1850, x1: 3500, y0: 200, y1: 380 }, livingCreatures),
+    new School(16, { x0: 6950, x1: 8250, y0: 300, y1: 450 }, livingCreatures),
     // Milestone 7: a wary shoal between the giant kelp.
-    new School(18, { x0: 10400, x1: 14200, y0: 520, y1: 1050 }),
+    new School(18, { x0: 10400, x1: 14200, y0: 520, y1: 1050 }, livingCreatures),
   ];
   boom.open = save.boomOpen;
   const scanner = new Scanner([
@@ -488,7 +489,7 @@ async function boot(): Promise<void> {
   /** Which interior you're on foot in, if any. */
   let inside: 'corvina' | 'base' | 'fulmar' | 'sanctum' | null = null;
   /** Milestone 11: the Choir in the sanctum's heart, and first contact (the ending). */
-  const choir = new ChoirForm();
+  const choir = new ChoirForm(livingCreatures);
   const contact = new Contact(choir);
   /** Milestone 11: the Signal array's zone map (opened at its console). */
   const zoneMap = new ZoneMap();
@@ -1231,7 +1232,7 @@ async function boot(): Promise<void> {
     snow.build(renderer, preset.particleDensity, cssW, cssH, fx.litSnow ? preset.bokeh : 0);
     if (builtDetail !== preset.detail) {
       scenery.view.destroy({ children: true });
-      scenery = new Scenery(renderer, preset.detail, shallowsArt?.reef, shallowsSeabed ?? undefined, shallowsKelp ?? undefined, forestOutcrop, worldArt);
+      scenery = new Scenery(renderer, preset.detail, shallowsArt?.reef, shallowsSeabed ?? undefined, shallowsKelp ?? undefined, forestOutcrop, worldArt, livingCreatures);
       builtDetail = preset.detail;
       populate();
     }
@@ -2306,7 +2307,7 @@ async function boot(): Promise<void> {
       if (diver.vx > 0) diver.vx = 0;
     }
     // ---- The wreck shelf (milestone 8): lurkers ----
-    const lk = lurkers.update(dt, diver.x, diver.y, diver.lampOn, !aboard && blackout === 0 && !boarding, camX, camX + lastViewW);
+    const lk = lurkers.update(dt, diver.x, diver.y, diver.lampOn, !aboard && blackout === 0 && !boarding, camX, camX + lastViewW, motion);
     if (lk.warn && !save.tips.includes('lurker')) {
       save.tips.push('lurker');
       hud.toast('Something stirs in the den ahead: a glowing lure, eyes catching your light. Back off, or wait for it to strike and pull back.', 'warn');
@@ -2329,7 +2330,7 @@ async function boot(): Promise<void> {
       );
     }
     // ---- The trench (milestone 10): predators ----
-    for (const ev of hunters.update(dt, { x: diver.x, y: diver.y, lampOn: diver.lampOn && diver.lamp > 0.3, speed: Math.hypot(diver.vx, diver.vy) }, !aboard && blackout === 0 && !boarding, camX, camX + lastViewW, camY, camY + viewH)) {
+    for (const ev of hunters.update(dt, { x: diver.x, y: diver.y, lampOn: diver.lampOn && diver.lamp > 0.3, speed: Math.hypot(diver.vx, diver.vy) }, !aboard && blackout === 0 && !boarding, camX, camX + lastViewW, camY, camY + viewH, motion)) {
       if (ev.type === 'bite') {
         save.suit = Math.max(0, save.suit - ev.damage);
         suitCalm = 0;
@@ -2638,7 +2639,7 @@ async function boot(): Promise<void> {
     // After milestone 12: the specimen satchel is a second slot.
     const jarFull = !!save.jar && (!hasGear(save, 'satchel') || !!save.jar2);
     const wildOk = !!wt && wtKnown && wildSpare && save.kit.jar && !jarFull && !diver.surfaced && !atDrone;
-    for (const ev of wildlife.update(dt, time, reachPt.x, reachPt.y, Math.hypot(diver.vx, diver.vy), aboard ? sub.thrust > 0 : diver.boosting, save, collectHeld && wildOk, camX - 200, camX + lastViewW + 200)) {
+    for (const ev of wildlife.update(dt, time, reachPt.x, reachPt.y, Math.hypot(diver.vx, diver.vy), aboard ? sub.thrust > 0 : diver.boosting, save, collectHeld && wildOk, camX - 200, camX + lastViewW + 200, motion)) {
       const caughtJar = { species: ev.species, stage: ev.stage, traits: wildlife.traitsOf(ev.id) };
       if (save.jar) save.jar2 = caughtJar;
       else save.jar = caughtJar;
@@ -3354,11 +3355,13 @@ async function boot(): Promise<void> {
     for (const f of fish) {
       const x = f.view.x;
       const y = f.view.y;
-      f.update(dt, time, diver.x, diver.y);
+      const nearby = Math.abs(x - camCX) < 800 && Math.abs(y - camCY) < 480;
+      const currentY = livingCreatures && nearby && motion ? motion.sample(x, y, cameraFlow).y : 0;
+      f.update(dt, time, diver.x, diver.y, currentY);
       if (motion && dt > 0 && Math.floor(time * 4) !== Math.floor((time - dt) * 4) && Math.abs(f.view.x - camCX) < 800 && Math.abs(f.view.y - camCY) < 480) {
         const vx = (f.view.x - x) / dt;
         const vy = (f.view.y - y) / dt;
-        if (Math.hypot(vx, vy) > 35) motion.disturb({ x: f.view.x, y: f.view.y, vx, vy, radius: 49, strength: 0.64 });
+        if (Math.hypot(vx, vy) > 35) motion.disturb({ x: f.wakePoint.x, y: f.wakePoint.y, vx, vy, radius: 49, strength: 0.64 });
       }
     }
     const [bx, by] = diver.bubblePoint();
@@ -3468,7 +3471,7 @@ async function boot(): Promise<void> {
         build.markScale(),
       );
     }
-    for (const sc of schools) sc.update(dt, time, diver.x, diver.y, camX, camX + viewW);
+    for (const sc of schools) sc.update(dt, time, diver.x, diver.y, camX, camX + viewW, motion);
     tankLife.update(dt, time, save, camX, camX + viewW);
     // While tending a tank, the diver and drone fade so they don't hide it.
     const fade = (care.active ? 0.12 : dockUI.active || station.active ? 0.3 : 1) * (boarding ? boardFade : 1);
@@ -3856,6 +3859,7 @@ async function boot(): Promise<void> {
   const baseCtx: BaseCtx = {
     save,
     layout,
+    livingCreatures,
     carried: () => MATERIALS_LIST.reduce((a, k) => a + save.bag[k], 0),
     storageText: () => {
       const n = MATERIALS_LIST.reduce((a, k) => a + save.stored[k], 0);

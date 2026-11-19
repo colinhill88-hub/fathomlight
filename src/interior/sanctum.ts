@@ -78,6 +78,8 @@ export class ChoirForm {
   private light: Light = { x: CHOIR_AT.x, y: CHOIR_AT.y, radius: 900, intensity: 0, color: [0.6, 0.6, 1], haze: 0.12 };
   static readonly COLOURS = [0x5ff0ff, 0xa27cff, 0xff5ad8, 0xffe7a0];
 
+  constructor(private readonly living = false) {}
+
   draw(_d: Graphics, de: Graphics, t: number): void {
     const k = this.rise;
     if (k <= 0.001) {
@@ -89,6 +91,17 @@ export class ChoirForm {
     const C = ChoirForm.COLOURS;
     const sing = this.note >= 0 ? this.noteK : 0;
     const big = 1 + this.bloom * 0.8 + sing * 0.15;
+    if (this.living) this.drawMantle(de, t, x, y, k, sing, big);
+    else this.drawRings(de, t, x, y, k, sing, big);
+    const col = this.note >= 0 && sing > 0.05 ? C[this.note] : 0xb0b8ff;
+    this.light.x = x;
+    this.light.y = y;
+    this.light.color = [((col >> 16) & 255) / 255, ((col >> 8) & 255) / 255, (col & 255) / 255];
+    this.light.intensity = (0.9 + 1.2 * sing + this.bloom) * k;
+  }
+
+  private drawRings(de: Graphics, t: number, x: number, y: number, k: number, sing: number, big: number): void {
+    const C = ChoirForm.COLOURS;
     // Rings: tilted, turning slowly, each its own colour; the singing colour flares.
     for (let i = 0; i < 6; i++) {
       const r = (60 + i * 34) * big * (0.6 + 0.4 * k);
@@ -117,11 +130,38 @@ export class ChoirForm {
     const core = this.note >= 0 && sing > 0.05 ? C[this.note] : 0xe8f0ff;
     de.circle(x, y, (26 + sing * 18 + this.bloom * 40) * k).fill({ color: core, alpha: 0.35 + 0.3 * sing });
     de.circle(x, y, (10 + sing * 6) * k).fill({ color: 0xf8fcff, alpha: 0.95 });
-    const col = this.note >= 0 && sing > 0.05 ? C[this.note] : 0xb0b8ff;
-    this.light.x = x;
-    this.light.y = y;
-    this.light.color = [((col >> 16) & 255) / 255, ((col >> 8) & 255) / 255, (col & 255) / 255];
-    this.light.intensity = (0.9 + 1.2 * sing + this.bloom) * k;
+  }
+
+  private drawMantle(de: Graphics, t: number, x: number, y: number, rise: number, sing: number, spread: number): void {
+    const span = spread * rise;
+    const breathing = 1 + Math.sin(t * 1.1) * 0.08;
+    const colours = ChoirForm.COLOURS;
+    for (let i = 0; i < 7; i++) {
+      const u = (i - 3) / 3;
+      const colour = colours[i % 3];
+      const flare = this.note === i % 3 ? sing : 0;
+      const trail = Math.sin(t * 1.25 - i * 0.74) * 13 * span;
+      const dx = u * (155 + flare * 29) * span * breathing;
+      const crown = y - (63 - Math.abs(u) * 27) * span;
+      const hanging = y + (163 + (1 - Math.abs(u)) * 112) * span;
+      const mid = y + 40 * span;
+      de.moveTo(x + u * 19 * span, crown)
+        .bezierCurveTo(x + dx * 0.8, crown - 39 * span, x + dx * 1.13, mid - 13 * span, x + dx, mid)
+        .bezierCurveTo(x + dx * 0.88, hanging - 52 * span, x + dx * 0.48 + trail, hanging - 17 * span, x + dx * 0.35 + trail, hanging)
+        .bezierCurveTo(x + dx * 0.67 + trail * 0.47, hanging - 61 * span, x + dx * 0.63, mid + 19 * span, x + u * 19 * span, crown)
+        .fill({ color: colour, alpha: rise * (0.19 + 0.46 * flare) });
+      de.moveTo(x + u * 19 * span, crown)
+        .bezierCurveTo(x + dx * 0.85, crown - 21 * span, x + dx * 0.88, mid, x + dx * 0.35 + trail, hanging)
+        .stroke({ color: colour, alpha: rise * (0.58 + 0.42 * flare), width: 1.8 + flare * 2.2 });
+    }
+    const core = this.note >= 0 && sing > 0.05 ? colours[this.note] : 0xe8f0ff;
+    const height = (47 + sing * 19 + this.bloom * 32) * span;
+    const width = (24 + sing * 12) * span * breathing;
+    de.moveTo(x, y - height).quadraticCurveTo(x + width, y - height * 0.26, x + width, y + height * 0.13)
+      .quadraticCurveTo(x + width * 0.55, y + height * 0.64, x, y + height)
+      .quadraticCurveTo(x - width, y + height * 0.24, x - width, y + height * 0.13)
+      .quadraticCurveTo(x - width, y - height * 0.28, x, y - height).fill({ color: core, alpha: 0.64 * rise });
+    de.ellipse(x, y, width * 0.31, height * 0.48).fill({ color: 0xf8fcff, alpha: 0.96 * rise });
   }
 
   lights(): Light[] {

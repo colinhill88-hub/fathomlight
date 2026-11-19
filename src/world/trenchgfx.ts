@@ -1,6 +1,7 @@
 import { Container, Graphics, Sprite, Text } from 'pixi.js';
 import { materialFill, type WorldArt } from '../art/worldArt';
 import type { WaterMotion } from '../scene/waterMotion';
+import { BottomAnimal, type BottomKind } from '../actors/bottomLife';
 import { mulberry32, WORLD_SEED } from '../rng';
 import {
   CLEFT,
@@ -64,8 +65,9 @@ export class TrenchScenery {
   private specks: { g: Graphics; x0: number; x1: number }[] = [];
   private rand: () => number;
   private readonly plumeFlow = { x: 0, y: 0, silt: 0, energy: 0 };
+  private readonly animals: BottomAnimal[] = [];
 
-  constructor(detail: number, art?: WorldArt) {
+  constructor(detail: number, art?: WorldArt, living = false) {
     this.rand = mulberry32(WORLD_SEED ^ 0x7e3c);
     const R = (a: number, b: number) => a + this.rand() * (b - a);
     const rock = new Container();
@@ -140,17 +142,25 @@ export class TrenchScenery {
     }
     const dg = (x: number) => decor[Math.max(0, Math.min(decor.length - 1, Math.floor((x - (TRENCH.x0 - 100)) / DC)))];
     const flatAt = (x: number) => Math.abs(gy(x + 10) - gy(x - 10)) < 14;
+    const scratch = living ? new Graphics() : undefined;
+    const addAnimal = (kind: BottomKind, x: number, y: number, size: number) => {
+      if (!living) return;
+      const animal = new BottomAnimal(kind, x, y, size, x * 0.02);
+      this.animals.push(animal);
+      decorL.addChild(animal.view);
+    };
     // Sea lilies, glass sponges and tube worms on the ledges and the floor.
     for (let i = 0; i < Math.round(110 * detail); i++) {
       const x = R(TRENCH.x0, 32500);
       if (!flatAt(x) || (x > FULMAR.x0 - 40 && x < FULMAR.x1 + 40)) continue;
       const y = gy(x) + 3;
-      const g = dg(x);
+      const g = scratch?.clear() ?? dg(x);
       const k = this.rand();
       if (k < 0.35) {
         // A sea lily: a long stalk with a crown of feathery arms.
         const h = R(30, 70);
         const lean = R(-10, 10);
+        addAnimal('lily', x, y, h);
         g.moveTo(x, y).quadraticCurveTo(x + lean * 0.3, y - h * 0.6, x + lean, y - h).stroke({ color: 0x8a8070, width: 1.4 });
         for (let a = 0; a < 7; a++) {
           const ang = -Math.PI / 2 + (a - 3) * 0.38;
@@ -159,11 +169,13 @@ export class TrenchScenery {
       } else if (k < 0.6) {
         // A glass sponge: a pale lattice vase.
         const h = R(20, 46);
+        addAnimal('sponge', x, y, h);
         const w = h * 0.38;
         g.moveTo(x - w * 0.5, y).quadraticCurveTo(x - w, y - h * 0.6, x - w * 0.7, y - h).lineTo(x + w * 0.7, y - h).quadraticCurveTo(x + w, y - h * 0.6, x + w * 0.5, y).closePath().fill({ color: 0xc8c4b0, alpha: 0.35 });
         for (let r = 1; r < 5; r++) g.moveTo(x - w * 0.7, y - (h * r) / 5).lineTo(x + w * 0.7, y - (h * r) / 5).stroke({ color: 0xe8e0c8, width: 0.6, alpha: 0.5 });
         for (let c = -2; c <= 2; c++) g.moveTo(x + c * w * 0.2, y).lineTo(x + c * w * 0.3, y - h).stroke({ color: 0xe8e0c8, width: 0.6, alpha: 0.4 });
       } else if (k < 0.85) {
+        addAnimal('worm', x, y, 23);
         for (let t = 0; t < 5; t++) {
           const tx = x + R(-12, 12);
           const th = R(8, 22);
@@ -172,13 +184,16 @@ export class TrenchScenery {
         }
       } else {
         // A pale bone or a rock with a brittle star.
-        g.ellipse(x, y - 4, R(10, 22), R(4, 7)).fill({ color: 0x4e5a5c });
+        const w = R(10, 22);
+        g.ellipse(x, y - 4, w, R(4, 7)).fill({ color: 0x4e5a5c });
+        addAnimal('star', x, y, w);
         for (let a = 0; a < 5; a++) {
           const ang = (a / 5) * Math.PI * 2 + R(0, 1);
           g.moveTo(x, y - 9).quadraticCurveTo(x + Math.cos(ang) * 8, y - 9 + Math.sin(ang) * 3, x + Math.cos(ang) * 15, y - 9 + Math.sin(ang) * 5).stroke({ color: 0xc8805a, width: 1.4 });
         }
       }
     }
+    scratch?.destroy();
     // Pinpricks of warm living light, more of them the deeper it goes.
     for (let x0 = TRENCH.x0; x0 < 32500; x0 += 900) {
       const e = new Graphics();
@@ -414,9 +429,16 @@ export class TrenchScenery {
     this.hatchOpen.visible = open;
   }
 
-  update(time: number, viewX0: number, viewX1: number, motion?: WaterMotion): void {
+  update(time: number, viewX0: number, viewX1: number, motion: WaterMotion | undefined, diverX: number, diverY: number): void {
     for (const s of this.slices) s.obj.visible = s.x1 > viewX0 && s.x0 < viewX1;
     for (const s of this.specks) s.g.visible = s.x1 > viewX0 && s.x0 < viewX1;
+    for (const animal of this.animals) {
+      animal.view.visible = animal.x > viewX0 - 100 && animal.x < viewX1 + 100 && Math.abs(animal.y - diverY) < 1000;
+      if (!animal.view.visible) continue;
+      const flow = motion ? motion.sample(animal.x, animal.y - 15, this.plumeFlow).x / 70 : 0;
+      const passing = Math.max(0, 1 - Math.hypot(animal.x - diverX, animal.y - diverY) / 110);
+      animal.update(time, flow, passing);
+    }
     for (const v of this.ventGlow) {
       const p = 0.8 + 0.2 * Math.sin(time * 1.7 + v.phase) + 0.08 * Math.sin(time * 7.3 + v.phase * 3);
       v.core.alpha = 0.7 + 0.3 * p;

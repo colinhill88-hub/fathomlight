@@ -110,6 +110,7 @@ export interface TankLifeOptions {
   clumps?: boolean;
   /** Draw the faint front glass (indoors the room draws its own). */
   glass?: boolean;
+  livingCreatures?: boolean;
 }
 
 export class TankLife {
@@ -206,7 +207,7 @@ export class TankLife {
         }
         // New, or it hatched or grew: redraw it.
         if (old) old.critter.destroy();
-        const critter = new Critter(c.species, c.stage, c.id, traitsOf(c));
+        const critter = new Critter(c.species, c.stage, c.id, traitsOf(c), this.opts.livingCreatures);
         v.root.addChildAt(critter.view, 2);
         this.emissive.addChild(critter.emissive);
         this.glow.addChild(critter.glow);

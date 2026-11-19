@@ -1,6 +1,8 @@
 import { Container, Graphics } from 'pixi.js';
 import type { Light } from '../fx/lighting';
 import { groundY } from '../world/terrain';
+import { drawHoodedLurker } from './predatorArt';
+import type { FlowSample, WaterMotion } from '../scene/waterMotion';
 
 /**
  * Milestone 8: the wreck lurker, the first predator (Colin: unsettling, but
@@ -41,10 +43,12 @@ export class Lurker {
   private time = Math.random() * 10;
   readonly denX: number;
   readonly denY: number;
+  visualFlow = 0;
 
   constructor(
     x: number,
     readonly dir: number,
+    private readonly living = false,
   ) {
     this.denX = x + dir * 10;
     this.denY = groundY(x) - 22;
@@ -129,7 +133,11 @@ export class Lurker {
       this.aimX = this.denX + this.dir * REACH;
       this.aimY = this.denY - 30 + Math.sin(this.time * 0.4) * 20;
     }
-    if (visible) this.draw();
+    if (visible) {
+      if (this.living) drawHoodedLurker(this, this.denX, this.denY, this.head(), this.dir, this.time,
+        this.state === 'warn', this.state === 'lunge', this.state === 'retreat', this.visualFlow);
+      else this.draw();
+    }
     else this.light.intensity = 0;
     this.view.visible = this.emissive.visible = this.glow.visible = visible;
     return ev;
@@ -213,9 +221,10 @@ export class Lurkers {
   readonly emissive = new Container();
   readonly glow = new Container();
   readonly list: Lurker[];
+  private readonly flow: FlowSample = { x: 0, y: 0, silt: 0, energy: 0 };
 
-  constructor(dens: readonly { x: number; dir: number }[]) {
-    this.list = dens.map((d) => new Lurker(d.x, d.dir));
+  constructor(dens: readonly { x: number; dir: number }[], private readonly living = false) {
+    this.list = dens.map((d) => new Lurker(d.x, d.dir, living));
     for (const l of this.list) {
       this.view.addChild(l.view);
       this.emissive.addChild(l.emissive);
@@ -227,12 +236,18 @@ export class Lurkers {
     return this.list.map((l) => l.light);
   }
 
-  update(dt: number, dx: number, dy: number, lampOn: boolean, target: boolean, viewX0: number, viewX1: number): { warn: Lurker | null; bite: Lurker | null } {
+  update(dt: number, dx: number, dy: number, lampOn: boolean, target: boolean, viewX0: number, viewX1: number, water?: WaterMotion): { warn: Lurker | null; bite: Lurker | null } {
     let warn: Lurker | null = null;
     let bite: Lurker | null = null;
     for (const l of this.list) {
       const vis = l.denX > viewX0 - 400 && l.denX < viewX1 + 400;
+      const previous = l.state;
+      l.visualFlow = vis && this.living && water ? water.sample(l.denX, l.denY, this.flow, true).y / 70 : 0;
       const ev = l.update(dt, dx, dy, lampOn, target, vis);
+      if (vis && this.living && water && l.state === 'retreat' && previous === 'lunge') {
+        const h = l.head();
+        water.disturb({ x: h.x - l.dir * 68, y: h.y + 4, vx: -l.dir * 105, vy: 14, radius: 78, strength: 0.6 });
+      }
       if (ev === 'warn') warn = l;
       if (ev === 'bite') bite = l;
     }
