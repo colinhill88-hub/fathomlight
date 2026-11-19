@@ -1,4 +1,5 @@
-import { Container, Graphics } from 'pixi.js';
+import { Container, Graphics, Sprite } from 'pixi.js';
+import { materialFill, type WorldArt } from '../art/worldArt';
 import { mulberry32, WORLD_SEED } from '../rng';
 import { ellBottom, ellTop, groundY, SANCTUM, sanctumShapes, shapesField } from './terrain';
 import { dab, traceField, type PointLight } from './scenery';
@@ -64,7 +65,7 @@ export class SanctumScenery {
   private doorLight: PointLight;
   private rand: () => number;
 
-  constructor(detail: number) {
+  constructor(detail: number, art?: WorldArt) {
     this.rand = mulberry32(WORLD_SEED ^ 0x5a17c);
     const R = (a: number, b: number) => a + this.rand() * (b - a);
     const shapes = sanctumShapes() as Parameters<typeof shapesField>[0];
@@ -83,6 +84,12 @@ export class SanctumScenery {
       traceField(g, (x, y) => field(x, y) - 6, x0, x1, 7300, 9500, 6, 0x2e3050, 1);
       traceField(g, field, x0, x1, 7300, 9500, 6, 0x0f0e24, 1);
       traceField(g, (x, y) => field(x, y) + 60, x0, x1, 7300, 9500, 10, 0x0a0a1c, 0.6);
+      const nacre = art?.materials.nacre;
+      const relief = art?.plates.sanctum;
+      if (nacre) traceField(g, (x, y) => field(x, y) + 2, x0, x1, 7300, 9500, 10,
+        materialFill(nacre, 0x0f0e24, 0.53, 1700, 1090));
+      if (relief) traceField(g, (x, y) => field(x, y) + 5, x0, x1, 7300, 9500, 10,
+        materialFill(relief, 0x0f0e24, 0.46, 2650, 1360, 29440, 7520));
       // Nacre streaks on the stone close to the water.
       const n = Math.round(260 * detail);
       for (let i = 0; i < n; i++) {
@@ -121,6 +128,20 @@ export class SanctumScenery {
       this.emissive.addChild(e);
       this.pulses.push({ g: e, phase: x0 * 0.001, base: 0.75 });
       this.slices.push({ obj: e, x0: x0 - 100, x1: x1 + 100, y0: 7200, y1: 9600 });
+    }
+
+    const sponges = art?.life[6];
+    if (sponges) {
+      for (const [room, offset] of [[SANCTUM.ante, 0.60], [SANCTUM.hall, -0.64], [SANCTUM.hall, 0.66], [SANCTUM.pool, -0.57]] as const) {
+        const x = room.x + room.rx * offset;
+        const y = ellBottom(room, x);
+        const colony = new Sprite({ texture: sponges, alpha: 0.65, label: 'paintedNacreColony' });
+        colony.anchor.set(0.5, 0.9);
+        colony.position.set(x, y);
+        colony.width = colony.height = 110;
+        this.view.addChild(colony);
+        this.slices.push({ obj: colony, x0: x - 140, x1: x + 140, y0: y - 140, y1: y + 40 });
+      }
     }
 
     // ---- The door in the floor ----
