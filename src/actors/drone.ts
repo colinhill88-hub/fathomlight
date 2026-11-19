@@ -3,6 +3,7 @@ import { mulberry32, WORLD_SEED } from '../rng';
 import { groundY, isSolid, SLED_X } from '../world/terrain';
 import { BaseLayout, CELL, GRID_BASE, GRID_ROWS, GRID_X1, PIECES, pieceRect, Placed } from '../game/base';
 import type { PointLight } from '../world/scenery';
+import { clearLine, findPath, pathLength } from '../world/navgrid';
 
 /**
  * The build drone, "KD-1" (milestone 3 follow-up, Colin's idea; made
@@ -59,13 +60,35 @@ const EYE = { x: 0, y: -11.5 };
 const ANT = { x: -5, y: -16.5 };
 const ANT_LEN = 9;
 
-type Mode = 'stranded' | 'waking' | 'follow' | 'toFrame' | 'weld' | 'parked';
+type Mode = 'stranded' | 'waking' | 'follow' | 'toFrame' | 'weld' | 'parked' | 'haul';
 
 export type DroneEvent =
   | { type: 'repaired' }
   | { type: 'finished'; piece: Placed }
   | { type: 'started'; piece: Placed | null }
-  | { type: 'subDone' };
+  | { type: 'subDone' }
+  /** Hauling: it has reached the storage pod with the cargo. */
+  | { type: 'haulDrop' }
+  /** Hauling: it is back with the diver. */
+  | { type: 'haulHome' };
+
+/** Hauling speeds (world units a second): slower with a full cradle, quicker coming back. */
+export const HAUL_SPEED = { out: 340, back: 430 };
+/** Seconds spent hovering over the storage pod, unloading. */
+const HAUL_DROP = 1.8;
+
+/** A delivery trip (Colin, after milestone 12): out to a storage pod along a route through open water, and back. */
+interface Haul {
+  phase: 'out' | 'drop' | 'back';
+  path: { x: number; y: number }[];
+  /** The next waypoint. */
+  i: number;
+  /** Seconds into the drop, and until the next look for a way back. */
+  t: number;
+  pod: { x: number; y: number };
+  /** The trip out's length, for the return estimate. */
+  outLen: number;
+}
 
 /**
  * Something to weld that is not a base piece (milestone 6: the submersible
@@ -179,6 +202,12 @@ export class Drone {
   welding: Placed | null = null;
   /** Welding the submersible frame right now (milestone 6). */
   weldingSub = false;
+  /** The cargo cradle is fitted (found in the kelp forest), and whether it holds anything. */
+  cradle = false;
+  loaded = false;
+  private haul: Haul | null = null;
+  private cradleG = new Graphics();
+  private pouchG = new Graphics();
 
   private vx = 0;
   private vy = 0;
@@ -245,7 +274,20 @@ export class Drone {
     this.antenna.circle(0, -ANT_LEN, 1.6).fill({ color: PAL.steel });
     this.antenna.position.set(ANT.x, ANT.y);
 
-    this.body.addChild(this.antenna, this.armUpper, buildBody(), this.fanL, this.fanR, buildGlass());
+    // The cargo cradle: two little steel rails under the belly, and a net pouch that hangs from them when loaded.
+    const cg = this.cradleG;
+    cg.roundRect(-10, 9.5, 20, 2.2, 1).fill({ color: PAL.steelDark });
+    cg.rect(-9, 9.5, 1.6, 4).fill({ color: PAL.steel });
+    cg.rect(7.4, 9.5, 1.6, 4).fill({ color: PAL.steel });
+    cg.roundRect(-10, 9.5, 20, 0.8, 0.4).fill({ color: 0xffffff, alpha: 0.2 });
+    const pg = this.pouchG;
+    pg.moveTo(-8, 12).quadraticCurveTo(-9, 21, 0, 22).quadraticCurveTo(9, 21, 8, 12).closePath().fill({ color: 0x5a4a32, alpha: 0.85 });
+    for (let k = -6; k <= 6; k += 3) pg.moveTo(k, 12).lineTo(k * 0.7, 21.5).stroke({ color: 0xc9a24a, width: 0.6, alpha: 0.7 });
+    for (const y of [15, 18.5]) pg.moveTo(-8, y).lineTo(8, y).stroke({ color: 0xc9a24a, width: 0.6, alpha: 0.7 });
+    pg.circle(-3, 16.5, 1.6).fill({ color: 0x9f8d66 });
+    pg.circle(2.5, 17.5, 1.9).fill({ color: 0x6a5a4c });
+    this.cradleG.visible = this.pouchG.visible = false;
+    this.body.addChild(this.antenna, this.armUpper, this.pouchG, this.cradleG, buildBody(), this.fanL, this.fanR, buildGlass());
     this.view.addChild(this.body);
 
     // Old cable tangled round it in the wreck (gone once it is freed).
@@ -286,6 +328,8 @@ export class Drone {
   /** Put the drone straight next to a point (after loading, or when the crew brings the diver back). */
   teleport(x: number, y: number, layout: BaseLayout): void {
     if (this.mode === 'stranded' || this.mode === 'waking') return;
+    // A trip in progress ends (what it carried stays in the cradle, for the next trip).
+    this.haul = null;
     const f = layout.frames()[0];
     if (f) {
       const r = pieceRect(f);
@@ -305,6 +349,74 @@ export class Drone {
   cheer(): void {
     if (this.mode === 'stranded' || this.mode === 'waking') return;
     if (this.hop < 0 || this.hop > 0.7) this.hop = 0;
+  }
+
+  /** Out on a delivery trip? */
+  get hauling(): boolean {
+    return !!this.haul;
+  }
+
+  /** Can it set off right now (awake, and not welding or about to)? */
+  canHaul(): 'ok' | 'asleep' | 'busy' | 'away' {
+    if (this.mode === 'stranded' || this.mode === 'waking') return 'asleep';
+    if (this.haul) return 'away';
+    if (this.mode === 'toFrame' || this.mode === 'weld') return 'busy';
+    return 'ok';
+  }
+
+  /**
+   * Set off for a storage pod (a point just above it) with the cargo. Returns
+   * the trip's estimated seconds, or null when no way through open water was found.
+   */
+  startHaul(pod: { x: number; y: number }): number | null {
+    const path = findPath(this.x, this.y, pod.x, pod.y);
+    if (!path) return null;
+    const outLen = pathLength(path);
+    this.haul = { phase: 'out', path, i: 1, t: 0, pod, outLen };
+    this.mode = 'haul';
+    this.hop = 0;
+    return this.haulEta();
+  }
+
+  /** Seconds until it is back with the diver (an estimate: the way back is taken as long as the way out). */
+  haulEta(): number {
+    const h = this.haul;
+    if (!h) return 0;
+    const rest = (from: number) => {
+      let d = h.path[from] ? Math.hypot(h.path[from].x - this.x, h.path[from].y - this.y) : 0;
+      for (let k = from + 1; k < h.path.length; k++) d += Math.hypot(h.path[k].x - h.path[k - 1].x, h.path[k].y - h.path[k - 1].y);
+      return d;
+    };
+    if (h.phase === 'out') return rest(h.i) / HAUL_SPEED.out + HAUL_DROP + h.outLen / HAUL_SPEED.back;
+    if (h.phase === 'drop') return HAUL_DROP - h.t + h.outLen / HAUL_SPEED.back;
+    return rest(h.i) / HAUL_SPEED.back;
+  }
+
+  /** A point a little way along the route ahead, to steer at (so it doesn't slow at every waypoint). */
+  private carrot(h: Haul, ahead: number): { x: number; y: number } {
+    let px = this.x;
+    let py = this.y;
+    let left = ahead;
+    for (let k = h.i; k < h.path.length; k++) {
+      const q = h.path[k];
+      const d = Math.hypot(q.x - px, q.y - py);
+      if (d >= left) return { x: px + ((q.x - px) * left) / d, y: py + ((q.y - py) * left) / d };
+      left -= d;
+      px = q.x;
+      py = q.y;
+    }
+    return { x: px, y: py };
+  }
+
+  /** Move along the route: pass waypoints as they come near (or come into plain sight past them). */
+  private advance(h: Haul): void {
+    while (h.i < h.path.length - 1) {
+      const q = h.path[h.i];
+      const near = Math.hypot(q.x - this.x, q.y - this.y) < 34;
+      const n = h.path[h.i + 1];
+      if (near || (Math.hypot(q.x - this.x, q.y - this.y) < 90 && clearLine(this.x, this.y, n.x, n.y))) h.i++;
+      else break;
+    }
   }
 
   /** A point the scanner can aim at. */
@@ -393,6 +505,65 @@ export class Drone {
         this.mode = 'follow';
         this.side = inp.diverX < this.x ? 1 : -1;
         this.hop = 0;
+      }
+    } else if (this.haul) {
+      const h = this.haul;
+      this.mode = 'haul';
+      if (h.phase === 'drop') {
+        // Hover over the pod, the pouch emptying into it.
+        tx = h.pod.x + Math.sin(this.time * 1.4) * 6;
+        ty = h.pod.y + Math.sin(this.time * 2) * 3;
+        maxSpeed = 120;
+        lookX = h.pod.x;
+        lookY = h.pod.y + 60;
+        h.t += dt;
+        if (h.t >= HAUL_DROP) {
+          // Back to the diver, wherever they are now.
+          const back = findPath(this.x, this.y, inp.diverX, inp.diverY - 30);
+          if (back) {
+            h.phase = 'back';
+            h.path = back;
+            h.i = 1;
+            h.t = 3;
+          } else h.t = HAUL_DROP - 2; // no way through yet (the diver is somewhere closed off): look again soon
+        }
+      } else {
+        const speed = h.phase === 'out' ? HAUL_SPEED.out : HAUL_SPEED.back;
+        maxSpeed = speed;
+        if (h.phase === 'back') {
+          // The diver keeps moving: look for a fresh way to them now and then.
+          h.t -= dt;
+          const end = h.path[h.path.length - 1];
+          if (h.t <= 0 && Math.hypot(end.x - inp.diverX, end.y - (inp.diverY - 30)) > 220) {
+            h.t = 3;
+            const p = findPath(this.x, this.y, inp.diverX, inp.diverY - 30);
+            if (p) {
+              h.path = p;
+              h.i = 1;
+            }
+          }
+          if (dDiver < 170 && clearLine(this.x, this.y, inp.diverX, inp.diverY - 30)) {
+            this.haul = null;
+            this.mode = 'follow';
+            this.hop = 0;
+            events.push({ type: 'haulHome' });
+          }
+        }
+        if (this.haul) {
+          this.advance(h);
+          const c = this.carrot(h, speed / 2.4);
+          tx = c.x;
+          ty = c.y;
+          lookX = c.x + (c.x - this.x);
+          lookY = c.y + (c.y - this.y);
+          const last = h.path[h.path.length - 1];
+          if (h.phase === 'out' && h.i >= h.path.length - 1 && Math.hypot(last.x - this.x, last.y - this.y) < 26) {
+            h.phase = 'drop';
+            h.t = 0;
+            this.burst(this.x, this.y + 14, 10);
+            events.push({ type: 'haulDrop' });
+          }
+        }
       }
     } else {
       const frames = Drone.jobs(inp);
@@ -523,6 +694,8 @@ export class Drone {
       this.hop += dt;
       if (this.hop > 1.5) this.hop = -1;
     }
+    this.cradleG.visible = this.cradle && this.mode !== 'stranded';
+    this.pouchG.visible = this.cradleG.visible && this.loaded;
     this.place();
 
     // ---- The eye ----

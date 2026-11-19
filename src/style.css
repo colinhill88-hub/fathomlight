@@ -3480,3 +3480,33 @@ body.touch #btn-dart:not([hidden]) {
   background: var(--ui-accent);
   color: #1d1a12;
 }
+
+/* KD-1's delivery run (after milestone 12): the Send button, touch only, once the cargo cradle is found. */
+#btn-haul {
+  position: absolute;
+  right: calc(var(--safe-right) + 38px);
+  bottom: calc(var(--safe-bottom) + 196px);
+  min-width: 46px;
+  height: 46px;
+  padding: 0 10px;
+  border-radius: 23px;
+  border: 1px solid var(--ui-line);
+  background: var(--ui-bg);
+  color: #e8f4f2;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 600;
+}
+body.touch #btn-haul:not([hidden]) {
+  display: flex;
+}
+#btn-haul.pressed {
+  background: var(--ui-accent);
+  color: #1d1a12;
+}
+#btn-haul.away {
+  opacity: 0.45;
+}
