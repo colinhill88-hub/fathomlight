@@ -25,6 +25,8 @@ export class Escort {
   private vy = 0;
   private fade = 0;
 
+  constructor(private readonly living = false) {}
+
   /** Is a grown glowfin out with the diver? */
   get active(): boolean {
     return !!this.critter;
@@ -40,7 +42,7 @@ export class Escort {
     this.critter = null;
     if (!key) return;
     const traits = c ? traitsOf(c) : traitsOf({ id: 1 });
-    this.critter = new Critter('glowfin', 'grown', c?.id ?? 1, traits);
+    this.critter = new Critter('glowfin', 'grown', c?.id ?? 1, traits, this.living);
     this.view.addChild(this.critter.view);
     this.emissive.addChild(this.critter.emissive);
     this.glow.addChild(this.critter.glow);

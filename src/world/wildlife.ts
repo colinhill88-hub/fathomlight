@@ -79,9 +79,9 @@ export class Wildlife {
   private lastTarget = '';
   private eggLights = new Map<string, PointLight>();
 
-  constructor() {
+  constructor(private readonly living = false) {
     const add = (w: Omit<Wild, 'critter' | 'x' | 'y' | 'vx' | 'vy' | 'tx' | 'ty' | 'retarget' | 'scared' | 'rest' | 'pull' | 'present'>) => {
-      const critter = new Critter(w.species, w.stage, this.all.length + 31);
+      const critter = new Critter(w.species, w.stage, this.all.length + 31, undefined, living);
       const it: Wild = { ...w, critter, x: w.homeX, y: w.homeY, vx: 0, vy: 0, tx: w.homeX, ty: w.homeY, retarget: 0, scared: 0, rest: 0, pull: 0, present: true };
       this.view.addChild(critter.view);
       this.emissive.addChild(critter.emissive);
@@ -312,7 +312,15 @@ export class Wildlife {
         if (Math.abs(w.x - w.homeX) > w.range + 260) this.pickTarget(w);
       }
       w.critter.setVisible(near);
-      if (near) w.critter.update(dt, time, w.x, w.y, w.vx, w.vy, { vigour: 1, sick: 0, size: w.size });
+      if (near) {
+        const ray = this.living && w.species === 'ray' && w.stage !== 'egg';
+        w.critter.update(dt, time, w.x, w.y, w.vx, w.vy, {
+          vigour: 1, sick: 0, size: w.size,
+          resting: ray && w.rest > 0,
+          floorGap: ray ? groundY(w.x) - w.y : undefined,
+          notice: ray ? Math.min(1, w.scared / 3) : undefined,
+        });
+      }
       if (w.collectible && w.scared <= 0 && fd < bestD) {
         bestD = fd;
         best = w;

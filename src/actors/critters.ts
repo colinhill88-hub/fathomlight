@@ -2,6 +2,8 @@ import { Container, Graphics } from 'pixi.js';
 import { mulberry32 } from '../rng';
 import type { SpeciesId } from '../game/state';
 import { traitsOf, type Traits } from '../game/traits';
+import { GlowfinRig } from './glowfinRig';
+import { DappleRayRig } from './dappleRayRig';
 
 /**
  * The keepable creatures of the sunlit shallows, drawn with code
@@ -64,6 +66,11 @@ export interface CritterPose {
   sick: number;
   /** Extra scale (wild adults are drawn bigger). */
   size?: number;
+  /** Existing nearby activity, used only to pose fins and appendages. */
+  notice?: number;
+  resting?: boolean;
+  /** Clearance in rig units. Only supplied for a ray in the wild. */
+  floorGap?: number;
 }
 
 export class Critter {
@@ -80,12 +87,15 @@ export class Critter {
   readonly traits: Traits;
   private tint = 0xffffff;
   private aura: Graphics | null = null;
+  private glowfinRig?: GlowfinRig;
+  private rayRig?: DappleRayRig;
 
   constructor(
     readonly species: SpeciesId,
     readonly stage: Stage,
     seed: number,
     traits?: Traits,
+    living = false,
   ) {
     const r = mulberry32(seed * 977 + 13);
     this.phase = r() * 10;
@@ -95,12 +105,12 @@ export class Critter {
     this.tint = BODY_TINTS[species][this.look] ?? 0xffffff;
     this.view.addChild(this.body);
     if (stage === 'egg') this.drawEggs(r);
-    else if (species === 'glowfin') this.drawGlowfin();
+    else if (species === 'glowfin') this.drawGlowfin(living);
     else if (species === 'puffcap') this.drawPuffcap();
     else if (species === 'crab') this.drawCrab(r);
     else if (species === 'shrimp') this.drawShrimp();
     else if (species === 'snail') this.drawSnail();
-    else this.drawRay();
+    else this.drawRay(living);
     if (stage !== 'egg') this.drawPattern();
     if (stage !== 'egg' && this.traits.radiant) {
       // Radiant: a wider, brighter glow, and a soft aura around the whole body.
@@ -177,7 +187,29 @@ export class Critter {
   }
 
   // ---- Glowfin ----
-  private drawGlowfin(): void {
+  private drawGlowfin(living: boolean): void {
+    const L = GLOWFIN_LOOKS[this.look];
+    const young = this.stage === 'young';
+    if (living) {
+      this.glowfinRig = new GlowfinRig(L, young, this.phase);
+      this.body.addChild(this.glowfinRig.body);
+    } else this.drawOriginalGlowfin();
+    const anchor = this.glowfinRig?.lure;
+    const lure = new Graphics().circle(0, 0, young && living ? 2.1 : 2.6).fill({ color: L.lure });
+    lure.position.set(anchor?.x ?? 21, anchor?.y ?? -17);
+    // A row of tiny lume dots along the side (shows on grown fish).
+    const dots = new Graphics();
+    for (let i = 0; i < 5; i++) dots.circle(-12 + i * 5, 1.5, 0.8).fill({ color: 0xf6f0b0 });
+    this.emissive.addChild(lure, dots);
+    this.parts.dots = dots;
+    const halo = new Graphics().circle(0, 0, 13).fill({ color: L.lure });
+    halo.position.copyFrom(lure.position);
+    this.glow.addChild(halo);
+    this.parts.halo = halo;
+    this.parts.lure = lure;
+  }
+
+  private drawOriginalGlowfin(): void {
     const L = GLOWFIN_LOOKS[this.look];
     const young = this.stage === 'young';
     const tail = new Graphics();
@@ -216,18 +248,6 @@ export class Critter {
     this.body.addChild(tail, g, pec);
     this.parts.tail = tail;
     this.parts.pec = pec;
-    const lure = new Graphics().circle(0, 0, 2.6).fill({ color: L.lure });
-    lure.position.set(21, -17);
-    // A row of tiny lume dots along the side (shows on grown fish).
-    const dots = new Graphics();
-    for (let i = 0; i < 5; i++) dots.circle(-12 + i * 5, 1.5, 0.8).fill({ color: 0xf6f0b0 });
-    this.emissive.addChild(lure, dots);
-    this.parts.dots = dots;
-    const halo = new Graphics().circle(0, 0, 13).fill({ color: L.lure });
-    halo.position.set(21, -17);
-    this.glow.addChild(halo);
-    this.parts.halo = halo;
-    this.parts.lure = lure;
   }
 
   // ---- Puffcap ----
@@ -264,12 +284,17 @@ export class Critter {
   }
 
   // ---- Dapple ray ----
-  private drawRay(): void {
-    const disc = new Graphics();
-    const tail = new Graphics();
-    this.body.addChild(tail, disc);
-    this.parts.disc = disc;
-    this.parts.tail = tail;
+  private drawRay(living: boolean): void {
+    if (living) {
+      this.rayRig = new DappleRayRig(this.stage === 'young', this.phase);
+      this.body.addChild(this.rayRig.view);
+    } else {
+      const disc = new Graphics();
+      const tail = new Graphics();
+      this.body.addChild(tail, disc);
+      this.parts.disc = disc;
+      this.parts.tail = tail;
+    }
     const tip = new Graphics().circle(0, 0, 1.4).fill({ color: 0xfff0c0 });
     this.emissive.addChild(tip);
     this.parts.tip = tip;
@@ -523,8 +548,14 @@ export class Critter {
     } else if (this.species === 'glowfin') {
       rot = Math.atan2(vy, Math.abs(vx) + 20) * 0.5 * this.face + sick * 0.25 * this.face;
       bob = Math.sin(t * 1.7) * 2;
-      this.parts.tail.rotation = Math.sin(t * (5 + sp * 0.08)) * 0.35;
-      this.parts.pec.rotation = Math.sin(t * 6) * 0.4;
+      if (this.glowfinRig) {
+        this.glowfinRig.update(dt, sp, pose.notice ?? 0, sick);
+        this.parts.lure.position.copyFrom(this.glowfinRig.lure);
+        this.parts.halo.position.copyFrom(this.glowfinRig.lure);
+      } else {
+        this.parts.tail.rotation = Math.sin(t * (5 + sp * 0.08)) * 0.35;
+        this.parts.pec.rotation = Math.sin(t * 6) * 0.4;
+      }
       this.parts.dots.alpha = this.stage === 'grown' ? vig : 0.35 * vig;
       const lp = 0.75 + 0.25 * Math.sin(t * 3);
       this.parts.lure.alpha = 0.4 + 0.6 * vig;
@@ -614,21 +645,30 @@ export class Critter {
       // Ray: glides level, tilting a little with its climb.
       rot = Math.atan2(vy, Math.abs(vx) + 30) * 0.4 * this.face;
       bob = Math.sin(t * 1.3) * 1.5;
-      this.paintRay(t, sp, sick * 3);
-      const tg = this.parts.tail;
-      tg.clear();
-      tg.moveTo(-18, 0);
-      let tx = -18;
-      let ty = 0;
-      for (let k = 1; k <= 8; k++) {
-        tx = -18 - k * 3.4;
-        ty = Math.sin(t * 3 - k * 0.6) * k * 0.35 + k * 0.3 * sick;
-        tg.lineTo(tx, ty);
+      if (this.rayRig) {
+        const rig = this.rayRig;
+        rig.update(dt, sp * slow, pose.resting ?? false, (pose.floorGap ?? Infinity) / s, vy, pose.notice ?? 0);
+        rot = (rot + rig.bank * 0.21 * this.face) * (1 - rig.rest * 0.9);
+        bob *= 1 - rig.rest * 0.95;
+        this.parts.tip.position.copyFrom(rig.tip);
+        this.parts.halo.position.copyFrom(rig.tip);
+      } else {
+        this.paintRay(t, sp, sick * 3);
+        const tg = this.parts.tail;
+        tg.clear();
+        tg.moveTo(-18, 0);
+        let tx = -18;
+        let ty = 0;
+        for (let k = 1; k <= 8; k++) {
+          tx = -18 - k * 3.4;
+          ty = Math.sin(t * 3 - k * 0.6) * k * 0.35 + k * 0.3 * sick;
+          tg.lineTo(tx, ty);
+        }
+        tg.stroke({ color: 0xa88e68, width: 1.4 });
+        tg.moveTo(tx + 3, ty - 2).lineTo(tx, ty).lineTo(tx + 3, ty + 2).stroke({ color: 0xa88e68, width: 1.2 });
+        this.parts.tip.position.set(tx, ty);
+        this.parts.halo.position.set(tx, ty);
       }
-      tg.stroke({ color: 0xa88e68, width: 1.4 });
-      tg.moveTo(tx + 3, ty - 2).lineTo(tx, ty).lineTo(tx + 3, ty + 2).stroke({ color: 0xa88e68, width: 1.2 });
-      this.parts.tip.position.set(tx, ty);
-      this.parts.halo.position.set(tx, ty);
       this.parts.tip.alpha = this.stage === 'grown' ? 0.4 + 0.6 * vig : 0.25 * vig;
       this.parts.halo.alpha = this.stage === 'grown' ? 0.6 * vig : 0.15;
       if (this.parts.dots) this.parts.dots.alpha = (this.stage === 'grown' ? 0.5 + 0.5 * vig : 0.3 * vig) * (0.8 + 0.2 * Math.sin(t * 1.4));

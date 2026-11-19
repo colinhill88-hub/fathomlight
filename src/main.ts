@@ -294,20 +294,20 @@ async function boot(): Promise<void> {
       diver.y = sub.y - 10;
     }
   }
-  const fish = [0, 0, 1].map((look) => new Glowfin(look, GROTTO));
+  const livingCreatures = urlq.get('creatures') !== 'original';
+  const fish = [0, 0, 1].map((look) => new Glowfin(look, GROTTO, livingCreatures));
   // Milestone 4: wild creatures to collect, and life inside the creature tanks.
-  const wildlife = new Wildlife();
+  const wildlife = new Wildlife(livingCreatures);
   // Milestone 8: wreck lurkers in their dens on the shelf.
   const lurkers = new Lurkers(LURKER_DENS);
   // Milestone 10: the trench's predators.
   const hunters = new DeepHunters(TR_LANTERNJAWS, TR_STALKERS, TR_SPIDERS);
   // After milestone 12: flares, darts, visor marks, the tractor beam and drill sparks.
   const gearFx = new GearFx();
-  const tankLife = new TankLife();
+  const tankLife = new TankLife({ livingCreatures });
   // Milestone 9: a grown glowfin from the jar swims beside the diver as a light.
-  const escort = new Escort();
+  const escort = new Escort(livingCreatures);
   let llSafe = { x: 0, y: 0 };
-  const livingCreatures = urlq.get('creatures') !== 'original';
   const schools = [
     new School(22, { x0: 1850, x1: 3500, y0: 200, y1: 380 }, livingCreatures),
     new School(16, { x0: 6950, x1: 8250, y0: 300, y1: 450 }, livingCreatures),
@@ -3355,11 +3355,13 @@ async function boot(): Promise<void> {
     for (const f of fish) {
       const x = f.view.x;
       const y = f.view.y;
-      f.update(dt, time, diver.x, diver.y);
+      const nearby = Math.abs(x - camCX) < 800 && Math.abs(y - camCY) < 480;
+      const currentY = livingCreatures && nearby && motion ? motion.sample(x, y, cameraFlow).y : 0;
+      f.update(dt, time, diver.x, diver.y, currentY);
       if (motion && dt > 0 && Math.floor(time * 4) !== Math.floor((time - dt) * 4) && Math.abs(f.view.x - camCX) < 800 && Math.abs(f.view.y - camCY) < 480) {
         const vx = (f.view.x - x) / dt;
         const vy = (f.view.y - y) / dt;
-        if (Math.hypot(vx, vy) > 35) motion.disturb({ x: f.view.x, y: f.view.y, vx, vy, radius: 49, strength: 0.64 });
+        if (Math.hypot(vx, vy) > 35) motion.disturb({ x: f.wakePoint.x, y: f.wakePoint.y, vx, vy, radius: 49, strength: 0.64 });
       }
     }
     const [bx, by] = diver.bubblePoint();
@@ -3857,6 +3859,7 @@ async function boot(): Promise<void> {
   const baseCtx: BaseCtx = {
     save,
     layout,
+    livingCreatures,
     carried: () => MATERIALS_LIST.reduce((a, k) => a + save.bag[k], 0),
     storageText: () => {
       const n = MATERIALS_LIST.reduce((a, k) => a + save.stored[k], 0);
