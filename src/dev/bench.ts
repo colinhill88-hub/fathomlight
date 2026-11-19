@@ -146,7 +146,7 @@ export function seedBenchSave(save: SaveData): void {
   save.nextLineId = lineId;
   save.gear = ['light'];
   // The kit found along the way (before milestone 11): the jar and the first thruster, as a mid-game diver.
-  save.kit = { jar: true, thruster: 1 };
+  save.kit = { jar: true, thruster: 1, carrier: true };
   save.lampOn = true;
   save.drone = 'active';
   save.tips = ['basefoot', 'onfoot', 'wshelf'];

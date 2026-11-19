@@ -558,6 +558,7 @@ async function boot(): Promise<void> {
     refreshInventory: () => hud.refreshInventory(),
     capacity: () => storageCapacity(layout),
     droneReady: () => save.drone === 'active',
+    droneAway: () => (drone.hauling ? Math.max(1, Math.ceil(drone.haulEta())) : null),
     welding: () => drone.welding,
     factory,
     lineAt: (x, y, reach) => linesView.lineAt(x, y, reach),
@@ -620,6 +621,7 @@ async function boot(): Promise<void> {
     refreshInventory: () => hud.refreshInventory(),
     persist: () => persist(),
     droneReady: () => save.drone === 'active',
+    droneAway: () => (drone.hauling ? Math.max(1, Math.ceil(drone.haulEta())) : null),
     weldingSub: () => drone.weldingSub,
     subChanged: () => {
       if (save.sub) {
@@ -1365,6 +1367,101 @@ async function boot(): Promise<void> {
   let camCY = diver.y + 40;
   let time = 0;
 
+  // ---- KD-1's delivery run (Colin, after milestone 12) ----
+  /** Items in KD-1's cargo cradle. */
+  function cargoCount(): number {
+    let n = 0;
+    for (const k of MATERIALS_LIST) n += save.droneCargo?.[k] ?? 0;
+    return n;
+  }
+  /** A point just above the powered storage pod nearest a spot, or null if there is none. */
+  function haulPod(x: number, y: number): { x: number; y: number } | null {
+    let best: { x: number; y: number } | null = null;
+    let bd = Infinity;
+    for (const p of layout.pieces) {
+      if (!isStoreKind(p.kind) || !isDone(p) || !layout.powered.has(p.id)) continue;
+      const r = pieceRect(p);
+      const q = { x: r.x + r.w / 2, y: r.y - 34 };
+      const d = Math.hypot(q.x - x, q.y - y);
+      if (d < bd) {
+        bd = d;
+        best = q;
+      }
+    }
+    return best;
+  }
+  /** H (d-pad down, or the Send button): KD-1 takes the dive bag's materials to base storage. */
+  function sendHaul(): void {
+    if (!save.kit.carrier) return;
+    if (save.drone !== 'active') {
+      hud.toast('KD-1 has to be repaired before it can carry anything (it lies in the survey sled wreck).', 'warn');
+      return;
+    }
+    const can = drone.canHaul();
+    if (can === 'away') {
+      hud.toast(`KD-1 is already on a delivery: back in about ${Math.ceil(drone.haulEta())} s.`, 'warn');
+      return;
+    }
+    if (can === 'busy') {
+      hud.toast('KD-1 is welding a frame. Send it once the frame is finished.', 'warn');
+      return;
+    }
+    if (can !== 'ok') return;
+    const bagged = MATERIALS_LIST.reduce((t, k) => t + save.bag[k], 0);
+    if (!bagged && !cargoCount()) {
+      hud.toast('Your dive bag is empty: nothing for KD-1 to carry.', 'warn');
+      return;
+    }
+    const pod = haulPod(drone.x, drone.y);
+    if (!pod) {
+      hud.toast('KD-1 needs a finished, powered storage pod at the base to deliver to.', 'warn');
+      return;
+    }
+    const eta = drone.startHaul(pod);
+    if (eta === null) {
+      hud.toast("KD-1 can't find a way through the water back to the base from here.", 'warn');
+      return;
+    }
+    // Into the cradle: everything in the bag (creatures in the jar stay with you).
+    const cargo = (save.droneCargo ??= {});
+    for (const k of MATERIALS_LIST) {
+      if (!save.bag[k]) continue;
+      cargo[k] = (cargo[k] ?? 0) + save.bag[k];
+      save.bag[k] = 0;
+    }
+    const n = cargoCount();
+    if (build.active) build.close();
+    hud.refreshInventory();
+    sound.find('bag');
+    hud.toast(`KD-1 takes ${n} item${n === 1 ? '' : 's'} to base storage: back in about ${Math.ceil(eta)} s. No building until it's home.`, 'big');
+    if (!save.tips.includes('haul')) {
+      save.tips.push('haul');
+      setTimeout(() => hud.toast('KD-1 flies the long way round, through open water: the further from the base you are, the longer the trip.', 'big'), 3200);
+    }
+    persist();
+  }
+  /** KD-1 is over the storage pod: unload what fits. */
+  function haulDrop(): void {
+    const cargo = save.droneCargo ?? {};
+    let moved = 0;
+    for (const k of MATERIALS_LIST) {
+      const n = Math.min(storageRoom(k), cargo[k] ?? 0);
+      if (!n) continue;
+      cargo[k] = (cargo[k] ?? 0) - n;
+      if (!cargo[k]) delete cargo[k];
+      save.stored[k] += n;
+      moved += n;
+    }
+    const left = cargoCount();
+    if (moved) hud.toast(`KD-1 stored ${moved} item${moved === 1 ? '' : 's'} in the base${left ? `; storage is full, so it keeps ${left}` : ''}. Heading back.`, 'item');
+    else if (left) hud.toast(`Base storage is full: KD-1 keeps ${left} item${left === 1 ? '' : 's'} in its cradle. Build another storage pod.`, 'warn');
+    hud.refreshInventory();
+    persist();
+  }
+  const haulBtn = document.getElementById('btn-haul') as HTMLButtonElement;
+  // Benchmark runs only: a handle for headless checks of the delivery run.
+  if (BENCH) (window as unknown as { __haul: unknown }).__haul = { drone, save, send: sendHaul, cargo: cargoCount };
+
   /**
    * The base's own clock: the build drone, Labs and Workshops, salvage cranes,
    * the factory lines and creature care. Runs outside, and inside the base on
@@ -1385,6 +1482,8 @@ async function boot(): Promise<void> {
           buildTime: SUB_BUILD_TIME,
         }
       : null;
+    drone.cradle = !!save.kit.carrier;
+    drone.loaded = cargoCount() > 0;
     for (const ev of drone.update(dt, time, {
       diverX: at.x,
       diverY: at.y,
@@ -1396,6 +1495,15 @@ async function boot(): Promise<void> {
       extra: subJob,
       gap: at.aboard ? { x: 165, y: 86 } : undefined,
     })) {
+      if (ev.type === 'haulDrop') {
+        haulDrop();
+        continue;
+      }
+      if (ev.type === 'haulHome') {
+        const left = cargoCount();
+        hud.toast(left ? `KD-1 is back, still holding ${left} item${left === 1 ? '' : 's'} (storage was full). You can build again.` : 'KD-1 is back. You can build again.', 'big');
+        continue;
+      }
       if (ev.type === 'subDone' && save.sub) {
         save.sub.stage = 'built';
         delete save.sub.progress;
@@ -2596,7 +2704,9 @@ async function boot(): Promise<void> {
         hud.toast(
           ev.what === 'jar'
             ? 'A specimen jar! It clips to your belt. Scan a creature to learn how to keep it, then hold Collect by an egg or a youngster to ease it in.'
-            : ev.what === 'thruster'
+            : ev.what === 'carrier'
+              ? `A cargo cradle for KD-1! ${save.drone === 'active' ? 'It clips under the drone' : 'It will clip under KD-1 once the drone is repaired'}. ${input.state.lastDevice === 'touch' ? 'Tap Send' : input.state.lastDevice === 'gamepad' ? 'Press the d-pad down' : 'Press H'} and KD-1 carries your dive bag to base storage and comes back. The further out you are, the longer it takes, and nothing can be built while it's away.`
+              : ev.what === 'thruster'
               ? 'A TH-1 hip thruster! It clips to your belt: Boost (Shift, Space or the Boost button) fires a short burst through the water.'
               : 'A TH-2 thruster head! Twin nozzles and a longer burn: your boost is faster and carries further.',
           'big',
@@ -3238,6 +3348,9 @@ async function boot(): Promise<void> {
 
     // ---- After milestone 12: suit attachments and the sub's new modules ----
     gearFrame(dt, aboard, s, inControl);
+    if (inControl && s.haul && !padNav.active) sendHaul();
+    haulBtn.hidden = !save.kit.carrier;
+    haulBtn.classList.toggle('away', drone.hauling);
 
     for (const f of fish) {
       const x = f.view.x;

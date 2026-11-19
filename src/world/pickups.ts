@@ -34,12 +34,13 @@ interface Spot {
 }
 
 /** Kit found out in the world (Colin, before milestone 11): the specimen jar and the hip thrusters. */
-export type KitFind = 'jar' | 'thruster' | 'thruster2';
+export type KitFind = 'jar' | 'thruster' | 'thruster2' | 'carrier';
 function isKit(k: Spot['kind']): k is KitFind {
-  return k === 'jar' || k === 'thruster' || k === 'thruster2';
+  return k === 'jar' || k === 'thruster' || k === 'thruster2' || k === 'carrier';
 }
 /** Has this kit find been picked up? */
 export function kitFound(save: SaveData, k: KitFind): boolean {
+  if (k === 'carrier') return !!save.kit.carrier;
   return k === 'jar' ? save.kit.jar : save.kit.thruster >= (k === 'thruster' ? 1 : 2);
 }
 
@@ -107,6 +108,13 @@ const SPOTS: Spot[] = (() => {
   s.push({ id: 'seam-ore-0', kind: 'ore', x: 26860, y: floorOf(26860) - 6 });
   s.push({ id: 'seam-ore-1', kind: 'ore', x: 27040, y: floorOf(27040) - 6 });
   s.push({ id: 'whorl-seam', kind: 'whorl', x: 26690, y: floorOf(26690) - 9 });
+  // After the line-drag pass (Colin: copper was the early-game bottleneck): three more nodules on
+  // the flat floor at the bottom of the basin's west side, between the foot of the western slope
+  // (x -2196) and the first sand mound. Appended last so earlier ids and random draws keep their places.
+  for (const [i, x] of [-2110, -1930, -1720].entries()) s.push({ id: `copper-b${i}`, kind: 'copper', x, y: groundY(x) - 5 });
+  // KD-1's cargo cradle (Colin, after milestone 12): a Kestrel survey crate's drone cradle, lost in the
+  // kelp forest between the wreckage the tinker crabs pick at (12160) and the moss at 12880.
+  s.push({ id: 'kit-carrier', kind: 'carrier', x: 12500, y: surfaceAt(12500) - 7 });
   return s;
 })();
 
@@ -177,6 +185,19 @@ function drawJarFind(g: Graphics): void {
   g.rect(8, -7, 1.2, 14).fill({ color: 0xd6e0ee, alpha: 0.7 });
   g.rect(-1, -6, 2, 12).fill({ color: 0xe0a02a, alpha: 0.8 });
   g.rect(12, -1.5, 5, 3).fill({ color: 0xb3302a });
+}
+
+/** KD-1's cargo cradle, lying in the sand: two yellow-ended steel rails with a folded net pouch. */
+function drawCarrierFind(g: Graphics): void {
+  g.ellipse(0, 7, 17, 3).fill({ color: 0x000000, alpha: 0.2 });
+  g.moveTo(-11, 1).quadraticCurveTo(-12, 8, 0, 8).quadraticCurveTo(12, 8, 11, 1).closePath().fill({ color: 0x5a4a32, alpha: 0.9 });
+  for (let k = -8; k <= 8; k += 4) g.moveTo(k, 1).lineTo(k * 0.8, 7.5).stroke({ color: 0xc9a24a, width: 0.8, alpha: 0.8 });
+  g.roundRect(-14, -3, 28, 4, 2).fill({ color: 0x3b4448 });
+  g.roundRect(-14, -3, 28, 1.4, 0.7).fill({ color: 0xffffff, alpha: 0.25 });
+  g.roundRect(-16, -4.5, 5, 7, 1.5).fill({ color: 0xc49a42 });
+  g.roundRect(11, -4.5, 5, 7, 1.5).fill({ color: 0xc49a42 });
+  g.circle(-13.5, -1, 0.9).fill({ color: 0x1d2325 });
+  g.circle(13.5, -1, 0.9).fill({ color: 0x1d2325 });
 }
 
 function drawThrusterFind(g: Graphics, mk2 = false): void {
@@ -274,6 +295,7 @@ const DRAW: Record<Spot['kind'], (g: Graphics) => void> = {
   jar: drawJarFind,
   thruster: (g) => drawThrusterFind(g),
   thruster2: (g) => drawThrusterFind(g, true),
+  carrier: drawCarrierFind,
 };
 
 interface Item {
@@ -483,6 +505,7 @@ export class Pickups {
           it.pull = 0.0001;
           if (kit) {
             if (kit === 'jar') save.kit.jar = true;
+            else if (kit === 'carrier') save.kit.carrier = true;
             else save.kit.thruster = Math.max(save.kit.thruster, kit === 'thruster' ? 1 : 2) as 1 | 2;
             events.push({ type: 'kit', what: kit });
           } else if (isWhorl) {

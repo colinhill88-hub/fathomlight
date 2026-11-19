@@ -152,6 +152,8 @@ export interface BuildDeps {
   capacity(): number;
   /** Is the build drone repaired? Nothing can be built without it. */
   droneReady(): boolean;
+  /** Seconds until KD-1 is back from a delivery run, or null if it is here. Building waits for it. */
+  droneAway(): number | null;
   /** The frame the drone is welding right now, if any. */
   welding(): Placed | null;
   /** Milestone 5: the machines and lines, for readouts. */
@@ -411,6 +413,12 @@ export class BuildMode {
 
   open(): void {
     if (this.active) return;
+    // After milestone 12: KD-1 is out ferrying the dive bag home, and building is its main job.
+    const away = this.deps.droneAway();
+    if (away !== null) {
+      this.deps.toast(`KD-1 is out on a delivery run: building waits until it's back (about ${away} s).`, 'warn');
+      return;
+    }
     this.active = true;
     this.selected = null;
     this.selectedLine = null;

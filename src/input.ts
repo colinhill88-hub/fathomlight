@@ -16,6 +16,9 @@
  * Mouse: hold the left button to swim towards the pointer, right-click to boost.
  * Gamepad: left stick to swim, A to boost, Y for the lamp, B to scan, hold X to collect,
  * Start for the pause menu (milestone 12; panels are driven by src/ui/padnav.ts).
+ * KD-1's delivery run (after milestone 12, once its cargo cradle is found): H on the
+ * keyboard, d-pad down on a gamepad, the Send button on touch. Deliberately not on
+ * Collect, so reaching for a material never sends the drone away.
  * The submersible (milestone 6): the Board / Exit button (touch), V on the
  * keyboard or RB on a gamepad climbs in and out; aboard, the same controls
  * drive it (Boost fires the thrusters, Lamp switches its lights).
@@ -41,6 +44,8 @@ export interface InputState {
   /** After milestone 12: one frame each for the flare launcher (Z, LT) and the stun dart (X, RT). */
   flare: boolean;
   dart: boolean;
+  /** True for the one frame KD-1 was sent home with the dive bag (H, d-pad down, the Send button). */
+  haul: boolean;
   /** Which kind of control was used last, so on-screen hints can match it. */
   lastDevice: 'touch' | 'keyboard' | 'mouse' | 'gamepad';
 }
@@ -49,7 +54,7 @@ const STICK_RADIUS = 56;
 const DEADZONE = 0.15;
 
 export class Input {
-  readonly state: InputState = { moveX: 0, moveY: 0, boost: false, jumpHeld: false, sprint: false, lamp: false, scan: false, scanTap: false, collect: false, board: false, flare: false, dart: false, lastDevice: 'keyboard' };
+  readonly state: InputState = { moveX: 0, moveY: 0, boost: false, jumpHeld: false, sprint: false, lamp: false, scan: false, scanTap: false, collect: false, board: false, flare: false, dart: false, haul: false, lastDevice: 'keyboard' };
 
   private keys = new Set<string>();
   private boostQueued = false;
@@ -61,6 +66,7 @@ export class Input {
   private boardQueued = false;
   private flareQueued = false;
   private dartQueued = false;
+  private haulQueued = false;
 
   // Touch stick.
   private stickId: number | null = null;
@@ -112,6 +118,7 @@ export class Input {
       if (k === 'v') this.boardQueued = true;
       if (k === 'z') this.flareQueued = true;
       if (k === 'x') this.dartQueued = true;
+      if (k === 'h') this.haulQueued = true;
       if (k.startsWith('arrow') || k === ' ') e.preventDefault();
     });
     window.addEventListener('keyup', (e) => this.keys.delete(e.key.toLowerCase()));
@@ -199,6 +206,7 @@ export class Input {
     press('btn-sub', () => (this.boardQueued = true));
     press('btn-flare', () => (this.flareQueued = true));
     press('btn-dart', () => (this.dartQueued = true));
+    press('btn-haul', () => (this.haulQueued = true));
     // Scan is held, not tapped.
     const scanEl = document.getElementById('btn-scan')!;
     scanEl.addEventListener('pointerdown', (e) => {
@@ -309,6 +317,7 @@ export class Input {
       if (pressed(5)) this.boardQueued = true;
       if (pressed(6)) this.flareQueued = true;
       if (pressed(7)) this.dartQueued = true;
+      if (pressed(13)) this.haulQueued = true;
       if (pressed(3)) this.lampQueued = true;
       if (btn(1)) scan = true;
       if (pressed(1)) this.scanTapQueued = true;
@@ -323,7 +332,7 @@ export class Input {
     if (this._suspended) {
       x = y = 0;
       scan = collect = false;
-      this.boostQueued = this.lampQueued = this.scanTapQueued = this.boardQueued = this.flareQueued = this.dartQueued = false;
+      this.boostQueued = this.lampQueued = this.scanTapQueued = this.boardQueued = this.flareQueued = this.dartQueued = this.haulQueued = false;
     }
     this.state.moveX = x;
     this.state.moveY = y;
@@ -338,7 +347,8 @@ export class Input {
     this.boardQueued = false;
     this.state.flare = this.flareQueued;
     this.state.dart = this.dartQueued;
-    this.flareQueued = this.dartQueued = false;
+    this.state.haul = this.haulQueued;
+    this.flareQueued = this.dartQueued = this.haulQueued = false;
     this.scanTapQueued = false;
     this.boostQueued = false;
     this.lampQueued = false;
