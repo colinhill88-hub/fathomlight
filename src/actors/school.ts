@@ -1,6 +1,8 @@
 import { Container, Graphics } from 'pixi.js';
 import { mulberry32 } from '../rng';
 import { isSolid } from '../world/terrain';
+import type { WaterMotion } from '../scene/waterMotion';
+import { Silverbar } from './silverbar';
 
 /**
  * Silverbars: small schooling fish of the shallows. Silver with one dark
@@ -13,7 +15,8 @@ const rand = mulberry32(0x5b17);
 
 interface Fish {
   g: Container;
-  tail: Graphics;
+  tail?: Graphics;
+  silverbar?: Silverbar;
   x: number;
   y: number;
   vx: number;
@@ -48,16 +51,18 @@ export class School {
   private ty = 0;
   private retarget = 0;
   private fish: Fish[] = [];
+  private readonly flow = { x: 0, y: 0, silt: 0, energy: 0 };
 
   constructor(
     count: number,
     private readonly area: { x0: number; x1: number; y0: number; y1: number },
+    private readonly living = false,
   ) {
     this.cx = (area.x0 + area.x1) / 2;
     this.cy = (area.y0 + area.y1) / 2;
     this.pickTarget();
     for (let i = 0; i < count; i++) {
-      const { g, tail } = drawFish();
+      const { g, tail } = living ? { g: new Container(), tail: undefined } : drawFish();
       const a = rand() * Math.PI * 2;
       const r = Math.sqrt(rand());
       const f: Fish = {
@@ -74,7 +79,9 @@ export class School {
       };
       f.x += f.ox;
       f.y += f.oy;
-      g.scale.set(0.85 + rand() * 0.35);
+      const size = 0.85 + rand() * 0.35;
+      g.scale.set(size);
+      if (living) f.silverbar = new Silverbar(g, f.phase, size);
       this.view.addChild(g);
       this.fish.push(f);
     }
@@ -90,7 +97,7 @@ export class School {
     this.retarget = 6 + rand() * 6;
   }
 
-  update(dt: number, time: number, diverX: number, diverY: number, viewX0: number, viewX1: number): void {
+  update(dt: number, time: number, diverX: number, diverY: number, viewX0: number, viewX1: number, water?: WaterMotion): void {
     // The school drifts slowly towards its current target.
     this.retarget -= dt;
     const dx = this.tx - this.cx;
@@ -103,6 +110,7 @@ export class School {
 
     const visible = this.cx > viewX0 - 300 && this.cx < viewX1 + 300;
     this.view.visible = visible;
+    const waterY = this.living && visible && water ? water.sample(this.cx, this.cy, this.flow).y : 0;
 
     for (const f of this.fish) {
       // Each fish wants to be at its place in the school, plus a slow wobble.
@@ -142,9 +150,13 @@ export class School {
       else if (f.vx < -6) f.face = -1;
       else if (Math.abs(f.vx) < 2) f.face = heading;
       f.g.position.set(f.x, f.y);
-      f.g.scale.x = Math.abs(f.g.scale.y) * f.face;
-      f.g.rotation = Math.atan2(f.vy, Math.abs(f.vx) + 15) * 0.6 * f.face;
-      f.tail.rotation = Math.sin(time * (8 + Math.min(sp, 200) * 0.06) + f.phase) * 0.4;
+      if (f.silverbar) {
+        f.silverbar.update(f.g, dt, f.vx, f.vy, f.face, Math.min(1, sp / 130), waterY);
+      } else if (f.tail) {
+        f.g.scale.x = Math.abs(f.g.scale.y) * f.face;
+        f.g.rotation = Math.atan2(f.vy, Math.abs(f.vx) + 15) * 0.6 * f.face;
+        f.tail.rotation = Math.sin(time * (8 + Math.min(sp, 200) * 0.06) + f.phase) * 0.4;
+      }
     }
   }
 }

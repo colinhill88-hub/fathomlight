@@ -307,11 +307,12 @@ async function boot(): Promise<void> {
   // Milestone 9: a grown glowfin from the jar swims beside the diver as a light.
   const escort = new Escort();
   let llSafe = { x: 0, y: 0 };
+  const livingCreatures = urlq.get('creatures') !== 'original';
   const schools = [
-    new School(22, { x0: 1850, x1: 3500, y0: 200, y1: 380 }),
-    new School(16, { x0: 6950, x1: 8250, y0: 300, y1: 450 }),
+    new School(22, { x0: 1850, x1: 3500, y0: 200, y1: 380 }, livingCreatures),
+    new School(16, { x0: 6950, x1: 8250, y0: 300, y1: 450 }, livingCreatures),
     // Milestone 7: a wary shoal between the giant kelp.
-    new School(18, { x0: 10400, x1: 14200, y0: 520, y1: 1050 }),
+    new School(18, { x0: 10400, x1: 14200, y0: 520, y1: 1050 }, livingCreatures),
   ];
   boom.open = save.boomOpen;
   const scanner = new Scanner([
@@ -3355,7 +3356,7 @@ async function boot(): Promise<void> {
         build.markScale(),
       );
     }
-    for (const sc of schools) sc.update(dt, time, diver.x, diver.y, camX, camX + viewW);
+    for (const sc of schools) sc.update(dt, time, diver.x, diver.y, camX, camX + viewW, motion);
     tankLife.update(dt, time, save, camX, camX + viewW);
     // While tending a tank, the diver and drone fade so they don't hide it.
     const fade = (care.active ? 0.12 : dockUI.active || station.active ? 0.3 : 1) * (boarding ? boardFade : 1);
