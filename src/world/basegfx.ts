@@ -2095,9 +2095,16 @@ export class BuildOverlay {
     layout: BaseLayout,
     ghost: { kind: PieceKind; gx: number; gy: number; rot: number; ok: boolean } | null,
     selected: Placed | null,
-    link: { from: Placed; targets: Placed[]; route: [number, number][] | null; ok: boolean; drag?: { x0: number; y0: number; x1: number; y1: number; kind: 'belt' | 'pipe' } } | null = null,
+    link: {
+      from: Placed;
+      other?: Placed | null;
+      targets: Placed[];
+      route: [number, number][] | null;
+      ok: boolean;
+      drag?: { x0: number; y0: number; x1: number; y1: number; kind: 'belt' | 'pipe' };
+    } | null = null,
     line: [number, number][] | null = null,
-    markers: { piece: Placed; kind: 'belt' | 'pipe'; x: number; y: number; out: boolean; in: boolean }[] = [],
+    markers: { piece: Placed; kind: 'belt' | 'pipe'; x: number; y: number; px: number; py: number; out: boolean; in: boolean }[] = [],
     markScale = 1,
   ): void {
     const lg = this.links;
@@ -2110,10 +2117,13 @@ export class BuildOverlay {
         const col = m.kind === 'belt' ? 0xffb040 : 0x3cd8e8;
         const isAnchor = !!link && link.from.id === m.piece.id && (!link.drag || link.drag.kind === m.kind);
         const isTarget = !!link && link.targets.some((t) => t.id === m.piece.id) && (link.drag ? link.drag.kind === m.kind : true);
+        const isSnap = isTarget && !!link?.other && link.other.id === m.piece.id;
         const dim = !!link && !isAnchor && !isTarget;
-        const r = (isAnchor ? 15 : 12) * k * (isTarget ? 1 + 0.12 * Math.sin(time * 6) : 1);
+        const r = (isAnchor || isSnap ? 15 : 12) * k * (isTarget && !isSnap ? 1 + 0.12 * Math.sin(time * 6) : 1);
         const a = dim ? 0.25 : 0.95;
-        pk.moveTo(m.x, m.y + r).lineTo(m.x, m.y + 30 - 10).stroke({ color: col, width: 2 * k, alpha: a * 0.7 });
+        // A stem down to the port it stands for (markers are spread apart, so it may lean).
+        pk.moveTo(m.x, m.y + r).lineTo(m.px, m.py - 4).stroke({ color: col, width: 2 * k, alpha: a * 0.7 });
+        if (isSnap) pk.circle(m.x, m.y, r + 7 * k).stroke({ color: 0xffffff, width: 2.5 * k, alpha: 0.9 });
         pk.circle(m.x, m.y, r + 2.5 * k).fill({ color: 0x0a1418, alpha: a * 0.85 });
         pk.circle(m.x, m.y, r).fill({ color: col, alpha: a });
         const t = r * 0.5;
@@ -2128,14 +2138,22 @@ export class BuildOverlay {
     if (link?.drag) {
       const d = link.drag;
       const col = d.kind === 'belt' ? 0xffb040 : 0x3cd8e8;
-      lg.moveTo(d.x0, d.y0).lineTo(d.x1, d.y1).stroke({ color: col, width: 5 * markScale, alpha: 0.75, cap: 'round' });
+      // Snapped to a target: the band thins (the route shows where the line will run).
+      const snapped = !!link.route;
+      lg.moveTo(d.x0, d.y0).lineTo(d.x1, d.y1).stroke({ color: col, width: (snapped ? 2.5 : 5) * markScale, alpha: snapped ? 0.45 : 0.75, cap: 'round' });
       lg.circle(d.x1, d.y1, 7 * markScale).fill({ color: col, alpha: 0.9 });
     }
     if (link) {
       const pulse = 0.5 + 0.5 * Math.sin(time * 5);
       for (const t of link.targets) {
         const r = pieceRect(t);
-        lg.roundRect(r.x - 4, r.y - 4, r.w + 8, r.h + 8, 8).stroke({ color: 0xd8e6a0, width: 2.5, alpha: 0.35 + 0.5 * pulse });
+        if (link.other && link.other.id === t.id) {
+          // The piece the line will go to: filled and solid, so it is clear before letting go.
+          lg.roundRect(r.x - 6, r.y - 6, r.w + 12, r.h + 12, 10).fill({ color: 0xd8e6a0, alpha: 0.16 });
+          lg.roundRect(r.x - 6, r.y - 6, r.w + 12, r.h + 12, 10).stroke({ color: link.ok ? 0xd8e6a0 : 0xe05a40, width: 4 * Math.max(1, markScale * 0.7), alpha: 0.95 });
+          continue;
+        }
+        lg.roundRect(r.x - 4, r.y - 4, r.w + 8, r.h + 8, 8).stroke({ color: 0xd8e6a0, width: 2.5 * Math.max(1, markScale * 0.6), alpha: 0.35 + 0.5 * pulse });
       }
       const fr = pieceRect(link.from);
       lg.roundRect(fr.x - 5, fr.y - 5, fr.w + 10, fr.h + 10, 8).stroke({ color: 0xffc070, width: 3 });

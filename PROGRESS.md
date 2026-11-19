@@ -1788,6 +1788,18 @@ The Flare and Dart buttons show on touch screens once each is built. Visual effe
 - **Screenshots** (`docs/art/milestone12/`): `suit-attachments.png`, `seam-grotto-flare.png`, `sub-modules-a.png` (afterburner, ballast, sonar dome, drill, brass plating) and `sub-modules-b.png` (habitat, tractor beam, Choir stone).
 - **Not tested by hand:** the dash's feel, mag-boots in the race, the cowl in the plumes, the satchel catching a second creature, and all of it on the phone.
 
+### Line drag controls, reworked (2026-11-19)
+
+Colin: dragging pipes from one piece to another wasn't working well. What was wrong, and the fixes (`src/ui/build.ts`; drawn in `BuildOverlay`, `src/world/basegfx.ts`):
+
+- **Markers were tiny on a phone.** They were sized in world units, so on a phone (zoomed out over the base) they were about 6 px across. They are now sized on screen (`markScale`): about 11 px radius with a mouse, 15 px on touch, at any zoom. The grab reach is screen-sized too (18 px mouse, 30 px touch).
+- **Markers overlapped.** A piece's conveyor and pipe markers touched, and neighbours' markers covered each other when zoomed out. They are spread sideways now, with a stem down to the real port.
+- **The drop had to land exactly on the target's cell**, under the finger. Now the line **snaps to the nearest piece that can take it** within about 28 px (mouse) or 48 px (touch) of the pointer, measured to the piece's outline or its marker; dropping on the target's marker counts. The snapped piece gets a solid filled outline and its marker a white ring, so it's clear before letting go. Over a piece that can't take the line, the info box says why (and a toast says it again if you let go there).
+- **A miss threw the line away.** Letting go over nothing now leaves the line waiting: tap (or click) a piece that lights up, or its marker, to pick its far end; tap empty water to cancel. Pressing the waiting line's own marker picks it up to drag again (before, that panned the view).
+- **Targets off screen couldn't be reached.** Holding the dragged line near any screen edge pans the view that way (`tick`).
+- **The drag could get stuck.** The pointer is captured during the drag, so crossing the build bar or info box no longer loses it; a cancelled touch ends it cleanly; a second finger turns it into a pinch/pan and leaves the line waiting for a tap.
+- Storage (sends and takes conveyors) still works both ways: both kinds of target light up while dragging from it.
+
 ## Next
 
 **Next session: more polish** (Colin wants more before the Steam build). Ideas to choose from:
