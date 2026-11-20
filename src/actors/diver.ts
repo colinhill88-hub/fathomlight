@@ -347,7 +347,7 @@ interface Arm {
   hand?: Container;
 }
 
-function buildLeg(far: boolean, redesigned: boolean, compact: boolean): Leg {
+function buildLeg(far: boolean, redesigned: boolean, compact: boolean, detailed: boolean): Leg {
   const tint = far ? 0x9a9a9a : 0xffffff;
   const thigh = new Container();
   const tg = segment(24, 13, C.suit, C.suitShade);
@@ -356,7 +356,7 @@ function buildLeg(far: boolean, redesigned: boolean, compact: boolean): Leg {
   // Chrome knee guard.
   chromeBands(tg, 19, -6.5, 9, 13, 3);
   rivets(tg, [[23.5, -3.5], [23.5, 3.5]], 0.9);
-  thigh.addChild(playerPart(tg, redesigned ? kestrelLimb(24, compact ? 16 : 13, 'thigh') : undefined, tint));
+  thigh.addChild(playerPart(tg, redesigned ? kestrelLimb(24, compact ? 16 : 13, 'thigh', detailed) : undefined, tint));
 
   const shin = new Container();
   shin.x = 24;
@@ -364,7 +364,7 @@ function buildLeg(far: boolean, redesigned: boolean, compact: boolean): Leg {
   etching(sg, 2, -4, 16, 8, 2);
   sg.rect(14, -5.5, 5, 11).fill({ color: C.red, alpha: 0.9 }); // ankle strap
   scratches(sg, 2, -4, 18, 6, 3);
-  shin.addChild(playerPart(sg, redesigned ? kestrelLimb(21, 11, 'shin') : undefined, tint));
+  shin.addChild(playerPart(sg, redesigned ? kestrelLimb(21, 11, 'shin', detailed) : undefined, tint));
   thigh.addChild(shin);
 
   // The fin is two pieces so the blade can flex: the foot pocket and the
@@ -393,13 +393,13 @@ function buildLeg(far: boolean, redesigned: boolean, compact: boolean): Leg {
       .lineTo(5, y * 1.1)
       .stroke({ color: 0x3e4140, width: 1, alpha: 0.7 });
   tg2.moveTo(0, -2.3).lineTo(2, -2.4).stroke({ color: C.visor, width: 1, alpha: 0.7 });
-  tip.addChild(playerPart(tg2, redesigned ? kestrelFin(false, true, compact) : undefined, tint));
+  tip.addChild(playerPart(tg2, redesigned ? kestrelFin(false, true, compact, detailed) : undefined, tint));
   fin.addChild(playerPart(fg, redesigned ? kestrelFin(false, false) : undefined, tint), tip);
   shin.addChild(fin);
   return { thigh, shin, fin, tip, finAng: -0.3, finVel: 0, prevShin: Math.PI };
 }
 
-function buildArm(far: boolean, redesigned: boolean, compact: boolean): Arm {
+function buildArm(far: boolean, redesigned: boolean, compact: boolean, detailed: boolean): Arm {
   const tint = far ? 0x9a9a9a : 0xffffff;
   const upper = new Container();
   const ug = segment(17, 10, C.sleeve, C.sleeveShade);
@@ -408,7 +408,7 @@ function buildArm(far: boolean, redesigned: boolean, compact: boolean): Arm {
   ug.circle(0, 0, 6).stroke({ color: C.chromeDark, width: 1 });
   accentBand(ug, 9, -5, 2.6, 10);
   scratches(ug, 4, -4, 14, 8, 2);
-  upper.addChild(playerPart(ug, redesigned ? kestrelLimb(17, compact ? 15 : 11, 'upper') : undefined, tint));
+  upper.addChild(playerPart(ug, redesigned ? kestrelLimb(17, compact ? 15 : 11, 'upper', detailed) : undefined, tint));
 
   const fore = new Container();
   fore.x = 17;
@@ -417,8 +417,8 @@ function buildArm(far: boolean, redesigned: boolean, compact: boolean): Arm {
   fg.roundRect(11, -5.2, 11, 10.4, 4.5).fill({ color: C.red });
   fg.roundRect(13, 1, 8, 3.5, 1.5).fill({ color: C.redShade, alpha: 0.7 });
   fg.rect(10, -5, 3, 10).fill({ color: C.chrome });
-  fore.addChild(playerPart(fg, redesigned ? kestrelLimb(13, 9, 'fore') : undefined, tint));
-  const hand = redesigned ? kestrelHand(compact) : undefined;
+  fore.addChild(playerPart(fg, redesigned ? kestrelLimb(13, 9, 'fore', detailed) : undefined, tint));
+  const hand = redesigned ? kestrelHand(compact, detailed) : undefined;
   if (hand) {
     hand.position.set(compact ? 15 : 12, 0);
     hand.tint = tint;
@@ -915,9 +915,9 @@ export function buildHelmet(plate = false, paintedFace?: Texture): Container {
   return c;
 }
 
-export function playerHelmet(redesigned: boolean, opening: boolean, paintedFace?: Texture, compact = false): Container {
+export function playerHelmet(redesigned: boolean, opening: boolean, paintedFace?: Texture, compact = false, detailed = false): Container {
   if (!redesigned) return buildHelmet(opening, paintedFace);
-  const helmet = kestrelHelmet(opening, compact);
+  const helmet = kestrelHelmet(opening, compact, detailed);
   const hose = new Graphics({ label: 'hose' });
   coiledHose(hose, compact ? [[43, -28], [37, -23], [57, -10], [51, 3]] : [[44, -42], [59, -46], [55, -9], [51, 3]], 4.2);
   helmet.addChild(hose);
@@ -1073,11 +1073,12 @@ export class Diver {
   private static readonly BOOST_SPEED_2 = 540;
 
   constructor(paintedFace?: Texture, paintedSuit?: Texture, private readonly surfacePersonality = false, redesigned = false,
-    private readonly compact = false) {
-    this.nearLeg = buildLeg(false, redesigned, compact);
-    this.farLeg = buildLeg(true, redesigned, compact);
-    this.nearArm = buildArm(false, redesigned, compact);
-    this.farArm = buildArm(true, redesigned, compact);
+    private readonly compact = false, fidelity = false) {
+    const detailed = compact && fidelity;
+    this.nearLeg = buildLeg(false, redesigned, compact, detailed);
+    this.farLeg = buildLeg(true, redesigned, compact, detailed);
+    this.nearArm = buildArm(false, redesigned, compact, detailed);
+    this.farArm = buildArm(true, redesigned, compact, detailed);
     // The torso is drawn long and compressed a little here for a stockier build.
     this.torsoMaterials = buildTorso(paintedSuit);
     const torso = this.torsoMaterials.view;
@@ -1146,7 +1147,7 @@ export class Diver {
     for (const ch of torso.children) if (ch instanceof Graphics && ch !== this.backG && ch !== this.psuitTorso && ch !== this.ps2Torso) this.tinted.push({ g: ch, base: ch.tint });
     if (redesigned) {
       this.character = new KestrelSwimMotion(compact);
-      const fit = kestrelTorso(compact);
+      const fit = kestrelTorso(compact, detailed);
       this.chest = fit.getChildByLabel('kestrelChest')! as Graphics;
       fit.position.set(compact ? -27 : -29, 0);
       fit.scale.set(compact ? 1.42 : 1.15, compact ? 1.54 : 1.65);
@@ -1154,7 +1155,7 @@ export class Diver {
       torso.addChildAt(fit, 2);
       collect(fit);
     }
-    const helmet = this.helmet = playerHelmet(redesigned, false, paintedFace, compact);
+    const helmet = this.helmet = playerHelmet(redesigned, false, paintedFace, compact, detailed);
     helmet.x = -6;
     this.visorFog = helmet.getChildByLabel('visorFog')!;
     this.visorDrops = helmet.getChildByLabel('visorDrops')!;

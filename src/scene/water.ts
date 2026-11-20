@@ -27,6 +27,7 @@ uniform vec2 uWorld;
 uniform vec2 uOrigin;
 uniform sampler2D uMask;
 uniform float uShimmer;
+uniform float uFidelity;
 
 ${GLSL_COMMON}
 ${GLSL_SURFACE_MOTION}
@@ -65,7 +66,9 @@ void main() {
 
   // The surface seen from below: a bright, rippling mirror.
   float wave = d > 65.0 ? 0.0 : waterline(wp.x, uTime);
-  float above = smoothstep(wave + 1.5, wave - 1.5, d);
+  float surfaceDistance = d - wave;
+  float edge = mix(1.5, max(0.25, 0.9 * uView.y / uResolution.y), uFidelity);
+  float above = 1.0 - smoothstep(-edge, edge, surfaceDistance);
   float ripple = noise(vec2(wp.x * 0.03 + uTime * 0.4, wp.y * 0.08 - uTime * 0.3));
   vec3 surf = mix(vec3(0.70, 0.86, 0.84), vec3(0.93, 0.98, 0.96), ripple);
   surf *= 0.94 + 0.06 * sin(wp.x * 0.05 + uTime * 1.5);
@@ -80,7 +83,7 @@ void main() {
     float film = exp(-(d - wave) * 0.072) * (0.4 + 0.6 * ripple);
     col += film * vec3(0.105, 0.18, 0.16) * vis;
   }
-  col += vec3(1.0) * smoothstep(3.5, 0.0, abs(d - wave)) * 0.25; // bright line at the surface
+  col += vec3(1.0) * (1.0 - smoothstep(0.0, 3.5, abs(surfaceDistance))) * 0.25; // bright line at the surface
 
   // Slow murk so the water never looks like a flat gradient.
   float murk = noise(vec2(wp.x / 280.0 + uTime * 0.02, wp.y / 280.0 - uTime * 0.01));
@@ -105,7 +108,7 @@ export class Water {
     uShimmer: number;
   };
 
-  constructor(mask: Texture, surface?: SurfaceMotion) {
+  constructor(mask: Texture, surface?: SurfaceMotion, fidelity = false) {
     const geometry = new Geometry({
       attributes: { aPosition: [0, 0, 1, 0, 1, 1, 0, 1] },
       indexBuffer: [0, 1, 2, 0, 2, 3],
@@ -121,6 +124,7 @@ export class Water {
           uWorld: { value: new Float32Array([WORLD_SPAN, WORLD_H]), type: 'vec2<f32>' },
           uOrigin: { value: new Float32Array([WORLD_X0, 0]), type: 'vec2<f32>' },
           uShimmer: { value: 0, type: 'f32' },
+          uFidelity: { value: fidelity ? 1 : 0, type: 'f32' },
           uLivingWater: { value: surface ? 1 : 0, type: 'f32' },
           uImpacts: { value: surface?.data ?? new Float32Array(16), type: 'vec4<f32>', size: 4 },
         },

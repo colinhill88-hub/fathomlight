@@ -1,6 +1,6 @@
 import { GLSL_SURFACE_MOTION, type SurfaceMotion } from './surfaceMotion';
 import { Geometry, Mesh, Shader, Texture } from 'pixi.js';
-import { RT_VERTEX, GLSL_COMMON } from './shared';
+import { RT_VERTEX, GLSL_COMMON, GLSL_DETAIL } from './shared';
 import { AIR_POCKETS, WORLD_H, WORLD_SPAN, WORLD_X0 } from '../world/terrain';
 
 /**
@@ -43,12 +43,14 @@ uniform vec4 uLightB[${MAX_LIGHTS}];
 uniform vec4 uLightC[${MAX_LIGHTS}];
 uniform float uShadowCount;  // the first this many lights cast shadows (G2)
 uniform vec4 uShadowCfg;     // march steps, rock softness (world units), relief strength, 1 = wide relief taps
+uniform vec3 uDetail;        // scene texel size, fidelity enabled
 uniform vec4 uMat;           // G4: grime strength, metal sheen strength
 uniform float uContactCount;
 uniform vec4 uContact[${MAX_CONTACTS}]; // x, y, radius, strength: soft ellipses where things meet the seabed
 uniform vec4 uFlags;
 
 ${GLSL_COMMON}
+${GLSL_DETAIL}
 ${GLSL_SURFACE_MOTION}
 
 uniform vec4 uWaterLocal;
@@ -131,7 +133,9 @@ void main() {
   float d = wp.y;
   // 1 above the water (a head out at the surface), 0 below. Same wave as the water shader.
   float wave = d > 65.0 ? 0.0 : waterline(wp.x, uTime);
-  float air = smoothstep(wave + 1.0, wave - 1.0, d);
+  float surfaceDistance = d - wave;
+  float edge = mix(1.0, max(0.25, 0.9 * uView.y * uDetail.y), uDetail.z);
+  float air = 1.0 - smoothstep(-edge, edge, surfaceDistance);
   bool dry = uLivingWater > 0.5 && wp.x > 15420.0 && wp.x < 17440.0 && inDryPocket(wp);
 
   // Water distortion: nudge where we read the picture by a pixel or so.
@@ -139,7 +143,7 @@ void main() {
                   cos(wp.x * 0.043 + uTime * 1.3) + 0.5 * sin(wp.y * 0.027 + uTime * 0.9));
   if (uLivingWater > 0.5) {
     // Sheltered water stays sharp. Only the nearby wake/thermal plume adds refraction.
-    wob *= 0.58;
+    wob *= mix(0.58, 0.19, uDetail.z);
     if (uWaterLocal.z > 0.0) {
       vec2 off = wp - uWaterLocal.xy;
       float r = dot(off, off) / (uWaterLocal.w * uWaterLocal.w);
@@ -149,6 +153,7 @@ void main() {
       }
     }
   }
+  else wob *= mix(1.0, 0.47, uDetail.z);
   if (dry) wob = vec2(0.0);
   vec2 uv = vUV + wob * (1.0 - air) * uFlags.y / uResolution;
   vec4 c = texture(uScene, uv);
@@ -156,13 +161,14 @@ void main() {
   // G2 relief: a normal worked out from the art itself. Flat stays (0, 0, 1).
   vec3 nrm = vec3(0.0, 0.0, 1.0);
   if (c.a > 0.003 && uShadowCfg.z > 0.0) {
-    vec2 o = vec2(3.0) / uView;
+    vec2 o = mix(vec2(3.0) / uView, 1.15 * uDetail.xy, uDetail.z);
     vec2 g = vec2(reliefH(uv + vec2(o.x, 0.0)) - reliefH(uv - vec2(o.x, 0.0)), reliefH(uv + vec2(0.0, o.y)) - reliefH(uv - vec2(0.0, o.y)));
     if (uShadowCfg.w > 0.5) {
       vec2 o2 = o * 2.4;
       vec2 g2 = vec2(reliefH(uv + vec2(o2.x, 0.0)) - reliefH(uv - vec2(o2.x, 0.0)), reliefH(uv + vec2(0.0, o2.y)) - reliefH(uv - vec2(0.0, o2.y)));
       g = g * 0.6 + g2 * 0.35;
     }
+    g = mix(g, limitRelief(g), uDetail.z);
     nrm = normalize(vec3(-g * (uShadowCfg.z * 2.2), 1.0));
   }
 
@@ -200,7 +206,7 @@ void main() {
       float cosA = dot(to / max(dist, 0.001), C.xy);
       cone = smoothstep(B.w - C.z, B.w, cosA);
       // A little spill right next to the lamp so the diver's helmet catches it.
-      cone = max(cone, smoothstep(40.0, 0.0, dist) * 0.6);
+      cone = max(cone, (1.0 - smoothstep(0.0, 40.0, dist)) * mix(0.6, 0.39, uDetail.z));
     }
     vec3 l = B.rgb * A.w * fall * cone;
     if (float(i) < uShadowCount && dist > 40.0 && fall * cone > 0.004) l *= lampReach(wp, A.xy);
@@ -216,7 +222,7 @@ void main() {
     if (float(i) < uShadowCount && uMat.y > 0.0 && uShadowCfg.z > 0.0 && c.a > 0.003) {
       vec3 L3 = normalize(vec3(-to / max(dist, 1.0), 0.7));
       float sp = pow(max(dot(nrm, normalize(L3 + vec3(0.0, 0.0, 1.0))), 0.0), 26.0);
-      specAcc += l * sp * hard * smoothstep(0.35, 0.8, mx) * uMat.y * 1.8;
+      specAcc += l * sp * hard * smoothstep(0.35, 0.8, mx) * uMat.y * mix(1.8, 0.95, uDetail.z);
     }
   }
 
@@ -254,7 +260,9 @@ void main() {
       caus *= cK * sunCol * mix(1.0, smoothstep(-0.15, 0.45, -nrm.y), uShadowCfg.z);
     }
 
-    vec3 col = c.rgb * (sun * (1.0 + air * 0.15) + ambient + caus + lit * 1.1) + specAcc * c.a;
+    vec3 gain = sun * (1.0 + air * 0.15) + ambient + caus + lit * 1.1;
+    if (uDetail.z > 0.5) gain = retainHighlightDetail(gain);
+    vec3 col = c.rgb * gain + specAcc * c.a;
 
     // Depth fog pulls distant-looking colour towards the water. Our own
     // lights cut through it.
@@ -316,6 +324,7 @@ export class Lighting {
     uContactCount: number;
     uContact: Float32Array;
     uFlags: Float32Array;
+    uDetail: Float32Array;
     uWaterLocal: Float32Array;
     uWaterFlow: Float32Array;
   };
@@ -358,6 +367,7 @@ export class Lighting {
           uContactCount: { value: 0, type: 'f32' },
           uContact: { value: new Float32Array(4 * MAX_CONTACTS), type: 'vec4<f32>', size: MAX_CONTACTS },
           uFlags: { value: new Float32Array([0, 1, 0.6, 0]), type: 'vec4<f32>' },
+          uDetail: { value: new Float32Array(3), type: 'vec3<f32>' },
           uLivingWater: { value: surface ? 1 : 0, type: 'f32' },
           uImpacts: { value: surface?.data ?? new Float32Array(16), type: 'vec4<f32>', size: 4 },
           uWaterLocal: { value: new Float32Array(4), type: 'vec4<f32>' },
@@ -394,6 +404,7 @@ export class Lighting {
     /** G4: grime and grain strength, and the metal sheen strength (0 = off). */
     grime: number;
     sheen: number;
+    fidelity?: boolean;
   }): void {
     const u = this.u;
     u.uTime = opts.time;
@@ -403,6 +414,10 @@ export class Lighting {
     u.uView[1] = opts.viewH;
     u.uResolution[0] = opts.cssW;
     u.uResolution[1] = opts.cssH;
+    const scene = this.shader.resources.uScene;
+    u.uDetail[0] = 1 / scene.pixelWidth;
+    u.uDetail[1] = 1 / scene.pixelHeight;
+    u.uDetail[2] = opts.fidelity ? 1 : 0;
     u.uFlags[0] = opts.chromatic ? 1 : 0;
     u.uFlags[1] = 1.1; // distortion, in CSS pixels
     u.uFlags[2] = 0.75; // caustic strength

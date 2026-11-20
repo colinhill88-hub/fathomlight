@@ -194,6 +194,7 @@ async function boot(): Promise<void> {
   const livingBases = urlq.get('bases') !== 'original';
   const housingOcean = livingBases && urlq.get('housingOcean') !== 'original';
   const panorama = housingOcean && urlq.get('panorama') !== 'original';
+  const fidelity = urlq.get('render') !== 'original';
   let choice: PresetChoice = loadChoice();
   let preset: Preset = resolveChoice(choice);
 
@@ -232,7 +233,7 @@ async function boot(): Promise<void> {
   const surfaceMotion = motion ? new SurfaceMotion() : undefined;
   const wake = motion ? new WaterWake(motion) : undefined;
   const cameraFlow = { x: 0, y: 0, silt: 0, energy: 0 };
-  const water = new Water(mask, surfaceMotion);
+  const water = new Water(mask, surfaceMotion, fidelity);
   const backdrop = new Backdrop();
   // G3: a soft blur for the near foreground kelp (Ultra).
   const dofBlur = new BlurFilter({ strength: 2, quality: 2 });
@@ -267,7 +268,7 @@ async function boot(): Promise<void> {
   // art=procedural still switches the whole Shallows pilot back to procedural art.
   const useShallowsArt = visualMode('art', 'shallows');
   const [shallowsArt, shallowsSeabed, shallowsKelp, paintedFace, paintedSuit, forestMidground, forestOutcrop, shelfMidground, worldArt] = await Promise.all([
-    useShallowsArt ? loadShallowsArt() : null,
+    useShallowsArt ? loadShallowsArt(fidelity) : null,
     useShallowsArt && visualMode('terrain') ? loadShallowsSeabed() : null,
     useShallowsArt && visualMode('kelp') ? loadShallowsKelp() : null,
     !redesigned && visualMode('diver') ? loadPaintedDiver() : undefined,
@@ -275,14 +276,14 @@ async function boot(): Promise<void> {
     visualMode('forest') ? loadForestMidground() : undefined,
     visualMode('forestTerrain') ? loadForestOutcrop() : undefined,
     visualMode('shelf') ? loadWreckShelfMidground() : undefined,
-    visualMode('worldArt') ? loadWorldArt() : undefined,
+    visualMode('worldArt') ? loadWorldArt(fidelity) : undefined,
   ]);
   const zoneBackdrop = new ZoneBackdrop(forestMidground, shelfMidground, worldArt);
   zoneBackdrop.build();
   const shallowsBackdrop = shallowsArt ? new ShallowsBackdrop(shallowsArt) : null;
   let scenery = new Scenery(renderer, preset.detail, shallowsArt?.reef, shallowsSeabed ?? undefined, shallowsKelp ?? undefined, forestOutcrop, worldArt, livingCreatures, livingBases);
   const pickups = new Pickups();
-  const diver = new Diver(paintedFace, paintedSuit?.swimmer, visualMode('personality', 'surface'), redesigned, compact);
+  const diver = new Diver(paintedFace, paintedSuit?.swimmer, visualMode('personality', 'surface'), redesigned, compact, fidelity);
   diver.x = save.x;
   diver.y = save.y;
   diver.lampOn = save.lampOn;
@@ -516,7 +517,7 @@ async function boot(): Promise<void> {
   // On the stage after the post pass, so the scanner, the build grid and the collect rings stay crisp.
   app.stage.addChild(post.view, overlayCam);
   // After milestone 8 part 2: dry interiors on foot, drawn over the (hidden) world.
-  const interior = new Interior(renderer, paintedFace, paintedSuit?.walker, worldArt, redesigned, compact, livingBases);
+  const interior = new Interior(renderer, paintedFace, paintedSuit?.walker, worldArt, redesigned, compact, livingBases, fidelity);
   hdrRoot.addChild(interior.view);
   worldLayers.push(overlayCam);
   /** Which interior you're on foot in, if any. */
@@ -1251,30 +1252,35 @@ async function boot(): Promise<void> {
 
   let cssW = window.innerWidth;
   let cssH = window.innerHeight;
+  let displayDensity = window.devicePixelRatio;
   let zoom = 1;
   let builtDetail = preset.detail;
 
   /** Size the post stack's pictures and pick half-float or the 8-bit fallback (from the preset and the Settings toggles). */
   function applyPost(res = pixelRatioFor(preset, cssW, cssH)): void {
-    post.resize(cssW, cssH, res, preset.hdr && fx.hdr, preset.bloomLevels, fx.bloom && preset.bloom > 0, preset.bloomScale, fx.edges ?? preset.hdrMsaa);
+    const edges = fx.edges ?? preset.hdrMsaa;
+    post.resize(cssW, cssH, res, preset.hdr && fx.hdr, preset.bloomLevels, fx.bloom && preset.bloom > 0, preset.bloomScale, edges);
+    interior.resize(cssW, cssH, res, fidelity && edges);
+    oceanCapture?.setHighQuality(fidelity && preset.id === 'ultra');
     // G2: the interiors' lighting follows the same settings (the helmet lamp and the nearest room lamps cast shadows).
     interior.look = {
       shadowLights: fx.shadows ? preset.lightShadows + 1 : 0,
       shadowSteps: Math.min(32, Math.round(preset.shadowSteps * 1.3)),
       relief: fx.relief ? preset.relief : 0,
+      fidelity,
     };
   }
 
   function rebuild(): void {
     cssW = window.innerWidth;
     cssH = window.innerHeight;
+    displayDensity = window.devicePixelRatio;
     const res = pixelRatioFor(preset, cssW, cssH);
     renderer.resize(cssW, cssH, res);
     app.ticker.maxFPS = preset.maxFps;
     zoom = cssH / VIEW_H;
     litRT.resize(cssW, cssH, res);
     applyPost(res);
-    interior.resize(cssW, cssH, res);
     glowRT.resize(cssW, cssH, res * preset.glowResolution);
     blur.quality = preset.glowQuality;
     blur.resolution = res * preset.glowResolution;
@@ -1298,14 +1304,19 @@ async function boot(): Promise<void> {
   const adapt = { ms: 0, n: 0, good: 0, sinceDown: 99 };
   function resizeTargets(): void {
     const res = pixelRatioFor(preset, cssW, cssH);
+    if (fidelity && res === renderer.resolution) return;
     renderer.resize(cssW, cssH, res);
     litRT.resize(cssW, cssH, res);
     applyPost(res);
-    interior.resize(cssW, cssH, res);
     glowRT.resize(cssW, cssH, res * preset.glowResolution);
     blur.resolution = res * preset.glowResolution;
   }
   function adaptFrame(deltaMS: number): void {
+    // A window can change monitors without changing its CSS dimensions.
+    if (fidelity && displayDensity !== window.devicePixelRatio) {
+      displayDensity = window.devicePixelRatio;
+      resizeTargets();
+    }
     if (!fx.adaptive || document.hidden || bench.active) {
       if (!fx.adaptive && renderScale.v !== 1) {
         renderScale.v = 1;
@@ -1321,7 +1332,8 @@ async function boot(): Promise<void> {
     adapt.ms = 0;
     adapt.n = 0;
     adapt.sinceDown += 2;
-    const budget = 1000 / preset.maxFps;
+    // Preserve native detail at a healthy 60 Hz even if the Ultra cap allows 120 fps.
+    const budget = 1000 / (fidelity ? Math.min(60, preset.maxFps) : preset.maxFps);
     if (avg > budget * 1.18 && renderScale.v > RENDER_SCALE_MIN + 0.001) {
       renderScale.v = Math.max(RENDER_SCALE_MIN, Math.round((renderScale.v - 0.1) * 10) / 10);
       adapt.good = 0;
@@ -3671,6 +3683,7 @@ async function boot(): Promise<void> {
       reliefWide: preset.reliefWide,
       grime: fx.grime ? preset.grime : 0,
       sheen: fx.sheen ? preset.sheen : 0,
+      fidelity,
     });
     water.update(time, camX, camY, viewW, viewH, app.canvas.width, app.canvas.height);
     backdrop.update(camCX, camCY, zoom, cssW, cssH);

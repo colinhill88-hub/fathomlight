@@ -1,5 +1,5 @@
 import { Geometry, Mesh, Shader, Texture } from 'pixi.js';
-import { RT_VERTEX } from '../fx/shared';
+import { RT_VERTEX, GLSL_DETAIL } from '../fx/shared';
 import type { Light } from '../fx/lighting';
 
 /**
@@ -28,6 +28,9 @@ uniform sampler2D uOcc;      // G2: which tiles are steel (red channel), one pix
 uniform vec2 uOccWorld;
 uniform float uShadowCount;  // the first this many lights cast shadows
 uniform vec4 uShadowCfg;     // march steps, softness (world units), relief strength
+uniform vec3 uDetail;        // scene texel size, fidelity enabled
+
+${GLSL_DETAIL}
 
 float hash(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
 
@@ -61,8 +64,9 @@ void main() {
   vec4 c = texture(uScene, vUV);
   vec3 nrm = vec3(0.0, 0.0, 1.0);
   if (c.a > 0.003 && uShadowCfg.z > 0.0) {
-    vec2 o = vec2(3.0) / uView;
+    vec2 o = mix(vec2(3.0) / uView, 1.15 * uDetail.xy, uDetail.z);
     vec2 g = vec2(reliefH(vUV + vec2(o.x, 0.0)) - reliefH(vUV - vec2(o.x, 0.0)), reliefH(vUV + vec2(0.0, o.y)) - reliefH(vUV - vec2(0.0, o.y)));
+    g = mix(g, limitRelief(g), uDetail.z);
     nrm = normalize(vec3(-g * (uShadowCfg.z * 2.2), 1.0));
   }
   vec3 lit = vec3(0.0);
@@ -80,7 +84,7 @@ void main() {
     if (B.w > -1.0) {
       float cosA = dot(to / max(dist, 0.001), C.xy);
       cone = smoothstep(B.w - C.z, B.w, cosA);
-      cone = max(cone, smoothstep(36.0, 0.0, dist) * 0.5);
+      cone = max(cone, (1.0 - smoothstep(0.0, 36.0, dist)) * mix(0.5, 0.32, uDetail.z));
     }
     vec3 l = B.rgb * A.w * fall * cone;
     if (float(i) < uShadowCount && dist > 30.0 && fall * cone > 0.004) l *= reach(wp, A.xy);
@@ -92,7 +96,9 @@ void main() {
     lit += l * shaped;
     dust += l * C.w;
   }
-  vec3 col = c.rgb * (uAmbient + lit * 1.15);
+  vec3 gain = uAmbient + lit * 1.15;
+  if (uDetail.z > 0.5) gain = retainHighlightDetail(gain);
+  vec3 col = c.rgb * gain;
   col += dust * (1.0 - c.a * 0.7) * 0.5;
   col += (hash(vUV * uResolution + fract(uTime * 0.37)) - 0.5) / 255.0;
   finalColor = vec4(max(col, 0.0), max(c.a, clamp(dot(dust, vec3(0.3)), 0.0, 1.0)));
@@ -115,6 +121,7 @@ export class InteriorLighting {
     uOccWorld: Float32Array;
     uShadowCount: number;
     uShadowCfg: Float32Array;
+    uDetail: Float32Array;
   };
   private occ: Texture | null = null;
 
@@ -136,6 +143,7 @@ export class InteriorLighting {
           uOccWorld: { value: new Float32Array([1, 1]), type: 'vec2<f32>' },
           uShadowCount: { value: 0, type: 'f32' },
           uShadowCfg: { value: new Float32Array([16, 22, 0, 0]), type: 'vec4<f32>' },
+          uDetail: { value: new Float32Array(3), type: 'vec3<f32>' },
         },
         uScene: scene.source,
         uOcc: Texture.EMPTY.source,
@@ -173,7 +181,7 @@ export class InteriorLighting {
     this.u.uOccWorld[1] = h * tile;
   }
 
-  update(o: { time: number; camX: number; camY: number; viewW: number; viewH: number; cssW: number; cssH: number; ambient: [number, number, number]; lights: Light[]; shadowLights: number; shadowSteps: number; relief: number }): void {
+  update(o: { time: number; camX: number; camY: number; viewW: number; viewH: number; cssW: number; cssH: number; ambient: [number, number, number]; lights: Light[]; shadowLights: number; shadowSteps: number; relief: number; fidelity: boolean }): void {
     const u = this.u;
     u.uShadowCfg[0] = o.shadowSteps;
     u.uShadowCfg[1] = 22;
@@ -185,6 +193,10 @@ export class InteriorLighting {
     u.uView[1] = o.viewH;
     u.uResolution[0] = o.cssW;
     u.uResolution[1] = o.cssH;
+    const scene = this.shader.resources.uScene;
+    u.uDetail[0] = 1 / scene.pixelWidth;
+    u.uDetail[1] = 1 / scene.pixelHeight;
+    u.uDetail[2] = o.fidelity ? 1 : 0;
     u.uAmbient.set(o.ambient);
     const cx = o.camX + o.viewW / 2;
     const cy = o.camY + o.viewH / 2;
