@@ -6,6 +6,7 @@ import { Walker } from '../actors/walker';
 import { deckTread, lampFixture, rivet } from './detail';
 import { InteriorLighting } from './light';
 import { mulberry32, WORLD_SEED } from '../rng';
+import { drawSurveyDecks } from './corvinaArt';
 
 /**
  * Dry interiors on foot (after milestone 8 part 2, Colin's direction): a
@@ -268,7 +269,7 @@ export class Interior {
   private shownKey = '';
   private opts: InteriorOptions = {};
 
-  constructor(private readonly renderer: Renderer, paintedFace?: Texture, paintedSuit?: Texture, private readonly art?: WorldArt, redesigned = false, compact = false) {
+  constructor(private readonly renderer: Renderer, paintedFace?: Texture, paintedSuit?: Texture, private readonly art?: WorldArt, redesigned = false, compact = false, private readonly livingBases = false) {
     this.walker = new Walker(paintedFace, paintedSuit, redesigned, compact);
     this.lighting = new InteriorLighting(this.sceneRT);
     this.glowSprite = new Sprite(this.glowRT);
@@ -489,42 +490,21 @@ export class Interior {
     }
     // Back wall: riveted plates, ribs, pipes and a few portholes onto the black water.
     const steel = this.art?.materials[this.opts.style === 'fulmar' ? 'fulmar' : 'corvina'];
-    g.rect(0, 0, PW, PH).fill({ color: 0x23292b });
-    if (steel) g.rect(0, 0, PW, PH).fill(materialFill(steel, 0x23292b, 0.74, 1050, 620));
-    for (let y = 0; y < PH; y += 120)
-      for (let x = 0; x < PW; x += 160) {
-        g.rect(x + 2, y + 2, 156, 116).fill({ color: rand() < 0.5 ? 0x283033 : 0x262c2e, alpha: steel ? 0.42 : 1 });
-        for (let k = 8; k < 156; k += 22) g.circle(x + k, y + 6, 1.4).fill({ color: 0x3a4245 });
-      }
-    for (let x = 0; x < PW; x += 240) g.rect(x, 0, 18, PH).fill({ color: 0x1c2123 });
-    for (const py of [3, 13, 23]) {
-      g.rect(0, py * T + 6, PW, 9).fill({ color: 0x3b3a36 });
-      g.rect(0, py * T + 6, PW, 3).fill({ color: 0x5a554c, alpha: 0.6 });
-      for (let x = 60; x < PW; x += 300) g.rect(x, py * T + 2, 10, 17).fill({ color: 0x6a4a2e });
-    }
-    for (let x = 140; x < PW; x += 420) {
-      const y = 3 * T;
-      g.circle(x, y + 40, 18).fill({ color: 0x5a554c });
-      g.circle(x, y + 40, 13).fill({ color: 0x061014 });
-      e.circle(x, y + 40, 12).fill({ color: 0x0c2a33, alpha: 0.9 });
-    }
-    // Rust and grime streaks.
-    for (let i = 0; i < (PW * PH) / 9000; i++) {
-      const x = R(0, PW);
-      const y = R(0, PH);
-      g.rect(x, y, R(1, 3), R(10, 60)).fill({ color: 0x5a3a28, alpha: R(0.1, 0.3) });
-    }
-    // Tiles.
+    const survey = this.livingBases && this.opts.style !== 'fulmar';
+    if (survey) drawSurveyDecks(g, T, PW, PH);
+    else this.drawWreckWalls(g, e, steel, PW, PH, rand);
+    // Tiles retain their exact collision shapes and interaction hardware.
     for (let ty = 0; ty < this.H; ty++) {
       for (let tx = 0; tx < this.W; tx++) {
         const c = this.map[ty][tx];
         const x = tx * T;
         const y = ty * T;
         if (c === '#') {
-          g.rect(x, y, T + 0.5, T + 0.5).fill({ color: 0x4a5052 });
-          if (steel) g.rect(x, y, T + 0.5, T + 0.5).fill(materialFill(steel, 0x4a5052, 0.67, 860, 520));
+          const metal = survey ? 0x4c5753 : 0x4a5052;
+          g.rect(x, y, T + 0.5, T + 0.5).fill({ color: metal });
+          if (steel) g.rect(x, y, T + 0.5, T + 0.5).fill(materialFill(steel, metal, 0.67, 860, 520));
           if (!this.solidTileStatic(tx, ty - 1)) {
-            g.rect(x, y, T + 0.5, 6).fill({ color: 0x6e7476 });
+            g.rect(x, y, T + 0.5, 6).fill({ color: survey ? 0x8d8b77 : 0x6e7476 });
             g.rect(x, y + 6, T + 0.5, 2).fill({ color: 0x2c3234 });
             for (let k = 6; k < T; k += 12) g.circle(x + k, y + 3, 1.2).fill({ color: 0x2c3234 });
           }
@@ -623,6 +603,35 @@ export class Interior {
     }
     this.shownKey = '';
   }
+  private drawWreckWalls(g: Graphics, e: Graphics, steel: Texture | undefined, PW: number, PH: number, rand: () => number): void {
+    const R = (a: number, b: number) => a + rand() * (b - a);
+    g.rect(0, 0, PW, PH).fill({ color: 0x23292b });
+    if (steel) g.rect(0, 0, PW, PH).fill(materialFill(steel, 0x23292b, 0.74, 1050, 620));
+    for (let y = 0; y < PH; y += 120)
+      for (let x = 0; x < PW; x += 160) {
+        g.rect(x + 2, y + 2, 156, 116).fill({ color: rand() < 0.5 ? 0x283033 : 0x262c2e, alpha: steel ? 0.42 : 1 });
+        for (let k = 8; k < 156; k += 22) g.circle(x + k, y + 6, 1.4).fill({ color: 0x3a4245 });
+      }
+    for (let x = 0; x < PW; x += 240) g.rect(x, 0, 18, PH).fill({ color: 0x1c2123 });
+    for (const py of [3, 13, 23]) {
+      g.rect(0, py * T + 6, PW, 9).fill({ color: 0x3b3a36 });
+      g.rect(0, py * T + 6, PW, 3).fill({ color: 0x5a554c, alpha: 0.6 });
+      for (let x = 60; x < PW; x += 300) g.rect(x, py * T + 2, 10, 17).fill({ color: 0x6a4a2e });
+    }
+    for (let x = 140; x < PW; x += 420) {
+      const y = 3 * T;
+      g.circle(x, y + 40, 18).fill({ color: 0x5a554c });
+      g.circle(x, y + 40, 13).fill({ color: 0x061014 });
+      e.circle(x, y + 40, 12).fill({ color: 0x0c2a33, alpha: 0.9 });
+    }
+    // Rust and grime streaks.
+    for (let i = 0; i < (PW * PH) / 9000; i++) {
+      const x = R(0, PW);
+      const y = R(0, PH);
+      g.rect(x, y, R(1, 3), R(10, 60)).fill({ color: 0x5a3a28, alpha: R(0.1, 0.3) });
+    }
+  }
+
   private solidTileStatic(tx: number, ty: number): boolean {
     const c = this.ch(tx, ty);
     return c === '#' || c === 'c';
