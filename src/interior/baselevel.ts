@@ -1404,13 +1404,7 @@ export class BaseHooks implements InteriorHooks {
           controls.roundRect(consoleX - 23, floor - 37, 46, 37, 7).fill(0x34494a);
           controls.roundRect(consoleX - 44, floor - 65, 88, 22, 5).fill(0x0d2e34);
           controls.moveTo(consoleX - 52, floor - 71).lineTo(consoleX + 52, floor - 71).stroke({ color: 0x789d96, width: 3 });
-          // Its HABITAT placard rides on a mast above head height, so Kestrel standing
-          // at the console never covers it.
-          const plateY = floor - 150;
-          controls.rect(consoleX - 2, plateY + 13, 4, floor - 71 - plateY - 13).fill(0x5d7b76);
-          controls.roundRect(consoleX - 58, plateY - 14, 116, 28, 6).fill({ color: 0x0d2e34, alpha: 0.94 });
-          controls.roundRect(consoleX - 58, plateY - 14, 116, 28, 6).stroke({ color: 0x789d96, width: 2 });
-          this.habitatForeground.addChild(sign('HABITAT', consoleX, plateY, 13, 0xd2f2ea, 1));
+          this.habitatForeground.addChild(sign('HABITAT', consoleX, floor - 54, 13, 0xb5e5d9, 0.95));
           controls.roundRect(trayX - 62, bot - 32, 124, 32, 6).fill(0x513c30);
           controls.poly([trayX - 69, bot - 39, trayX + 69, bot - 39, trayX + 57, bot - 21, trayX - 57, bot - 21]).fill(0x98714e);
           controls.roundRect(trayX - 56, bot - 36, 112, 12, 4).fill(0x352b28);
