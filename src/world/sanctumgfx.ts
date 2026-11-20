@@ -3,6 +3,7 @@ import { materialFill, type WorldArt } from '../art/worldArt';
 import { mulberry32, WORLD_SEED } from '../rng';
 import { ellBottom, ellTop, groundY, SANCTUM, sanctumShapes, shapesField } from './terrain';
 import { dab, traceField, type PointLight } from './scenery';
+import { drawNacreVault } from './nacreVault';
 
 /**
  * Milestone 11: the art of the sanctum, under the trench floor. Awe, not
@@ -65,7 +66,7 @@ export class SanctumScenery {
   private doorLight: PointLight;
   private rand: () => number;
 
-  constructor(detail: number, art?: WorldArt) {
+  constructor(detail: number, art?: WorldArt, livingBases = false) {
     this.rand = mulberry32(WORLD_SEED ^ 0x5a17c);
     const R = (a: number, b: number) => a + this.rand() * (b - a);
     const shapes = sanctumShapes() as Parameters<typeof shapesField>[0];
@@ -202,6 +203,14 @@ export class SanctumScenery {
       const g = new Graphics();
       const e = new Graphics();
       const h = SANCTUM.hall;
+      if (livingBases) {
+        for (const [offset, width, height, lean] of [[-510, 300, 392, 0.09], [30, 614, 702, -0.045], [487, 275, 434, -0.1]]) {
+          const x = h.x + offset;
+          const floor = ellBottom(h, x) - 12;
+          drawNacreVault(g, x, floor, width, height, lean);
+          drawNacreVault(g, x + width * 0.04, floor, width * 0.82, height * 0.89, lean);
+        }
+      }
       const rings = [
         { x: h.x - 420, y: h.y - 20, r: 150, t: 0.35 },
         { x: h.x - 20, y: h.y - 110, r: 230, t: 0.25 },
@@ -209,13 +218,13 @@ export class SanctumScenery {
       ];
       for (const [i, r] of rings.entries()) {
         // Seen a little from the side: tall ellipses, thick pale stone with a lit inner line.
-        g.ellipse(r.x, r.y, r.r * r.t, r.r).stroke({ color: 0x8a8eaa, width: 16 });
-        g.ellipse(r.x, r.y, r.r * r.t, r.r).stroke({ color: 0xc8cce0, width: 4, alpha: 0.6 });
-        e.ellipse(r.x, r.y, r.r * r.t - 6, r.r - 6).stroke({ color: CHOIR[i], width: 1.6, alpha: 0.9 });
+        g.ellipse(r.x, r.y, r.r * r.t, r.r).stroke({ color: 0x8a8eaa, width: livingBases ? 9 : 16 });
+        g.ellipse(r.x, r.y, r.r * r.t, r.r).stroke({ color: 0xc8cce0, width: livingBases ? 2 : 4, alpha: 0.6 });
+        e.ellipse(r.x, r.y, r.r * r.t - 6, r.r - 6).stroke({ color: CHOIR[i], width: 1.6, alpha: livingBases ? 0.58 : 0.9 });
         // A stem down to the hall's floor.
         const fy = ellBottom(h, r.x);
         g.moveTo(r.x, r.y + r.r).lineTo(r.x - 6, fy).lineTo(r.x + 6, fy).closePath().fill({ color: 0x6a6e8a });
-        const light: PointLight = { x: r.x, y: r.y, radius: 700, intensity: 0.75, color: i === 0 ? [0.4, 0.9, 1] : i === 1 ? [0.65, 0.5, 1] : [1, 0.4, 0.85] };
+        const light: PointLight = { x: r.x, y: r.y, radius: 700, intensity: livingBases ? 0.56 : 0.75, color: i === 0 ? [0.4, 0.9, 1] : i === 1 ? [0.65, 0.5, 1] : [1, 0.4, 0.85] };
         this.lights.push(light);
       }
       // Ribbons: long sinuous bands of stone hanging from the roof.
@@ -246,8 +255,15 @@ export class SanctumScenery {
       const hx = SANCTUM.heart.x;
       const fy = SANCTUM.heart.y + 4;
       // The shell: a spiral dome rising off the pool floor.
-      g.moveTo(hx - 230, fy).quadraticCurveTo(hx - 220, fy - 250, hx, fy - 260).quadraticCurveTo(hx + 210, fy - 240, hx + 240, fy).closePath().fill({ color: 0x8a8eaa });
-      for (let k = 1; k < 6; k++) g.moveTo(hx - 230 + k * 12, fy).quadraticCurveTo(hx - 200 + k * 30, fy - 250 + k * 30, hx + k * 30, fy - 260 + k * 40).stroke({ color: 0xc8cce0, width: 2, alpha: 0.5 });
+      if (livingBases) {
+        drawNacreVault(g, hx + 8, fy, 438, 249, 0.085);
+        drawNacreVault(g, hx - 6, fy, 340, 208, 0.04);
+        drawNacreVault(g, hx, fy, 240, 169);
+        drawNacreVault(g, hx, fy, 139, 127);
+      } else {
+        g.moveTo(hx - 230, fy).quadraticCurveTo(hx - 220, fy - 250, hx, fy - 260).quadraticCurveTo(hx + 210, fy - 240, hx + 240, fy).closePath().fill({ color: 0x8a8eaa });
+        for (let k = 1; k < 6; k++) g.moveTo(hx - 230 + k * 12, fy).quadraticCurveTo(hx - 200 + k * 30, fy - 250 + k * 30, hx + k * 30, fy - 260 + k * 40).stroke({ color: 0xc8cce0, width: 2, alpha: 0.5 });
+      }
       // The arch, glowing.
       g.moveTo(hx - 48, fy).lineTo(hx - 48, fy - 80).quadraticCurveTo(hx, fy - 130, hx + 48, fy - 80).lineTo(hx + 48, fy).closePath().fill({ color: 0x14102c });
       e.moveTo(hx - 48, fy).lineTo(hx - 48, fy - 80).quadraticCurveTo(hx, fy - 130, hx + 48, fy - 80).lineTo(hx + 48, fy).stroke({ color: CYAN, width: 2.4 });

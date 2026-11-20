@@ -1,4 +1,4 @@
-import { Application, BlurFilter, Container, RenderTexture, Sprite, Texture, UPDATE_PRIORITY } from 'pixi.js';
+import { Application, BlurFilter, Container, Graphics, RenderTexture, Sprite, Texture, UPDATE_PRIORITY } from 'pixi.js';
 import { perf, PerfOverlay } from './dev/perf';
 import { PostStack, ZoneWeights } from './fx/post';
 import { Bench, BENCH, BENCH_SCENES, STILL, scenePos, seedBenchSave } from './dev/bench';
@@ -6,6 +6,7 @@ import { FxToggles, loadChoice, loadFx, pixelRatioFor, renderBoost, renderScale,
 import { Water } from './scene/water';
 import { isWaterAir, ventLensAt, WaterMotion } from './scene/waterMotion';
 import { SurfaceMotion } from './fx/surfaceMotion';
+import { moonpoolOf, POOL_HALF_WIDTH } from './world/moonpool';
 import { WaterWake } from './fx/waterWake';
 import { Backdrop } from './scene/backdrop';
 import { MarineSnow, SnowLight } from './scene/particles';
@@ -25,6 +26,8 @@ import { Light, Lighting } from './fx/lighting';
 import { FRONT_REF, Scenery } from './world/scenery';
 import { bagRestingPlace, Pickups } from './world/pickups';
 import { School } from './actors/school';
+import { mulberry32 } from './rng';
+import { OceanCapture } from './interior/oceanCapture';
 import {
   bakeSkyVisibility,
   CAVE,
@@ -81,6 +84,7 @@ import {
   CLEFT,
   CLEFT_FINDS,
   FULMAR_HATCH,
+  FULMAR,
   TR_BUOY,
   TR_PROBE,
   TR_VENTS,
@@ -187,6 +191,9 @@ async function boot(): Promise<void> {
   const host = document.getElementById('game')!;
   const urlq = new URLSearchParams(location.search);
   const livingCreatures = urlq.get('creatures') !== 'original';
+  const livingBases = urlq.get('bases') !== 'original';
+  const housingOcean = livingBases && urlq.get('housingOcean') !== 'original';
+  const panorama = housingOcean && urlq.get('panorama') !== 'original';
   let choice: PresetChoice = loadChoice();
   let preset: Preset = resolveChoice(choice);
 
@@ -273,7 +280,7 @@ async function boot(): Promise<void> {
   const zoneBackdrop = new ZoneBackdrop(forestMidground, shelfMidground, worldArt);
   zoneBackdrop.build();
   const shallowsBackdrop = shallowsArt ? new ShallowsBackdrop(shallowsArt) : null;
-  let scenery = new Scenery(renderer, preset.detail, shallowsArt?.reef, shallowsSeabed ?? undefined, shallowsKelp ?? undefined, forestOutcrop, worldArt, livingCreatures);
+  let scenery = new Scenery(renderer, preset.detail, shallowsArt?.reef, shallowsSeabed ?? undefined, shallowsKelp ?? undefined, forestOutcrop, worldArt, livingCreatures, livingBases);
   const pickups = new Pickups();
   const diver = new Diver(paintedFace, paintedSuit?.swimmer, visualMode('personality', 'surface'), redesigned, compact);
   diver.x = save.x;
@@ -304,7 +311,7 @@ async function boot(): Promise<void> {
   const hunters = new DeepHunters(TR_LANTERNJAWS, TR_STALKERS, TR_SPIDERS, livingCreatures);
   // After milestone 12: flares, darts, visor marks, the tractor beam and drill sparks.
   const gearFx = new GearFx();
-  const tankLife = new TankLife({ livingCreatures });
+  const tankLife = new TankLife({ livingCreatures, livingBases });
   // Milestone 9: a grown glowfin from the jar swims beside the diver as a light.
   const escort = new Escort(livingCreatures);
   let llSafe = { x: 0, y: 0 };
@@ -314,6 +321,11 @@ async function boot(): Promise<void> {
     // Milestone 7: a wary shoal between the giant kelp.
     new School(18, { x0: 10400, x1: 14200, y0: 520, y1: 1050 }, livingCreatures),
   ];
+  // Ambient life shares its exterior positions as seen through windows. It is outside the scanner roster.
+  const basinSchools = panorama ? [-3600, -1880, 530].map((x, i) => {
+    const bottom = groundY(x);
+    return new School(9, { x0: x - 190, x1: x + 190, y0: bottom - 103, y1: bottom - 37 }, livingCreatures, mulberry32(8210 + i), 0.58);
+  }) : [];
   boom.open = save.boomOpen;
   const scanner = new Scanner([
     { id: 'silverbar', points: () => schools.map((s) => ({ x: s.cx, y: s.cy })) },
@@ -378,15 +390,21 @@ async function boot(): Promise<void> {
     { id: 'sheart', points: () => scenery.sanctum.scanPoints.sheart },
   );
   const surfaceFx = new SurfaceFx(surfaceMotion);
+  const poolMotion = new SurfaceMotion();
+  const poolFx = new SurfaceFx(poolMotion, true);
+  const poolMask = new Graphics().rect(-POOL_HALF_WIDTH, -46, 2 * POOL_HALF_WIDTH, 61).fill(0xffffff);
+  poolFx.view.addChild(poolMask);
+  poolFx.view.mask = poolMask;
+  poolFx.view.visible = false;
 
   // The base at the Kestrel site.
   const layout = new BaseLayout(save.pieces);
   save.pieces = layout.pieces;
   drone.teleport(diver.x, diver.y, layout);
-  const baseView = new BaseView();
+  const baseView = new BaseView(livingBases, housingOcean, panorama);
   baseView.sync(layout);
   tankLife.sync(save, layout);
-  const buildOverlay = new BuildOverlay();
+  const buildOverlay = new BuildOverlay(livingBases, housingOcean, panorama);
   overlayCam.addChild(buildOverlay.view, gearFx.overlay);
   // Milestone 5: conveyors, feed pipes and the machines they join.
   const factory = new Factory();
@@ -460,6 +478,7 @@ async function boot(): Promise<void> {
       lurkers.view,
       hunters.view,
       ...schools.map((s) => s.view),
+      ...basinSchools.map((s) => s.view),
       ...fish.map((f) => f.view),
       sub.view,
       subBubbles.view,
@@ -471,10 +490,21 @@ async function boot(): Promise<void> {
     );
     frontCam.addChild(scenery.front);
     emissiveCam.addChild(gearFx.emissive, scenery.emissive, baseView.emissive, tankLife.emissive, pickups.emissive, wildlife.emissive, escort.emissive, lurkers.emissive, hunters.emissive, sub.emissive, drone.emissive, ...fish.map((f) => f.lure), diver.lens, diver.resonDot, surfaceFx.view);
+    if (livingBases) emissiveCam.addChild(poolFx.view);
     if (wake) emissiveCam.addChildAt(wake.view, 0);
     glowCam.addChild(scenery.glow, baseView.glow, tankLife.glow, pickups.glow, wildlife.glow, escort.glow, lurkers.glow, hunters.glow, sub.glow, drone.glow, ...fish.map((f) => f.halo), diver.lensGlow, diver.resonGlow);
   }
   populate();
+
+  const oceanCapture = panorama ? new OceanCapture(renderer, litCam, (bounds, dt) => {
+    const { x, y, w, h } = bounds;
+    motion?.advance(time);
+    scenery.update(time, -10000, y + h / 2, 0, x, x + w, motion, dt);
+    const nearbyShoals = x < 2200 ? [...basinSchools, ...schools] : schools;
+    const shoals = nearbyShoals.filter((school) => school.cx >= x - 360 && school.cx <= x + w + 360);
+    for (const s of shoals) s.update(dt, time, -10000, -10000, x, x + w, motion);
+    return [scenery.view, ...shoals.map((s) => s.view)];
+  }) : undefined;
 
   const worldLayers = [water.view, backdrop.view, zoneBackdrop.view];
   if (shallowsBackdrop) worldLayers.push(shallowsBackdrop.view);
@@ -483,7 +513,7 @@ async function boot(): Promise<void> {
   // On the stage after the post pass, so the scanner, the build grid and the collect rings stay crisp.
   app.stage.addChild(post.view, overlayCam);
   // After milestone 8 part 2: dry interiors on foot, drawn over the (hidden) world.
-  const interior = new Interior(renderer, paintedFace, paintedSuit?.walker, worldArt, redesigned, compact);
+  const interior = new Interior(renderer, paintedFace, paintedSuit?.walker, worldArt, redesigned, compact, livingBases);
   hdrRoot.addChild(interior.view);
   worldLayers.push(overlayCam);
   /** Which interior you're on foot in, if any. */
@@ -508,6 +538,7 @@ async function boot(): Promise<void> {
   /** The walkable base: the dome you came in by, and the level built from the layout. */
   let baseDome: number | null = null;
   let baseHooks: BaseHooks | null = null;
+  let swimmingPool: Placed | null = null;
   /** A console inside the base has opened its panel out in the world for a moment. */
   let peek: { kind: 'care' | 'station' | 'dock' | 'build'; id: number | null; select: number | null; x: number; y: number; face: number; opened: boolean } | null = null;
   /** Where a dome's airlock is from outside: the round hatch on the front of its drum. */
@@ -572,6 +603,8 @@ async function boot(): Promise<void> {
   const care = new CareMode({
     save,
     layout,
+    livingBases,
+    deposit: (id) => depositJar(id),
     toast: (t, k) => hud.toast(t, k),
     refreshInventory: () => hud.refreshInventory(),
     persist: () => persist(),
@@ -855,6 +888,18 @@ async function boot(): Promise<void> {
     }
     return null;
   }
+  /** Find a finished dome reachable from this dock through open collars. */
+  function moonpoolDome(dock: Placed): Placed | undefined {
+    const byId = new Map(layout.pieces.filter(isDone).map((p) => [p.id, p]));
+    const links = new Set([dock.id]);
+    for (const id of links) {
+      const p = byId.get(id);
+      if (!p) continue;
+      if (p.kind === 'dome') return p;
+      for (const neighbor of layout.links.get(id) ?? []) links.add(neighbor);
+    }
+    return undefined;
+  }
   /** Is the diver next to the parked sub (close enough to climb in)? */
   let nearSub = false;
   let wasNearSub = false;
@@ -886,9 +931,10 @@ async function boot(): Promise<void> {
     } else newCreature(save, j.species, j.stage === 'egg' ? 'egg' : 'young', tankId, j.traits);
     save.jar = null;
     tankLife.sync(save, layout);
+    baseHooks?.syncTanks();
     drone.cheer();
     const sp = SPECIES[j.species];
-    hud.toast(`${j.stage === 'egg' ? `The ${sp.eggName} is` : `The ${sp.name.toLowerCase()} is`} in tank ${tankNumber(layout, tankId)}. Tap Tend to look after it.`, 'big');
+    hud.toast(`${j.stage === 'egg' ? `The ${sp.eggName} is` : `The ${sp.name.toLowerCase()} is`} in tank ${tankNumber(layout, tankId)}. ${livingBases ? 'Use the Habitat Console for care.' : 'Tap Tend to look after it.'}`, 'big');
     if (!save.tips.includes('care')) {
       save.tips.push('care');
       setTimeout(
@@ -899,23 +945,24 @@ async function boot(): Promise<void> {
     persist();
   }
   function takeTray(tankId: number): void {
-    const td = save.tankData[String(tankId)];
-    if (!td?.out) return;
+    const out = save.tankData[String(tankId)]?.out;
+    if (!out) return;
     let took = 0;
     const what: string[] = [];
     for (const k of MATERIALS_LIST) {
       let n = 0;
-      while ((td.out[k] ?? 0) > 0 && bagHasRoom(save, k)) {
-        td.out[k]!--;
+      while ((out[k] ?? 0) > 0 && bagHasRoom(save, k)) {
+        out[k]!--;
         save.bag[k]++;
         n++;
       }
-      if (!td.out[k]) delete td.out[k];
+      if (!out[k]) delete out[k];
       if (n) what.push(`${n} ${MATERIALS[k].name.toLowerCase()}`);
       took += n;
     }
     if (took) {
-      hud.toast(`Took ${what.join(' and ')} from tank ${tankNumber(layout, tankId)}'s output tray`, 'item');
+      const partial = livingBases && MATERIALS_LIST.some((k) => (out[k] ?? 0) > 0);
+      hud.toast(`Took ${what.join(' and ')} from tank ${tankNumber(layout, tankId)}'s output tray${partial ? ' · Remaining items are still in the tray' : ''}`, 'item');
       hud.refreshInventory();
       persist();
     } else hud.toast('Dive bag full: the output tray stays where it is', 'warn');
@@ -1168,7 +1215,8 @@ async function boot(): Promise<void> {
   let saveTimer = 0;
   function persist(): void {
     if (blackout > 0) return; // save once the diver is back at the buoy
-    const outAt = inside === 'base' || peek ? baseOutside() : null;
+    const pool = swimmingPool && moonpoolOf(swimmingPool);
+    const outAt = inside === 'base' || peek ? baseOutside() : pool ? { x: diver.x, y: pool.mouth + 11 } : null;
     save.x = outAt ? outAt.x : inside === 'corvina' ? CV_HATCH.x : inside === 'fulmar' ? FULMAR_HATCH.x : inside === 'sanctum' ? SANCTUM.heart.x : diver.x;
     save.y = outAt ? outAt.y : inside === 'corvina' ? CV_HATCH.y - 70 : inside === 'fulmar' ? FULMAR_HATCH.y - 70 : inside === 'sanctum' ? SANCTUM.heart.y - 70 : diver.y;
     save.lampOn = diver.lampOn;
@@ -1232,7 +1280,7 @@ async function boot(): Promise<void> {
     snow.build(renderer, preset.particleDensity, cssW, cssH, fx.litSnow ? preset.bokeh : 0);
     if (builtDetail !== preset.detail) {
       scenery.view.destroy({ children: true });
-      scenery = new Scenery(renderer, preset.detail, shallowsArt?.reef, shallowsSeabed ?? undefined, shallowsKelp ?? undefined, forestOutcrop, worldArt, livingCreatures);
+      scenery = new Scenery(renderer, preset.detail, shallowsArt?.reef, shallowsSeabed ?? undefined, shallowsKelp ?? undefined, forestOutcrop, worldArt, livingCreatures, livingBases);
       builtDetail = preset.detail;
       populate();
     }
@@ -2165,6 +2213,18 @@ async function boot(): Promise<void> {
     // Planning in build view (or reading a panel out here): the diver treads water where they are
     // instead of sinking with the bag's weight (Colin, after the terrain pass).
     diver.noSink = build.active || care.active || dockUI.active || station.active;
+    if (swimmingPool && (aboard || boarding || peek || blackout > 0 || !layout.pieces.includes(swimmingPool) || !isDone(swimmingPool))) {
+      swimmingPool = null;
+      diver.surfaced = false;
+    }
+    if (livingBases && inControl && !aboard && !grapple && !swimmingPool && s.moveY < -0.35 && dockHere) {
+      const p = moonpoolOf(dockHere);
+      if (Math.abs(diver.x - p.x) < POOL_HALF_WIDTH - 24 && diver.y >= p.mouth - 5 && diver.y < p.mouth + 19 && moonpoolDome(dockHere)) {
+        swimmingPool = dockHere;
+        poolFx.reset();
+      }
+    }
+    const pool = swimmingPool && moonpoolOf(swimmingPool);
     if (aboard || boarding) diver.cancelSurfaceReaction();
     if (boarding) {
       // Climbing into the sub: swim to the hatch, then down through it.
@@ -2223,7 +2283,7 @@ async function boot(): Promise<void> {
         hud.toast('No thruster to boost with yet. A Kestrel survey left a spare hip thruster somewhere near its beacon, at the drop-off.', 'warn');
       }
       const freeSwimming = inControl && !input.suspended && !peek && !s.boost && !s.board && !s.scan && !s.collect && !s.flare && !s.dart;
-      diver.update(dt, inControl ? s.moveX : 0, inControl ? s.moveY : 0, inControl && s.boost && save.kit.thruster > 0, inControl && s.lamp, freeSwimming);
+      diver.update(dt, inControl ? s.moveX : 0, inControl ? s.moveY : 0, inControl && s.boost && save.kit.thruster > 0, inControl && s.lamp, freeSwimming, pool?.y);
       // After milestone 12: the TH-3 dash head. A double tap of Boost dashes, every 3 s.
       if (inControl && s.boost && hasGear(save, 'dash')) {
         if (time - boostTapAt < 0.32 && time - dashAt > 3) {
@@ -2243,10 +2303,29 @@ async function boot(): Promise<void> {
       }
     }
 
+    const poolLadder = !!pool && diver.surfaced && Math.abs(diver.x - pool.ladder) < 16;
+    if (pool && swimmingPool) {
+      const dock = swimmingPool;
+      const x = Math.max(pool.x - POOL_HALF_WIDTH + 23, Math.min(pool.x + POOL_HALF_WIDTH - 23, diver.x));
+      if (diver.x !== x) {
+        diver.x = x;
+        diver.vx = 0;
+      }
+      if (!diver.surfaced && diver.y > pool.mouth + 10) swimmingPool = null;
+      if (inControl && poolLadder && diver.surfaceTime >= 0.25 && s.moveY < -0.55) {
+        const dome = moonpoolDome(dock);
+        if (dome) {
+          enterBase(dome.id, false, dock.id, true);
+          return;
+        }
+      }
+    }
+
     // Breaking the surface: a splash, then breath vapour with each breath out.
     const [hx, hy] = diver.helmetPoint();
     if (diver.splash > 0) {
-      if (surfaceMotion && !aboard) {
+      if (pool) poolFx.splash(hx - pool.x, diver.splash * 0.58, time, diver.vx, !diver.surfaced);
+      else if (surfaceMotion && !aboard) {
         const strength = Math.min(1.20, diver.splash * 0.67 + Math.max(Math.abs(incomingVY), Math.abs(diver.vy)) / 620 + Math.abs(diver.vx) / 1000);
         surfaceFx.splash(hx, strength, time, diver.vx, !diver.surfaced);
       } else surfaceFx.splash(hx, diver.splash, time);
@@ -3263,7 +3342,11 @@ async function boot(): Promise<void> {
     }
     if (baseAct && collectTap) baseAct.run();
 
-    if (holdAct) hud.setCollect(holdAct.label, holdProgress);
+    if (pool && diver.surfaced) {
+      hud.setCollect(null, 0);
+      hud.setBanner(poolLadder ? 'Swim up to climb onto the catwalk' : 'Swim to the ladder on the right');
+    }
+    else if (holdAct) hud.setCollect(holdAct.label, holdProgress);
     else if (infoAct && !baseAct) hud.setCollect(infoAct, 0);
     else if (baseAct) hud.setCollect(baseAct.label, 0, true);
     else if (aboard && !grab) hud.setCollect(null, 0);
@@ -3472,6 +3555,7 @@ async function boot(): Promise<void> {
       );
     }
     for (const sc of schools) sc.update(dt, time, diver.x, diver.y, camX, camX + viewW, motion);
+    for (const sc of basinSchools) sc.update(dt, time, diver.x, diver.y, camX, camX + viewW, motion);
     tankLife.update(dt, time, save, camX, camX + viewW);
     // While tending a tank, the diver and drone fade so they don't hide it.
     const fade = (care.active ? 0.12 : dockUI.active || station.active ? 0.3 : 1) * (boarding ? boardFade : 1);
@@ -3612,7 +3696,13 @@ async function boot(): Promise<void> {
     perf.pass('glow', () => renderer.render({ container: glowCam, target: glowRT, clear: true, clearColor: [0, 0, 0, 0] }));
 
     input.diverScreen = aboard ? { x: (sub.x - camX) * zoom, y: (sub.y - camY) * zoom } : { x: (diver.x - camX) * zoom, y: (diver.y - camY) * zoom };
-    surfaceFx.update(dt, time, camX, camX + viewW, camY, diver.surfaced ? { x: hx } : null);
+    surfaceFx.update(dt, time, camX, camX + viewW, camY, diver.surfaced && !pool ? { x: hx } : null);
+    poolFx.view.visible = !!pool;
+    if (pool) {
+      poolFx.view.position.set(pool.x, pool.y);
+      poolMotion.update(dt);
+      poolFx.update(dt, time, -POOL_HALF_WIDTH, POOL_HALF_WIDTH, 0, diver.surfaced ? { x: hx - pool.x } : null);
+    }
     updateTags(camX, camY, viewW);
 
     const depthM = Math.max(0, diver.y - SURFACE_Y + 6) / WU_PER_METRE;
@@ -3718,7 +3808,8 @@ async function boot(): Promise<void> {
   }
   function enterCorvina(): void {
     save.corvina.taken ??= [];
-    interior.enter(CORVINA_MAP, { breakers: save.corvina.breakers, taken: save.corvina.taken });
+    interior.enter(CORVINA_MAP, { breakers: save.corvina.breakers, taken: save.corvina.taken }, null, null,
+      oceanCapture?.source({ x: CORVINA.x0 - 165, y: CV_HATCH.y - 177, sx: 0.37, sy: 0.42 }));
     inside = 'corvina';
     goOnFoot();
     sound.hatchCue(true);
@@ -3751,7 +3842,8 @@ async function boot(): Promise<void> {
 
   // ---- Milestone 10: the Fulmar deep station, on foot ----
   function enterFulmar(): void {
-    interior.enter(FULMAR_MAP, { breakers: save.fulmar.breakers, taken: save.fulmar.taken }, null, FULMAR_OPTS);
+    interior.enter(FULMAR_MAP, { breakers: save.fulmar.breakers, taken: save.fulmar.taken }, null, FULMAR_OPTS,
+      oceanCapture?.source({ x: FULMAR.x0 - 110, y: FULMAR_HATCH.y - 201, sx: 0.30, sy: 0.48 }));
     inside = 'fulmar';
     goOnFoot();
     sound.hatchCue(true);
@@ -3781,7 +3873,8 @@ async function boot(): Promise<void> {
   function enterHeart(): void {
     // Contact left unfinished (the game closed mid-song): the plinth waits again.
     if (!save.sanctum.contact) save.sanctum.taken = save.sanctum.taken.filter((t) => t !== '9');
-    interior.enter(HEART_MAP, { breakers: [], taken: save.sanctum.taken }, null, heartOptions(choir));
+    interior.enter(HEART_MAP, { breakers: [], taken: save.sanctum.taken }, null, heartOptions(choir),
+      oceanCapture?.source({ x: SANCTUM.hall.x - 690, y: SANCTUM.hall.y - 237, sx: 0.39, sy: 0.57 }));
     inside = 'sanctum';
     goOnFoot();
     sound.hatchCue(true);
@@ -3860,6 +3953,11 @@ async function boot(): Promise<void> {
     save,
     layout,
     livingCreatures,
+    livingBases,
+    housingOcean,
+    basinBackdrop: worldArt?.plates.basin,
+    panorama: oceanCapture ? (registration) => oceanCapture.source(registration, (x, y) =>
+      Math.min(460, Math.max(0, groundY(x) - y - 8))) : undefined,
     carried: () => MATERIALS_LIST.reduce((a, k) => a + save.bag[k], 0),
     storageText: () => {
       const n = MATERIALS_LIST.reduce((a, k) => a + save.stored[k], 0);
@@ -4056,17 +4154,23 @@ async function boot(): Promise<void> {
       return cap ? Math.min(1, MATERIALS_LIST.reduce((a, k) => a + save.stored[k], 0) / cap) : 0;
     },
   };
-  function enterBase(domeId: number, waking = false, viaDock: number | null = null): void {
-    const level = buildBaseLevel(layout);
+  function enterBase(domeId: number, waking = false, viaDock: number | null = null, viaPool = false): void {
+    const level = buildBaseLevel(layout, livingBases);
     if (!level) return;
     baseDome = domeId;
     baseHooks = new BaseHooks(level, baseCtx, domeId);
     interior.enter(level.map, { breakers: [], taken: [] }, baseHooks);
     const dsp = viaDock !== null ? baseHooks.dockSpawn(viaDock) : null;
-    if (dsp) interior.place(dsp.x, dsp.y, -1);
+    const ladder = viaPool && viaDock !== null ? baseHooks.moonpoolLadder(viaDock) : null;
+    if (ladder) {
+      const screen = { x: (diver.x - camX) * zoom / cssW, y: (diver.y - camY) * zoom / cssH };
+      interior.mountLadder(ladder.x, ladder.y, diver.facing, screen);
+      interior.lampOn = diver.lampOn;
+    } else if (dsp) interior.place(dsp.x, dsp.y, -1);
+    swimmingPool = null;
     inside = 'base';
     goOnFoot();
-    if (!waking) sound.hatchCue(true);
+    if (!waking && !viaPool) sound.hatchCue(true);
     if (!save.tips.includes('basefoot'))
       setTimeout(() => {
         save.tips.push('basefoot');
@@ -4077,7 +4181,7 @@ async function boot(): Promise<void> {
           'big',
         );
       }, 900);
-    else if (!waking) hud.toast('Dome habitat: dry air · progress saved');
+    else if (!waking && !viaPool) hud.toast('Dome habitat: dry air · progress saved');
     persist();
   }
   function exitBase(domeId: number): void {
@@ -4094,6 +4198,28 @@ async function boot(): Promise<void> {
     camCX = diver.x;
     camCY = diver.y;
     sound.hatchCue(false);
+    persist();
+  }
+
+  function descendIntoMoonpool(dock: Placed): void {
+    const pool = moonpoolOf(dock);
+    const screen = interior.walkerScreenPosition();
+    diver.lampOn = interior.lampOn;
+    interior.leave();
+    inside = null;
+    backToWater();
+    swimmingPool = dock;
+    diver.x = pool.ladder;
+    diver.y = pool.y + 29;
+    diver.vx = 0;
+    diver.vy = 48;
+    diver.surfaced = true;
+    diver.surfaceTime = 0;
+    diver.cancelSurfaceReaction();
+    camCX = diver.x + (0.5 - screen.x) * lastViewW;
+    camCY = diver.y + (0.5 - screen.y) * viewH;
+    poolFx.reset();
+    poolFx.splash(pool.ladder - pool.x, 0.34, time, 0, true);
     persist();
   }
   /** Open a panel out in the world (the console's view), then come back in where you stood. */
@@ -4116,7 +4242,7 @@ async function boot(): Promise<void> {
   function backInside(): void {
     const pk = peek!;
     peek = null;
-    const level = buildBaseLevel(layout);
+    const level = buildBaseLevel(layout, livingBases);
     if (!level) {
       // No dome left to stand in: back outside, by the base.
       const a = baseOutside();
@@ -4274,7 +4400,7 @@ async function boot(): Promise<void> {
     if (inside === 'sanctum') interior.syncState([], save.sanctum.taken);
     if (inside === 'base' && baseHooks && baseHooks.level.signature !== baseSignature(layout)) {
       // A piece finished or was taken down while you were inside: rebuild the rooms around you.
-      const level = buildBaseLevel(layout);
+      const level = buildBaseLevel(layout, livingBases);
       if (!level) {
         exitBase(baseDome ?? -1);
         return;
@@ -4292,7 +4418,7 @@ async function boot(): Promise<void> {
     // Milestone 9: the Hatchery's panel frames its cradles the same way.
     if (inside === 'base' && care.active && care.tankId !== null && baseHooks) {
       const f = baseHooks.tankFocus(care.tankId);
-      interior.focus = f ? { ...f, panelPx: Math.min(360, cssW * 0.44) + 24 } : null;
+      interior.focus = f ? { ...f, panelPx: Math.min(360, cssW * 0.44) + 24, lampGain: livingBases ? 0.16 : 1 } : null;
     } else if (inside === 'base' && hatchPanel.active && hatchPanel.pieceId !== null && baseHooks) {
       const f = baseHooks.roomFocus(hatchPanel.pieceId);
       interior.focus = f ? { ...f, panelPx: Math.min(360, cssW * 0.44) + 24 } : null;
@@ -4314,6 +4440,7 @@ async function boot(): Promise<void> {
     station.update(dt);
     contact.update(dt);
     const frozen = care.active || hatchPanel.active || station.active || contact.active;
+    const poolAt = livingBases && inside === 'base' ? baseHooks?.moonpoolAt(interior.walker.x, interior.walker.y) : undefined;
     // The resonator sings at the song-lock, and while you answer the Choir.
     {
       const want = Math.max(contact.singing, interior.label === 'Sing to the song-lock' && s.collect ? 1 : 0);
@@ -4321,9 +4448,20 @@ async function boot(): Promise<void> {
     }
     const evs: InteriorEvent[] = interior.update(
       dt,
-      frozen ? { moveX: 0, moveY: 0, jump: false, collect: false, lamp: false } : { moveX: s.moveX, moveY: s.moveY, jump: s.jumpHeld, sprint: s.sprint, collect: s.collect, lamp: s.lamp },
+      frozen ? { moveX: 0, moveY: 0, jump: false, collect: false, lamp: false } : {
+        moveX: s.moveX, moveY: s.moveY, jump: s.jumpHeld, sprint: s.sprint, collect: s.collect, lamp: s.lamp,
+        sealVisor: !!poolAt && (s.moveY > 0.5 || interior.pos.climbing),
+      },
       paused,
     );
+    if (livingBases && inside === 'base' && !paused && !frozen && s.moveY > 0.5) {
+      const dock = baseHooks?.moonpoolAt(interior.walker.x, interior.walker.y);
+      const ladder = dock && baseHooks?.moonpoolLadder(dock.id);
+      if (dock && ladder && interior.walker.y >= ladder.y) {
+        descendIntoMoonpool(dock);
+        return;
+      }
+    }
     const maxO2 = maxOxygen(save);
     if (!paused) {
       save.playSeconds += dt;

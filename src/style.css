@@ -1135,6 +1135,25 @@ body.caring #build-btn {
   gap: 8px;
 }
 
+#care-panel.habitat-console {
+  background: linear-gradient(145deg, rgba(26, 58, 59, .98), rgba(13, 30, 38, .98) 70%);
+  border-color: #5c8581;
+  box-shadow: 0 12px 38px #06161c99, inset 0 1px #b6ded34d;
+}
+
+#care-panel .habitat-care {
+  margin: 10px 0 12px;
+  padding: 8px 10px;
+  border: 1px solid #5c858180;
+  border-radius: 8px;
+  background: #112b30b0;
+}
+
+#care-panel.habitat-console button:focus-visible {
+  outline: 2px solid #ffd393;
+  outline-offset: 1px;
+}
+
 #care-panel .care-head span {
   flex: 1;
   opacity: 0.65;
@@ -1396,6 +1415,13 @@ body.caring #build-btn {
 }
 #care-panel .acts .big {
   grid-column: 1 / -1;
+}
+#care-panel .habitat-care .acts {
+  position: static;
+  grid-template-columns: 1fr 1fr;
+  margin: 8px 0 0;
+  padding: 0;
+  background: none;
 }
 #care-panel .acts button {
   min-height: 44px;

@@ -1385,7 +1385,7 @@ export class Diver {
     this.eyelid.visible = this.glance.blinking;
   }
 
-  update(dt: number, moveX: number, moveY: number, boost: boolean, toggleLamp: boolean, freeSwimming = false): void {
+  update(dt: number, moveX: number, moveY: number, boost: boolean, toggleLamp: boolean, freeSwimming = false, waterline = 0): void {
     this.time += dt;
     if (toggleLamp) this.lampOn = !this.lampOn;
     this.lampLevel += ((this.lampOn ? 1 : 0) - this.lampLevel) * Math.min(1, dt * 10);
@@ -1418,7 +1418,7 @@ export class Diver {
       } else if (!this.surfaced) {
         this.surfaceReactionActive = false;
         // A fresh ascent needs real submersion. Surface bobbing and surface spawns cannot arm it.
-        if (this.y >= 110) this.surfaceReactionReady = true;
+        if (this.y >= waterline + 110) this.surfaceReactionReady = true;
       }
     }
     if (this.surfaced) {
@@ -1429,7 +1429,7 @@ export class Diver {
         this.splash = 0.35;
         this.diveCooldown = 0.8;
       }
-    } else if (this.y <= 48 && moveY < 0.25 && this.vy <= 40 && this.diveCooldown <= 0) {
+    } else if (this.y <= waterline + 48 && moveY < 0.25 && this.vy <= 40 && this.diveCooldown <= 0) {
       this.surfaced = true;
       this.surfaceTime = 0;
       const hit = Math.max(0, -this.vy) / 300;
@@ -1466,7 +1466,11 @@ export class Diver {
 
     this.x += this.vx * dt;
     this.y += this.vy * dt;
-    if (this.surfaced) this.treadWater(dt);
+    if (this.surfaced) this.treadWater(dt, waterline);
+    if (waterline > 0 && this.y < waterline + 18) {
+      this.y = waterline + 18;
+      this.vy = Math.max(0, this.vy);
+    }
     this.collide();
 
     const speed = Math.hypot(this.vx, this.vy);
@@ -1710,7 +1714,7 @@ export class Diver {
    * after a fast breach and settles, and breathes in and out. The first
    * breath after a dive is a big gasp.
    */
-  private treadWater(dt: number): void {
+  private treadWater(dt: number, waterline: number): void {
     this.surfaceTime += dt;
     const t = this.surfaceTime;
     // Breathing: a big gasp first, then slower, calmer breaths.
@@ -1729,7 +1733,7 @@ export class Diver {
     }
     // Pop up out of the water after a fast breach, overshoot and settle.
     const pop = -30 * this.popStrength * Math.exp(-2.6 * t) * Math.cos(5.5 * t);
-    const targetY = 30 + Math.sin(this.time * 1.7) * 2.5 + pop - this.heave * 3;
+    const targetY = waterline + 30 + Math.sin(this.time * 1.7) * 2.5 + pop - this.heave * 3;
     this.y += (targetY - this.y) * Math.min(1, dt * 9);
     this.vy = 0;
   }

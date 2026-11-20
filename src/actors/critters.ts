@@ -76,6 +76,7 @@ export interface CritterPose {
   curious?: number;
   current?: number;
   floorSlope?: number;
+  feeding?: number;
 }
 
 export class Critter {
@@ -595,6 +596,7 @@ export class Critter {
     const sick = pose.sick;
     const vig = pose.vigour;
     const slow = 1 - sick * 0.6;
+    const feeding = pose.feeding ?? 0;
     const t = time * slow + this.phase;
     const s = this.baseScale() * (pose.size ?? 1);
     const sp = Math.hypot(vx, vy);
@@ -616,7 +618,7 @@ export class Critter {
       // A crawler reverses over its planted legs rather than spinning edge-on.
       const slope = (pose.floorSlope ?? 0) * this.face;
       rig.update({ dt, time: t, speed: sp * slow, notice: pose.notice ?? 0, curious: pose.curious ?? 0,
-        flow: (pose.current ?? 0) * this.face, floor: slope });
+        flow: (pose.current ?? 0) * this.face, floor: slope, feeding });
       rot = (rig.angle + (ground ? 0 : Math.atan2(vy, Math.abs(vx) + 30) * 0.25)) * this.face;
       bob = rig.offset;
       this.parts.dots.alpha = (this.stage === 'young' ? 0.64 : 1) * (0.36 + vig * 0.64);
@@ -629,9 +631,10 @@ export class Critter {
       rot = Math.atan2(vy, Math.abs(vx) + 20) * 0.5 * this.face + sick * 0.25 * this.face;
       bob = Math.sin(t * 1.7) * 2;
       if (this.glowfinRig) {
-        this.glowfinRig.update(dt, sp, pose.notice ?? 0, sick);
+        this.glowfinRig.update(dt, sp, pose.notice ?? 0, sick, 0, feeding);
         this.parts.lure.position.copyFrom(this.glowfinRig.lure);
         this.parts.halo.position.copyFrom(this.glowfinRig.lure);
+        if (this.glowfinRig.feedStroke.strength) this.positionStroke(this.glowfinRig.feedStroke, x, y + bob, sx * fx, sy, rot);
       } else {
         this.parts.tail.rotation = Math.sin(t * (5 + sp * 0.08)) * 0.35;
         this.parts.pec.rotation = Math.sin(t * 6) * 0.4;
@@ -728,7 +731,7 @@ export class Critter {
       if (this.rayRig) {
         const rig = this.rayRig;
         rig.update(dt, sp * slow, pose.resting ?? false, (pose.floorGap ?? Infinity) / s, vy, pose.notice ?? 0, pose.current ?? 0);
-        rot = (rot + rig.bank * 0.21 * this.face) * (1 - rig.rest * 0.9);
+        rot = (rot + (rig.bank * 0.21 + feeding * 0.23) * this.face) * (1 - rig.rest * 0.9);
         bob *= 1 - rig.rest * 0.95;
         this.parts.tip.position.copyFrom(rig.tip);
         this.parts.halo.position.copyFrom(rig.tip);
@@ -768,6 +771,31 @@ export class Critter {
       c.position.set(x, y + bob);
       c.scale.set(sx * (this.stage === 'egg' ? 1 : fx), sy);
       c.rotation = rot;
+    }
+  }
+
+  /** Keep the animated silhouette inside a habitat window while leaving its swim path intact. */
+  fitInHabitat(box: { x: number; y: number; w: number; h: number }, inset: number): void {
+    const v = this.view;
+    const b = v.getLocalBounds();
+    const cos = Math.cos(v.rotation);
+    const sin = Math.sin(v.rotation);
+    const ax = cos * v.scale.x;
+    const ay = sin * v.scale.x;
+    const bx = -sin * v.scale.y;
+    const by = cos * v.scale.y;
+    const left = Math.min(ax * b.minX, ax * b.maxX) + Math.min(bx * b.minY, bx * b.maxY);
+    const right = Math.max(ax * b.minX, ax * b.maxX) + Math.max(bx * b.minY, bx * b.maxY);
+    const top = Math.min(ay * b.minX, ay * b.maxX) + Math.min(by * b.minY, by * b.maxY);
+    const bottom = Math.max(ay * b.minX, ay * b.maxX) + Math.max(by * b.minY, by * b.maxY);
+    const scale = Math.min(1, (box.w - inset * 2) / (right - left), (box.h - inset * 2) / (bottom - top));
+    const x = Math.max(box.x + inset - left * scale, Math.min(box.x + box.w - inset - right * scale, v.x));
+    const y = Math.max(box.y + inset - top * scale, Math.min(box.y + box.h - inset - bottom * scale, v.y));
+    this.stroke.x = x + (this.stroke.x - v.x) * scale;
+    this.stroke.y = y + (this.stroke.y - v.y) * scale;
+    for (const layer of [v, this.emissive, this.glow]) {
+      layer.position.set(x, y);
+      layer.scale.set(layer.scale.x * scale, layer.scale.y * scale);
     }
   }
 

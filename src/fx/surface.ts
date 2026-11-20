@@ -53,11 +53,14 @@ export class SurfaceFx {
   private puffs: Puff[] = [];
   private rippleClock = 0;
 
-  constructor(private readonly motion?: SurfaceMotion) {
+  constructor(private readonly motion?: SurfaceMotion, private readonly sheltered = false) {
     this.view.addChild(this.line, this.g);
   }
 
-  private wave(x: number, t: number): number { return this.motion?.height(x, t) ?? surfaceWave(x, t); }
+  private wave(x: number, t: number): number {
+    const height = this.motion?.height(x, t) ?? surfaceWave(x, t);
+    return height * (this.sheltered ? 0.27 : 1);
+  }
 
   /** A splash at x. strength 0..1: a gentle surfacing is small, bursting up at speed is big. */
   splash(x: number, strength: number, time: number, vx = 0, entering = false): void {
@@ -66,7 +69,7 @@ export class SurfaceFx {
     const n = Math.round(10 + 34 * strength);
     for (let i = 0; i < n; i++) {
       const side = rand() < 0.5 ? -1 : 1;
-      const up = (120 + rand() * 300) * (0.45 + strength * 0.75);
+      const up = (120 + rand() * 300) * (0.45 + strength * 0.75) * (this.sheltered ? 0.53 : 1);
       this.drops.push({
         x: x + side * rand() * 22,
         y: y - 2,
@@ -162,15 +165,24 @@ export class SurfaceFx {
     l.clear();
     if (viewY0 > 30) return;
     const step = 8;
-    const x0 = Math.floor(viewX0 / step) * step - step;
+    const x0 = this.sheltered ? viewX0 : Math.floor(viewX0 / step) * step - step;
+    const x1 = this.sheltered ? viewX1 : viewX1 + step;
     l.moveTo(x0, this.wave(x0, time));
-    for (let x = x0 + step; x <= viewX1 + step; x += step) l.lineTo(x, this.wave(x, time));
+    for (let x = x0 + step; x <= x1; x += step) l.lineTo(x, this.wave(x, time));
     l.stroke({ color: 0xffffff, width: 1.6, alpha: 0.5 });
     // A thin, faint film of water just under the line.
     l.moveTo(x0, this.wave(x0, time));
-    for (let x = x0 + step; x <= viewX1 + step; x += step) l.lineTo(x, this.wave(x, time));
-    for (let x = viewX1 + step; x >= x0; x -= step) l.lineTo(x, this.wave(x, time) + 7);
+    for (let x = x0 + step; x <= x1; x += step) l.lineTo(x, this.wave(x, time));
+    for (let x = x1; x >= x0; x -= step) l.lineTo(x, this.wave(x, time) + 7);
     l.closePath().fill({ color: 0xcfeee8, alpha: 0.13 });
+  }
+
+  reset(): void {
+    this.drops.length = this.rings.length = this.puffs.length = 0;
+    this.rippleClock = 0;
+    this.g.clear();
+    this.line.clear();
+    this.motion?.reset();
   }
 
   private drawImpactFoam(motion: SurfaceMotion, time: number, x0: number, x1: number): void {

@@ -17,6 +17,7 @@ export interface ShorePose {
   curious: number;
   flow: number;
   floor: number;
+  feeding: number;
 }
 
 function joint(parent: Container, x: number, y: number): Container {
@@ -100,7 +101,7 @@ export class PuffcapRig extends ShoreRig {
   }
 
   update(p: ShorePose): void {
-    const pulse = this.tick(p, 0.61 + Math.min(0.85, p.speed / 100) + p.notice * 0.38);
+    const pulse = this.tick(p, 0.61 + Math.min(0.85, p.speed / 100) + p.notice * 0.38 + p.feeding * 0.4);
     const squeeze = Math.exp(-(((this.phase - 0.08) / 0.14) ** 2));
     const recover = Math.sin(this.phase * Math.PI);
     this.bell.scale.set(1 - squeeze * 0.28 + recover * 0.07, 1 + squeeze * 0.23);
@@ -114,7 +115,7 @@ export class PuffcapRig extends ShoreRig {
       const u = i / (this.ribbons.length - 1) * 2 - 1;
       const lag = Math.sin(this.phase * Math.PI * 2 - i * 0.38 - 0.9);
       root.position.set(baseX * this.bell.scale.x, 5 * this.bell.scale.y);
-      root.rotation = -u * (0.16 + recover * 0.27) + lag * 0.17 + p.flow * 0.58;
+      root.rotation = -u * (0.16 + recover * 0.27 - p.feeding * 0.4) + lag * 0.17 + p.flow * 0.58;
       tip.rotation = Math.sin(p.time * 2.1 - i * 0.55) * 0.27 + lag * 0.24 + p.flow * 0.49;
     });
     if (pulse) this.stroke.strength = 0.22 + p.notice * 0.19;
@@ -189,8 +190,8 @@ export class TinkerRig extends ShoreRig {
     this.eyes.rotation = -p.curious * 0.24 + Math.sin(p.time * 0.9) * 0.13 + p.flow * 0.13;
     this.eye.x = 16 + 6 * Math.cos(this.eyes.rotation) + Math.sin(this.eyes.rotation);
     this.eye.y = -13 + bodyY + 6 * Math.sin(this.eyes.rotation) - Math.cos(this.eyes.rotation);
-    this.claw.rotation = -0.22 + probe * 0.46 - p.curious * 0.48 + brace * 0.59;
-    this.finger.rotation = 0.16 + probe * (0.28 + Math.sin(p.time * 12) * 0.2) + p.curious * 0.38;
+    this.claw.rotation = -0.22 + probe * 0.46 - p.curious * 0.48 + brace * 0.59 + p.feeding * 0.52;
+    this.finger.rotation = 0.16 + probe * (0.28 + Math.sin(p.time * 12) * 0.2) + p.curious * 0.38 + p.feeding * Math.sin(p.time * 14) * 0.24;
     this.legs.forEach(({ limb, shin, foot, far }, i) => {
       const cycle = (this.phase + i * 0.39) % 1;
       const lift = Math.max(0, Math.sin(cycle * Math.PI * 2)) * walk * 5;
@@ -292,7 +293,7 @@ export class LanternShrimpRig extends ShoreRig {
     if (this.tailTime > 0.32 && this.tailTime - p.dt <= 0.32) this.stroke.strength = 0.46;
     this.fans.forEach((fan, i) => { fan.rotation = Math.sin(this.phase * Math.PI * 2 - i * 1.5) * 0.57 - this.tuck * 0.8; });
     this.feelers.forEach(({ base, tip }, i) => {
-      base.rotation = Math.sin(p.time * 1.8 - i * 1.8) * 0.19 + p.curious * 0.37 - this.tuck * 0.64 + p.flow * 0.24;
+      base.rotation = Math.sin(p.time * 1.8 - i * 1.8) * 0.19 + p.curious * 0.37 - this.tuck * 0.64 + p.flow * 0.24 + p.feeding * 0.36;
       tip.rotation = Math.sin(p.time * 2.5 - i * 1.45) * 0.29 + this.tuck * 0.54 + p.flow * 0.5;
     });
   }
@@ -361,7 +362,7 @@ export class CinderRig extends ShoreRig {
     this.foot.scale.x = 1 + Math.sin(wave) * walk * 0.075;
     this.head.scale.x = 1.1 - retract * 0.49;
     this.head.x = 13 - retract * 10;
-    this.head.rotation = 0.12 + Math.sin(p.time * 1.25) * 0.14 + retract * 0.29;
+    this.head.rotation = 0.12 + Math.sin(p.time * 1.25) * 0.14 + retract * 0.29 + p.feeding * 0.27;
     this.feelers.forEach((part, i) => {
       part.rotation = Math.sin(p.time * (0.98 + i * 0.56) + i) * 0.29 + retract * 0.59 + p.flow * 0.38;
       part.scale.y = 1 - retract * 0.47;

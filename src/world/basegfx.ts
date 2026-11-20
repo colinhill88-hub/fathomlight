@@ -1,7 +1,9 @@
-import { Container, Graphics, Text } from 'pixi.js';
+import { Container, FillGradient, Graphics, Text } from 'pixi.js';
 import { MATERIAL_ORDER } from '../game/state';
 import { mulberry32, WORLD_SEED } from '../rng';
 import { groundY, WORLD_W, WORLD_X0 } from './terrain';
+import { drawHabitatFrame, drawObservationCrown, drawPressureRib } from './habitatFrame';
+import { drawDockBrace, POOL_HALF_WIDTH, POOL_LADDER_X, POOL_SURFACE_Y } from './moonpool';
 import {
   BaseLayout,
   CELL,
@@ -419,6 +421,101 @@ function drawDome(n: number): PieceArt {
   return { body, windows, windowGlow, lamp: { x: cx, y: drumTop - ry - 20 }, sheen, streak, streakSpan: rx * 2.6 };
 }
 
+function drawKestrelHabitat(n: number): PieceArt {
+  const body = new Container();
+  const g = body.addChild(new Graphics());
+  const windows = new Graphics();
+  const windowGlow = new Graphics();
+  const sheen = new Graphics();
+  const mid = CELL;
+  const w = CELL * 2;
+  const hatch = w - 56;
+  g.moveTo(4, 129).lineTo(19, 122).lineTo(w - 19, 122).lineTo(w - 4, 129)
+    .lineTo(w - 4, 190).lineTo(w - 22, 212).lineTo(22, 212).lineTo(4, 190).closePath().fill(0x385151);
+  g.poly([13, 144, 94, 144, 92, 193, 25, 205, 13, 187]).fill(0x63756b);
+  g.poly([130, 144, w - 13, 144, w - 13, 187, w - 25, 205, 132, 193]).fill(0x556a64);
+  g.moveTo(18, 150).lineTo(85, 150).moveTo(139, 150).lineTo(w - 18, 150)
+    .stroke({ color: 0xc3ac87, width: 2.1, alpha: 0.72 });
+  g.roundRect(17, 195, w - 34, 14, 4).fill(0x34484a);
+  for (const x of [23, w - 56]) {
+    g.poly([x, 202, x + 32, 202, x + 28, 220, x + 3, 220]).fill(0x415857);
+    g.rect(x + 1, 216, 29, 4).fill(0x776649);
+  }
+  drawObservationCrown(g, windows, windowGlow, { x: 9, y: 21, w: w - 18, h: 112 });
+  g.poly([80, 25, 88, 12, 146, 12, 156, 25]).fill(0x596d65);
+  g.moveTo(90, 14).lineTo(135, 14).stroke({ color: 0xb5ad89, width: 2 });
+  g.roundRect(124, 6, 18, 8, 2).fill(0x313c3b);
+  g.circle(138, 8, 2.7).fill(0x74614a);
+  for (const x of [43, w - 43]) {
+    g.roundRect(x - 21, hatch - 12, 42, 26, 8).fill(0x364b48);
+    g.roundRect(x - 16, hatch - 8, 32, 18, 5).fill(0x5b5e48);
+    windows.roundRect(x - 14, hatch - 6, 28, 13, 4).fill({ color: 0xeec58b, alpha: 0.68 });
+    windowGlow.ellipse(x, hatch, 22, 15).fill({ color: 0xe9af70, alpha: 0.47 });
+  }
+  g.circle(mid, hatch, 27).fill(0x263736).circle(mid, hatch, 24).fill(0x988464).circle(mid, hatch, 18).fill(0x33413e);
+  g.moveTo(mid - 11, hatch).lineTo(mid + 11, hatch).moveTo(mid, hatch - 11).lineTo(mid, hatch + 11)
+    .stroke({ color: 0xbeb08d, width: 2.4 });
+  g.circle(mid, hatch, 3.7).fill(0xaea282);
+  windows.circle(mid, hatch, 20).stroke({ color: 0xffc28b, width: 1.3, alpha: 0.87 });
+  algaeLine(g, 15, w - 15, 211, 19);
+  streaks(g, 20, w - 20, 174, 17, 9);
+  body.addChild(stencil(`HAB-0${n}`, mid, 140, 7));
+  sheen.moveTo(42, 68).quadraticCurveTo(68, 48, 108, 48).stroke({ color: 0xe3efdb, width: 5, alpha: 0.18, cap: 'round' });
+  return { body, windows, windowGlow, sheen, lamp: { x: 138, y: 8 } };
+}
+
+const pressureShell = new FillGradient({
+  type: 'linear', start: { x: 0, y: 0 }, end: { x: 0.15, y: 1 },
+  colorStops: [{ offset: 0, color: 0x9fa68d }, { offset: 0.24, color: 0x69857d },
+    { offset: 0.58, color: 0x3c6664 }, { offset: 1, color: 0x1e363b }],
+});
+
+/** The service modules share the dome's enamel, with their original machinery mounted above it. */
+function drawMachineShell(g: Graphics, x: number, y: number, w: number, h: number, radius: number, livingBases: boolean): void {
+  g.roundRect(x, y, w, h, radius).fill(livingBases ? pressureShell : PAL.steel);
+  if (!livingBases) return;
+  const inset = Math.min(radius, 12);
+  g.moveTo(x + 4, y + inset + 6).quadraticCurveTo(x + 4, y + 5, x + inset + 7, y + 4)
+    .lineTo(x + w - inset, y + 4).stroke({ color: 0xccc3a0, alpha: 0.49, width: 1.8, cap: 'round' });
+  g.roundRect(x + 5, y + h - 17, w - 10, 11, 4).fill({ color: 0x263b3e, alpha: 0.46 });
+  g.moveTo(x + 8, y + h - 11).lineTo(x + w - 8, y + h - 11)
+    .stroke({ color: 0xbc9260, alpha: 0.64, width: 1.5 });
+}
+
+function drawPressureCorridor(n: number, rot: number, withStencil = true, panorama = false): PieceArt {
+  const body = new Container();
+  const chamber = body.addChild(new Container());
+  const g = chamber.addChild(new Graphics());
+  const windows = new Graphics();
+  const windowGlow = new Graphics();
+  const c = CELL / 2;
+  const y = c - (TUBE + 10) / 2;
+  const height = TUBE + 10;
+  g.roundRect(4, y, CELL - 8, height, 10).fill(pressureShell);
+  g.roundRect(12, y + 5, CELL - 24, height - 10, 7).stroke({ color: 0xb0a481, width: 1.2, alpha: 0.7 });
+  g.moveTo(18, y + height - 7).lineTo(35, y + height - 7).lineTo(42, y + height - 11)
+    .lineTo(CELL - 16, y + height - 11).stroke({ color: 0xb48054, width: 2.2 });
+  for (const x of [4, CELL - 13]) drawPressureRib(g, x, y - 5, height + 10, 9);
+  const port = panorama ? { x: c - 35, y: c - 15, w: 70, h: 30 } : { x: c - 24, y: c - 12, w: 48, h: 24 };
+  drawHabitatFrame(g, port, 4);
+  g.roundRect(port.x + 1, port.y + 1, port.w - 2, port.h - 2, 4).fill(0x20464c);
+  g.rect(c - 1.5, port.y, 3, port.h).fill(0x67766a);
+  const upright = rot % 2 === 1;
+  for (const x of [c - 22, c + 2]) {
+    const panel = upright ? [c - 5, x, 14, 20] as const : [x, c - 9, 20, 14] as const;
+    windows.roundRect(panel[0], panel[1], panel[2], panel[3], 3).fill({ color: 0xffcb88, alpha: 0.58 });
+    windowGlow.ellipse(panel[0] + panel[2] / 2, panel[1] + panel[3] / 2, 17, 14).fill({ color: 0xffc081, alpha: 0.24 });
+  }
+  if (withStencil) chamber.addChild(stencil(`C-${String(n).padStart(2, '0')}`, c, y + height - 4, 6));
+  if (upright) {
+    chamber.pivot.set(c, c);
+    chamber.rotation = Math.PI / 2;
+    chamber.position.set(c, c);
+  }
+  const lamp = upright ? { x: CELL - y - 5, y: CELL - 23 } : { x: CELL - 23, y: y + 5 };
+  return { body, windows, windowGlow, lamp };
+}
+
 function drawCorridor(n: number, rot: number, withStencil = true): PieceArt {
   // Colin's corridor board: a charcoal drum with gold circuit lines, thick chrome
   // flanges at both ends, a lime porthole in a chrome ring, one red lamp, and a
@@ -474,7 +571,7 @@ function flangeH(g: Graphics, cx: number, y: number, w: number, h = 10): void {
 }
 
 /** A riser shaft: three upright corridor drums stacked, with one stencil. */
-function drawShaft(n: number): PieceArt {
+function drawShaft(n: number, livingBases: boolean): PieceArt {
   const body = new Container();
   const windows = new Graphics();
   const windowGlow = new Graphics();
@@ -488,11 +585,18 @@ function drawShaft(n: number): PieceArt {
     flangeV(sides, CELL - 9, c + k * CELL, TUBE + 14, 12);
   }
   for (let k = 0; k < 3; k++) {
-    const cell = drawCorridor(n, 1, false);
+    const cell = livingBases ? drawPressureCorridor(n, 1, false) : drawCorridor(n, 1, false);
     cell.body.y = k * CELL;
     body.addChild(cell.body);
-    windows.circle(c, c + k * CELL, 11).fill({ color: PAL.glass, alpha: 0.85 });
-    windowGlow.circle(c, c + k * CELL, 22).fill({ color: PAL.glass, alpha: 0.45 });
+    if (livingBases) {
+      windows.roundRect(c - 5, c + k * CELL - 20, 14, 40, 4).fill({ color: 0xffcb88, alpha: 0.48 });
+      windowGlow.ellipse(c + 2, c + k * CELL, 20, 29).fill({ color: 0xffc081, alpha: 0.24 });
+    } else {
+      windows.circle(c, c + k * CELL, 11).fill({ color: PAL.glass, alpha: 0.85 });
+      windowGlow.circle(c, c + k * CELL, 22).fill({ color: PAL.glass, alpha: 0.45 });
+    }
+    cell.windows.destroy();
+    cell.windowGlow.destroy();
   }
   body.addChild(stencil(`SH-${n}`, c - 22, CELL * 1.5 + 30, 6, -Math.PI / 2));
   return { body, windows, windowGlow, lamp: { x: c + 22, y: CELL * 3 - 26 } };
@@ -605,7 +709,7 @@ function drawBracket(n: number, rot: number): PieceArt {
  * sealed: a chrome-ringed porthole onto a core of glowing vent ore, heat fins
  * down both sides, and the gold spine carrying its power.
  */
-function drawThermal(n: number): PieceArt {
+function drawThermal(n: number, livingBases: boolean): PieceArt {
   const W = CELL;
   const H = CELL * 2;
   const body = new Container();
@@ -618,7 +722,7 @@ function drawThermal(n: number): PieceArt {
   tubeH(g, W - 16, W, H - CELL / 2, 1);
   tubeH(g, 0, 16, CELL / 2, 1);
   tubeH(g, W - 16, W, CELL / 2, 1);
-  g.roundRect(20, 6, W - 40, H - 14, 10).fill({ color: PAL.steel });
+  drawMachineShell(g, 20, 6, W - 40, H - 14, 10, livingBases);
   g.roundRect(20, 6, W - 40, 10, 5).fill({ color: PAL.steelDark });
   g.rect(24, 16, 6, H - 30).fill({ color: 0xffffff, alpha: 0.06 });
   // Heat fins.
@@ -656,7 +760,7 @@ function drawThermal(n: number): PieceArt {
   return { body, windows, windowGlow, lamp: { x: W - 30, y: 14 } };
 }
 
-function drawTurbine(n: number): PieceArt {
+function drawTurbine(n: number, livingBases: boolean): PieceArt {
   // Colin's turbine board: a tall charcoal column with lime grille vents top and
   // bottom, a glowing gold spine carrying the current, side clamps, and the
   // impeller turning inside a thick chrome ring in the middle.
@@ -679,7 +783,7 @@ function drawTurbine(n: number): PieceArt {
     for (let k = 0; k < 4; k++) g.rect(sx + 2, hubY - 28 + k * 16, 12, 3).fill({ color: PAL.chrome, alpha: 0.7 });
   }
   // The column.
-  g.roundRect(22, 6, W - 44, H - 14, 8).fill({ color: PAL.steel });
+  drawMachineShell(g, 22, 6, W - 44, H - 14, 8, livingBases);
   g.roundRect(22, 6, W - 44, 10, 5).fill({ color: PAL.steelDark });
   g.rect(26, 16, 6, H - 30).fill({ color: 0xffffff, alpha: 0.06 });
   goldTraces(g, 28, 60, W - 56, 8);
@@ -728,7 +832,7 @@ function drawTurbine(n: number): PieceArt {
   return { body, rotor, windows, windowGlow, lamp: { x: W - 30, y: 14 } };
 }
 
-function drawStorage(n: number): PieceArt {
+function drawStorage(n: number, livingBases: boolean): PieceArt {
   const body = new Container();
   const g = body.addChild(new Graphics());
   const windows = new Graphics();
@@ -740,7 +844,7 @@ function drawStorage(n: number): PieceArt {
   tubeV(g, 0, 16, c, 1);
   tubeV(g, CELL - 14, CELL, c, 1);
   // The pod: an upright capsule.
-  g.roundRect(18, 10, CELL - 36, CELL - 20, 24).fill({ color: PAL.steel });
+  drawMachineShell(g, 18, 10, CELL - 36, CELL - 20, 24, livingBases);
   g.roundRect(24, 14, 10, CELL - 30, 5).fill({ color: 0xffffff, alpha: 0.12 });
   g.roundRect(CELL - 38, 14, 16, CELL - 30, 8).fill({ color: PAL.steelDeep, alpha: 0.4 });
   hazardBand(g, 18, 26, CELL - 36, 9);
@@ -769,7 +873,7 @@ function drawStorage(n: number): PieceArt {
  * Sorting pod SP-1 (milestone 7 part 2): a squat resin-sealed cabinet with a
  * row of small bay doors, one per material, each with its own fill light.
  */
-function drawSorter(n: number): PieceArt {
+function drawSorter(n: number, livingBases: boolean): PieceArt {
   const body = new Container();
   const g = body.addChild(new Graphics());
   const windows = new Graphics();
@@ -779,7 +883,7 @@ function drawSorter(n: number): PieceArt {
   tubeH(g, CELL - 18, CELL, c, 1);
   tubeV(g, 0, 14, c, 1);
   tubeV(g, CELL - 12, CELL, c, 1);
-  g.roundRect(12, 14, CELL - 24, CELL - 26, 8).fill({ color: PAL.steel });
+  drawMachineShell(g, 12, 14, CELL - 24, CELL - 26, 8, livingBases);
   g.roundRect(16, 18, 8, CELL - 34, 4).fill({ color: 0xffffff, alpha: 0.12 });
   g.rect(12, 26, CELL - 24, 4).fill({ color: 0xc88a2a });
   g.rect(12, CELL - 26, CELL - 24, 4).fill({ color: 0xc88a2a });
@@ -836,7 +940,7 @@ function drawRecomp(n: number): PieceArt {
  * Salvage crane SC-1 (milestone 8 part 2): a slewing jib on a riveted base,
  * a cable and hook, and a breaking floor where salvage is cut up.
  */
-function drawCrane(n: number): PieceArt {
+function drawCrane(n: number, livingBases: boolean): PieceArt {
   const W = CELL * 2;
   const H = CELL * 2;
   const body = new Container();
@@ -846,7 +950,7 @@ function drawCrane(n: number): PieceArt {
   tubeH(g, 0, 18, H - CELL / 2, 1);
   tubeH(g, W - 18, W, H - CELL / 2, 1);
   // Base and breaking floor.
-  g.roundRect(10, H - 60, W - 20, 52, 6).fill({ color: PAL.steel });
+  drawMachineShell(g, 10, H - 60, W - 20, 52, 6, livingBases);
   hazardBand(g, 10, H - 60, W - 20, 8);
   g.rect(18, H - 44, W - 36, 30).fill({ color: PAL.steelDeep });
   // Mast and jib.
@@ -870,7 +974,7 @@ function drawCrane(n: number): PieceArt {
  * Hatchery HX-1 (milestone 9): a rounded incubator hull with a window strip of
  * egg cradles, warm under lamps, and a little egg-cup crane on top.
  */
-function drawHatchery(n: number): PieceArt {
+function drawHatchery(n: number, livingBases: boolean): PieceArt {
   const W = CELL * 2;
   const H = CELL;
   const body = new Container();
@@ -879,7 +983,7 @@ function drawHatchery(n: number): PieceArt {
   const windowGlow = new Graphics();
   tubeH(g, 0, 18, H / 2, 1);
   tubeH(g, W - 18, W, H / 2, 1);
-  g.roundRect(14, 12, W - 28, H - 22, 22).fill({ color: PAL.steel });
+  drawMachineShell(g, 14, 12, W - 28, H - 22, 22, livingBases);
   g.roundRect(20, 16, W - 40, 8, 4).fill({ color: 0xffffff, alpha: 0.12 });
   g.roundRect(14, H - 34, W - 28, 24, 10).fill({ color: PAL.steelDeep, alpha: 0.5 });
   // The cradle window: four cups in a row, each a warm pool of light.
@@ -945,7 +1049,7 @@ function drawFarm(n: number): PieceArt {
  * Revival pool RP-1 (milestone 9): a low brass-rimmed basin under a glass
  * hood, its still water lit warm from below.
  */
-function drawRevive(n: number): PieceArt {
+function drawRevive(n: number, livingBases: boolean): PieceArt {
   const W = CELL * 2;
   const H = CELL;
   const body = new Container();
@@ -954,7 +1058,7 @@ function drawRevive(n: number): PieceArt {
   const windowGlow = new Graphics();
   tubeH(g, 0, 18, H / 2, 1);
   tubeH(g, W - 18, W, H / 2, 1);
-  g.roundRect(14, 30, W - 28, H - 40, 12).fill({ color: PAL.steel });
+  drawMachineShell(g, 14, 30, W - 28, H - 40, 12, livingBases);
   g.moveTo(26, 34).bezierCurveTo(30, 4, W - 30, 4, W - 26, 34).fill({ color: 0x86b3ae, alpha: 0.25 });
   g.moveTo(26, 34).bezierCurveTo(30, 4, W - 30, 4, W - 26, 34).stroke({ color: PAL.chrome, width: 2 });
   g.roundRect(30, 46, W - 60, 22, 10).fill({ color: 0xa8822e });
@@ -973,7 +1077,7 @@ function drawRevive(n: number): PieceArt {
  * Signal array SA-1 (milestone 10): a squat brass-and-charcoal hull with a
  * listening dish raised on a mast, a ring of receiver rods and a decoder window.
  */
-function drawSignal(n: number): PieceArt {
+function drawSignal(n: number, livingBases: boolean): PieceArt {
   const W = CELL * 2;
   const H = CELL * 2;
   const body = new Container();
@@ -983,7 +1087,7 @@ function drawSignal(n: number): PieceArt {
   tubeH(g, 0, 18, H - CELL / 2, 1);
   tubeH(g, W - 18, W, H - CELL / 2, 1);
   // The hull.
-  g.roundRect(12, H - CELL + 6, W - 24, CELL - 14, 10).fill({ color: PAL.steel });
+  drawMachineShell(g, 12, H - CELL + 6, W - 24, CELL - 14, 10, livingBases);
   g.rect(12, H - CELL + 18, W - 24, 4).fill({ color: 0xa8822e });
   g.roundRect(30, H - CELL + 32, W - 60, 30, 6).fill({ color: PAL.steelDeep });
   windows.roundRect(34, H - CELL + 36, W - 68, 22, 4).fill({ color: 0xffd98a, alpha: 0.7 });
@@ -1024,7 +1128,7 @@ export function tankInner(kind: PieceKind): { x: number; y: number; w: number; h
  * drawn here; the creatures, plant, murk and front glass are drawn by
  * TankLife (src/world/tanklife.ts) on top.
  */
-function drawTank(n: number, grand = false): PieceArt {
+function drawTank(n: number, grand = false, livingBases = false): PieceArt {
   const W = CELL * (grand ? 3 : 2);
   const H = CELL * (grand ? 2 : 1);
   const body = new Container();
@@ -1036,9 +1140,12 @@ function drawTank(n: number, grand = false): PieceArt {
   tubeH(g, 0, 18, H / 2, 1);
   tubeH(g, W - 18, W, H / 2, 1);
   // Back wall and water.
-  g.rect(I.x - 4, I.y - 4, I.w + 8, I.h + 8).fill({ color: PAL.steelDeep });
-  g.rect(I.x, I.y, I.w, I.h).fill({ color: 0x1f4a4c });
-  g.rect(I.x, I.y, I.w, I.h * 0.45).fill({ color: 0x3d7470, alpha: 0.55 });
+  if (livingBases) drawHabitatFrame(g, I, 10);
+  else {
+    g.rect(I.x - 4, I.y - 4, I.w + 8, I.h + 8).fill({ color: PAL.steelDeep });
+    g.rect(I.x, I.y, I.w, I.h).fill({ color: 0x1f4a4c });
+    g.rect(I.x, I.y, I.w, I.h * 0.45).fill({ color: 0x3d7470, alpha: 0.55 });
+  }
   // Sand floor with a few pebbles and a rock.
   const floor = I.y + I.h - 12;
   const sand: number[] = [I.x, I.y + I.h];
@@ -1050,31 +1157,38 @@ function drawTank(n: number, grand = false): PieceArt {
   g.ellipse(I.x + I.w * 0.78 - 4, floor - 4, 9, 3).fill({ color: 0xffffff, alpha: 0.12 });
   g.ellipse(I.x + I.w * 0.86, floor + 2, 8, 5).fill({ color: 0x585a52 });
   algaeLine(g, I.x + I.w * 0.72, I.x + I.w * 0.9, floor - 6, 5);
-  // Frame: steel posts, rust-red top and bottom rails.
-  g.rect(8, 6, 10, H - 10).fill({ color: PAL.steel });
-  g.rect(W - 18, 6, 10, H - 10).fill({ color: PAL.steel });
-  g.rect(8, 6, 3, H - 10).fill({ color: 0xffffff, alpha: 0.12 });
-  g.rect(W - 18, 6, 3, H - 10).fill({ color: 0xffffff, alpha: 0.12 });
-  g.roundRect(4, 2, W - 8, 14, 3).fill({ color: PAL.rust });
-  g.roundRect(4, 2, W - 8, 4, 2).fill({ color: 0xffffff, alpha: 0.14 });
-  g.roundRect(4, H - 16, W - 8, 14, 3).fill({ color: PAL.rust });
-  g.rect(4, H - 6, W - 8, 4).fill({ color: PAL.rustDark, alpha: 0.7 });
-  rivets(g, 12, 9, W - 12, 9, 22);
-  rivets(g, 12, H - 9, W - 12, H - 9, 22);
+  if (!livingBases) {
+    // Frame: steel posts, rust-red top and bottom rails.
+    g.rect(8, 6, 10, H - 10).fill({ color: PAL.steel });
+    g.rect(W - 18, 6, 10, H - 10).fill({ color: PAL.steel });
+    g.rect(8, 6, 3, H - 10).fill({ color: 0xffffff, alpha: 0.12 });
+    g.rect(W - 18, 6, 3, H - 10).fill({ color: 0xffffff, alpha: 0.12 });
+    g.roundRect(4, 2, W - 8, 14, 3).fill({ color: PAL.rust });
+    g.roundRect(4, 2, W - 8, 4, 2).fill({ color: 0xffffff, alpha: 0.14 });
+    g.roundRect(4, H - 16, W - 8, 14, 3).fill({ color: PAL.rust });
+    g.rect(4, H - 6, W - 8, 4).fill({ color: PAL.rustDark, alpha: 0.7 });
+    rivets(g, 12, 9, W - 12, 9, 22);
+    rivets(g, 12, H - 9, W - 12, H - 9, 22);
+  } else {
+    g.roundRect(W * 0.6 - 18, 0, 42, 13, 3).fill(0x655743);
+    g.roundRect(W * 0.6 - 12, 3, 32, 5, 2).fill(0xa98a58);
+    g.poly([28, H - 9, 56, H - 9, 51, H, 25, H]).fill(0x42615e);
+    g.poly([W - 56, H - 9, W - 28, H - 9, W - 25, H, W - 51, H]).fill(0x42615e);
+  }
   // Lamp housing on the top rail.
   g.roundRect(W / 2 - 40, 4, 80, 8, 2).fill({ color: PAL.steelDark });
   windows.rect(W / 2 - 36, 10, 72, 3).fill({ color: 0xfff1d0, alpha: 0.9 });
   windowGlow.rect(W / 2 - 50, 8, 100, 30).fill({ color: PAL.warm, alpha: 0.25 });
-  if (grand) {
+  if (grand && !livingBases) {
     // A middle post, and resin-amber seals along the rails.
     g.rect(W / 2 - 4, 14, 8, H - 28).fill({ color: PAL.steel, alpha: 0.85 });
     g.rect(4, 15, W - 8, 3).fill({ color: 0xc88a2a, alpha: 0.8 });
     g.rect(4, H - 19, W - 8, 3).fill({ color: 0xc88a2a, alpha: 0.8 });
   }
   body.addChild(stencil(grand ? `GT-${n}` : `TANK ${n}`, 42, H - 9, 6));
-  streaks(g, 8, W - 8, 14, 16, 16);
+  streaks(g, 8, W - 8, livingBases ? 8 : 14, 16, livingBases ? 5 : 16);
   streaks(g, 8, W - 8, H - 4, 10, 8);
-  scratches(g, 6, 2, W - 6, 14, 8);
+  scratches(g, 6, 2, W - 6, livingBases ? 7 : 14, 8);
   algaeLine(g, 6, W - 6, H - 3, 24);
   return { body, windows, windowGlow, lamp: { x: W - 30, y: 8 }, whorlAt: { x: W - 30, y: 26 } };
 }
@@ -1084,7 +1198,7 @@ function drawTank(n: number, grand = false): PieceArt {
  * a pressure gauge and pipes to its collars. Clean water is pumped through
  * the corridors to up to two creature tanks.
  */
-function drawFilter(n: number): PieceArt {
+function drawFilter(n: number, livingBases: boolean): PieceArt {
   const body = new Container();
   const g = body.addChild(new Graphics());
   const windows = new Graphics();
@@ -1094,7 +1208,7 @@ function drawFilter(n: number): PieceArt {
   tubeH(g, CELL - 22, CELL, c, 1);
   tubeV(g, 0, 18, c, 1);
   // Drum.
-  g.roundRect(16, 18, CELL - 32, CELL - 30, 10).fill({ color: PAL.steel });
+  drawMachineShell(g, 16, 18, CELL - 32, CELL - 30, 10, livingBases);
   g.roundRect(20, 22, 8, CELL - 40, 4).fill({ color: 0xffffff, alpha: 0.12 });
   g.roundRect(CELL - 36, 22, 14, CELL - 40, 6).fill({ color: PAL.steelDeep, alpha: 0.4 });
   hazardBand(g, 16, 24, CELL - 32, 8);
@@ -1137,7 +1251,7 @@ function drawFilter(n: number): PieceArt {
  * the mash collects in a tank with a glass sight window at the bottom. A
  * copper riser carries the mash back up to the feed pipe port on top.
  */
-function drawFeeder(n: number): PieceArt {
+function drawFeeder(n: number, livingBases: boolean): PieceArt {
   const W = CELL;
   const H = CELL * 2;
   const body = new Container();
@@ -1193,7 +1307,7 @@ function drawFeeder(n: number): PieceArt {
   g.circle(78, 92, 5.5).fill({ color: 0xe8e2cc });
   g.moveTo(78, 92).lineTo(81, 88.5).stroke({ color: PAL.rust, width: 1.2 });
   // Mash tank with a sight window.
-  g.roundRect(14, 134, W - 28, H - 146, 8).fill({ color: PAL.steel });
+  drawMachineShell(g, 14, 134, W - 28, H - 146, 8, livingBases);
   g.roundRect(18, 138, 6, H - 156, 3).fill({ color: 0xffffff, alpha: 0.12 });
   g.roundRect(W - 34, 138, 12, H - 156, 5).fill({ color: PAL.steelDeep, alpha: 0.4 });
   const mash = { x: 32, y: 146, w: 18, h: 54 };
@@ -1312,6 +1426,76 @@ function drawPress(n: number): PieceArt {
  * Heavy side pillars carry the hall down to the seabed; amber guide lamps
  * on the pillars show the way in.
  */
+function drawPressureDock(n: number, housingOcean: boolean, panorama: boolean): PieceArt {
+  const W = 3 * CELL;
+  const H = 2 * CELL;
+  const cx = W / 2;
+  const body = new Container();
+  const g = body.addChild(new Graphics());
+  const windows = new Graphics();
+  const windowGlow = new Graphics();
+  tubeH(g, 0, 26, CELL / 2, 1);
+  tubeH(g, W - 26, W, CELL / 2, 1);
+  for (const s of [-1, 1]) {
+    const x = cx + s * 143;
+    g.poly([x - 13, 92, x + 13, 92, x + 13 + s * 7, H - 5, x - 13 + s * 7, H - 5]).fill(pressureShell);
+    g.moveTo(x, 110).lineTo(x + s * 7, H - 8).stroke({ color: 0xb19a73, alpha: 0.75, width: 2 });
+    g.roundRect(x + s * 7 - 22, H - 10, 44, 10, 3).fill(0x395354);
+    if (housingOcean) drawDockBrace(g, cx, 0, s);
+    else g.moveTo(x + s * 5, H - 33).lineTo(cx + s * 102, 105).stroke({ color: 0x3f6a65, width: 9 });
+    const clamp = cx + s * 74;
+    g.poly([clamp - 6, 103, clamp + 6, 103, clamp + 6, 137, clamp - s * 16, 151,
+      clamp - s * 21, 145, clamp - 6, 134]).fill(0x816954);
+    g.circle(clamp, 137, 5).fill(0xaea98e);
+    for (const y of [152, 194]) {
+      windows.roundRect(x - 5, y, 10, 4, 2).fill(0xffbd72);
+      windowGlow.ellipse(x, y + 2, 12, 10).fill({ color: 0xffb76e, alpha: 0.35 });
+    }
+  }
+  g.moveTo(13, 97).lineTo(23, 40).quadraticCurveTo(30, 16, 66, 15).lineTo(W - 66, 15)
+    .quadraticCurveTo(W - 30, 16, W - 23, 40).lineTo(W - 13, 97).lineTo(W - 13, 109)
+    .lineTo(cx + 72, 109).lineTo(cx + 64, 82).lineTo(cx - 64, 82).lineTo(cx - 72, 109)
+    .lineTo(13, 109).closePath().fill(pressureShell);
+  g.moveTo(33, 40).quadraticCurveTo(35, 24, 70, 24).lineTo(W - 70, 24).quadraticCurveTo(W - 35, 24, W - 33, 40)
+    .stroke({ color: 0xc6bf9e, width: 2, alpha: 0.72 });
+  drawPressureRib(g, 88, 22, 83, 10);
+  drawPressureRib(g, W - 98, 22, 83, 10);
+  for (const x of [29, W - 81]) {
+    drawHabitatFrame(g, { x, y: 55, w: 52, h: 25 }, 5);
+    windows.roundRect(x + 3, 59, 46, 16, 3).fill({ color: 0xffcb88, alpha: 0.6 });
+    windowGlow.ellipse(x + 26, 68, 34, 20).fill({ color: 0xffc081, alpha: 0.26 });
+  }
+  if (panorama) {
+    for (const x of [37, W - 93]) {
+      const panel = { x, y: 44, w: 56, h: 34 };
+      drawHabitatFrame(g, panel, 5);
+      g.roundRect(panel.x, panel.y, panel.w, panel.h, 5).fill(0x376565);
+      g.moveTo(x + 7, 54).quadraticCurveTo(x + 27, 45, x + 48, 49).stroke({ color: 0xb9cabb, width: 2, alpha: 0.61 });
+    }
+  }
+  g.roundRect(cx - POOL_HALF_WIDTH, 44, POOL_HALF_WIDTH * 2, POOL_SURFACE_Y - 43, 8).fill(0x19383d);
+  g.rect(cx - POOL_HALF_WIDTH + 4, POOL_SURFACE_Y, (POOL_HALF_WIDTH - 4) * 2, 3).fill({ color: 0x7baca5, alpha: 0.42 });
+  g.rect(cx - 55, 49, 110, 4).fill(0x687e73);
+  g.roundRect(cx - 18, 47, 36, 14, 3).fill(0x97704e);
+  g.moveTo(cx, 61).lineTo(cx, 79).stroke({ color: 0xadbaaa, width: 2 });
+  const ladder = cx + POOL_LADDER_X;
+  for (const x of [ladder - 9, ladder + 9]) {
+    g.moveTo(x, 59).lineTo(x, 121).stroke({ color: 0x94876a, width: 3 });
+  }
+  for (let y = 63; y < 121; y += 9) {
+    g.moveTo(ladder - 9, y).lineTo(ladder + 9, y).stroke({ color: 0xbba480, width: 2.5 });
+  }
+  g.moveTo(cx - 74, 108).lineTo(cx - 64, 82).lineTo(cx + 64, 82).lineTo(cx + 74, 108)
+    .stroke({ color: 0xcf9c65, width: 4, alpha: 0.86, join: 'round' });
+  for (const x of [cx - 49, cx + 49]) {
+    windows.rect(x - 7, 81, 14, 3).fill({ color: 0xffdb9e, alpha: 0.92 });
+    windowGlow.ellipse(x, 95, 22, 18).fill({ color: 0xffcd8e, alpha: 0.25 });
+  }
+  body.addChild(stencil(`MP-${n} · MOONPOOL`, cx, 34, 9));
+  body.addChild(stencil('KS-1', W - 54, 94, 6));
+  return { body, windows, windowGlow, lamp: { x: cx + 44, y: 32 } };
+}
+
 function drawDock(n: number): PieceArt {
   const W = CELL * 3;
   const H = CELL * 2;
@@ -1406,7 +1590,7 @@ function drawDock(n: number): PieceArt {
  * on the roof a short aerial mast. The reader's screen and the bench lamp
  * light up with power, and a scan bar sweeps the screen while it decodes.
  */
-function drawLab(n: number): PieceArt {
+function drawLab(n: number, livingBases: boolean): PieceArt {
   const W = CELL;
   const H = CELL;
   const body = new Container();
@@ -1418,7 +1602,7 @@ function drawLab(n: number): PieceArt {
   tubeH(g, W - 18, W, 66, 1);
   tubeV(g, 0, 18, c, 1);
   // Shell: a rounded drum on a skirt.
-  g.roundRect(12, 18, W - 24, H - 30, 22).fill({ color: PAL.steel });
+  drawMachineShell(g, 12, 18, W - 24, H - 30, 22, livingBases);
   g.roundRect(18, 22, 10, H - 42, 5).fill({ color: 0xffffff, alpha: 0.12 });
   g.roundRect(W - 34, 22, 16, H - 42, 8).fill({ color: PAL.steelDeep, alpha: 0.4 });
   g.roundRect(8, H - 18, W - 16, 10, 3).fill({ color: PAL.steelDark });
@@ -1466,7 +1650,7 @@ function drawLab(n: number): PieceArt {
  * fabrication arm on a rail inside, a parts rack and a work lamp. The arm
  * swings and its torch flickers while gear is being built.
  */
-function drawWorkshop(n: number): PieceArt {
+function drawWorkshop(n: number, livingBases: boolean): PieceArt {
   const W = CELL * 2;
   const H = CELL;
   const body = new Container();
@@ -1477,7 +1661,7 @@ function drawWorkshop(n: number): PieceArt {
   tubeH(g, 0, 16, cy, 1);
   tubeH(g, W - 16, W, cy, 1);
   // Shed shell with a gently curved roof.
-  g.roundRect(10, 12, W - 20, H - 22, 14).fill({ color: PAL.steel });
+  drawMachineShell(g, 10, 12, W - 20, H - 22, 14, livingBases);
   g.roundRect(10, 12, W - 20, 9, 6).fill({ color: PAL.yellow });
   g.rect(10, 19, W - 20, 3).fill({ color: PAL.yellowDark, alpha: 0.7 });
   g.rect(10, H - 22, W - 20, 12).fill({ color: PAL.steelDeep, alpha: 0.4 });
@@ -1531,32 +1715,31 @@ function drawWorkshop(n: number): PieceArt {
 }
 
 /** Draw a piece's art. The same drawing is used for placed pieces and the build ghost. */
-export function drawPiece(kind: PieceKind, n: number, rot: number, seed: number): PieceArt {
+export function drawPiece(kind: PieceKind, n: number, rot: number, seed: number, livingBases = false, housingOcean = livingBases, panorama = false): PieceArt {
   rand = mulberry32(WORLD_SEED ^ (seed * 7919 + 0x1b5e));
-  if (kind === 'dome') return drawDome(n);
-  if (kind === 'corridor') return drawCorridor(n, rot);
-  if (kind === 'shaft') return drawShaft(n);
+  if (kind === 'dome') return livingBases ? drawKestrelHabitat(n) : drawDome(n);
+  if (kind === 'corridor') return livingBases ? drawPressureCorridor(n, rot, true, panorama) : drawCorridor(n, rot);
+  if (kind === 'shaft') return drawShaft(n, livingBases);
   if (kind === 'junction') return drawJunction(n);
   if (kind === 'lantern') return drawLantern(n);
   if (kind === 'bracket') return drawBracket(n, rot);
-  if (kind === 'turbine') return drawTurbine(n);
-  if (kind === 'thermal') return drawThermal(n);
-  if (kind === 'tank') return drawTank(n);
-  if (kind === 'gtank') return drawTank(n, true);
-  if (kind === 'sorter') return drawSorter(n);
+  if (kind === 'turbine') return drawTurbine(n, livingBases);
+  if (kind === 'thermal') return drawThermal(n, livingBases);
+  if (kind === 'tank' || kind === 'gtank') return drawTank(n, kind === 'gtank', livingBases);
+  if (kind === 'sorter') return drawSorter(n, livingBases);
   if (kind === 'recomp') return drawRecomp(n);
-  if (kind === 'crane') return drawCrane(n);
-  if (kind === 'hatch') return drawHatchery(n);
+  if (kind === 'crane') return drawCrane(n, livingBases);
+  if (kind === 'hatch') return drawHatchery(n, livingBases);
   if (kind === 'farm') return drawFarm(n);
-  if (kind === 'revive') return drawRevive(n);
-  if (kind === 'signal') return drawSignal(n);
-  if (kind === 'filter') return drawFilter(n);
-  if (kind === 'feeder') return drawFeeder(n);
+  if (kind === 'revive') return drawRevive(n, livingBases);
+  if (kind === 'signal') return drawSignal(n, livingBases);
+  if (kind === 'filter') return drawFilter(n, livingBases);
+  if (kind === 'feeder') return drawFeeder(n, livingBases);
   if (kind === 'press') return drawPress(n);
-  if (kind === 'dock') return drawDock(n);
-  if (kind === 'lab') return drawLab(n);
-  if (kind === 'workshop') return drawWorkshop(n);
-  return drawStorage(n);
+  if (kind === 'dock') return livingBases ? drawPressureDock(n, housingOcean, panorama) : drawDock(n);
+  if (kind === 'lab') return drawLab(n, livingBases);
+  if (kind === 'workshop') return drawWorkshop(n, livingBases);
+  return drawStorage(n, livingBases);
 }
 
 /**
@@ -1660,7 +1843,7 @@ export class BaseView {
   private live = new Map<number, Live>();
   private sparks: Spark[] = [];
 
-  constructor() {
+  constructor(private readonly livingBases = false, private readonly housingOcean = livingBases, private readonly panorama = false) {
     this.view.addChild(this.legs, this.pieceLayer, this.collarG, this.whorlLayer);
   }
 
@@ -1684,7 +1867,7 @@ export class BaseView {
     for (const p of [...layout.pieces].sort((a, b) => a.id - b.id)) {
       counts[p.kind]++;
       if (this.live.has(p.id)) continue;
-      const art = drawPiece(p.kind, counts[p.kind], p.rot, p.id);
+      const art = drawPiece(p.kind, counts[p.kind], p.rot, p.id, this.livingBases, this.housingOcean, this.panorama);
       const r = pieceRect(p);
       const root = new Container();
       root.addChild(art.body);
@@ -2059,7 +2242,7 @@ export class BuildOverlay {
   private links = new Graphics();
   private ports = new Graphics();
 
-  constructor() {
+  constructor(private readonly livingBases = false, private readonly housingOcean = livingBases, private readonly panorama = false) {
     this.view.addChild(this.grid, this.links, this.ghostRoot, this.ghostOutline, this.marks, this.select, this.ports);
     this.view.visible = false;
     // Faint cell corners over open water, drawn once (the site is big).
@@ -2185,7 +2368,7 @@ export class BuildOverlay {
       this.ghostKey = key;
       this.ghostRoot.removeChildren().forEach((c) => c.destroy({ children: true }));
       if (ghost) {
-        const art = drawPiece(ghost.kind, 0, ghost.rot, 99);
+        const art = drawPiece(ghost.kind, 0, ghost.rot, 99, this.livingBases, this.housingOcean, this.panorama);
         this.ghostRoot.addChild(art.body);
         art.windows.destroy();
         art.windowGlow.destroy();

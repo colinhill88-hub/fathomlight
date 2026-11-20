@@ -6,6 +6,12 @@ import { Walker } from '../actors/walker';
 import { deckTread, lampFixture, rivet } from './detail';
 import { InteriorLighting } from './light';
 import { mulberry32, WORLD_SEED } from '../rng';
+import { drawSurveyDecks } from './corvinaArt';
+import { drawFulmarDecks } from './fulmarArt';
+import { drawNacreVault } from '../world/nacreVault';
+import { drawHabitatFrame } from '../world/habitatFrame';
+import { HousingOcean } from './housingOcean';
+import type { OceanSource } from './oceanCapture';
 
 /**
  * Dry interiors on foot (after milestone 8 part 2, Colin's direction): a
@@ -78,6 +84,9 @@ export interface InteriorHooks {
   powered(zone: number): boolean;
   /** Extra lights (screens, glowing tanks). */
   lights(): Light[];
+  /** Local cutaway scenery behind the player and any ladder rungs. */
+  readonly oceanBackdrop?: Container;
+  walkLampGain?(x: number, y: number): number;
   /**
    * Milestone 9: real actors (the creatures in the tanks), added to the lit,
    * emissive and glow layers when the level is entered, and taken away
@@ -97,6 +106,8 @@ export interface InteriorFocus {
   h: number;
   /** Width of the panel on the right, in CSS px: the focus is centred in what is left. */
   panelPx: number;
+  /** Presentation multiplier for close inspection views with reflective glass. */
+  lampGain?: number;
 }
 
 /**
@@ -167,6 +178,7 @@ export interface InteriorInput {
   sprint?: boolean;
   collect: boolean;
   lamp: boolean;
+  sealVisor?: boolean;
 }
 
 export class Interior {
@@ -178,6 +190,7 @@ export class Interior {
   progress = 0;
   banner = '';
   lampOn = true;
+  private lampGain = 1;
 
   private map: string[] = [];
   private W = 0;
@@ -194,6 +207,9 @@ export class Interior {
   private dynamic = new Graphics();
   private dynEmissive = new Graphics();
   private static_ = new Graphics();
+  private baseScenery = new Container();
+  private baseLadders = new Graphics();
+  private facilityOcean?: HousingOcean;
   private emissiveStatic = new Graphics();
   private glowStatic = new Graphics();
   private lamps: { light: Light; core: Graphics; halo: Graphics; zone: number }[] = [];
@@ -265,14 +281,14 @@ export class Interior {
   private shownKey = '';
   private opts: InteriorOptions = {};
 
-  constructor(private readonly renderer: Renderer, paintedFace?: Texture, paintedSuit?: Texture, private readonly art?: WorldArt, redesigned = false, compact = false) {
+  constructor(private readonly renderer: Renderer, paintedFace?: Texture, paintedSuit?: Texture, private readonly art?: WorldArt, redesigned = false, compact = false, private readonly livingBases = false) {
     this.walker = new Walker(paintedFace, paintedSuit, redesigned, compact);
     this.lighting = new InteriorLighting(this.sceneRT);
     this.glowSprite = new Sprite(this.glowRT);
     this.glowSprite.blendMode = 'add';
     this.glowSprite.filters = [new BlurFilter({ strength: 10, quality: 3 })];
     this.litRoot.addChild(this.litCam);
-    this.litCam.addChild(this.static_, this.doorG, this.breakerG, this.takenG, this.dynamic, this.actorLit, this.walker.view, this.front);
+    this.litCam.addChild(this.static_, this.baseScenery, this.baseLadders, this.doorG, this.breakerG, this.takenG, this.dynamic, this.actorLit, this.walker.view, this.front);
     this.emissiveCam.addChild(this.emissiveStatic, this.dynEmissive, this.actorEm, this.walker.lens, this.overlay);
     this.glowCam.addChild(this.glowStatic, this.actorGlow);
     this.view.addChild(this.lighting.view, this.emissiveCam, this.glowSprite);
@@ -339,14 +355,22 @@ export class Interior {
   // ---------------------------------------------------------------------------
 
   /** Build a level and step into it at its 'S' tile. */
-  enter(map: string[], state: InteriorState, hooks: InteriorHooks | null = null, opts: InteriorOptions | null = null): void {
+  enter(map: string[], state: InteriorState, hooks: InteriorHooks | null = null, opts: InteriorOptions | null = null, ocean?: OceanSource): void {
     if (opts) this.opts = opts;
     else if (!hooks) this.opts = { labels: CORVINA_LABELS, sign: { ch: '1', text: 'SURVEY LAB' } };
     else this.opts = {};
     if (this.hooks && this.hooks !== hooks) this.hooks.detach?.();
     this.hooks = hooks;
     hooks?.attach?.(this.actorLit, this.actorEm, this.actorGlow);
+    if (hooks?.oceanBackdrop) this.baseScenery.addChild(hooks.oceanBackdrop);
+    this.clearFacilityOcean();
+    if (ocean) {
+      const plate = this.sanctum ? this.art?.plates.sanctum : this.opts.style === 'fulmar' ? this.art?.plates.trench : this.art?.plates.shelf;
+      this.facilityOcean = new HousingOcean(plate, ocean);
+      this.baseScenery.addChild(this.facilityOcean.root);
+    }
     this.focus = null;
+    this.lampGain = 1;
     this.climbing = false;
     this.map = map;
     this.W = map[0].length;
@@ -427,6 +451,22 @@ export class Interior {
     this.cam.y = y - 400;
   }
 
+  mountLadder(x: number, y: number, face: number, screen: { x: number; y: number }): void {
+    this.place(x, y, face);
+    this.climbing = true;
+    this.walker.onGround = false;
+    this.walker.pose = 'climb';
+    this.walker.visor = this.walker.visorTarget = 0;
+    this.lastSafe = { x, y: y - 2 * T };
+    this.cam.x = x - screen.x * this.viewNow * this.cssW / this.cssH;
+    this.cam.y = y - HEIGHT / 2 - screen.y * this.viewNow;
+  }
+
+  walkerScreenPosition(): { x: number; y: number } {
+    const w = this.walker;
+    return { x: (w.x - this.cam.x) * this.cssH / (this.viewNow * this.cssW), y: (w.y - HEIGHT / 2 - this.cam.y) / this.viewNow };
+  }
+
   /** Point at the save's own state lists (they're changed in place). */
   syncState(breakers: boolean[], taken: string[]): void {
     this.state.breakers = breakers;
@@ -436,6 +476,7 @@ export class Interior {
   leave(): void {
     this.hooks?.detach?.();
     this.hooks = null;
+    this.clearFacilityOcean();
     this.focus = null;
     this.active = false;
     this.view.visible = false;
@@ -443,11 +484,18 @@ export class Interior {
     this.banner = '';
   }
 
+  private clearFacilityOcean(): void {
+    this.facilityOcean?.clear();
+    this.facilityOcean?.root.destroy();
+    this.facilityOcean = undefined;
+  }
+
   // ---------------------------------------------------------------------------
   // Drawing the level once.
 
   private buildStatic(): void {
     const g = this.static_.clear();
+    this.baseLadders.clear();
     const e = this.emissiveStatic.clear();
     const gl = this.glowStatic.clear();
     for (const l of this.lamps) {
@@ -471,47 +519,30 @@ export class Interior {
     }
     if (this.sanctum) {
       this.buildSanctumStatic(g, e, gl, rand);
+      this.drawFacilityViews(g, 'sanctum');
       this.shownKey = '';
       return;
     }
     // Back wall: riveted plates, ribs, pipes and a few portholes onto the black water.
     const steel = this.art?.materials[this.opts.style === 'fulmar' ? 'fulmar' : 'corvina'];
-    g.rect(0, 0, PW, PH).fill({ color: 0x23292b });
-    if (steel) g.rect(0, 0, PW, PH).fill(materialFill(steel, 0x23292b, 0.74, 1050, 620));
-    for (let y = 0; y < PH; y += 120)
-      for (let x = 0; x < PW; x += 160) {
-        g.rect(x + 2, y + 2, 156, 116).fill({ color: rand() < 0.5 ? 0x283033 : 0x262c2e, alpha: steel ? 0.42 : 1 });
-        for (let k = 8; k < 156; k += 22) g.circle(x + k, y + 6, 1.4).fill({ color: 0x3a4245 });
-      }
-    for (let x = 0; x < PW; x += 240) g.rect(x, 0, 18, PH).fill({ color: 0x1c2123 });
-    for (const py of [3, 13, 23]) {
-      g.rect(0, py * T + 6, PW, 9).fill({ color: 0x3b3a36 });
-      g.rect(0, py * T + 6, PW, 3).fill({ color: 0x5a554c, alpha: 0.6 });
-      for (let x = 60; x < PW; x += 300) g.rect(x, py * T + 2, 10, 17).fill({ color: 0x6a4a2e });
-    }
-    for (let x = 140; x < PW; x += 420) {
-      const y = 3 * T;
-      g.circle(x, y + 40, 18).fill({ color: 0x5a554c });
-      g.circle(x, y + 40, 13).fill({ color: 0x061014 });
-      e.circle(x, y + 40, 12).fill({ color: 0x0c2a33, alpha: 0.9 });
-    }
-    // Rust and grime streaks.
-    for (let i = 0; i < (PW * PH) / 9000; i++) {
-      const x = R(0, PW);
-      const y = R(0, PH);
-      g.rect(x, y, R(1, 3), R(10, 60)).fill({ color: 0x5a3a28, alpha: R(0.1, 0.3) });
-    }
-    // Tiles.
+    const listening = this.livingBases && this.opts.style === 'fulmar';
+    const survey = this.livingBases && !listening;
+    if (survey) drawSurveyDecks(g, T, PW, PH);
+    else if (listening) drawFulmarDecks(g, T, PW, PH);
+    else this.drawWreckWalls(g, e, steel, PW, PH, rand);
+    this.drawFacilityViews(g, listening ? 'fulmar' : 'corvina');
+    // Tiles retain their exact collision shapes and interaction hardware.
     for (let ty = 0; ty < this.H; ty++) {
       for (let tx = 0; tx < this.W; tx++) {
         const c = this.map[ty][tx];
         const x = tx * T;
         const y = ty * T;
         if (c === '#') {
-          g.rect(x, y, T + 0.5, T + 0.5).fill({ color: 0x4a5052 });
-          if (steel) g.rect(x, y, T + 0.5, T + 0.5).fill(materialFill(steel, 0x4a5052, 0.67, 860, 520));
+          const metal = survey ? 0x4c5753 : listening ? 0x444c47 : 0x4a5052;
+          g.rect(x, y, T + 0.5, T + 0.5).fill({ color: metal });
+          if (steel) g.rect(x, y, T + 0.5, T + 0.5).fill(materialFill(steel, metal, 0.67, 860, 520));
           if (!this.solidTileStatic(tx, ty - 1)) {
-            g.rect(x, y, T + 0.5, 6).fill({ color: 0x6e7476 });
+            g.rect(x, y, T + 0.5, 6).fill({ color: survey ? 0x8d8b77 : listening ? 0x8c8270 : 0x6e7476 });
             g.rect(x, y + 6, T + 0.5, 2).fill({ color: 0x2c3234 });
             for (let k = 6; k < T; k += 12) g.circle(x + k, y + 3, 1.2).fill({ color: 0x2c3234 });
           }
@@ -610,6 +641,56 @@ export class Interior {
     }
     this.shownKey = '';
   }
+
+  private drawFacilityViews(g: Graphics, site: 'corvina' | 'fulmar' | 'sanctum'): void {
+    const ocean = this.facilityOcean;
+    if (!ocean) return;
+    ocean.clear();
+    const views = site === 'corvina' ? [[6, 2.1, 17, 3.35], [48, 2.1, 31, 3.35]]
+      : site === 'fulmar' ? [[5, 2.05, 19, 3.35], [37, 2.05, 12.5, 3.20]]
+      : [[6, 2.1, 18.5, 4.55], [56, 2.1, 20, 4.55]];
+    for (const [x, y, w, h] of views) {
+      const aperture = { x: x * T, y: y * T, w: w * T, h: h * T };
+      if (site === 'sanctum') {
+        drawNacreVault(g, aperture.x + aperture.w / 2, aperture.y + aperture.h + 24, aperture.w + 76, aperture.h + 62, -0.04);
+        g.roundRect(aperture.x - 10, aperture.y - 9, aperture.w + 20, aperture.h + 21, 15).stroke({ color: 0x979aba, width: 5, alpha: 0.71 });
+      } else {
+        drawHabitatFrame(g, aperture, site === 'fulmar' ? 16 : 10);
+        g.moveTo(aperture.x, aperture.y + aperture.h + 8).lineTo(aperture.x + aperture.w, aperture.y + aperture.h + 8)
+          .stroke({ color: site === 'fulmar' ? 0x8e733f : 0xad6550, width: 5, alpha: 0.82 });
+      }
+      ocean.add('panorama', aperture);
+    }
+  }
+  private drawWreckWalls(g: Graphics, e: Graphics, steel: Texture | undefined, PW: number, PH: number, rand: () => number): void {
+    const R = (a: number, b: number) => a + rand() * (b - a);
+    g.rect(0, 0, PW, PH).fill({ color: 0x23292b });
+    if (steel) g.rect(0, 0, PW, PH).fill(materialFill(steel, 0x23292b, 0.74, 1050, 620));
+    for (let y = 0; y < PH; y += 120)
+      for (let x = 0; x < PW; x += 160) {
+        g.rect(x + 2, y + 2, 156, 116).fill({ color: rand() < 0.5 ? 0x283033 : 0x262c2e, alpha: steel ? 0.42 : 1 });
+        for (let k = 8; k < 156; k += 22) g.circle(x + k, y + 6, 1.4).fill({ color: 0x3a4245 });
+      }
+    for (let x = 0; x < PW; x += 240) g.rect(x, 0, 18, PH).fill({ color: 0x1c2123 });
+    for (const py of [3, 13, 23]) {
+      g.rect(0, py * T + 6, PW, 9).fill({ color: 0x3b3a36 });
+      g.rect(0, py * T + 6, PW, 3).fill({ color: 0x5a554c, alpha: 0.6 });
+      for (let x = 60; x < PW; x += 300) g.rect(x, py * T + 2, 10, 17).fill({ color: 0x6a4a2e });
+    }
+    for (let x = 140; x < PW; x += 420) {
+      const y = 3 * T;
+      g.circle(x, y + 40, 18).fill({ color: 0x5a554c });
+      g.circle(x, y + 40, 13).fill({ color: 0x061014 });
+      e.circle(x, y + 40, 12).fill({ color: 0x0c2a33, alpha: 0.9 });
+    }
+    // Rust and grime streaks.
+    for (let i = 0; i < (PW * PH) / 9000; i++) {
+      const x = R(0, PW);
+      const y = R(0, PH);
+      g.rect(x, y, R(1, 3), R(10, 60)).fill({ color: 0x5a3a28, alpha: R(0.1, 0.3) });
+    }
+  }
+
   private solidTileStatic(tx: number, ty: number): boolean {
     const c = this.ch(tx, ty);
     return c === '#' || c === 'c';
@@ -652,7 +733,7 @@ export class Interior {
       this.lamps.push({ light: { x, y: y + 30, radius: 330, intensity: 0, color: [0.95, 0.97, 0.86], haze: 0.03 }, core, halo, zone });
     };
     const addText = (t: Text) => {
-      this.litCam.addChildAt(t, 1);
+      this.litCam.addChildAt(t, this.litCam.getChildIndex(this.baseLadders) + 1);
       this.texts.push(t);
     };
     this.hooks!.decorate(g, e, gl, addLamp, addText, 'back', this.art?.materials.kestrel);
@@ -708,7 +789,7 @@ export class Interior {
           g.rect(x, y + 7, T + 0.5, 2).fill({ color: 0x15191c });
           if (tx % 3 === 0) g.moveTo(x + 4, y + 9).lineTo(x + 4, y + 22).stroke({ color: 0x3a4146, width: 2 });
         }
-        if (c === 'H') this.drawLadder(g, x, y);
+        if (c === 'H') this.drawLadder(this.hooks!.oceanBackdrop ? this.baseLadders : g, x, y);
       }
     this.hooks!.decorate(g, e, gl, addLamp, addText, 'front');
   }
@@ -737,6 +818,7 @@ export class Interior {
       e.ellipse(x, y, r * 0.35 - 4, r - 4).stroke({ color: CH[i % 3], width: 1, alpha: 0.25 });
     }
     for (let i = 0; i < (PW * PH) / 9000; i++) e.circle(R(0, PW), R(0, PH), R(0.6, 1.6)).fill({ color: CH[i % 3], alpha: R(0.15, 0.45) });
+    if (this.livingBases) this.drawHeartVaults(g);
     const solid = (tx: number, ty: number) => this.solidTileStatic(tx, ty);
     for (let ty = 0; ty < this.H; ty++)
       for (let tx = 0; tx < this.W; tx++) {
@@ -824,6 +906,29 @@ export class Interior {
         const rgb: [number, number, number] = [((col >> 16) & 255) / 255, ((col >> 8) & 255) / 255, (col & 255) / 255];
         this.lamps.push({ light: { x, y: y + 24, radius: 340, intensity: 0, color: rgb, haze: 0.06 }, core, halo, zone: 0 });
       }
+  }
+
+  private drawHeartVaults(g: Graphics): void {
+    // The foreground tile silhouettes still define each walkway and the chasm.
+    const upperFloor = 9 * T;
+    const lowerFloor = 28 * T;
+    for (const [tx, w, h, lean] of [[9, 595, 328, -0.065], [22, 430, 264, 0.08],
+      [35, 424, 290, -0.08], [46, 352, 318, 0.07], [58, 557, 308, 0.06], [74, 595, 320, -0.05]]) {
+      drawNacreVault(g, tx * T, upperFloor, w, h, lean);
+      drawNacreVault(g, tx * T + w * 0.018, upperFloor, w * 0.79, h * 0.84, lean);
+    }
+    g.poly([29 * T, upperFloor, 33 * T, upperFloor, 36 * T, 31 * T, 29 * T, 31 * T])
+      .fill({ color: 0x242840, alpha: 0.79 });
+    g.poly([49 * T, upperFloor, 53 * T, upperFloor, 53 * T, 31 * T, 47 * T, 31 * T])
+      .fill({ color: 0x302c4b, alpha: 0.72 });
+    for (const [tx, w, h] of [[10, 780, 628], [17, 645, 542], [37, 470, 620], [45, 400, 542], [65, 569, 350], [77, 395, 350]]) {
+      drawNacreVault(g, tx * T, lowerFloor, w, h, (tx % 5 - 2) * 0.052);
+    }
+    // The Choir chamber has a darker central recess around the answering plinth.
+    g.moveTo(7 * T, lowerFloor).lineTo(7.9 * T, 20 * T).quadraticCurveTo(11 * T, 13.1 * T, 14 * T, 12.7 * T)
+      .quadraticCurveTo(19.2 * T, 13.5 * T, 21 * T, 21.1 * T).lineTo(21 * T, lowerFloor).closePath()
+      .fill({ color: 0x17172f, alpha: 0.84 });
+    drawNacreVault(g, 14 * T, lowerFloor, 14.7 * T, 14.4 * T, -0.042);
   }
 
   /** Milestone 11: the sanctum's doors (song-locks) and the pool's shimmer, each frame. */
@@ -1046,7 +1151,7 @@ export class Interior {
     // Holding Collect: going out shuts the face plate first; anything else, the near hand works at it.
     const leaving = act?.key === 'exit' || act?.key === 'airlock';
     const holding = !!act && act.key !== 'grapple' && inp.collect && w.onGround && this.progress > 0;
-    w.visorTarget = holding && leaving ? 0 : 1;
+    w.visorTarget = inp.sealVisor || (holding && leaving) ? 0 : 1;
     w.working += ((holding && !leaving ? 1 : 0) - w.working) * Math.min(1, dt * 10);
     w.breakerPull = holding && act?.breaker ? this.progress : 0;
     this.label = act ? act.label : info || null;
@@ -1613,6 +1718,7 @@ export class Interior {
       c.scale.set(zoom);
       c.position.set(-this.cam.x * zoom, -this.cam.y * zoom);
     }
+    this.facilityOcean?.update(this.time, { x0: this.cam.x, y0: this.cam.y, x1: this.cam.x + viewW, y1: this.cam.y + viewH });
     // Steam, the bilge's surface, the grapple line and its target.
     const d = this.dynamic.clear();
     const de = this.dynEmissive.clear();
@@ -1635,6 +1741,7 @@ export class Interior {
     this.front.clear();
     if (this.grapple) this.drawGrapple(this.grapple);
     if (this.sanctum) this.animateSanctum(d, de);
+    else if (this.livingBases && !this.hooks && this.power) this.animateWreckInstruments(de, viewW, viewH);
     if (this.opts.animate) this.opts.animate(d, de, this.time);
     if (this.hooks) {
       de.clear();
@@ -1650,7 +1757,9 @@ export class Interior {
     this.headLamp.y = lamp.y;
     this.headLamp.dirX = w.face * 0.97;
     this.headLamp.dirY = 0.24;
-    this.headLamp.intensity = this.lampOn ? 1.6 : 0;
+    const lampGain = this.focus?.lampGain ?? this.hooks?.walkLampGain?.(w.x, w.y) ?? 1;
+    this.lampGain += (lampGain - this.lampGain) * (1 - Math.exp(-dt * 8));
+    this.headLamp.intensity = this.lampOn ? 1.6 * this.lampGain : 0;
     if (this.hooks)
       for (const l of this.lamps) {
         const on = this.hooks.powered(l.zone);
@@ -1685,6 +1794,25 @@ export class Interior {
     perf.lights = lights.length;
     perf.pass('lit', () => this.renderer.render({ container: this.litRoot, target: this.sceneRT, clear: true, clearColor: [0, 0, 0, 0] }));
     perf.pass('glow', () => this.renderer.render({ container: this.glowCam, target: this.glowRT, clear: true, clearColor: [0, 0, 0, 0] }));
+  }
+
+  private animateWreckInstruments(g: Graphics, viewW: number, viewH: number): void {
+    const fulmar = this.opts.style === 'fulmar';
+    const y = fulmar ? 3 * T + 24 : 6.5 * T - 24;
+    if (y < this.cam.y - 32 || y > this.cam.y + viewH + 32) return;
+    const stations = fulmar ? [74, 78, 82, 86, 90] : [53, 69, 83];
+    for (const station of stations) {
+      const x = station * T;
+      if (x < this.cam.x - 128 || x > this.cam.x + viewW + 32) continue;
+      const start = x + (fulmar ? 26 : 21);
+      const hue = fulmar ? 0xedbd73 : 0xa8bfad;
+      g.moveTo(start, y + 3);
+      for (let k = 1; k <= 9; k++) {
+        const wave = Math.sin(station + k * 0.91 + this.time * 2.4) * Math.sin(k / 9 * Math.PI);
+        g.lineTo(start + k * 4, y + 3 + wave * 4);
+      }
+      g.stroke({ color: hue, width: 1.35, alpha: 0.59 });
+    }
   }
 
   /** For tests and the sound: where the walker is. */

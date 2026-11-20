@@ -5,6 +5,7 @@ import type { WaterMotion } from '../scene/waterMotion';
 import { mulberry32, WORLD_SEED } from '../rng';
 import { TrenchScenery } from './trenchgfx';
 import { SanctumScenery } from './sanctumgfx';
+import { drawSurveyWreck } from './corvinaArt';
 import { AnemoneCrown, BottomAnimal } from '../actors/bottomLife';
 import {
   ANCHOR_X,
@@ -711,7 +712,7 @@ export class Scenery {
   private readonly anemoneFlow = { x: 0, y: 0, silt: 0, energy: 0 };
   private readonly shelfAnimals: BottomAnimal[] = [];
 
-  constructor(renderer: Renderer, detail: number, reef?: ReefTextures, seabed?: Texture, kelp?: readonly Texture[], forestOutcrop?: Texture, private readonly art?: WorldArt, living = false) {
+  constructor(renderer: Renderer, detail: number, reef?: ReefTextures, seabed?: Texture, kelp?: readonly Texture[], forestOutcrop?: Texture, private readonly art?: WorldArt, living = false, private readonly livingBases = false) {
     // Same seed every time, so switching presets rebuilds the identical world.
     rand = mulberry32(WORLD_SEED ^ 0x5ce9);
 
@@ -1037,13 +1038,13 @@ export class Scenery {
       this.slices.push({ obj: strip, x0: BUOY_X, x1: ANCHOR_X });
     }
     // Milestone 10: the trench.
-    this.trench = new TrenchScenery(detail, this.art, living);
+    this.trench = new TrenchScenery(detail, this.art, living, this.livingBases);
     this.view.addChild(this.trench.view);
     this.emissive.addChild(this.trench.emissive);
     this.glow.addChild(this.trench.glow);
     this.lights.push(...this.trench.lights);
     // Milestone 11: the sanctum.
-    this.sanctum = new SanctumScenery(detail, this.art);
+    this.sanctum = new SanctumScenery(detail, this.art, this.livingBases);
     this.view.addChild(this.sanctum.view);
     this.emissive.addChild(this.sanctum.emissive);
     this.glow.addChild(this.sanctum.glow);
@@ -1664,7 +1665,7 @@ export class Scenery {
     // The two small sealed wrecks and the great wreck of the Corvina.
     this.drawTrawler(dg(WRECKS[0].x0), WRECKS[0]);
     this.drawBarge(dg(WRECKS[1].x0), WRECKS[1]);
-    this.drawCorvina(decor2);
+    this.drawCorvina(decor2, this.livingBases);
     for (const w of WRECKS) {
       const x = w.hatchX;
       const y = gy(x) - 70;
@@ -2005,6 +2006,10 @@ export class Scenery {
   private hull(g: Graphics, pts: number[], color: number, texture?: Texture): void {
     g.poly(pts).fill({ color });
     if (texture) g.poly(pts).fill(materialFill(texture, color, 0.72, 1320, 610));
+    this.weatherHull(g, pts);
+  }
+
+  private weatherHull(g: Graphics, pts: number[], opacity = 1): void {
     // Plate seams and rivets along the hull.
     let minX = Infinity;
     let maxX = -Infinity;
@@ -2019,7 +2024,7 @@ export class Scenery {
     for (let i = 0; i < (maxX - minX) / 6; i++) {
       const x = R(minX + 10, maxX - 10);
       const y = R(minY + 10, maxY - 6);
-      dab(g, x, y, R(8, 22), R(4, 10), rand() < 0.5 ? 0x4a3a32 : 0x7a5a44, R(0.25, 0.45));
+      dab(g, x, y, R(8, 22), R(4, 10), rand() < 0.5 ? 0x4a3a32 : 0x7a5a44, R(0.25, 0.45) * opacity);
     }
   }
 
@@ -2054,22 +2059,26 @@ export class Scenery {
 
   private cvParts: { hatchClosed: Graphics; hatchOpen: Graphics; shown: string } | null = null;
 
-  private drawCorvina(g: Graphics): void {
+  private drawCorvina(g: Graphics, livingBases: boolean): void {
     const { x0, x1 } = CORVINA;
     const f = (x: number) => gy(x) + 30;
     const hull = corvinaHull();
     const H = corvinaHouse();
     // A big survey ship lying on the shelf: a long dark hull, her bow raised on a rock.
-    this.hull(g, hull.flat(), 0x4a4240, this.art?.materials.corvina);
-    g.rect(x0, hull[0][1] - 2, x1 - x0 - 150, 10).fill({ color: 0x7a3a2a });
-    for (let k = 0; k < 18; k++) g.circle(x0 + 160 + k * 52, f(x0) - 230, 9).fill({ color: 0x0c1012 });
-    // Superstructure and two masts.
-    g.roundRect(H.x, H.y, H.w, H.h, 8).fill({ color: 0x5a524c });
     const steel = this.art?.materials.corvina;
-    if (steel) g.roundRect(H.x, H.y, H.w, H.h, 8).fill(materialFill(steel, 0x5a524c, 0.68, 1180, 490));
-    for (let k = 0; k < 6; k++) g.roundRect(H.x + 20 + k * 58, H.y + 14, 38, 24, 4).fill({ color: 0x0c1012 });
-    g.moveTo(x0 + 620, hull[0][1]).lineTo(x0 + 640, f(x0) - 640).stroke({ color: 0x3e3632, width: 9 });
-    g.moveTo(x0 + 860, hull[0][1]).lineTo(x0 + 900, f(x0) - 560).stroke({ color: 0x3e3632, width: 7 });
+    if (livingBases) {
+      drawSurveyWreck(g, steel);
+      this.weatherHull(g, hull.flat(), 0.43);
+    } else {
+      this.hull(g, hull.flat(), 0x4a4240, steel);
+      g.rect(x0, hull[0][1] - 2, x1 - x0 - 150, 10).fill({ color: 0x7a3a2a });
+      for (let k = 0; k < 18; k++) g.circle(x0 + 160 + k * 52, f(x0) - 230, 9).fill({ color: 0x0c1012 });
+      g.roundRect(H.x, H.y, H.w, H.h, 8).fill({ color: 0x5a524c });
+      if (steel) g.roundRect(H.x, H.y, H.w, H.h, 8).fill(materialFill(steel, 0x5a524c, 0.68, 1180, 490));
+      for (let k = 0; k < 6; k++) g.roundRect(H.x + 20 + k * 58, H.y + 14, 38, 24, 4).fill({ color: 0x0c1012 });
+      g.moveTo(x0 + 620, hull[0][1]).lineTo(x0 + 640, f(x0) - 640).stroke({ color: 0x3e3632, width: 9 });
+      g.moveTo(x0 + 860, hull[0][1]).lineTo(x0 + 900, f(x0) - 560).stroke({ color: 0x3e3632, width: 7 });
+    }
     rustStreaks(g, x0 + 40, x1 - 80, f(x0) - 260, 40, 70);
     const t = new Text({ text: 'CORVINA', style: { fontFamily: 'monospace', fontSize: 26, fill: 0xd8d0b8, fontWeight: 'bold', letterSpacing: 6 } });
     t.alpha = 0.55;
