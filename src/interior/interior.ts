@@ -9,6 +9,9 @@ import { mulberry32, WORLD_SEED } from '../rng';
 import { drawSurveyDecks } from './corvinaArt';
 import { drawFulmarDecks } from './fulmarArt';
 import { drawNacreVault } from '../world/nacreVault';
+import { drawHabitatFrame } from '../world/habitatFrame';
+import { HousingOcean } from './housingOcean';
+import type { OceanSource } from './oceanCapture';
 
 /**
  * Dry interiors on foot (after milestone 8 part 2, Colin's direction): a
@@ -206,6 +209,7 @@ export class Interior {
   private static_ = new Graphics();
   private baseScenery = new Container();
   private baseLadders = new Graphics();
+  private facilityOcean?: HousingOcean;
   private emissiveStatic = new Graphics();
   private glowStatic = new Graphics();
   private lamps: { light: Light; core: Graphics; halo: Graphics; zone: number }[] = [];
@@ -351,7 +355,7 @@ export class Interior {
   // ---------------------------------------------------------------------------
 
   /** Build a level and step into it at its 'S' tile. */
-  enter(map: string[], state: InteriorState, hooks: InteriorHooks | null = null, opts: InteriorOptions | null = null): void {
+  enter(map: string[], state: InteriorState, hooks: InteriorHooks | null = null, opts: InteriorOptions | null = null, ocean?: OceanSource): void {
     if (opts) this.opts = opts;
     else if (!hooks) this.opts = { labels: CORVINA_LABELS, sign: { ch: '1', text: 'SURVEY LAB' } };
     else this.opts = {};
@@ -359,6 +363,12 @@ export class Interior {
     this.hooks = hooks;
     hooks?.attach?.(this.actorLit, this.actorEm, this.actorGlow);
     if (hooks?.oceanBackdrop) this.baseScenery.addChild(hooks.oceanBackdrop);
+    this.clearFacilityOcean();
+    if (ocean) {
+      const plate = this.sanctum ? this.art?.plates.sanctum : this.opts.style === 'fulmar' ? this.art?.plates.trench : this.art?.plates.shelf;
+      this.facilityOcean = new HousingOcean(plate, ocean);
+      this.baseScenery.addChild(this.facilityOcean.root);
+    }
     this.focus = null;
     this.lampGain = 1;
     this.climbing = false;
@@ -466,11 +476,18 @@ export class Interior {
   leave(): void {
     this.hooks?.detach?.();
     this.hooks = null;
+    this.clearFacilityOcean();
     this.focus = null;
     this.active = false;
     this.view.visible = false;
     this.label = null;
     this.banner = '';
+  }
+
+  private clearFacilityOcean(): void {
+    this.facilityOcean?.clear();
+    this.facilityOcean?.root.destroy();
+    this.facilityOcean = undefined;
   }
 
   // ---------------------------------------------------------------------------
@@ -502,6 +519,7 @@ export class Interior {
     }
     if (this.sanctum) {
       this.buildSanctumStatic(g, e, gl, rand);
+      this.drawFacilityViews(g, 'sanctum');
       this.shownKey = '';
       return;
     }
@@ -512,6 +530,7 @@ export class Interior {
     if (survey) drawSurveyDecks(g, T, PW, PH);
     else if (listening) drawFulmarDecks(g, T, PW, PH);
     else this.drawWreckWalls(g, e, steel, PW, PH, rand);
+    this.drawFacilityViews(g, listening ? 'fulmar' : 'corvina');
     // Tiles retain their exact collision shapes and interaction hardware.
     for (let ty = 0; ty < this.H; ty++) {
       for (let tx = 0; tx < this.W; tx++) {
@@ -621,6 +640,27 @@ export class Interior {
       this.texts.push(t);
     }
     this.shownKey = '';
+  }
+
+  private drawFacilityViews(g: Graphics, site: 'corvina' | 'fulmar' | 'sanctum'): void {
+    const ocean = this.facilityOcean;
+    if (!ocean) return;
+    ocean.clear();
+    const views = site === 'corvina' ? [[6, 2.1, 17, 3.35], [48, 2.1, 31, 3.35]]
+      : site === 'fulmar' ? [[5, 2.05, 19, 3.35], [37, 2.05, 12.5, 3.20]]
+      : [[6, 2.1, 18.5, 4.55], [56, 2.1, 20, 4.55]];
+    for (const [x, y, w, h] of views) {
+      const aperture = { x: x * T, y: y * T, w: w * T, h: h * T };
+      if (site === 'sanctum') {
+        drawNacreVault(g, aperture.x + aperture.w / 2, aperture.y + aperture.h + 24, aperture.w + 76, aperture.h + 62, -0.04);
+        g.roundRect(aperture.x - 10, aperture.y - 9, aperture.w + 20, aperture.h + 21, 15).stroke({ color: 0x979aba, width: 5, alpha: 0.71 });
+      } else {
+        drawHabitatFrame(g, aperture, site === 'fulmar' ? 16 : 10);
+        g.moveTo(aperture.x, aperture.y + aperture.h + 8).lineTo(aperture.x + aperture.w, aperture.y + aperture.h + 8)
+          .stroke({ color: site === 'fulmar' ? 0x8e733f : 0xad6550, width: 5, alpha: 0.82 });
+      }
+      ocean.add('panorama', aperture);
+    }
   }
   private drawWreckWalls(g: Graphics, e: Graphics, steel: Texture | undefined, PW: number, PH: number, rand: () => number): void {
     const R = (a: number, b: number) => a + rand() * (b - a);
@@ -1678,6 +1718,7 @@ export class Interior {
       c.scale.set(zoom);
       c.position.set(-this.cam.x * zoom, -this.cam.y * zoom);
     }
+    this.facilityOcean?.update(this.time, { x0: this.cam.x, y0: this.cam.y, x1: this.cam.x + viewW, y1: this.cam.y + viewH });
     // Steam, the bilge's surface, the grapple line and its target.
     const d = this.dynamic.clear();
     const de = this.dynEmissive.clear();

@@ -58,14 +58,16 @@ export class School {
     count: number,
     private readonly area: { x0: number; x1: number; y0: number; y1: number },
     private readonly living = false,
+    private readonly random = rand,
+    visualSize = 1,
   ) {
     this.cx = (area.x0 + area.x1) / 2;
     this.cy = (area.y0 + area.y1) / 2;
     this.pickTarget();
     for (let i = 0; i < count; i++) {
       const { g, tail } = living ? { g: new Container(), tail: undefined } : drawFish();
-      const a = rand() * Math.PI * 2;
-      const r = Math.sqrt(rand());
+      const a = this.random() * Math.PI * 2;
+      const r = Math.sqrt(this.random());
       const f: Fish = {
         g,
         tail,
@@ -75,12 +77,12 @@ export class School {
         y: this.cy,
         vx: 0,
         vy: 0,
-        phase: rand() * 10,
+        phase: this.random() * 10,
         face: 1,
       };
       f.x += f.ox;
       f.y += f.oy;
-      const size = 0.85 + rand() * 0.35;
+      const size = (0.85 + this.random() * 0.35) * visualSize;
       g.scale.set(size);
       if (living) f.silverbar = new Silverbar(g, f.phase, size);
       this.view.addChild(g);
@@ -91,11 +93,11 @@ export class School {
   private pickTarget(): void {
     const a = this.area;
     for (let i = 0; i < 12; i++) {
-      this.tx = a.x0 + rand() * (a.x1 - a.x0);
-      this.ty = a.y0 + rand() * (a.y1 - a.y0);
+      this.tx = a.x0 + this.random() * (a.x1 - a.x0);
+      this.ty = a.y0 + this.random() * (a.y1 - a.y0);
       if (!isSolid(this.tx, this.ty + 40) && !isSolid(this.tx, this.ty - 40)) break;
     }
-    this.retarget = 6 + rand() * 6;
+    this.retarget = 6 + this.random() * 6;
   }
 
   update(dt: number, time: number, diverX: number, diverY: number, viewX0: number, viewX1: number, water?: WaterMotion): void {

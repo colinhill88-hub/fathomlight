@@ -26,6 +26,8 @@ import { Light, Lighting } from './fx/lighting';
 import { FRONT_REF, Scenery } from './world/scenery';
 import { bagRestingPlace, Pickups } from './world/pickups';
 import { School } from './actors/school';
+import { mulberry32 } from './rng';
+import { OceanCapture } from './interior/oceanCapture';
 import {
   bakeSkyVisibility,
   CAVE,
@@ -82,6 +84,7 @@ import {
   CLEFT,
   CLEFT_FINDS,
   FULMAR_HATCH,
+  FULMAR,
   TR_BUOY,
   TR_PROBE,
   TR_VENTS,
@@ -190,6 +193,7 @@ async function boot(): Promise<void> {
   const livingCreatures = urlq.get('creatures') !== 'original';
   const livingBases = urlq.get('bases') !== 'original';
   const housingOcean = livingBases && urlq.get('housingOcean') !== 'original';
+  const panorama = housingOcean && urlq.get('panorama') !== 'original';
   let choice: PresetChoice = loadChoice();
   let preset: Preset = resolveChoice(choice);
 
@@ -317,6 +321,11 @@ async function boot(): Promise<void> {
     // Milestone 7: a wary shoal between the giant kelp.
     new School(18, { x0: 10400, x1: 14200, y0: 520, y1: 1050 }, livingCreatures),
   ];
+  // Ambient life shares its exterior positions as seen through windows. It is outside the scanner roster.
+  const basinSchools = panorama ? [-3600, -1880, 530].map((x, i) => {
+    const bottom = groundY(x);
+    return new School(9, { x0: x - 190, x1: x + 190, y0: bottom - 103, y1: bottom - 37 }, livingCreatures, mulberry32(8210 + i), 0.58);
+  }) : [];
   boom.open = save.boomOpen;
   const scanner = new Scanner([
     { id: 'silverbar', points: () => schools.map((s) => ({ x: s.cx, y: s.cy })) },
@@ -392,10 +401,10 @@ async function boot(): Promise<void> {
   const layout = new BaseLayout(save.pieces);
   save.pieces = layout.pieces;
   drone.teleport(diver.x, diver.y, layout);
-  const baseView = new BaseView(livingBases, housingOcean);
+  const baseView = new BaseView(livingBases, housingOcean, panorama);
   baseView.sync(layout);
   tankLife.sync(save, layout);
-  const buildOverlay = new BuildOverlay(livingBases, housingOcean);
+  const buildOverlay = new BuildOverlay(livingBases, housingOcean, panorama);
   overlayCam.addChild(buildOverlay.view, gearFx.overlay);
   // Milestone 5: conveyors, feed pipes and the machines they join.
   const factory = new Factory();
@@ -469,6 +478,7 @@ async function boot(): Promise<void> {
       lurkers.view,
       hunters.view,
       ...schools.map((s) => s.view),
+      ...basinSchools.map((s) => s.view),
       ...fish.map((f) => f.view),
       sub.view,
       subBubbles.view,
@@ -485,6 +495,16 @@ async function boot(): Promise<void> {
     glowCam.addChild(scenery.glow, baseView.glow, tankLife.glow, pickups.glow, wildlife.glow, escort.glow, lurkers.glow, hunters.glow, sub.glow, drone.glow, ...fish.map((f) => f.halo), diver.lensGlow, diver.resonGlow);
   }
   populate();
+
+  const oceanCapture = panorama ? new OceanCapture(renderer, litCam, (bounds, dt) => {
+    const { x, y, w, h } = bounds;
+    motion?.advance(time);
+    scenery.update(time, -10000, y + h / 2, 0, x, x + w, motion, dt);
+    const nearbyShoals = x < 2200 ? [...basinSchools, ...schools] : schools;
+    const shoals = nearbyShoals.filter((school) => school.cx >= x - 360 && school.cx <= x + w + 360);
+    for (const s of shoals) s.update(dt, time, -10000, -10000, x, x + w, motion);
+    return [scenery.view, ...shoals.map((s) => s.view)];
+  }) : undefined;
 
   const worldLayers = [water.view, backdrop.view, zoneBackdrop.view];
   if (shallowsBackdrop) worldLayers.push(shallowsBackdrop.view);
@@ -3535,6 +3555,7 @@ async function boot(): Promise<void> {
       );
     }
     for (const sc of schools) sc.update(dt, time, diver.x, diver.y, camX, camX + viewW, motion);
+    for (const sc of basinSchools) sc.update(dt, time, diver.x, diver.y, camX, camX + viewW, motion);
     tankLife.update(dt, time, save, camX, camX + viewW);
     // While tending a tank, the diver and drone fade so they don't hide it.
     const fade = (care.active ? 0.12 : dockUI.active || station.active ? 0.3 : 1) * (boarding ? boardFade : 1);
@@ -3787,7 +3808,8 @@ async function boot(): Promise<void> {
   }
   function enterCorvina(): void {
     save.corvina.taken ??= [];
-    interior.enter(CORVINA_MAP, { breakers: save.corvina.breakers, taken: save.corvina.taken });
+    interior.enter(CORVINA_MAP, { breakers: save.corvina.breakers, taken: save.corvina.taken }, null, null,
+      oceanCapture?.source({ x: CORVINA.x0 - 165, y: CV_HATCH.y - 177, sx: 0.37, sy: 0.42 }));
     inside = 'corvina';
     goOnFoot();
     sound.hatchCue(true);
@@ -3820,7 +3842,8 @@ async function boot(): Promise<void> {
 
   // ---- Milestone 10: the Fulmar deep station, on foot ----
   function enterFulmar(): void {
-    interior.enter(FULMAR_MAP, { breakers: save.fulmar.breakers, taken: save.fulmar.taken }, null, FULMAR_OPTS);
+    interior.enter(FULMAR_MAP, { breakers: save.fulmar.breakers, taken: save.fulmar.taken }, null, FULMAR_OPTS,
+      oceanCapture?.source({ x: FULMAR.x0 - 110, y: FULMAR_HATCH.y - 201, sx: 0.30, sy: 0.48 }));
     inside = 'fulmar';
     goOnFoot();
     sound.hatchCue(true);
@@ -3850,7 +3873,8 @@ async function boot(): Promise<void> {
   function enterHeart(): void {
     // Contact left unfinished (the game closed mid-song): the plinth waits again.
     if (!save.sanctum.contact) save.sanctum.taken = save.sanctum.taken.filter((t) => t !== '9');
-    interior.enter(HEART_MAP, { breakers: [], taken: save.sanctum.taken }, null, heartOptions(choir));
+    interior.enter(HEART_MAP, { breakers: [], taken: save.sanctum.taken }, null, heartOptions(choir),
+      oceanCapture?.source({ x: SANCTUM.hall.x - 690, y: SANCTUM.hall.y - 237, sx: 0.39, sy: 0.57 }));
     inside = 'sanctum';
     goOnFoot();
     sound.hatchCue(true);
@@ -3932,6 +3956,8 @@ async function boot(): Promise<void> {
     livingBases,
     housingOcean,
     basinBackdrop: worldArt?.plates.basin,
+    panorama: oceanCapture ? (registration) => oceanCapture.source(registration, (x, y) =>
+      Math.min(460, Math.max(0, groundY(x) - y - 8))) : undefined,
     carried: () => MATERIALS_LIST.reduce((a, k) => a + save.bag[k], 0),
     storageText: () => {
       const n = MATERIALS_LIST.reduce((a, k) => a + save.stored[k], 0);

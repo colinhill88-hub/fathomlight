@@ -482,7 +482,7 @@ function drawMachineShell(g: Graphics, x: number, y: number, w: number, h: numbe
     .stroke({ color: 0xbc9260, alpha: 0.64, width: 1.5 });
 }
 
-function drawPressureCorridor(n: number, rot: number, withStencil = true): PieceArt {
+function drawPressureCorridor(n: number, rot: number, withStencil = true, panorama = false): PieceArt {
   const body = new Container();
   const chamber = body.addChild(new Container());
   const g = chamber.addChild(new Graphics());
@@ -496,10 +496,10 @@ function drawPressureCorridor(n: number, rot: number, withStencil = true): Piece
   g.moveTo(18, y + height - 7).lineTo(35, y + height - 7).lineTo(42, y + height - 11)
     .lineTo(CELL - 16, y + height - 11).stroke({ color: 0xb48054, width: 2.2 });
   for (const x of [4, CELL - 13]) drawPressureRib(g, x, y - 5, height + 10, 9);
-  const port = { x: c - 24, y: c - 12, w: 48, h: 24 };
+  const port = panorama ? { x: c - 35, y: c - 15, w: 70, h: 30 } : { x: c - 24, y: c - 12, w: 48, h: 24 };
   drawHabitatFrame(g, port, 4);
   g.roundRect(port.x + 1, port.y + 1, port.w - 2, port.h - 2, 4).fill(0x20464c);
-  g.rect(c - 1.5, c - 12, 3, 24).fill(0x67766a);
+  g.rect(c - 1.5, port.y, 3, port.h).fill(0x67766a);
   const upright = rot % 2 === 1;
   for (const x of [c - 22, c + 2]) {
     const panel = upright ? [c - 5, x, 14, 20] as const : [x, c - 9, 20, 14] as const;
@@ -1426,7 +1426,7 @@ function drawPress(n: number): PieceArt {
  * Heavy side pillars carry the hall down to the seabed; amber guide lamps
  * on the pillars show the way in.
  */
-function drawPressureDock(n: number, housingOcean: boolean): PieceArt {
+function drawPressureDock(n: number, housingOcean: boolean, panorama: boolean): PieceArt {
   const W = 3 * CELL;
   const H = 2 * CELL;
   const cx = W / 2;
@@ -1464,6 +1464,14 @@ function drawPressureDock(n: number, housingOcean: boolean): PieceArt {
     drawHabitatFrame(g, { x, y: 55, w: 52, h: 25 }, 5);
     windows.roundRect(x + 3, 59, 46, 16, 3).fill({ color: 0xffcb88, alpha: 0.6 });
     windowGlow.ellipse(x + 26, 68, 34, 20).fill({ color: 0xffc081, alpha: 0.26 });
+  }
+  if (panorama) {
+    for (const x of [37, W - 93]) {
+      const panel = { x, y: 44, w: 56, h: 34 };
+      drawHabitatFrame(g, panel, 5);
+      g.roundRect(panel.x, panel.y, panel.w, panel.h, 5).fill(0x376565);
+      g.moveTo(x + 7, 54).quadraticCurveTo(x + 27, 45, x + 48, 49).stroke({ color: 0xb9cabb, width: 2, alpha: 0.61 });
+    }
   }
   g.roundRect(cx - POOL_HALF_WIDTH, 44, POOL_HALF_WIDTH * 2, POOL_SURFACE_Y - 43, 8).fill(0x19383d);
   g.rect(cx - POOL_HALF_WIDTH + 4, POOL_SURFACE_Y, (POOL_HALF_WIDTH - 4) * 2, 3).fill({ color: 0x7baca5, alpha: 0.42 });
@@ -1707,10 +1715,10 @@ function drawWorkshop(n: number, livingBases: boolean): PieceArt {
 }
 
 /** Draw a piece's art. The same drawing is used for placed pieces and the build ghost. */
-export function drawPiece(kind: PieceKind, n: number, rot: number, seed: number, livingBases = false, housingOcean = livingBases): PieceArt {
+export function drawPiece(kind: PieceKind, n: number, rot: number, seed: number, livingBases = false, housingOcean = livingBases, panorama = false): PieceArt {
   rand = mulberry32(WORLD_SEED ^ (seed * 7919 + 0x1b5e));
   if (kind === 'dome') return livingBases ? drawKestrelHabitat(n) : drawDome(n);
-  if (kind === 'corridor') return livingBases ? drawPressureCorridor(n, rot) : drawCorridor(n, rot);
+  if (kind === 'corridor') return livingBases ? drawPressureCorridor(n, rot, true, panorama) : drawCorridor(n, rot);
   if (kind === 'shaft') return drawShaft(n, livingBases);
   if (kind === 'junction') return drawJunction(n);
   if (kind === 'lantern') return drawLantern(n);
@@ -1728,7 +1736,7 @@ export function drawPiece(kind: PieceKind, n: number, rot: number, seed: number,
   if (kind === 'filter') return drawFilter(n, livingBases);
   if (kind === 'feeder') return drawFeeder(n, livingBases);
   if (kind === 'press') return drawPress(n);
-  if (kind === 'dock') return livingBases ? drawPressureDock(n, housingOcean) : drawDock(n);
+  if (kind === 'dock') return livingBases ? drawPressureDock(n, housingOcean, panorama) : drawDock(n);
   if (kind === 'lab') return drawLab(n, livingBases);
   if (kind === 'workshop') return drawWorkshop(n, livingBases);
   return drawStorage(n, livingBases);
@@ -1835,7 +1843,7 @@ export class BaseView {
   private live = new Map<number, Live>();
   private sparks: Spark[] = [];
 
-  constructor(private readonly livingBases = false, private readonly housingOcean = livingBases) {
+  constructor(private readonly livingBases = false, private readonly housingOcean = livingBases, private readonly panorama = false) {
     this.view.addChild(this.legs, this.pieceLayer, this.collarG, this.whorlLayer);
   }
 
@@ -1859,7 +1867,7 @@ export class BaseView {
     for (const p of [...layout.pieces].sort((a, b) => a.id - b.id)) {
       counts[p.kind]++;
       if (this.live.has(p.id)) continue;
-      const art = drawPiece(p.kind, counts[p.kind], p.rot, p.id, this.livingBases, this.housingOcean);
+      const art = drawPiece(p.kind, counts[p.kind], p.rot, p.id, this.livingBases, this.housingOcean, this.panorama);
       const r = pieceRect(p);
       const root = new Container();
       root.addChild(art.body);
@@ -2234,7 +2242,7 @@ export class BuildOverlay {
   private links = new Graphics();
   private ports = new Graphics();
 
-  constructor(private readonly livingBases = false, private readonly housingOcean = livingBases) {
+  constructor(private readonly livingBases = false, private readonly housingOcean = livingBases, private readonly panorama = false) {
     this.view.addChild(this.grid, this.links, this.ghostRoot, this.ghostOutline, this.marks, this.select, this.ports);
     this.view.visible = false;
     // Faint cell corners over open water, drawn once (the site is big).
@@ -2360,7 +2368,7 @@ export class BuildOverlay {
       this.ghostKey = key;
       this.ghostRoot.removeChildren().forEach((c) => c.destroy({ children: true }));
       if (ghost) {
-        const art = drawPiece(ghost.kind, 0, ghost.rot, 99, this.livingBases, this.housingOcean);
+        const art = drawPiece(ghost.kind, 0, ghost.rot, 99, this.livingBases, this.housingOcean, this.panorama);
         this.ghostRoot.addChild(art.body);
         art.windows.destroy();
         art.windowGlow.destroy();

@@ -2,6 +2,7 @@ import { Container, FillGradient, Graphics, Sprite, type Texture } from 'pixi.js
 import { mulberry32 } from '../rng';
 import { surfaceWave } from '../fx/surface';
 import { drawDockBrace, POOL_SURFACE_Y } from '../world/moonpool';
+import type { OceanImage, OceanSource } from './oceanCapture';
 
 type Rect = { x: number; y: number; w: number; h: number };
 type Camera = { x0: number; y0: number; x1: number; y1: number };
@@ -31,12 +32,18 @@ class OceanAperture {
   private readonly moving = new Graphics();
   private readonly flakes: { x: number; y: number; phase: number; size: number }[] = [];
   private readonly sprite?: Sprite;
+  private readonly live = new Sprite();
 
-  constructor(readonly kind: 'port' | 'pool' | 'service', private readonly area: Rect, basin?: Texture, private readonly waterline = 0) {
+  constructor(readonly kind: 'port' | 'pool' | 'service' | 'panorama', private readonly area: Rect, basin?: Texture, private readonly waterline = 0) {
     const { x, y, w, h } = area;
     const pool = kind === 'pool';
     this.root.position.set(x, y);
-    const mask = new Graphics().roundRect(0, 0, w, h, pool ? 1 : 6).fill(0xffffff);
+    const mask = new Graphics();
+    if (kind === 'panorama') {
+      const shoulder = Math.min(32, w * 0.13);
+      mask.moveTo(0, h - 10).lineTo(0, 25).quadraticCurveTo(shoulder * 0.38, 5, shoulder, 0).lineTo(w - shoulder, 0)
+        .quadraticCurveTo(w - shoulder * 0.38, 5, w, 25).lineTo(w, h - 10).lineTo(w - 13, h).lineTo(13, h).closePath().fill(0xffffff);
+    } else mask.roundRect(0, 0, w, h, pool ? 1 : 6).fill(0xffffff);
     this.root.addChild(this.scene, mask);
     this.scene.mask = mask;
     const base = this.scene.addChild(new Graphics());
@@ -58,6 +65,11 @@ class OceanAperture {
       .fill({ color: 0x51818c, alpha: 0.35 });
     stone.moveTo(w * 0.42, Y(0.92)).lineTo(w * 0.65, Y(0.73)).lineTo(w * 0.83, Y(0.64)).lineTo(w + 32, Y(0.79))
       .lineTo(w + 32, h + 6).lineTo(w * 0.4, h + 6).closePath().fill({ color: 0x132e40, alpha: 0.74 });
+
+    this.live.visible = false;
+    this.live.alpha = pool ? 0.67 : 0.84;
+    this.live.tint = pool ? 0x5397ab : 0x739faf;
+    this.scene.addChild(this.live);
 
     const near = this.scene.addChild(new Graphics());
     if (pool) {
@@ -88,6 +100,17 @@ class OceanAperture {
         near.rect(x - 5, 0, 10, h).fill(0x3b5060);
         near.rect(x - 4, 0, 2, h).fill({ color: 0xa9a888, alpha: 0.65 });
       }
+    } else if (kind === 'panorama') {
+      near.moveTo(7, 27).quadraticCurveTo(18, 8, Math.min(39, w * 0.21), 7).lineTo(w - 28, 7)
+        .stroke({ color: 0xbddee0, width: 2.4, alpha: 0.38, cap: 'round' });
+      near.moveTo(3, h - 13).lineTo(16, h - 5).lineTo(w - 16, h - 5).lineTo(w - 3, h - 13)
+        .stroke({ color: 0x7ac4c4, width: 3.2, alpha: 0.27 });
+      if (w > 240) for (const fraction of (w > 510 ? [0.31, 0.69] : [0.51])) {
+        const x = w * fraction;
+        const skew = x < w / 2 ? 12 : -12;
+        near.poly([x - skew - 5, 0, x - skew + 6, 0, x + 6, h, x - 5, h]).fill(0x344a4e);
+        near.moveTo(x - skew - 4, 0).lineTo(x - 4, h).stroke({ color: 0x9aab9d, width: 2, alpha: 0.56 });
+      }
     }
     this.scene.addChild(this.moving);
     const rand = mulberry32(Math.round(x * 9151 + y * 7717));
@@ -96,10 +119,22 @@ class OceanAperture {
     }
   }
 
-  update(time: number, camera: Camera): void {
+  inView(camera: Camera): boolean {
     const { x, y, w, h } = this.area;
-    this.root.visible = x + w >= camera.x0 && x <= camera.x1 && y + h >= camera.y0 && y <= camera.y1;
+    return x + w >= camera.x0 && x <= camera.x1 && y + h >= camera.y0 && y <= camera.y1;
+  }
+
+  update(time: number, camera: Camera, image?: OceanImage): void {
+    const { x, y, w, h } = this.area;
+    this.root.visible = this.inView(camera);
     if (!this.root.visible) return;
+    this.live.visible = !!image;
+    if (image) {
+      this.live.texture = image.texture;
+      this.live.position.set(image.rect.x - x, image.rect.y - y);
+      this.live.width = image.rect.w;
+      this.live.height = image.rect.h;
+    }
     const travel = (camera.x0 + camera.x1) / 2 - (x + w / 2);
     this.ridge.x = Math.max(-14, Math.min(14, travel * 0.045));
     if (this.sprite) {
@@ -114,6 +149,13 @@ class OceanAperture {
       const beam = Math.abs(Math.abs(px - w / 2) - w * (0.235 + p.y * 0.10));
       const gain = pool ? (1 - p.y) * (beam < w * 0.11 ? 0.8 : 0.29) : 0.42;
       g.ellipse(px, py, p.size * 1.45, p.size).fill({ color: 0xb9e2d7, alpha: gain });
+    }
+    if (this.kind === 'panorama') {
+      for (let i = 0; i < 3; i++) {
+        const px = w * (0.13 + i * 0.25) + Math.sin(time * 0.48 + i) * 17;
+        g.moveTo(px, 4).quadraticCurveTo(px + 4, h * 0.3, px + w * 0.14, h * 0.72)
+          .stroke({ color: 0xb0dad6, width: 4 + i * 2, alpha: 0.12 * (0.7 + 0.3 * Math.sin(time * 0.8 + i)), cap: 'round' });
+      }
     }
     if (pool) {
       const left = w * 0.24;
@@ -144,7 +186,7 @@ export class HousingOcean {
   readonly root = new Container();
   readonly views: OceanAperture[] = [];
 
-  constructor(private readonly basin?: Texture) {}
+  constructor(private readonly basin?: Texture, private readonly source?: OceanSource) {}
 
   add(kind: OceanAperture['kind'], area: Rect, waterline?: number): void {
     const view = new OceanAperture(kind, area, this.basin, waterline);
@@ -153,7 +195,9 @@ export class HousingOcean {
   }
 
   update(time: number, camera: Camera): void {
-    for (const view of this.views) view.update(time, camera);
+    const image = this.source && this.views.some((v) => v.inView(camera))
+      ? this.source({ x: camera.x0, y: camera.y0, w: camera.x1 - camera.x0, h: camera.y1 - camera.y0 }, time) : undefined;
+    for (const view of this.views) view.update(time, camera, image);
   }
 
   clear(): void {
