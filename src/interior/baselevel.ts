@@ -1,4 +1,4 @@
-import { Container, FillGradient, Graphics, Text, type Texture } from 'pixi.js';
+import { Container, FillGradient, Graphics, Sprite, Text, type Texture } from 'pixi.js';
 import { DC, bolts, ceilingBeam, flangeRect, floorGrime, hazard, pipeRun, pipeUp, rivet, skirting, wallPanels } from './detail';
 import type { Light } from '../fx/lighting';
 import { T, type InteriorAct, type InteriorHooks } from './interior';
@@ -228,6 +228,7 @@ export interface BaseCtx {
   housingOcean: boolean;
   basinBackdrop?: Texture;
   panorama?: (registration: OceanRegistration) => OceanSource;
+  oceanSurround?: (registration: OceanRegistration) => OceanSource;
   carried(): number;
   storageText(): string;
   unload(pieceId: number): void;
@@ -342,6 +343,8 @@ interface Spot {
 export class BaseHooks implements InteriorHooks {
   readonly style = 'base' as const;
   private readonly ocean?: HousingOcean;
+  private readonly surroundSource?: OceanSource;
+  readonly oceanSurround?: Sprite;
   private readonly roomFixtures = new Graphics();
   get oceanBackdrop(): Container | undefined { return this.ocean?.root; }
 
@@ -379,6 +382,8 @@ export class BaseHooks implements InteriorHooks {
     domeId: number | null,
   ) {
     this.ocean = ctx.housingOcean ? new HousingOcean(ctx.basinBackdrop, ctx.panorama?.(level.exterior)) : undefined;
+    this.surroundSource = ctx.oceanSurround?.(level.exterior);
+    if (this.surroundSource) this.oceanSurround = new Sprite({ label: 'Exterior ocean around housing' });
     const habitat = level.rooms.find((r) => r.kind === 'tank' || r.kind === 'gtank');
     const dock = level.rooms.find((r) => r.kind === 'dock');
     this.routeLookDown = this.seabedSightline(habitat ?? dock ?? level.rooms[0]);
@@ -552,6 +557,7 @@ export class BaseHooks implements InteriorHooks {
     this.crops.clear();
     this.ocean?.clear();
     this.ocean?.root.destroy();
+    this.oceanSurround?.destroy();
     for (const c of [this.extraLit, this.extraEm, this.extraGlow]) c.destroy({ children: true });
   }
   private syncClock = 0;
@@ -1736,7 +1742,16 @@ export class BaseHooks implements InteriorHooks {
     // Milestone 12: only draw what is near the screen (a big base has many rooms and lines).
     const M = 300;
     const near = (x0: number, y0: number, x1: number, y1: number) => !view || (x1 > view.x0 - M && x0 < view.x1 + M && y1 > view.y0 - M && y0 < view.y1 + M);
-    if (view) this.ocean?.update(time, view);
+    if (view) {
+      this.ocean?.update(time, view);
+      if (this.surroundSource && this.oceanSurround) {
+        const { texture, rect } = this.surroundSource({ x: view.x0, y: view.y0, w: view.x1 - view.x0, h: view.y1 - view.y0 }, time);
+        this.oceanSurround.texture = texture;
+        this.oceanSurround.position.set(rect.x, rect.y);
+        this.oceanSurround.width = rect.w;
+        this.oceanSurround.height = rect.h;
+      }
+    }
     if (c.livingBases && !this.ocean) for (const r of this.level.rooms) {
       if (r.kind !== 'dock') continue;
       const b = this.box(r);

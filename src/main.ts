@@ -27,7 +27,8 @@ import { FRONT_REF, Scenery } from './world/scenery';
 import { bagRestingPlace, Pickups } from './world/pickups';
 import { School } from './actors/school';
 import { mulberry32 } from './rng';
-import { OceanCapture } from './interior/oceanCapture';
+import { OceanCapture, type OceanRect } from './interior/oceanCapture';
+import { HousingSea } from './interior/housingSea';
 import {
   bakeSkyVisibility,
   CAVE,
@@ -194,6 +195,7 @@ async function boot(): Promise<void> {
   const livingBases = urlq.get('bases') !== 'original';
   const housingOcean = livingBases && urlq.get('housingOcean') !== 'original';
   const panorama = housingOcean && urlq.get('panorama') !== 'original';
+  const surroundHousing = panorama && urlq.get('housingSurround') !== 'original';
   const fidelity = urlq.get('render') !== 'original';
   let choice: PresetChoice = loadChoice();
   let preset: Preset = resolveChoice(choice);
@@ -405,6 +407,8 @@ async function boot(): Promise<void> {
   const baseView = new BaseView(livingBases, housingOcean, panorama);
   const oceanSupports = panorama ? baseView.oceanSupports() : undefined;
   if (oceanSupports) oceanSupports.visible = false;
+  const oceanFoundations = surroundHousing ? baseView.oceanFoundations() : undefined;
+  if (oceanFoundations) oceanFoundations.visible = false;
   baseView.sync(layout);
   tankLife.sync(save, layout);
   const buildOverlay = new BuildOverlay(livingBases, housingOcean, panorama);
@@ -474,6 +478,7 @@ async function boot(): Promise<void> {
       scenery.view,
       baseView.view,
       ...(oceanSupports ? [oceanSupports] : []),
+      ...(oceanFoundations ? [oceanFoundations] : []),
       tankLife.view,
       linesView.view,
       pickups.view,
@@ -500,15 +505,23 @@ async function boot(): Promise<void> {
   }
   populate();
 
-  const oceanCapture = panorama ? new OceanCapture(renderer, litCam, (bounds, dt) => {
+  let oceanTime = -Infinity;
+  function oceanScenery(bounds: OceanRect, dt: number) {
     const { x, y, w, h } = bounds;
+    // The windows and the surround can capture on the same frame.
+    const step = time === oceanTime ? 0 : dt;
+    oceanTime = time;
     motion?.advance(time);
-    scenery.update(time, -10000, y + h / 2, 0, x, x + w, motion, dt);
+    scenery.update(time, -10000, y + h / 2, 0, x, x + w, motion, step);
     const nearbyShoals = x < 2200 ? [...basinSchools, ...schools] : schools;
     const shoals = nearbyShoals.filter((school) => school.cx >= x - 360 && school.cx <= x + w + 360);
-    for (const s of shoals) s.update(dt, time, -10000, -10000, x, x + w, motion);
+    for (const s of shoals) s.update(step, time, -10000, -10000, x, x + w, motion);
     return [scenery.view, ...shoals.map((s) => s.view)];
-  }) : undefined;
+  }
+  const oceanCapture = panorama ? new OceanCapture(renderer, litCam, oceanScenery) : undefined;
+  const housingSea = surroundHousing ? new HousingSea(mask, worldArt, surfaceMotion) : undefined;
+  const surroundCapture = housingSea ? new OceanCapture(renderer, litCam, oceanScenery,
+    (bounds, w, h, at) => housingSea.prepare(bounds, w, h, at)) : undefined;
 
   const worldLayers = [water.view, backdrop.view, zoneBackdrop.view];
   if (shallowsBackdrop) worldLayers.push(shallowsBackdrop.view);
@@ -1277,6 +1290,7 @@ async function boot(): Promise<void> {
     post.resize(cssW, cssH, res, preset.hdr && fx.hdr, preset.bloomLevels, fx.bloom && preset.bloom > 0, preset.bloomScale, edges);
     interior.resize(cssW, cssH, res, fidelity && edges);
     oceanCapture?.setHighQuality(fidelity && preset.id === 'ultra');
+    surroundCapture?.setHighQuality(fidelity && preset.id === 'ultra');
     // G2: the interiors' lighting follows the same settings (the helmet lamp and the nearest room lamps cast shadows).
     interior.look = {
       shadowLights: fx.shadows ? preset.lightShadows + 1 : 0,
@@ -3999,6 +4013,7 @@ async function boot(): Promise<void> {
     // seabed stay registered to the level as the camera follows the walker.
     panorama: oceanCapture ? (registration) =>
       oceanCapture.source({ ...registration, y: registration.y + OCEAN_POOL_DEPTH }, oceanSupports) : undefined,
+    oceanSurround: surroundCapture ? (registration) => surroundCapture.source(registration, oceanFoundations) : undefined,
     carried: () => MATERIALS_LIST.reduce((a, k) => a + save.bag[k], 0),
     storageText: () => {
       const n = MATERIALS_LIST.reduce((a, k) => a + save.stored[k], 0);

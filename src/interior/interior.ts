@@ -90,6 +90,7 @@ export interface InteriorHooks {
   lights(): Light[];
   /** Local cutaway scenery behind the player and any ladder rungs. */
   readonly oceanBackdrop?: Container;
+  readonly oceanSurround?: Container;
   walkLampGain?(x: number, y: number): number;
   /**
    * Milestone 9: real actors (the creatures in the tanks), added to the lit,
@@ -212,6 +213,7 @@ export class Interior {
   private dynEmissive = new Graphics();
   private static_ = new Graphics();
   private baseScenery = new Container();
+  private baseExterior = new Container();
   private baseLadders = new Graphics();
   private facilityOcean?: HousingOcean;
   private emissiveStatic = new Graphics();
@@ -298,7 +300,7 @@ export class Interior {
     this.litCam.addChild(this.static_, this.baseScenery, this.baseLadders, this.doorG, this.breakerG, this.takenG, this.dynamic, this.actorLit, this.walker.view, this.front);
     this.emissiveCam.addChild(this.emissiveStatic, this.dynEmissive, this.actorEm, this.walker.lens, this.overlay);
     this.glowCam.addChild(this.glowStatic, this.actorGlow);
-    this.view.addChild(this.lighting.view, this.emissiveCam, this.glowSprite);
+    this.view.addChild(this.baseExterior, this.lighting.view, this.emissiveCam, this.glowSprite);
     this.view.visible = false;
   }
 
@@ -375,6 +377,7 @@ export class Interior {
     this.hooks = hooks;
     hooks?.attach?.(this.actorLit, this.actorEm, this.actorGlow);
     if (hooks?.oceanBackdrop) this.baseScenery.addChild(hooks.oceanBackdrop);
+    if (hooks?.oceanSurround) this.baseExterior.addChild(hooks.oceanSurround);
     this.clearFacilityOcean();
     if (ocean) {
       const plate = this.sanctum ? this.art?.plates.sanctum : this.opts.style === 'fulmar' ? this.art?.plates.trench : this.art?.plates.shelf;
@@ -747,14 +750,20 @@ export class Interior {
     return c === '#' || c === 'c';
   }
 
-  /**
-   * The walkable base (after the Corvina on foot): charcoal hull rooms with
-   * chrome trim and gold power lines, hanging in black water. The rooms'
-   * own art comes from the level's hooks.
-   */
-  private buildBaseStatic(g: Graphics, e: Graphics, gl: Graphics, rand: () => number): void {
-    const PW = this.W * T;
-    const PH = this.H * T;
+  /** Back the dry rooms and enclosed moonpool. Only the cutaway's exterior is open water. */
+  private drawDryBacking(g: Graphics): void {
+    for (let ty = 0; ty < this.H; ty++) {
+      let start = 0;
+      while (start < this.W) {
+        while (start < this.W && this.map[ty][start] === 'X') start++;
+        const left = start;
+        while (start < this.W && this.map[ty][start] !== 'X') start++;
+        if (start > left) g.rect(left * T, ty * T, (start - left) * T, T).fill(0x06141a);
+      }
+    }
+  }
+
+  private drawBaseVoid(g: Graphics, PW: number, PH: number, rand: () => number): void {
     // Black water outside the hull, with drifting specks and faint light from above.
     // The camera can see beyond a small base's tile map at the widest zoom.
     const margin = 1600;
@@ -778,6 +787,18 @@ export class Interior {
         for (let y = PH * 0.5; y < PH; y += 90) g.moveTo(lx - 7, y).lineTo(lx + 7, y + 45).stroke({ color: 0x0e2a33, width: 2, alpha: 0.8 });
       }
     }
+  }
+
+  /**
+   * The walkable base (after the Corvina on foot): charcoal hull rooms with
+   * chrome trim and gold power lines, hanging in black water. The rooms'
+   * own art comes from the level's hooks.
+   */
+  private buildBaseStatic(g: Graphics, e: Graphics, gl: Graphics, rand: () => number): void {
+    const PW = this.W * T;
+    const PH = this.H * T;
+    if (this.hooks?.oceanSurround) this.drawDryBacking(g);
+    else this.drawBaseVoid(g, PW, PH, rand);
     const addLamp = (x: number, y: number, zone: number) => {
       lampFixture(g, x, y);
       const core = new Graphics().roundRect(x - 14, y + 2, 28, 3, 1.5).fill({ color: 0xf4ffd8 });
@@ -1782,7 +1803,7 @@ export class Interior {
     const maxY = this.H * T - viewH;
     this.cam.x = maxX < 0 && this.hooks ? maxX / 2 : Math.max(0, Math.min(maxX, this.cam.x));
     this.cam.y = maxY < 0 && this.hooks ? maxY / 2 : Math.max(0, Math.min(maxY, this.cam.y));
-    for (const c of [this.litCam, this.emissiveCam, this.glowCam]) {
+    for (const c of [this.baseExterior, this.litCam, this.emissiveCam, this.glowCam]) {
       c.scale.set(zoom);
       c.position.set(-this.cam.x * zoom, -this.cam.y * zoom);
     }

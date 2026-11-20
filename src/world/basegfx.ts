@@ -1844,6 +1844,12 @@ export class BaseView {
     return this.routeLegs.clone();
   }
 
+  oceanFoundations(): Container {
+    const foundations = new Container();
+    foundations.addChild(this.legs.clone(), this.routeLegs.clone());
+    return foundations;
+  }
+
   private collarG = new Graphics();
   private pieceLayer = new Container();
   private whorlLayer = new Container();
