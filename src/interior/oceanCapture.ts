@@ -17,7 +17,7 @@ export class OceanCapture {
   constructor(private readonly renderer: Renderer, private readonly world: Container,
     private readonly scenery: (bounds: OceanRect, dt: number) => Container[]) {}
 
-  source(registration: OceanRegistration, lookDown?: (x: number, y: number) => number): OceanSource {
+  source(registration: OceanRegistration, foreground?: Container): OceanSource {
     return (view, time) => {
       const prev = this.image?.rect;
       const needsCoverage = !prev || view.x < prev.x || view.y < prev.y ||
@@ -29,14 +29,15 @@ export class OceanCapture {
       const y = registration.y + rect.y * registration.sy;
       const w = rect.w * registration.sx;
       const h = rect.h * registration.sy;
-      const offset = lookDown?.(x + w / 2, y + h / 2) ?? 0;
-      const layers = this.scenery({ x, y: y + offset, w, h }, dt);
+      const layers = this.scenery({ x, y, w, h }, dt);
+      if (foreground) layers.push(foreground);
       const scaleX = this.texture.width / w;
       const scaleY = this.texture.height / h;
-      this.transform.set(scaleX, 0, 0, scaleY, -x * scaleX, -(y + offset) * scaleY);
+      this.transform.set(scaleX, 0, 0, scaleY, -x * scaleX, -y * scaleY);
       const visibility = this.world.children.map((child) => child.visible);
       try {
         this.world.children.forEach((child) => { if (!layers.includes(child)) child.visible = false; });
+        if (foreground) foreground.visible = true;
         perf.pass('ocean panes', () => this.renderer.render({ container: this.world, target: this.texture,
           transform: this.transform, clear: true, clearColor: [0, 0, 0, 0] }));
       } finally {

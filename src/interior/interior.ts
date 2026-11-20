@@ -7,8 +7,8 @@ import { deckTread, lampFixture, rivet } from './detail';
 import { InteriorLighting } from './light';
 import { mulberry32, WORLD_SEED } from '../rng';
 import { drawSurveyDecks } from './corvinaArt';
-import { drawFulmarDecks } from './fulmarArt';
-import { drawNacreVault } from '../world/nacreVault';
+import { drawFulmarDecks, traceFulmarGlazing } from './fulmarArt';
+import { drawNacreVault, traceNacreOpening } from '../world/nacreVault';
 import { drawHabitatFrame } from '../world/habitatFrame';
 import { HousingOcean } from './housingOcean';
 import type { OceanSource } from './oceanCapture';
@@ -22,6 +22,8 @@ import type { OceanSource } from './oceanCapture';
  */
 
 export const T = 40;
+const HEART_UPPER_VAULTS = [[9, 595, 328, -0.065], [22, 430, 264, 0.08], [35, 424, 290, -0.08],
+  [46, 352, 318, 0.07], [58, 557, 308, 0.06], [74, 595, 320, -0.05]];
 export const GRAVITY = 1900;
 export const MAX_FALL = 950;
 export const WALK = 270;
@@ -646,20 +648,34 @@ export class Interior {
     const ocean = this.facilityOcean;
     if (!ocean) return;
     ocean.clear();
-    const views = site === 'corvina' ? [[6, 2.1, 17, 3.35], [48, 2.1, 31, 3.35]]
-      : site === 'fulmar' ? [[5, 2.05, 19, 3.35], [37, 2.05, 12.5, 3.20]]
-      : [[6, 2.1, 18.5, 4.55], [56, 2.1, 20, 4.55]];
-    for (const [x, y, w, h] of views) {
-      const aperture = { x: x * T, y: y * T, w: w * T, h: h * T };
-      if (site === 'sanctum') {
-        drawNacreVault(g, aperture.x + aperture.w / 2, aperture.y + aperture.h + 24, aperture.w + 76, aperture.h + 62, -0.04);
-        g.roundRect(aperture.x - 10, aperture.y - 9, aperture.w + 20, aperture.h + 21, 15).stroke({ color: 0x979aba, width: 5, alpha: 0.71 });
-      } else {
-        drawHabitatFrame(g, aperture, site === 'fulmar' ? 16 : 10);
-        g.moveTo(aperture.x, aperture.y + aperture.h + 8).lineTo(aperture.x + aperture.w, aperture.y + aperture.h + 8)
-          .stroke({ color: site === 'fulmar' ? 0x8e733f : 0xad6550, width: 5, alpha: 0.82 });
+    if (site === 'fulmar') {
+      const area = { x: 13 * T - 295, y: 8 * T - 258, w: 588, h: 210 };
+      ocean.add('panorama', area, undefined, {
+        clear: true, tone: 'deep', outline: (mask) => traceFulmarGlazing(mask, 295, 258),
+      });
+      return;
+    }
+    if (site === 'sanctum') {
+      for (const [tx, w, h, lean] of HEART_UPPER_VAULTS) {
+        const sill = 9 * T - 12;
+        const width = w * 0.79;
+        const height = h * 0.84;
+        const half = width * 0.34;
+        const rise = height * 0.8;
+        const area = { x: tx * T + w * 0.018 - half, y: sill - rise, w: half * 2, h: rise };
+        ocean.add('panorama', area, undefined, {
+          clear: true, tone: 'violet', outline: (mask) => traceNacreOpening(mask, half, rise, width, height, lean),
+        });
       }
-      ocean.add('panorama', aperture);
+      return;
+    }
+    // Each opening stops at the next curved hull rib (4 + 10n tiles).
+    for (const [left, right] of [[6, 13.7], [15.25, 23.7], [48, 53.7], [55.25, 63.7], [65.25, 73.7], [75.25, 82.3]]) {
+      const aperture = { x: left * T, y: 2.1 * T, w: (right - left) * T, h: 3.45 * T };
+      drawHabitatFrame(g, aperture, 8);
+      g.moveTo(aperture.x, aperture.y + aperture.h + 8).lineTo(aperture.x + aperture.w, aperture.y + aperture.h + 8)
+        .stroke({ color: 0xad6550, width: 4, alpha: 0.76 });
+      ocean.add('panorama', aperture, undefined, { clear: true });
     }
   }
   private drawWreckWalls(g: Graphics, e: Graphics, steel: Texture | undefined, PW: number, PH: number, rand: () => number): void {
@@ -912,8 +928,7 @@ export class Interior {
     // The foreground tile silhouettes still define each walkway and the chasm.
     const upperFloor = 9 * T;
     const lowerFloor = 28 * T;
-    for (const [tx, w, h, lean] of [[9, 595, 328, -0.065], [22, 430, 264, 0.08],
-      [35, 424, 290, -0.08], [46, 352, 318, 0.07], [58, 557, 308, 0.06], [74, 595, 320, -0.05]]) {
+    for (const [tx, w, h, lean] of HEART_UPPER_VAULTS) {
       drawNacreVault(g, tx * T, upperFloor, w, h, lean);
       drawNacreVault(g, tx * T + w * 0.018, upperFloor, w * 0.79, h * 0.84, lean);
     }
