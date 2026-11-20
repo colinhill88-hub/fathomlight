@@ -283,8 +283,9 @@ export class Interior {
   private shownKey = '';
   private opts: InteriorOptions = {};
 
-  constructor(private readonly renderer: Renderer, paintedFace?: Texture, paintedSuit?: Texture, private readonly art?: WorldArt, redesigned = false, compact = false, private readonly livingBases = false) {
-    this.walker = new Walker(paintedFace, paintedSuit, redesigned, compact);
+  constructor(private readonly renderer: Renderer, paintedFace?: Texture, paintedSuit?: Texture, private readonly art?: WorldArt,
+    redesigned = false, compact = false, private readonly livingBases = false, fidelity = false) {
+    this.walker = new Walker(paintedFace, paintedSuit, redesigned, compact, fidelity);
     this.lighting = new InteriorLighting(this.sceneRT);
     this.glowSprite = new Sprite(this.glowRT);
     this.glowSprite.blendMode = 'add';
@@ -311,12 +312,17 @@ export class Interior {
   }
 
   /** Graphics session G2 settings for the lighting here (set by the game from the preset and the Settings toggles). */
-  look = { shadowLights: 0, shadowSteps: 0, relief: 0 };
+  look = { shadowLights: 0, shadowSteps: 0, relief: 0, fidelity: false };
 
-  resize(cssW: number, cssH: number, res: number): void {
+  resize(cssW: number, cssH: number, res: number, edges: boolean): void {
     this.cssW = cssW;
     this.cssH = cssH;
-    this.sceneRT.resize(cssW, cssH, res);
+    if (edges !== this.sceneRT.source.antialias) {
+      const old = this.sceneRT;
+      this.sceneRT = RenderTexture.create({ width: cssW, height: cssH, resolution: res, antialias: edges });
+      this.lighting.setScene(this.sceneRT);
+      old.destroy(true);
+    } else this.sceneRT.resize(cssW, cssH, res);
     this.glowRT.resize(cssW, cssH, res * 0.5);
   }
 
@@ -1805,6 +1811,7 @@ export class Interior {
       shadowLights: this.look.shadowLights,
       shadowSteps: this.look.shadowSteps,
       relief: this.look.relief,
+      fidelity: this.look.fidelity,
     });
     perf.lights = lights.length;
     perf.pass('lit', () => this.renderer.render({ container: this.litRoot, target: this.sceneRT, clear: true, clearColor: [0, 0, 0, 0] }));

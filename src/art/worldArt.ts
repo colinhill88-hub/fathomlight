@@ -28,7 +28,7 @@ async function optionalTexture(name: string, width: number, height: number): Pro
   }
 }
 
-export async function loadWorldArt(): Promise<WorldArt> {
+export async function loadWorldArt(mipmaps = false): Promise<WorldArt> {
   const [backdrops, surfaces, shore, deep, reef, debris, ribbons] = await Promise.all([
     Promise.all(plates.map(async (name) => [name, await optionalTexture(name, 1536, 768)] as const)),
     Promise.all(materials.map(async (name) => [name, await optionalTexture(name, 512, 512)] as const)),
@@ -50,8 +50,12 @@ export async function loadWorldArt(): Promise<WorldArt> {
     }
   }
   for (const [, texture] of surfaces) {
-    if (texture) texture.source.style.addressMode = 'repeat';
+    if (texture) {
+      texture.source.style.addressMode = 'repeat';
+      texture.source.autoGenerateMipmaps = mipmaps;
+    }
   }
+  if (mipmaps) for (const [, texture] of backdrops) if (texture) texture.source.autoGenerateMipmaps = true;
   return {
     plates: Object.fromEntries(backdrops), materials: Object.fromEntries(surfaces),
     life: [...tiles(shore), ...tiles(deep)], reef: tiles(reef), debris: tiles(debris), forestKelp,

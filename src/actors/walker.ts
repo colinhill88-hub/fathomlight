@@ -169,7 +169,7 @@ function wrap(a: number): number {
 // ---------------------------------------------------------------------------
 // The pieces, drawn once.
 
-function buildLeg(far: boolean, redesigned: boolean, compact: boolean): Leg {
+function buildLeg(far: boolean, redesigned: boolean, compact: boolean, detailed: boolean): Leg {
   const tint = far ? FAR_TINT : 0xffffff;
   const thigh = new Container();
   const tg = segment(THIGH, 12, C.suit, C.suitShade);
@@ -178,7 +178,7 @@ function buildLeg(far: boolean, redesigned: boolean, compact: boolean): Leg {
   // Chrome knee guard, as on the diver.
   chromeBands(tg, THIGH - 5, -6.5, 9, 13, 3);
   rivets(tg, [[THIGH - 0.5, -3.5], [THIGH - 0.5, 3.5]], 0.8);
-  thigh.addChild(playerPart(tg, redesigned ? kestrelLimb(THIGH, compact ? 15 : 12, 'thigh') : undefined, tint));
+  thigh.addChild(playerPart(tg, redesigned ? kestrelLimb(THIGH, compact ? 15 : 12, 'thigh', detailed) : undefined, tint));
 
   const shin = new Container();
   shin.x = THIGH;
@@ -186,7 +186,7 @@ function buildLeg(far: boolean, redesigned: boolean, compact: boolean): Leg {
   etching(sg, 3, -3.5, 12, 7, 2, rand);
   sg.rect(SHIN - 8, -5.4, 4, 10.8).fill({ color: C.red, alpha: 0.9 }); // ankle strap
   scratches(sg, 2, -4, 16, 6, 3, 0.22, rand);
-  shin.addChild(playerPart(sg, redesigned ? kestrelLimb(SHIN, 10.5, 'shin') : undefined, tint));
+  shin.addChild(playerPart(sg, redesigned ? kestrelLimb(SHIN, 10.5, 'shin', detailed) : undefined, tint));
   thigh.addChild(shin);
 
   // The boot: heel, sole and instep, with the short fin blade on its own
@@ -212,13 +212,13 @@ function buildLeg(far: boolean, redesigned: boolean, compact: boolean): Leg {
   bg.moveTo(7.5, -3.1).lineTo(11, -2.6).quadraticCurveTo(13.5, -1.6, 12.5, 0).lineTo(7.5, 0).closePath().fill({ color: C.red });
   bg.moveTo(11, -2.6).quadraticCurveTo(13.5, -1.6, 12.5, 0).stroke({ color: C.redShade, width: 1.2, alpha: 0.9 });
   bg.moveTo(1, -2).lineTo(7, -1.5).stroke({ color: 0x3e4140, width: 0.8, alpha: 0.7 });
-  blade.addChild(playerPart(bg, redesigned ? kestrelFin(true, true, compact) : undefined, tint));
+  blade.addChild(playerPart(bg, redesigned ? kestrelFin(true, true, compact, detailed) : undefined, tint));
   foot.addChild(playerPart(fg, redesigned ? kestrelFin(true, false) : undefined, tint), blade);
   shin.addChild(foot);
   return { thigh, shin, foot, blade };
 }
 
-function buildArm(far: boolean, redesigned: boolean, compact: boolean): Arm {
+function buildArm(far: boolean, redesigned: boolean, compact: boolean, detailed: boolean): Arm {
   const tint = far ? FAR_TINT : 0xffffff;
   const upper = new Container();
   const ug = segment(UPPER, 9, C.sleeve, C.sleeveShade);
@@ -227,7 +227,7 @@ function buildArm(far: boolean, redesigned: boolean, compact: boolean): Arm {
   ug.circle(0, 0, 5.2).stroke({ color: C.chromeDark, width: 1 });
   accentBand(ug, 8.5, -4.5, 2.4, 9);
   scratches(ug, 4, -3.5, 10, 7, 2, 0.22, rand);
-  upper.addChild(playerPart(ug, redesigned ? kestrelLimb(UPPER, compact ? 13 : 9.5, 'upper') : undefined, tint));
+  upper.addChild(playerPart(ug, redesigned ? kestrelLimb(UPPER, compact ? 13 : 9.5, 'upper', detailed) : undefined, tint));
   const fore = new Container();
   fore.x = UPPER;
   const fg = segment(10.5, 8, C.sleeve, C.sleeveShade);
@@ -235,8 +235,8 @@ function buildArm(far: boolean, redesigned: boolean, compact: boolean): Arm {
   fg.roundRect(10, -4.6, 9.5, 9.2, 4).fill({ color: C.red });
   fg.roundRect(11.5, 0.8, 7, 3, 1.4).fill({ color: C.redShade, alpha: 0.7 });
   fg.rect(9, -4.5, 2.6, 9).fill({ color: C.chrome });
-  fore.addChild(playerPart(fg, redesigned ? kestrelLimb(11, 8.5, 'fore') : undefined, tint));
-  const hand = redesigned ? kestrelHand(compact) : undefined;
+  fore.addChild(playerPart(fg, redesigned ? kestrelLimb(11, 8.5, 'fore', detailed) : undefined, tint));
+  const hand = redesigned ? kestrelHand(compact, detailed) : undefined;
   if (hand) {
     hand.position.set(compact ? FORE : 10.8, 0);
     hand.tint = tint;
@@ -548,13 +548,14 @@ export class Walker {
   private sinL = 0;
   private sxw = 1;
 
-  constructor(paintedFace?: Texture, paintedSuit?: Texture, redesigned = false, private readonly compact = false) {
-    this.nearLeg = buildLeg(false, redesigned, compact);
-    this.farLeg = buildLeg(true, redesigned, compact);
-    this.nearArm = buildArm(false, redesigned, compact);
-    this.farArm = buildArm(true, redesigned, compact);
+  constructor(paintedFace?: Texture, paintedSuit?: Texture, redesigned = false, private readonly compact = false, fidelity = false) {
+    const detailed = compact && fidelity;
+    this.nearLeg = buildLeg(false, redesigned, compact, detailed);
+    this.farLeg = buildLeg(true, redesigned, compact, detailed);
+    this.nearArm = buildArm(false, redesigned, compact, detailed);
+    this.farArm = buildArm(true, redesigned, compact, detailed);
     this.torsoMaterials = buildTorso(paintedSuit);
-    const hel = playerHelmet(redesigned, true, paintedFace, compact);
+    const hel = playerHelmet(redesigned, true, paintedFace, compact, detailed);
     const helmetScale = redesigned ? 0.65 : HELMET_K;
     hel.scale.set(helmetScale);
     hel.position.set(-64 * helmetScale, -16 * helmetScale);
@@ -626,7 +627,7 @@ export class Walker {
     };
     for (const part of [this.nearLeg.thigh, this.farLeg.thigh, this.nearArm.upper, this.farArm.upper]) collect(part);
     if (redesigned) {
-      const fit = kestrelTorso(compact);
+      const fit = kestrelTorso(compact, detailed);
       this.chest = fit.getChildByLabel('kestrelChest')! as Graphics;
       fit.scale.set(compact ? 1.08 : 0.88, 0.90);
       this.torso.addChildAt(fit, painted ? 2 : 1);

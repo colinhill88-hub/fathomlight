@@ -1,9 +1,19 @@
-/**
- * Shader code shared by the water and the lighting, so the open water and
- * the fog on objects always agree about what colour the water is at a depth.
- * There is a TypeScript twin of `waterColor` for tinting the distant rocks.
- */
+/** Common detail response for lit exterior and interior artwork. */
+export const GLSL_DETAIL = /* glsl */ `
+// A shoulder on the light gain keeps bright materials distinct when lamps overlap.
+vec3 retainHighlightDetail(vec3 light) {
+  float peak = max(light.r, max(light.g, light.b));
+  float excess = max(0.0, peak - 0.88);
+  return light * (1.0 - (excess - excess / (1.0 + 1.05 * excess)) / max(peak, 0.001));
+}
 
+// Broad strokes still suggest relief. A dark ink edge alone is not a cliff.
+vec2 limitRelief(vec2 gradient) {
+  return gradient / (1.0 + 3.5 * length(gradient));
+}
+`;
+
+/** Water and lighting agree on depth color. TypeScript's waterColor tints distant rocks. */
 export const GLSL_COMMON = /* glsl */ `
 float hash(vec2 p) {
   p = fract(p * vec2(123.34, 456.21));

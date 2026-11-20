@@ -25,7 +25,7 @@ interface ShallowsArt {
 }
 
 /** All three images are optional. Publish the art only as a complete set. */
-export async function loadShallowsArt(): Promise<ShallowsArt | null> {
+export async function loadShallowsArt(mipmaps = false): Promise<ShallowsArt | null> {
   const farUrl = images['./sunlit-shallows/reef-far.png'];
   const midUrl = images['./sunlit-shallows/reef-mid.png'];
   const atlasUrl = images['./sunlit-shallows/reef-atlas.png'];
@@ -37,6 +37,7 @@ export async function loadShallowsArt(): Promise<ShallowsArt | null> {
       loadImageTexture(midUrl, 2048, 1024),
       loadImageTexture(atlasUrl, 1024, 512),
     ]);
+    far.source.autoGenerateMipmaps = mid.source.autoGenerateMipmaps = mipmaps;
     const frames = Array.from({ length: 8 }, (_, index) => {
       const x = (index % 4) * TILE + PADDING;
       const y = Math.floor(index / 4) * TILE + PADDING;

@@ -8,7 +8,9 @@ export type OceanSource = (view: OceanRect, time: number) => OceanImage;
 
 /** A shared, padded image of the real scenery. Each pane samples the same level coordinates. */
 export class OceanCapture {
-  private readonly texture = RenderTexture.create({ width: 896, height: 504 });
+  private texture = RenderTexture.create({ width: 896, height: 504 });
+  private highQuality = false;
+  private requestedQuality = false;
   private readonly transform = new Matrix();
   private registration?: OceanRegistration;
   private image?: OceanImage;
@@ -17,8 +19,22 @@ export class OceanCapture {
   constructor(private readonly renderer: Renderer, private readonly world: Container,
     private readonly scenery: (bounds: OceanRect, dt: number) => Container[]) {}
 
+  setHighQuality(high: boolean): void {
+    this.requestedQuality = high;
+  }
+
   source(registration: OceanRegistration, foreground?: Container): OceanSource {
     return (view, time) => {
+      if (this.requestedQuality !== this.highQuality) {
+        // Keep the old picture valid until visible panes are about to rebind it.
+        const old = this.texture;
+        this.highQuality = this.requestedQuality;
+        this.texture = RenderTexture.create(this.highQuality
+          ? { width: 1536, height: 864, antialias: true }
+          : { width: 896, height: 504 });
+        this.image = undefined;
+        old.destroy(true);
+      }
       const prev = this.image?.rect;
       const needsCoverage = !prev || view.x < prev.x || view.y < prev.y ||
         view.x + view.w > prev.x + prev.w || view.y + view.h > prev.y + prev.h;
