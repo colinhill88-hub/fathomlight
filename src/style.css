@@ -1442,6 +1442,117 @@ body.caring #build-btn {
   #care-panel .acts .big { min-height: 42px; font-size: 14px; }
 }
 
+/*
+ * Phase 12 polish: readable buttons in the care and Hatchery panels.
+ * Any button without its own look used to fall back to the browser's white
+ * button face under the panel's pale text (the Hatchery's Feed button was
+ * nearly invisible). Every button now gets a dark face, and enabled, hover,
+ * focus and disabled states each stay legible.
+ */
+#care-panel button {
+  min-height: 34px;
+  padding: 4px 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(200, 230, 225, 0.38);
+  background-color: rgba(255, 255, 255, 0.08);
+  font-size: 12px;
+  font-weight: 600;
+}
+#care-panel button small {
+  font-weight: 400;
+  opacity: 0.8;
+}
+#care-panel .x {
+  min-height: 0;
+  padding: 0;
+  border: none;
+  background: none;
+}
+@media (hover: hover) {
+  #care-panel button:not(:disabled):hover {
+    border-color: #ffd9a0;
+    background-color: rgba(255, 217, 160, 0.16);
+  }
+  #care-panel .acts .big:not(:disabled):hover,
+  #care-panel .trough .feed:not(:disabled):hover {
+    background-color: #ddb75e;
+  }
+  #care-panel .x:not(:disabled):hover {
+    background: none;
+    color: #ffd9a0;
+  }
+}
+#care-panel button:focus-visible {
+  outline: 2px solid #ffd393;
+  outline-offset: 1px;
+}
+/* Disabled: dashed and muted, never faded into the panel. Text keeps ~7:1 contrast. */
+#care-panel button:disabled,
+#care-panel .nest .egg .row button:disabled,
+#care-panel .acts button:disabled,
+#care-panel .acts .big:disabled {
+  opacity: 1;
+  cursor: not-allowed;
+  border: 1px dashed rgba(200, 230, 225, 0.45);
+  background: rgba(4, 14, 20, 0.55);
+  color: #b4c6c8;
+}
+@media (hover: hover) {
+  #care-panel .acts .armed:hover {
+    background-color: #b94a36;
+    border-color: #b94a36;
+  }
+}
+/* An unscanned plant is still pressable (it explains what to scan), so it stays readable. */
+#care-panel .plant.locked {
+  opacity: 1;
+  border-style: dashed;
+  color: #b4c6c8;
+}
+/* The Hatchery's trough: the level, a one-line status and the hand-feed button. */
+#care-panel .trough {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 2px 0 8px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid var(--ui-line);
+  background: rgba(255, 255, 255, 0.04);
+}
+#care-panel .trough > div {
+  flex: 1;
+  min-width: 0;
+}
+#care-panel .trough .lvl {
+  font-variant-numeric: tabular-nums;
+  color: #cfe0e8;
+}
+#care-panel .trough.full .lvl {
+  color: #c8dca0;
+}
+#care-panel .trough .note {
+  margin-top: 2px;
+  opacity: 0.85;
+}
+#care-panel .trough .feed {
+  flex: none;
+  min-width: 104px;
+  min-height: 44px;
+  border: none;
+  background-color: #c9a24a;
+  color: #1d1a12;
+  font-size: 13px;
+}
+#care-panel .trough .feed small {
+  opacity: 0.75;
+}
+#care-panel .trough .feed:disabled {
+  border: 1px dashed rgba(200, 230, 225, 0.45);
+  background: rgba(4, 14, 20, 0.55);
+  color: #c8dca0;
+}
+
 /* Six piece cards (milestone 4): let each shrink, and clip its text. */
 #build-bar {
   gap: 6px;

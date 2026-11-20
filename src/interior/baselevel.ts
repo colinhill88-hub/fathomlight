@@ -42,6 +42,14 @@ export const TANK_SCALE = 1.45;
 /** The pool sights along the lower foundations. Dry decks can look farther down the same view. */
 export const OCEAN_POOL_DEPTH = 138;
 
+/** "2 eggs, 1 young" for the Hatchery's prompt; "cradles empty" when there are none. */
+function nurseryCount(list: { stage: string }[]): string {
+  const eggs = list.filter((q) => q.stage === 'egg').length;
+  const young = list.length - eggs;
+  const parts = [eggs ? `${eggs} egg${eggs === 1 ? '' : 's'}` : '', young ? `${young} young` : ''].filter(Boolean);
+  return parts.length ? parts.join(', ') : 'cradles empty';
+}
+
 function habitatStations(left: number, width: number) {
   return { consoleX: left + width * 0.31, trayX: left + width * 0.68 };
 }
@@ -131,8 +139,10 @@ export function buildBaseLevel(layout: BaseLayout, livingBases = false): BaseLev
           const tx = poolLadderTile(r);
           for (let ty = r.ty0 + CH - 1; ty < r.ty0 + CH + 3; ty++) set(tx, ty, 'H');
         }
-      } else {
+      } else if (!(livingBases && (p.kind === 'tank' || p.kind === 'gtank'))) {
         // A grating mezzanine on each upper level, and a ladder up the left side.
+        // (A living habitat is one tall aquarium seen from the floor: no mezzanine,
+        // so nothing suggests a second deck in front of the glass.)
         for (let k = 1; k < r.h; k++) for (let tx = r.tx0 + 1; tx < r.tx0 + r.tw - 1; tx++) set(tx, r.ty0 + k * CH - 1, '=');
         // The ladder tops out at the highest mezzanine, so you step off onto it.
         for (let ty = r.ty0 + CH - 1; ty < r.ty0 + r.th - 1; ty++) set(r.tx0 + 2, ty, 'H');
@@ -753,7 +763,7 @@ export class BaseHooks implements InteriorHooks {
         this.tanks.push({ room: r, x, y: top, w: b.ow - 60 - serviceBay, h: bot - top });
         if (this.ctx.livingBases) {
           const { consoleX, trayX } = habitatStations(b.ox, b.ow);
-          for (let k = 0; k < r.h; k++) add(consoleX, b.floor(k), 'habitat', 100);
+          add(consoleX, b.bottom, 'habitat', 100);
           add(trayX, b.bottom, 'habitat-tray', 100);
         } else {
           add(b.cx, b.bottom, 'tank', b.ow / 2 - 20);
@@ -901,7 +911,7 @@ export class BaseHooks implements InteriorHooks {
         return `Sealed hatch: ${PIECES[best.other!.kind].name.toLowerCase()} beyond is still a frame`;
       case 'hatch':
         if (!on) return `${code}: no power. The eggs are cooling: join it to a current turbine.`;
-        return { key: 'hatch', label: `Use the Hatchery (${code}): ${c.nursery().length} egg${c.nursery().length === 1 ? '' : 's'} and young`, seconds: 0.4, done: () => c.hatchery(p.id) };
+        return { key: 'hatch', label: `Use the Hatchery (${code}): ${nurseryCount(c.nursery())}`, seconds: 0.4, done: () => c.hatchery(p.id) };
       case 'farm': {
         const f = c.farmCrop(p.id);
         return { key: 'farm', label: `Change the crop (growing ${f.name})`, seconds: 0.4, done: () => c.farmCycle(p.id) };
@@ -1047,10 +1057,12 @@ export class BaseHooks implements InteriorHooks {
     wallPanels(g, b.ox, b.oy, b.ow, b.oh, rand, wallTexture);
     // A conduit along the wall, under the line lanes, where the machines leave the wall clear.
     const conduit = r.kind === 'storage' || r.kind === 'sorter' || r.kind === 'lab' || r.kind === 'workshop' || r.kind === 'filter' || r.kind === 'dock';
+    // A living habitat is one tall aquarium over a single floor (its bottom deck); the dock keeps its catwalk deck.
+    const tallTank = this.ctx.livingBases && (r.kind === 'tank' || r.kind === 'gtank');
     const decks = this.ctx.livingBases && r.kind === 'dock' ? 1 : r.h;
-    for (let k = 0; k < decks; k++) {
+    for (let k = tallTank ? r.h - 1 : 0; k < decks; k++) {
       const f = b.floor(k);
-      const ceil = k === 0 ? b.oy : b.floor(k - 1) + T;
+      const ceil = k === 0 || tallTank ? b.oy : b.floor(k - 1) + T;
       if (this.ctx.livingBases && r.kind !== 'dome' && r.kind !== 'dock' && r.kind !== 'corridor' && r.kind !== 'tank' && r.kind !== 'gtank') {
         const height = f - ceil;
         g.rect(b.ox, ceil, b.ow, height).fill(workBayWall);
@@ -1078,7 +1090,8 @@ export class BaseHooks implements InteriorHooks {
       for (let c = 0; c < r.w; c++) addLamp((r.tx0 + c * CW + 5.5) * T, ceil + 16, id);
     }
     // The room's stencil code, high on the back wall.
-    if (r.kind !== 'corridor') addText(sign(code, b.ox + 70, b.oy + 26, 13));
+    // (The Hatchery's goes over its console instead: its first heat lamp hangs here.)
+    if (r.kind !== 'corridor' && r.kind !== 'hatch') addText(sign(code, b.ox + 70, b.oy + 26, 13));
     // A red status lamp by the code.
     e.circle(b.ox + 22, b.oy + 26, 3).fill({ color: COL.red });
     gl.circle(b.ox + 22, b.oy + 26, 8).fill({ color: COL.red, alpha: 0.4 });
@@ -1366,8 +1379,8 @@ export class BaseHooks implements InteriorHooks {
         bolts(trim, t.x - 7, t.y - 7, t.x + t.w + 7, t.y - 7, 26, 1.2);
         bolts(trim, t.x - 7, t.y + t.h + 7, t.x + t.w + 7, t.y + t.h + 7, 26, 1.2);
         for (let y = t.y + 10; y < t.y + t.h - 10; y += 12) trim.rect(t.x - 12, y, y % 36 < 12 ? 7 : 4, 1.4).fill({ color: COL.chromeHi, alpha: 0.6 });
-        // A railing in front.
-        for (let k = 0; k < r.h; k++) {
+        // A railing in front (one along the floor of a living habitat, which has no upper deck).
+        for (let k = this.ctx.livingBases ? r.h - 1 : 0; k < r.h; k++) {
           const f = b.floor(k);
           g.rect(b.ox + 10, f - 40, b.ow - 20, 4).fill({ color: COL.chrome });
           for (let x = b.ox + 20; x < b.ox + b.ow - 10; x += 60) g.rect(x, f - 40, 3, 40).fill({ color: COL.chromeDark });
@@ -1385,14 +1398,19 @@ export class BaseHooks implements InteriorHooks {
           }
           const { consoleX, trayX } = habitatStations(b.ox, b.ow);
           const controls = this.habitatForeground.addChild(new Graphics());
-          for (let k = 0; k < r.h; k++) {
-            const floor = b.floor(k);
-            controls.poly([consoleX - 53, floor - 71, consoleX + 53, floor - 71, consoleX + 42, floor - 35, consoleX - 42, floor - 35]).fill(0x24363b);
-            controls.roundRect(consoleX - 23, floor - 37, 46, 37, 7).fill(0x34494a);
-            controls.roundRect(consoleX - 44, floor - 65, 88, 22, 5).fill(0x0d2e34);
-            controls.moveTo(consoleX - 52, floor - 71).lineTo(consoleX + 52, floor - 71).stroke({ color: 0x789d96, width: 3 });
-            this.habitatForeground.addChild(sign('HABITAT', consoleX, floor - 54, 13, 0xb5e5d9, 0.95));
-          }
+          // One console on the floor, the only place the habitat is managed from.
+          const floor = bot;
+          controls.poly([consoleX - 53, floor - 71, consoleX + 53, floor - 71, consoleX + 42, floor - 35, consoleX - 42, floor - 35]).fill(0x24363b);
+          controls.roundRect(consoleX - 23, floor - 37, 46, 37, 7).fill(0x34494a);
+          controls.roundRect(consoleX - 44, floor - 65, 88, 22, 5).fill(0x0d2e34);
+          controls.moveTo(consoleX - 52, floor - 71).lineTo(consoleX + 52, floor - 71).stroke({ color: 0x789d96, width: 3 });
+          // Its HABITAT placard rides on a mast above head height, so Kestrel standing
+          // at the console never covers it.
+          const plateY = floor - 150;
+          controls.rect(consoleX - 2, plateY + 13, 4, floor - 71 - plateY - 13).fill(0x5d7b76);
+          controls.roundRect(consoleX - 58, plateY - 14, 116, 28, 6).fill({ color: 0x0d2e34, alpha: 0.94 });
+          controls.roundRect(consoleX - 58, plateY - 14, 116, 28, 6).stroke({ color: 0x789d96, width: 2 });
+          this.habitatForeground.addChild(sign('HABITAT', consoleX, plateY, 13, 0xd2f2ea, 1));
           controls.roundRect(trayX - 62, bot - 32, 124, 32, 6).fill(0x513c30);
           controls.poly([trayX - 69, bot - 39, trayX + 69, bot - 39, trayX + 57, bot - 21, trayX - 57, bot - 21]).fill(0x98714e);
           controls.roundRect(trayX - 56, bot - 36, 112, 12, 4).fill(0x352b28);
@@ -1646,6 +1664,7 @@ export class BaseHooks implements InteriorHooks {
         for (let i = 0; i < 6; i++) e.rect(kx - 26 + (i % 3) * 18, bot - 82 + Math.floor(i / 3) * 16, 12, 9).fill({ color: 0xffd890, alpha: 0.35 + (i % 2) * 0.2 });
         for (let i = 0; i < 4; i++) rivet(g, kx - 30 + i * 20, bot - 38, 1.6);
         hazard(g, b.ox + 30, bot - 6, b.ow - 170, 6);
+        addText(sign(code, kx, bot - 130, 13));
         addText(sign('HATCHERY', kx, bot - 110, 9, 0xffd890, 0.75));
         break;
       }
@@ -1937,9 +1956,7 @@ export class BaseHooks implements InteriorHooks {
     if (this.ctx.livingBases) {
       const b = this.box(r);
       const { consoleX, trayX } = habitatStations(b.ox, b.ow);
-      for (let level = 0; level < r.h; level++) {
-        de.circle(consoleX + 37, b.floor(level) - 54, 2.7).fill({ color: on ? 0x96e3c7 : 0xc08955, alpha: 0.91 });
-      }
+      de.circle(consoleX + 37, b.bottom - 54, 2.7).fill({ color: on ? 0x96e3c7 : 0xc08955, alpha: 0.91 });
       const count = this.ctx.trayCount(r.piece.id);
       if (count) {
         for (let i = 0; i < Math.min(count, 5); i++) {

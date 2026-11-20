@@ -11,6 +11,7 @@ try {
     server.ssrLoadModule('/src/game/creatures.ts'),
     server.ssrLoadModule('/src/game/discovery.ts'),
   ]);
+  const { buildBaseLevel } = await server.ssrLoadModule('/src/interior/baselevel.ts');
 
   const lock = terrain.SANCTUM.locks[0];
   assert.equal(terrain.isSolid(lock.x + 70, lock.y), false, 'The tunnel beneath Fulmar must be traversable');
@@ -44,6 +45,20 @@ try {
   snail.fed = 1;
   for (let second = 0; second < 580; second++) care.tickCare(habitat, layout, 1);
   assert.equal(snail.stage, 'grown', 'A prepared solitary habitat supports a full growth cycle between visits');
+
+  // A Grand tank is one tall aquarium in living bases: no mezzanine or ladder implies an upper deck.
+  const grand = new BaseLayout([
+    { id: 1, kind: 'dome', gx: 24, gy: 3, rot: 0 },
+    { id: 2, kind: 'turbine', gx: 26, gy: 3, rot: 0 },
+    { id: 3, kind: 'corridor', gx: 27, gy: 3, rot: 0 },
+    { id: 4, kind: 'gtank', gx: 28, gy: 3, rot: 0 },
+  ]);
+  const roomTiles = (level) => {
+    const r = level.rooms.find((q) => q.kind === 'gtank');
+    return level.map.slice(r.ty0 + 1, r.ty0 + r.th - 1).map((row) => row.slice(r.tx0 + 1, r.tx0 + r.tw - 1)).join('');
+  };
+  assert.doesNotMatch(roomTiles(buildBaseLevel(grand, true)), /[=H]/, 'A living Grand tank has a single floor');
+  assert.match(roomTiles(buildBaseLevel(grand, false)), /=/, 'The original comparison path keeps its mezzanine');
   console.log('Progression checks passed.');
 } finally {
   await server.close();

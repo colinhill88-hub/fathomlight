@@ -57,7 +57,8 @@ export class HatchPanel {
   private handFeed(): void {
     const { save, layout } = this.deps;
     const cap = nurseryTroughCap(layout);
-    if ((save.nurseryMash ?? 0) >= cap - 1) return this.deps.toast('The trough is full', 'warn');
+    if (cap <= 0) return this.deps.toast('The trough needs a powered Hatchery', 'warn');
+    if (troughFull(save.nurseryMash ?? 0, cap)) return this.deps.toast('The trough is full: the young have plenty to eat', 'warn');
     if (save.bag.fibre + save.stored.fibre < 1) return this.deps.toast('Feeding the young takes 1 kelp fibre', 'warn');
     if (save.bag.fibre > 0) save.bag.fibre--;
     else save.stored.fibre--;
@@ -136,6 +137,30 @@ export class HatchPanel {
     this.render(true);
   }
 
+  /**
+   * The nursery trough and its hand-feed button (Phase 12 polish). A full trough
+   * disables the button and says so, rather than leaving a live-looking button
+   * that only answers with a warning.
+   */
+  private troughRow(): string {
+    const { save, layout } = this.deps;
+    const cap = nurseryTroughCap(layout);
+    const mash = save.nurseryMash ?? 0;
+    const fibre = save.bag.fibre + save.stored.fibre;
+    const full = cap > 0 && troughFull(mash, cap);
+    const state = cap <= 0 ? 'off' : full ? 'full' : fibre < 1 ? 'empty' : 'ready';
+    const button = {
+      off: ['No power', 'The trough fills only at a powered Hatchery.'],
+      full: ['Trough full', `The young have plenty of mash. Feeding opens again once the trough is below ${cap - 1} L.`],
+      empty: ['Need 1 fibre', 'Hand feeding takes 1 kelp fibre from your bag or storage.'],
+      ready: ['Feed <small>1 fibre</small>', `Press 1 kelp fibre into ${MASH_PER_FIBRE} L of mash for the young.`],
+    }[state];
+    const note = full
+      ? `No feeding needed: the young eat from it while they wait. A hand feed adds ${MASH_PER_FIBRE} L, so it opens again below ${cap - 1} L.`
+      : 'The young get hungry while they wait. A feed pipe from an auto feeder keeps it topped up.';
+    return `<div class="trough${full ? ' full' : ''}"><div><b>Trough</b> <span class="lvl">${Math.round(mash)}/${cap} L of mash</span><div class="note">${note}</div></div><button type="button" class="feed" data-act="h-feed" title="${button[1]}" aria-label="${button[0].replace(/<[^>]+>/g, '')}: ${button[1]}"${state === 'ready' ? '' : ' disabled'}>${button[0]}</button></div>`;
+  }
+
   private render(force: boolean): void {
     if (!this.active || this.pieceId === null) return;
     const { save, layout } = this.deps;
@@ -145,6 +170,11 @@ export class HatchPanel {
     const powered = piece ? layout.powered.has(piece.id) : false;
     const list = save.nursery;
     const tankList = tanks(layout);
+    const jarBlock = !save.kit.jar ? 'No jar' : save.jar ? 'Jar full' : '';
+    const jarBtn = (id: number) =>
+      jarBlock
+        ? `<button type="button" data-act="h-jar" data-id="${id}" disabled title="${jarBlock === 'No jar' ? 'You have no specimen jar yet' : 'The specimen jar already holds a creature'}">${jarBlock}</button>`
+        : `<button type="button" data-act="h-jar" data-id="${id}" title="Carry it in the specimen jar">To jar</button>`;
     const rows = list
       .map((c) => {
         const sp = SPECIES[c.species];
@@ -162,10 +192,14 @@ export class HatchPanel {
           .map((tk) => {
             const n = creaturesIn(save, tk.id).length;
             const full = n >= tankCapacity(layout, tk.id);
-            return `<button type="button" data-act="h-tank" data-id="${c.id}" data-tank="${tk.id}"${full ? ' disabled' : ''}>${pieceCode(layout, tk)} <small>${n}/${tankCapacity(layout, tk.id)}</small></button>`;
+            const code = pieceCode(layout, tk);
+            const cap = tankCapacity(layout, tk.id);
+            return `<button type="button" data-act="h-tank" data-id="${c.id}" data-tank="${tk.id}"${
+              full ? ` disabled title="${code} is full (${n}/${cap})"` : ` title="Move it into ${code}"`
+            }>${code} <small>${full ? 'full' : `${n}/${cap}`}</small></button>`;
           })
           .join('');
-        return `<div class="egg"><b>${what}</b><span class="traits${isRare(t) ? ' rare' : ''}">${traitText(c.species, t)} <small>· ${genText(t)}</small></span><div class="note">${status}</div><div class="row">${btns}<button type="button" data-act="h-jar" data-id="${c.id}">To jar</button></div></div>`;
+        return `<div class="egg"><b>${what}</b><span class="traits${isRare(t) ? ' rare' : ''}">${traitText(c.species, t)} <small>· ${genText(t)}</small></span><div class="note">${status}</div><div class="row">${btns}${jarBtn(c.id)}</div></div>`;
       })
       .join('');
     // Which tanks have pairs laying, for a one-line overview.
@@ -183,7 +217,7 @@ export class HatchPanel {
           ? `Laying: ${laying.join(', ')}. A pair lays about one egg every ${Math.round(BREED_SECONDS / 60)} minutes.`
           : 'No pairs laying. Two happy, grown creatures of one species in a tank make a breeding pair.'
       }</p>
-      <div class="row"><span class="note">Trough: ${Math.round(save.nurseryMash ?? 0)}/${nurseryTroughCap(layout)} L of mash. The young get hungry while they wait: a feed pipe from an auto feeder keeps it full.</span><button type="button" data-act="h-feed">Feed (1 fibre)</button></div>
+      ${this.troughRow()}
       ${list.length ? `<div class="nest">${rows}</div>` : '<p class="note">The cradles are empty.</p>'}
       <p class="note">Young take their colour and glow pattern from one parent or the other. Now and then one is born different: a rare colour, or radiant (a brighter glow that makes a little more, and lights more of a dark passage).</p>`;
     if (force || html !== this.lastHtml) {
@@ -191,4 +225,9 @@ export class HatchPanel {
       this.panel.innerHTML = html;
     }
   }
+}
+
+/** Hand feeding would add a whole fibre's mash; within a litre of the brim counts as full. */
+function troughFull(mash: number, cap: number): boolean {
+  return mash >= cap - 1;
 }

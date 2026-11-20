@@ -31,6 +31,23 @@ Play link: https://colinhill88-hub.github.io/fathomlight/ (live; first successfu
 - The Kelp checkpoints verified the dive-light boundary, boom winch, all four moss brackets, cutter and grapple data finds, and opening the kelp wall with the cutter.
 - Still open for playtesting are an uninterrupted fresh-save run through construction, fabrication, all region gates and first contact, a real-device check of the boots and hatch prompt, and the long-interval habitat economy. Historical visual reviews outside the repository cannot serve as a complete archival record.
 
+### Phase 12 polish: Hatchery and habitat usability
+
+- **Hatchery Feed button.** It was not disabled. It had no style of its own, so it fell back to the browser's white button face under the panel's pale text, which made it almost unreadable. Every care and Hatchery button now has a dark face with readable hover, keyboard focus and disabled states. Disabled buttons are dashed and muted with high-contrast text instead of fading to 35% opacity.
+- **Trough status.** The trough is a separate card showing its level, a one-line status and the button. The button reads **Trough full** (disabled) when hand feeding would be wasted, **Need 1 fibre** when you have none, **No power** without a powered Hatchery, and **Feed · 1 fibre** otherwise. Each state has a tooltip. Hand feeding adds 12 L, so the trough counts as full within 1 L of the brim, as before, and the note explains when feeding opens again.
+- **Hatchery cradle buttons.** A full tank reads `GT-1 full`, and **To jar** becomes **Jar full** or **No jar** when the jar cannot take the animal. These buttons are disabled and have tooltips.
+- **Habitat console.** The disabled **Habitat full** button now looks disabled. Unscanned plants are dashed but legible instead of faded.
+- **Grand tank: one floor and one HABITAT sign.** With living bases, the two-cell Grand tank drew a console and a HABITAT sign on each level. The upper level's grating and ladder existed in the tile map but were hidden behind the aquarium glass, so the second sign floated mid-tank over a deck the player could not see or reach. A living habitat is now one tall aquarium over a single floor. The map has no mezzanine or ladder, and there is one console and one railing. The original `?bases=original` path keeps its mezzanine. The panoramic exterior windows and the full tank height are unchanged.
+- **HABITAT placard.** It now sits on a short mast above head height (150 units above the floor), so Kestrel standing at the console no longer covers it.
+- **Hatchery room.** The **HX-1** code moved above the console's HATCHERY label. Before, the first heat lamp covered it. The prompt now counts eggs and young separately, for example "1 young" or "2 eggs, 1 young", instead of "1 egg and young".
+- **Validation.** Type check, production build and `node scripts/test-progression.mjs` all pass. The progression test adds a check that a living Grand tank has a single floor while the original path keeps its mezzanine. Browser checks ran at 2560×1440 with the Ultra preset at the default and a closer indoor zoom. The fixture was a base with a dome, turbine, Grand tank and Hatchery, with a young glowfin in the cradles, a full trough and 5 stored fibre. Checks covered:
+  - The tank with its single sign and console. Pressing Up at the old ladder tile does nothing.
+  - Opening the Habitat Console and the Hatchery through their interactions.
+  - The full, ready and no-fibre trough states, plus a hand feed (3 → 12 L, −1 fibre).
+  - Hover on enabled and disabled buttons, and the Jar full state.
+  
+  Not yet checked on the iPhone or iPad.
+
 ## Tech choices (decided in milestone 0)
 
 Versions checked against the npm registry and current docs on 2026-11-14.
