@@ -12,6 +12,7 @@ import { drawNacreVault, traceNacreOpening } from '../world/nacreVault';
 import { drawHabitatFrame } from '../world/habitatFrame';
 import { HousingOcean } from './housingOcean';
 import type { OceanSource } from './oceanCapture';
+import type { HousingHull } from './housingHull';
 
 /**
  * Dry interiors on foot (after milestone 8 part 2, Colin's direction): a
@@ -22,6 +23,8 @@ import type { OceanSource } from './oceanCapture';
  */
 
 export const T = 40;
+export const BASE_ZOOM_MIN = 0.64;
+export const BASE_ZOOM_MAX = 1.55;
 const HEART_UPPER_VAULTS = [[9, 595, 328, -0.065], [22, 430, 264, 0.08], [35, 424, 290, -0.08],
   [46, 352, 318, 0.07], [58, 557, 308, 0.06], [74, 595, 320, -0.05]];
 export const GRAVITY = 1900;
@@ -88,6 +91,8 @@ export interface InteriorHooks {
   lights(): Light[];
   /** Local cutaway scenery behind the player and any ladder rungs. */
   readonly oceanBackdrop?: Container;
+  readonly oceanSurround?: Container;
+  readonly housingHull?: HousingHull;
   walkLampGain?(x: number, y: number): number;
   /**
    * Milestone 9: real actors (the creatures in the tanks), added to the lit,
@@ -210,6 +215,9 @@ export class Interior {
   private dynEmissive = new Graphics();
   private static_ = new Graphics();
   private baseScenery = new Container();
+  private baseSkin = new Container();
+  private baseTrim = new Container();
+  private baseExterior = new Container();
   private baseLadders = new Graphics();
   private facilityOcean?: HousingOcean;
   private emissiveStatic = new Graphics();
@@ -227,6 +235,8 @@ export class Interior {
   private cam = { x: 0, y: 0 };
   private viewH = 560;
   private viewNow = 560;
+  private baseZoom = 1;
+  private lookAhead = 0;
   /** Milestone 9: hold the camera on something while a panel is open (tending a tank). */
   focus: InteriorFocus | null = null;
   private actorLit = new Container();
@@ -291,10 +301,11 @@ export class Interior {
     this.glowSprite.blendMode = 'add';
     this.glowSprite.filters = [new BlurFilter({ strength: 10, quality: 3 })];
     this.litRoot.addChild(this.litCam);
-    this.litCam.addChild(this.static_, this.baseScenery, this.baseLadders, this.doorG, this.breakerG, this.takenG, this.dynamic, this.actorLit, this.walker.view, this.front);
+    this.baseSkin.addChild(this.static_, this.baseScenery);
+    this.litCam.addChild(this.baseSkin, this.baseTrim, this.baseLadders, this.doorG, this.breakerG, this.takenG, this.dynamic, this.actorLit, this.walker.view, this.front);
     this.emissiveCam.addChild(this.emissiveStatic, this.dynEmissive, this.actorEm, this.walker.lens, this.overlay);
     this.glowCam.addChild(this.glowStatic, this.actorGlow);
-    this.view.addChild(this.lighting.view, this.emissiveCam, this.glowSprite);
+    this.view.addChild(this.baseExterior, this.lighting.view, this.emissiveCam, this.glowSprite);
     this.view.visible = false;
   }
 
@@ -367,10 +378,21 @@ export class Interior {
     if (opts) this.opts = opts;
     else if (!hooks) this.opts = { labels: CORVINA_LABELS, sign: { ch: '1', text: 'SURVEY LAB' } };
     else this.opts = {};
-    if (this.hooks && this.hooks !== hooks) this.hooks.detach?.();
+    if (this.hooks && this.hooks !== hooks) {
+      this.baseSkin.mask = null;
+      this.hooks.detach?.();
+    }
     this.hooks = hooks;
     hooks?.attach?.(this.actorLit, this.actorEm, this.actorGlow);
     if (hooks?.oceanBackdrop) this.baseScenery.addChild(hooks.oceanBackdrop);
+    if (hooks?.oceanSurround) this.baseExterior.addChild(hooks.oceanSurround);
+    if (hooks?.housingHull) {
+      const hull = hooks.housingHull;
+      this.baseExterior.addChild(hull.waterLight);
+      this.baseSkin.addChildAt(hull.shell, 0);
+      this.baseTrim.addChild(hull.trim, hull.mask);
+      this.baseSkin.mask = hull.mask;
+    }
     this.clearFacilityOcean();
     if (ocean) {
       const plate = this.sanctum ? this.art?.plates.sanctum : this.opts.style === 'fulmar' ? this.art?.plates.trench : this.art?.plates.shelf;
@@ -378,6 +400,8 @@ export class Interior {
       this.baseScenery.addChild(this.facilityOcean.root);
     }
     this.focus = null;
+    this.viewNow = this.hooks ? this.viewH * this.baseZoom : this.viewH;
+    this.lookAhead = 0;
     this.lampGain = 1;
     this.climbing = false;
     this.map = map;
@@ -417,8 +441,7 @@ export class Interior {
     // Just in through the hatch or the airlock: stand up from a crouch, then lift the face plate.
     w.arrive(9);
     this.lastSafe = { x: w.x, y: w.y };
-    this.cam.x = w.x - 400;
-    this.cam.y = w.y - 400;
+    this.frameWalker({ x: 0.5, y: this.hooks ? 0.62 : 0.5 });
     this.dropGrapple();
     this.active = true;
     this.view.visible = true;
@@ -431,10 +454,13 @@ export class Interior {
    */
   reload(map: string[], hooks: InteriorHooks): void {
     const w = this.walker;
-    const keep = { x: w.x, y: w.y, vx: w.vx, vy: w.vy, face: w.face, visor: w.visor, cam: { ...this.cam }, safe: { ...this.lastSafe } };
+    const keep = { x: w.x, y: w.y, vx: w.vx, vy: w.vy, face: w.face, visor: w.visor,
+      cam: { ...this.cam }, viewNow: this.viewNow, lookAhead: this.lookAhead, safe: { ...this.lastSafe } };
     this.enter(map, this.state, hooks);
     Object.assign(w, { x: keep.x, y: keep.y, vx: keep.vx, vy: keep.vy, face: keep.face, visor: keep.visor });
     this.cam = keep.cam;
+    this.viewNow = keep.viewNow;
+    this.lookAhead = keep.lookAhead;
     this.lastSafe = keep.safe;
   }
   /** Is there room to stand here (no hull in the way)? */
@@ -455,24 +481,45 @@ export class Interior {
     this.lastSafe = { x, y };
     this.climbing = false;
     this.dropGrapple();
-    this.cam.x = x - 400;
-    this.cam.y = y - 400;
+    this.lookAhead = 0;
+    this.frameWalker({ x: 0.5, y: this.hooks ? 0.62 : 0.5 });
   }
 
-  mountLadder(x: number, y: number, face: number, screen: { x: number; y: number }): void {
+  mountLadder(x: number, y: number, face: number, screen: { x: number; y: number }, previousView: number): void {
     this.place(x, y, face);
     this.climbing = true;
     this.walker.onGround = false;
     this.walker.pose = 'climb';
     this.walker.visor = this.walker.visorTarget = 0;
     this.lastSafe = { x, y: y - 2 * T };
-    this.cam.x = x - screen.x * this.viewNow * this.cssW / this.cssH;
-    this.cam.y = y - HEIGHT / 2 - screen.y * this.viewNow;
+    this.frameWalker(screen, previousView);
+  }
+
+  /** Seed the new room at the subject's screen position before easing into its usual framing. */
+  frameWalker(screen: { x: number; y: number }, previousView?: number): void {
+    if (previousView !== undefined) {
+      this.viewNow = Math.max(this.viewH * BASE_ZOOM_MIN, Math.min(this.viewH * BASE_ZOOM_MAX, previousView));
+    }
+    const { x, y } = this.walker;
+    this.cam.x = x - Math.max(0.16, Math.min(0.84, screen.x)) * this.viewNow * this.cssW / this.cssH;
+    this.cam.y = y - HEIGHT / 2 - Math.max(0.20, Math.min(0.84, screen.y)) * this.viewNow;
+  }
+
+  adjustBaseZoom(factor: number): void {
+    this.baseZoom = Math.max(BASE_ZOOM_MIN, Math.min(BASE_ZOOM_MAX, this.baseZoom * factor));
+  }
+
+  resetBaseZoom(): void {
+    this.baseZoom = 1;
   }
 
   walkerScreenPosition(): { x: number; y: number } {
     const w = this.walker;
     return { x: (w.x - this.cam.x) * this.cssH / (this.viewNow * this.cssW), y: (w.y - HEIGHT / 2 - this.cam.y) / this.viewNow };
+  }
+
+  get cameraHeight(): number {
+    return this.viewNow;
   }
 
   /** Point at the save's own state lists (they're changed in place). */
@@ -482,6 +529,7 @@ export class Interior {
   }
 
   leave(): void {
+    this.baseSkin.mask = null;
     this.hooks?.detach?.();
     this.hooks = null;
     this.clearFacilityOcean();
@@ -718,17 +766,27 @@ export class Interior {
     return c === '#' || c === 'c';
   }
 
-  /**
-   * The walkable base (after the Corvina on foot): charcoal hull rooms with
-   * chrome trim and gold power lines, hanging in black water. The rooms'
-   * own art comes from the level's hooks.
-   */
-  private buildBaseStatic(g: Graphics, e: Graphics, gl: Graphics, rand: () => number): void {
-    const PW = this.W * T;
-    const PH = this.H * T;
+  /** Back the dry rooms and enclosed moonpool. Only the cutaway's exterior is open water. */
+  private drawDryBacking(g: Graphics): void {
+    for (let ty = 0; ty < this.H; ty++) {
+      let start = 0;
+      while (start < this.W) {
+        while (start < this.W && this.map[ty][start] === 'X') start++;
+        const left = start;
+        while (start < this.W && this.map[ty][start] !== 'X') start++;
+        if (start > left) g.rect(left * T, ty * T, (start - left) * T, T).fill(0x06141a);
+      }
+    }
+  }
+
+  private drawBaseVoid(g: Graphics, PW: number, PH: number, rand: () => number): void {
     // Black water outside the hull, with drifting specks and faint light from above.
-    g.rect(0, 0, PW, PH).fill({ color: 0x06141a });
-    for (let y = 0; y < PH; y += 80) g.rect(0, y, PW, 80).fill({ color: 0x0b2630, alpha: 0.5 * Math.max(0, 1 - y / PH) });
+    // The camera can see beyond a small base's tile map at the widest zoom.
+    const margin = 1600;
+    const waterWidth = PW + margin * 2;
+    g.rect(-margin, -margin, waterWidth, PH + margin * 2).fill({ color: 0x06141a });
+    g.rect(-margin, -margin, waterWidth, margin).fill({ color: 0x0b2630, alpha: 0.5 });
+    for (let y = 0; y < PH; y += 80) g.rect(-margin, y, waterWidth, 80).fill({ color: 0x0b2630, alpha: 0.5 * Math.max(0, 1 - y / PH) });
     for (let i = 0; i < (PW * PH) / 14000; i++) g.circle(rand() * PW, rand() * PH, 0.6 + rand() * 1.4).fill({ color: 0x9ec8c8, alpha: 0.08 + rand() * 0.12 });
     // Far off in the black water: the basin's rock floor and the base's own legs, barely there.
     {
@@ -745,6 +803,19 @@ export class Interior {
         for (let y = PH * 0.5; y < PH; y += 90) g.moveTo(lx - 7, y).lineTo(lx + 7, y + 45).stroke({ color: 0x0e2a33, width: 2, alpha: 0.8 });
       }
     }
+  }
+
+  /**
+   * The walkable base (after the Corvina on foot): charcoal hull rooms with
+   * chrome trim and gold power lines, hanging in black water. The rooms'
+   * own art comes from the level's hooks.
+   */
+  private buildBaseStatic(g: Graphics, e: Graphics, gl: Graphics, rand: () => number): void {
+    const PW = this.W * T;
+    const PH = this.H * T;
+    const modular = !!this.hooks?.housingHull;
+    if (this.hooks?.oceanSurround && !modular) this.drawDryBacking(g);
+    else if (!this.hooks?.oceanSurround) this.drawBaseVoid(g, PW, PH, rand);
     const addLamp = (x: number, y: number, zone: number) => {
       lampFixture(g, x, y);
       const core = new Graphics().roundRect(x - 14, y + 2, 28, 3, 1.5).fill({ color: 0xf4ffd8 });
@@ -776,10 +847,12 @@ export class Interior {
           };
           // Outer skin facing the water: darker, with a chrome seam.
           const outside = (dx: number, dy: number) => this.ch(tx + dx, ty + dy) === 'X';
-          if (outside(0, -1)) g.rect(x, y, T + 0.5, 4).fill({ color: 0x9aa6ad });
-          if (outside(0, 1)) g.rect(x, y + T - 4, T + 0.5, 4).fill({ color: 0x14181b });
-          if (outside(-1, 0)) g.rect(x, y, 3, T + 0.5).fill({ color: 0x9aa6ad, alpha: 0.7 });
-          if (outside(1, 0)) g.rect(x + T - 3, y, 3, T + 0.5).fill({ color: 0x14181b });
+          if (!modular) {
+            if (outside(0, -1)) g.rect(x, y, T + 0.5, 4).fill({ color: 0x9aa6ad });
+            if (outside(0, 1)) g.rect(x, y + T - 4, T + 0.5, 4).fill({ color: 0x14181b });
+            if (outside(-1, 0)) g.rect(x, y, 3, T + 0.5).fill({ color: 0x9aa6ad, alpha: 0.7 });
+            if (outside(1, 0)) g.rect(x + T - 3, y, 3, T + 0.5).fill({ color: 0x14181b });
+          }
           // Floors: a chrome-capped deck with a gold power line just under it.
           if (open(0, -1)) {
             g.rect(x, y, T + 0.5, 7).fill({ color: 0x8e9aa2 });
@@ -1719,13 +1792,25 @@ export class Interior {
     // Camera: follow with a little look-ahead, clamped to the level.
     const f = this.focus;
     // Milestone 9: tending a tank, the camera eases in on it (beside the care panel).
-    this.viewNow += ((f ? f.h : this.viewH) - this.viewNow) * (1 - Math.exp(-4 * dt));
+    const previousH = this.viewNow;
+    const targetH = f?.h ?? (this.hooks ? this.viewH * this.baseZoom : this.viewH);
+    this.viewNow += (targetH - previousH) * (1 - Math.exp(-(f ? 4 : 8) * dt));
     const viewH = this.viewNow;
     const zoom = this.cssH / viewH;
     const viewW = this.cssW / zoom;
     let lx = w.x + w.face * 120 + w.vx * 0.2 - viewW / 2;
     // In the base the floor sits low on screen (rooms are what you look at, not the water below).
     let ly = this.hooks ? w.y - viewH * 0.7 : w.y - 60 - viewH / 2;
+    if (this.hooks) {
+      const lead = Math.min(90, viewW * 0.13);
+      const moving = this.climbing ? 0 : Math.max(-lead, Math.min(lead, w.vx * 0.35));
+      this.lookAhead += (moving - this.lookAhead) * (1 - Math.exp(-5 * dt));
+      lx = w.x + this.lookAhead - viewW / 2;
+      // Scaling around the torso keeps the reference point steady as a wheel or panel changes zoom.
+      const scale = viewH / previousH - 1;
+      this.cam.x += (this.cam.x - w.x) * scale;
+      this.cam.y += (this.cam.y - (w.y - HEIGHT / 2)) * scale;
+    }
     if (f) {
       lx = f.x - viewW / 2 + f.panelPx / zoom / 2;
       ly = f.y - viewH / 2;
@@ -1733,9 +1818,11 @@ export class Interior {
     const k = 1 - Math.exp(-(f ? 3.5 : 5) * dt);
     this.cam.x += (lx - this.cam.x) * k;
     this.cam.y += (ly - this.cam.y) * k;
-    this.cam.x = Math.max(0, Math.min(this.W * T - viewW, this.cam.x));
-    this.cam.y = Math.max(0, Math.min(this.H * T - viewH, this.cam.y));
-    for (const c of [this.litCam, this.emissiveCam, this.glowCam]) {
+    const maxX = this.W * T - viewW;
+    const maxY = this.H * T - viewH;
+    this.cam.x = maxX < 0 && this.hooks ? maxX / 2 : Math.max(0, Math.min(maxX, this.cam.x));
+    this.cam.y = maxY < 0 && this.hooks ? maxY / 2 : Math.max(0, Math.min(maxY, this.cam.y));
+    for (const c of [this.baseExterior, this.litCam, this.emissiveCam, this.glowCam]) {
       c.scale.set(zoom);
       c.position.set(-this.cam.x * zoom, -this.cam.y * zoom);
     }

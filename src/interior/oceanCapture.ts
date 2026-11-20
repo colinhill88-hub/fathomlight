@@ -5,6 +5,7 @@ export type OceanRect = { x: number; y: number; w: number; h: number };
 export type OceanRegistration = { x: number; y: number; sx: number; sy: number };
 export type OceanImage = { texture: RenderTexture; rect: OceanRect };
 export type OceanSource = (view: OceanRect, time: number) => OceanImage;
+type Atmosphere = (bounds: OceanRect, width: number, height: number, time: number) => { view: Container; terrainTint: number };
 
 /** A shared, padded image of the real scenery. Each pane samples the same level coordinates. */
 export class OceanCapture {
@@ -17,7 +18,8 @@ export class OceanCapture {
   private last = -Infinity;
 
   constructor(private readonly renderer: Renderer, private readonly world: Container,
-    private readonly scenery: (bounds: OceanRect, dt: number) => Container[]) {}
+    private readonly scenery: (bounds: OceanRect, dt: number) => Container[],
+    private readonly atmosphere?: Atmosphere) {}
 
   setHighQuality(high: boolean): void {
     this.requestedQuality = high;
@@ -45,18 +47,26 @@ export class OceanCapture {
       const y = registration.y + rect.y * registration.sy;
       const w = rect.w * registration.sx;
       const h = rect.h * registration.sy;
-      const layers = this.scenery({ x, y, w, h }, dt);
+      const bounds = { x, y, w, h };
+      const layers = this.scenery(bounds, dt);
       if (foreground) layers.push(foreground);
       const scaleX = this.texture.width / w;
       const scaleY = this.texture.height / h;
       this.transform.set(scaleX, 0, 0, scaleY, -x * scaleX, -y * scaleY);
       const visibility = this.world.children.map((child) => child.visible);
+      const tint = this.world.tint;
+      const atmosphere = this.atmosphere?.(bounds, this.texture.width, this.texture.height, time);
       try {
         this.world.children.forEach((child) => { if (!layers.includes(child)) child.visible = false; });
         if (foreground) foreground.visible = true;
-        perf.pass('ocean panes', () => this.renderer.render({ container: this.world, target: this.texture,
-          transform: this.transform, clear: true, clearColor: [0, 0, 0, 0] }));
+        if (atmosphere) this.world.tint = atmosphere.terrainTint;
+        perf.pass(atmosphere ? 'housing ocean' : 'ocean panes', () => {
+          if (atmosphere) this.renderer.render({ container: atmosphere.view, target: this.texture, clear: true });
+          this.renderer.render({ container: this.world, target: this.texture,
+            transform: this.transform, clear: !atmosphere, clearColor: [0, 0, 0, 0] });
+        });
       } finally {
+        this.world.tint = tint;
         this.world.children.forEach((child, index) => { child.visible = visibility[index]; });
       }
       this.registration = registration;
