@@ -3122,8 +3122,8 @@ async function boot(): Promise<void> {
           };
         else infoAct = 'Sealed hatch, rusted shut: a cutter torch would open it';
       }
-      if (Math.hypot(diver.x - CORVINA.doorX, diver.y - (groundY(CORVINA.doorX) - 90)) < 140)
-        infoAct = "The Corvina's bulkhead door: sealed from inside, and far too thick to cut. Its way in comes in the next update.";
+      if (!save.corvina.door && Math.hypot(diver.x - CORVINA.doorX, diver.y - (groundY(CORVINA.doorX) - 90)) < 140)
+        infoAct = "The Corvina's bulkhead is sealed from inside. The service hatch is on deck, above the stern grapple bollard.";
       // Milestone 7 part 2: the finds in the kelp caves.
       for (const k of Object.keys(KC_FINDS) as (keyof typeof KC_FINDS)[]) {
         const f = FIND_INFO[k];
