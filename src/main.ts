@@ -305,7 +305,7 @@ async function boot(): Promise<void> {
   const hunters = new DeepHunters(TR_LANTERNJAWS, TR_STALKERS, TR_SPIDERS, livingCreatures);
   // After milestone 12: flares, darts, visor marks, the tractor beam and drill sparks.
   const gearFx = new GearFx();
-  const tankLife = new TankLife({ livingCreatures });
+  const tankLife = new TankLife({ livingCreatures, livingBases });
   // Milestone 9: a grown glowfin from the jar swims beside the diver as a light.
   const escort = new Escort(livingCreatures);
   let llSafe = { x: 0, y: 0 };
@@ -384,10 +384,10 @@ async function boot(): Promise<void> {
   const layout = new BaseLayout(save.pieces);
   save.pieces = layout.pieces;
   drone.teleport(diver.x, diver.y, layout);
-  const baseView = new BaseView();
+  const baseView = new BaseView(livingBases);
   baseView.sync(layout);
   tankLife.sync(save, layout);
-  const buildOverlay = new BuildOverlay();
+  const buildOverlay = new BuildOverlay(livingBases);
   overlayCam.addChild(buildOverlay.view, gearFx.overlay);
   // Milestone 5: conveyors, feed pipes and the machines they join.
   const factory = new Factory();
@@ -4298,7 +4298,7 @@ async function boot(): Promise<void> {
     // Milestone 9: the Hatchery's panel frames its cradles the same way.
     if (inside === 'base' && care.active && care.tankId !== null && baseHooks) {
       const f = baseHooks.tankFocus(care.tankId);
-      interior.focus = f ? { ...f, panelPx: Math.min(360, cssW * 0.44) + 24 } : null;
+      interior.focus = f ? { ...f, panelPx: Math.min(360, cssW * 0.44) + 24, lampGain: livingBases ? 0.16 : 1 } : null;
     } else if (inside === 'base' && hatchPanel.active && hatchPanel.pieceId !== null && baseHooks) {
       const f = baseHooks.roomFocus(hatchPanel.pieceId);
       interior.focus = f ? { ...f, panelPx: Math.min(360, cssW * 0.44) + 24 } : null;

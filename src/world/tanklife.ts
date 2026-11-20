@@ -1,10 +1,11 @@
 import { Container, Graphics } from 'pixi.js';
 import { Critter } from '../actors/critters';
 import { BaseLayout, pieceRect, Placed } from '../game/base';
-import { creaturesIn, tankDataFor, tanks, vigour } from '../game/creatures';
+import { creaturesIn, filteredTanks, tankDataFor, tanks, vigour } from '../game/creatures';
 import { traitsOf } from '../game/traits';
 import { CreatureData, PlantId, SaveData } from '../game/state';
 import { tankInner } from './basegfx';
+import { HabitatWater, type WaterBox } from './habitatWater';
 
 /**
  * Life inside the creature tanks (milestone 4): the creatures swimming, the
@@ -25,6 +26,7 @@ interface Swimmer {
   ty: number;
   retarget: number;
   rest: number;
+  feeding: number;
 }
 
 interface Flake {
@@ -46,9 +48,11 @@ interface TankView {
   flakes: Flake[];
   bubbles: { x: number; y: number; r: number; life: number }[];
   /** Inner water rectangle in world units. */
-  box: { x: number; y: number; w: number; h: number };
+  box: WaterBox;
   swimmers: Map<number, Swimmer>;
   murkShown: number;
+  water?: HabitatWater;
+  filtered: boolean;
 }
 
 export function drawPlant(kind: PlantId): Container {
@@ -111,6 +115,7 @@ export interface TankLifeOptions {
   /** Draw the faint front glass (indoors the room draws its own). */
   glass?: boolean;
   livingCreatures?: boolean;
+  livingBases?: boolean;
 }
 
 export class TankLife {
@@ -138,6 +143,7 @@ export class TankLife {
 
   sync(save: SaveData, layout: BaseLayout): void {
     const live = tanks(layout);
+    const filtered = this.opts.livingBases ? filteredTanks(layout) : undefined;
     const ids = new Set(live.map((t) => t.id));
     for (const [id, v] of this.views) {
       if (ids.has(id)) continue;
@@ -158,18 +164,32 @@ export class TankLife {
         const murk = new Graphics();
         const glass = new Graphics();
         const bubblesG = new Graphics();
+        const water = this.opts.livingBases ? new HabitatWater(box, t.id) : undefined;
         // Front glass: faint tint and two diagonal glints.
         if (this.opts.glass !== false) glass.rect(box.x, box.y, box.w, box.h).fill({ color: 0x9ccac0, alpha: 0.08 });
-        for (const gx of [0.12, 0.2, 0.66]) {
-          const x = box.x + box.w * gx;
-          glass.poly([x, box.y, x + 10, box.y, x - 14, box.y + box.h, x - 24, box.y + box.h]).fill({ color: 0xffffff, alpha: gx === 0.2 ? 0.05 : 0.09 });
+        if (water) {
+          const x = box.x + box.w * 0.24;
+          glass.moveTo(x, box.y + 4).lineTo(x + 30, box.y + 4)
+            .quadraticCurveTo(x + 10, box.y + box.h * 0.41, x + 8, box.y + box.h * 0.63)
+            .lineTo(x - 10, box.y + box.h * 0.58).quadraticCurveTo(x - 5, box.y + box.h * 0.24, x, box.y + 4)
+            .fill({ color: 0xe3edde, alpha: 0.09 });
+        } else {
+          for (const gx of [0.12, 0.2, 0.66]) {
+            const x = box.x + box.w * gx;
+            glass.poly([x, box.y, x + 10, box.y, x - 14, box.y + box.h, x - 24, box.y + box.h]).fill({ color: 0xffffff, alpha: gx === 0.2 ? 0.05 : 0.09 });
+          }
+          glass.rect(box.x, box.y, box.w, 2).fill({ color: 0xffffff, alpha: 0.25 });
         }
-        glass.rect(box.x, box.y, box.w, 2).fill({ color: 0xffffff, alpha: 0.25 });
         root.addChild(plantG, flakesG, murk, bubblesG);
+        if (water) {
+          root.addChildAt(water.back, 0);
+          root.addChild(water.front);
+        }
         this.view.addChild(root);
-        v = { id: t.id, root, plantG, plant: null, murk, glass, flakesG, bubblesG, flakes: [], bubbles: [], box, swimmers: new Map(), murkShown: -1 };
+        v = { id: t.id, root, plantG, plant: null, murk, glass, flakesG, bubblesG, flakes: [], bubbles: [], box, swimmers: new Map(), murkShown: -1, water, filtered: false };
         this.views.set(t.id, v);
       }
+      v.filtered = filtered?.has(t.id) ?? false;
       const td = tankDataFor(save, t.id);
       const plantKey = `${td.plant ?? ''}|${td.plant2 ?? ''}`;
       if (plantKey !== v.plant) {
@@ -208,7 +228,7 @@ export class TankLife {
         // New, or it hatched or grew: redraw it.
         if (old) old.critter.destroy();
         const critter = new Critter(c.species, c.stage, c.id, traitsOf(c), this.opts.livingCreatures);
-        v.root.addChildAt(critter.view, 2);
+        v.root.addChildAt(critter.view, v.root.getChildIndex(v.murk));
         this.emissive.addChild(critter.emissive);
         this.glow.addChild(critter.glow);
         const eggX = v.box.x + v.box.w * (0.45 + ((c.id * 0.17) % 0.3));
@@ -224,6 +244,7 @@ export class TankLife {
           ty: 0,
           retarget: 0,
           rest: 0,
+          feeding: 0,
         };
         if (c.stage === 'egg') {
           s.x = eggX;
@@ -240,6 +261,17 @@ export class TankLife {
   feed(tankId: number): void {
     const v = this.views.get(tankId);
     if (!v) return;
+    if (v.water) {
+      const { x, y, w } = v.box;
+      const inlet = x + w * 0.61;
+      v.water.ripple(inlet, y + 5, -10, 26, 0.8);
+      for (let i = 0; i < 18; i++) {
+        const spread = ((i * 0.61803398875) % 1 - 0.5) * w * 0.56;
+        v.flakes.push({ x: inlet + spread, y: y + 5 + (i % 7) * 1.3, vy: (9 + i % 6 * 2) * this.k, life: 5 + i % 4 });
+      }
+      if (v.flakes.length > 54) v.flakes.splice(0, v.flakes.length - 54);
+      return;
+    }
     for (let i = 0; i < Math.round(26 * Math.min(3, Math.max(1, v.box.w / 200))); i++)
       v.flakes.push({ x: v.box.x + 20 * this.k + Math.random() * (v.box.w - 40 * this.k), y: v.box.y + 2 - Math.random() * 10 * this.k, vy: (8 + Math.random() * 10) * this.k, life: 7 + Math.random() * 3 });
   }
@@ -248,8 +280,10 @@ export class TankLife {
   scrub(tankId: number): void {
     const v = this.views.get(tankId);
     if (!v) return;
+    v.water?.scrub();
     for (let i = 0; i < Math.round(40 * Math.min(3, Math.max(1, v.box.w / 200))); i++)
       v.bubbles.push({ x: v.box.x + Math.random() * v.box.w, y: v.box.y + v.box.h - Math.random() * v.box.h * 0.6, r: (1 + Math.random() * 2.5) * this.k, life: 1 + Math.random() * 1.5 });
+    if (v.water && v.bubbles.length > 120) v.bubbles.splice(0, v.bubbles.length - 120);
   }
 
   /** World position of a creature in a tank, for the care panel. */
@@ -268,7 +302,8 @@ export class TankLife {
       v.root.visible = on;
       if (on) v.plantG.children.forEach((p, i) => (p.skew.x = Math.sin(time * 0.7 + i * 1.9 + v.id) * 0.07));
       const water = tankDataFor(save, v.id).water;
-      if (Math.abs(water - v.murkShown) > 0.005) {
+      v.water?.update(dt, time, water, v.filtered, on);
+      if (!v.water && Math.abs(water - v.murkShown) > 0.005) {
         v.murkShown = water;
         v.murk.clear();
         const m = 1 - water;
@@ -290,14 +325,24 @@ export class TankLife {
         const f = v.flakes[i];
         f.life -= dt;
         f.y = Math.min(v.box.y + v.box.h - 8 * this.k, f.y + f.vy * dt);
-        f.x += Math.sin(time * 2 + i) * 6 * this.k * dt;
+        const flow = v.water?.flow(f.x, f.y, time, v.filtered) ?? 0;
+        f.x += (Math.sin(time * 2 + i) * 6 * this.k + flow * 7) * dt;
+        if (v.water) f.x = Math.max(v.box.x + 3, Math.min(v.box.x + v.box.w - 3, f.x));
         let eaten = f.life <= 0;
-        for (const s of v.swimmers.values()) if (s.stage !== 'egg' && Math.hypot(s.x - f.x, s.y - f.y) < 7 * this.k) eaten = true;
+        for (const s of v.swimmers.values()) {
+          if (s.stage === 'egg' || Math.hypot(s.x - f.x, s.y - f.y) >= 7 * this.k) continue;
+          eaten = true;
+          if (v.water && f.life > 0) {
+            s.feeding = 1;
+            v.water.ripple(f.x, f.y, s.vx * 0.4, s.vy * 0.4, 0.34);
+          }
+        }
         if (eaten) {
           v.flakes.splice(i, 1);
           continue;
         }
-        if (on) fg.rect(f.x - 1.4 * this.k, f.y - 0.8 * this.k, 2.8 * this.k, 1.6 * this.k).fill({ color: 0xc9a24a, alpha: Math.min(1, f.life) });
+        if (on && v.water) fg.ellipse(f.x, f.y, 2 * this.k, 0.8 * this.k).fill({ color: 0xe3bc64, alpha: Math.min(1, f.life) });
+        else if (on) fg.rect(f.x - 1.4 * this.k, f.y - 0.8 * this.k, 2.8 * this.k, 1.6 * this.k).fill({ color: 0xc9a24a, alpha: Math.min(1, f.life) });
       }
       const bg = v.bubblesG;
       bg.clear();
@@ -312,12 +357,12 @@ export class TankLife {
         if (on) bg.circle(b.x + Math.sin(time * 5 + i) * 1.5 * this.k, b.y, b.r).stroke({ color: 0xe8f6f0, width: 0.8 * this.k, alpha: Math.min(1, b.life) * 0.8 });
       }
       for (const s of v.swimmers.values()) this.move(s, v, dt, time, save, on);
-      if (this.highlight !== null && v.swimmers.has(this.highlight)) {
+      if (on && this.highlight !== null && v.swimmers.has(this.highlight)) {
         const s = v.swimmers.get(this.highlight)!;
         const n = 12;
         for (let i = 0; i < n; i++) {
           const a0 = (i / n) * Math.PI * 2 + time;
-          this.ring.arc(s.x, s.y - 3 * this.k, 22 * this.k, a0, a0 + Math.PI / n).stroke({ color: 0xfff1c0, width: 1.4 * this.k, alpha: 0.8 });
+          this.ring.arc(s.critter.view.x, s.critter.view.y - 3 * this.k, 22 * this.k, a0, a0 + Math.PI / n).stroke({ color: 0xfff1c0, width: 1.4 * this.k, alpha: 0.8 });
         }
       }
     }
@@ -328,6 +373,7 @@ export class TankLife {
     const b = v.box;
     const vig = vigour(save, c);
     const sick = Math.min(1, c.sickness * 3);
+    s.feeding = Math.max(0, s.feeding - dt * 1.8);
     if (c.stage !== 'egg') {
       const pad = (c.stage === 'grown' ? 22 : 16) * this.k;
       const sp = c.species;
@@ -375,6 +421,14 @@ export class TankLife {
       s.y = Math.max(b.y + pad * 0.8, Math.min(b.y + b.h - 10 * this.k, s.y + s.vy * dt));
     }
     s.critter.setVisible(on);
-    if (on) s.critter.update(dt, time, s.x, s.y, s.vx, s.vy, { vigour: vig, sick, size: 0.85 * this.k });
+    if (!on) return;
+    const fitPuffcap = this.opts.livingCreatures && c.species === 'puffcap' && c.stage !== 'egg';
+    const maxHeight = c.stage === 'grown' ? 137 : 62;
+    const size = fitPuffcap ? Math.min(0.85 * this.k, (b.h - 14) / maxHeight) : 0.85 * this.k;
+    const current = v.water?.flow(s.x, s.y, time, v.filtered) ?? 0;
+    s.critter.update(dt, time, s.x, s.y, s.vx, s.vy, { vigour: vig, sick, size, current, feeding: s.feeding });
+    if (fitPuffcap) s.critter.fitInHabitat(b, 5);
+    const stroke = s.critter.stroke;
+    if (v.water && stroke.strength) v.water.ripple(stroke.x, stroke.y, stroke.vx * 0.25, stroke.vy * 0.25, stroke.strength);
   }
 }

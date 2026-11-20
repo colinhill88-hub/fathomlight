@@ -1416,6 +1416,13 @@ body.caring #build-btn {
 #care-panel .acts .big {
   grid-column: 1 / -1;
 }
+#care-panel .habitat-care .acts {
+  position: static;
+  grid-template-columns: 1fr 1fr;
+  margin: 8px 0 0;
+  padding: 0;
+  background: none;
+}
 #care-panel .acts button {
   min-height: 44px;
   font-size: 13px;

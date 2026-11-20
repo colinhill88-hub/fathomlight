@@ -10,6 +10,7 @@ import { HATCH_CAP } from '../game/creatures';
 import { WHORLS_PER_PIECE } from '../game/factory';
 import { ITEM_COLOURS, pointAlong } from '../world/linegfx';
 import { drawPlant, TankLife } from '../world/tanklife';
+import { drawHabitatFrame, drawObservationCrown } from '../world/habitatFrame';
 import { mulberry32, WORLD_SEED } from '../rng';
 
 /**
@@ -340,7 +341,9 @@ export class BaseHooks implements InteriorHooks {
       clumps: true,
       glass: false,
       livingCreatures: ctx.livingCreatures,
+      livingBases: ctx.livingBases,
     });
+    this.extraLit.addChild(this.habitatForeground);
     for (const l of level.lifts) this.spots.push({ room: level.rooms[0], x: l.x, y: l.y, r: 40, what: 'lift', to: { x: l.toX, y: l.toY }, up: l.up });
     ctx.lines().forEach((l, i) => {
       const pts = this.routeLine(l, i % 4);
@@ -359,6 +362,7 @@ export class BaseHooks implements InteriorHooks {
   }
   /** Milestone 9: the Hatchery's eggs and young (real creatures) and the farm's crops. */
   private extraLit = new Container();
+  private habitatForeground = new Container();
   private extraEm = new Container();
   private extraGlow = new Container();
   private nest = new Map<number, { c: Critter; stage: string }>();
@@ -835,6 +839,7 @@ export class BaseHooks implements InteriorHooks {
     const rand = mulberry32(WORLD_SEED ^ 0x5eba5e);
     if (phase === 'back') {
       this.screens = [];
+      for (const child of this.habitatForeground.removeChildren()) child.destroy();
       for (const r of this.level.rooms) this.drawRoom(r, g, e, gl, addLamp, addText, rand, wallTexture);
       return;
     }
@@ -949,8 +954,11 @@ export class BaseHooks implements InteriorHooks {
       // Grime gathers along the floor; a skirting plate; a gold line at waist height.
       floorGrime(g, b.ox, b.ow, f, rand);
       skirting(g, b.ox, b.ow, f);
-      e.rect(b.ox, f - 92, b.ow, 1.6).fill({ color: COL.gold, alpha: 0.55 });
-      for (let x = b.ox + 40; x < b.ox + b.ow - 40; x += 150) trace(e, x, f - 92, 90, rand, 0.45);
+      const tankWindow = this.ctx.livingBases && (r.kind === 'tank' || r.kind === 'gtank');
+      const circuit = tankWindow ? g : e;
+      const circuitY = f - (tankWindow ? 12 : 92);
+      circuit.rect(b.ox, circuitY, b.ow, 1.6).fill({ color: COL.gold, alpha: 0.55 });
+      for (let x = b.ox + 40; x < b.ox + b.ow - 40; x += 150) trace(circuit, x, circuitY, 90, rand, tankWindow ? 0.18 : 0.45);
       if (conduit && f - ceil > 180) pipeRun(g, b.ox, b.ox + b.ow, ceil + 66, 3.5, DC.steel, DC.chrome, rand);
       // The ceiling beam with its cables, and a lamp hung under it in each cell.
       ceilingBeam(g, b.ox, b.ow, ceil, rand);
@@ -971,21 +979,31 @@ export class BaseHooks implements InteriorHooks {
         const wy = f0 - 18;
         const rx = b.ow / 2 - 40;
         const ry = f0 - b.oy - 30;
-        const half = (ax: number, ay: number) => {
-          const pts: number[] = [];
-          for (let i = 0; i <= 32; i++) {
-            const t = (i / 32) * Math.PI;
-            pts.push(wx + Math.cos(t) * ax, wy - Math.sin(t) * ay);
-          }
-          return pts;
-        };
-        g.poly(half(rx + 8, ry + 8)).fill({ color: COL.chrome });
-        g.poly(half(rx, ry)).fill({ color: COL.glassSea });
-        g.poly(half(rx, ry)).fill({ color: 0x3a7a3a, alpha: 0.75 });
-        g.poly(half(rx * 0.8, ry * 0.6)).fill({ color: 0x2a5a2a, alpha: 0.3 });
-        for (const k of [-0.6, -0.3, 0, 0.3, 0.6]) g.rect(wx + k * rx - 2, wy - ry * Math.sqrt(1 - k * k), 4, ry * Math.sqrt(1 - k * k)).fill({ color: COL.chromeDark });
-        g.rect(wx - rx - 8, wy - 4, rx * 2 + 16, 8).fill({ color: COL.chrome });
-        e.moveTo(wx - rx * 0.7, wy - ry * 0.55).quadraticCurveTo(wx - rx * 0.2, wy - ry * 0.95, wx + rx * 0.3, wy - ry * 0.9).stroke({ color: 0xe8ffc0, width: 4, alpha: 0.18 });
+        if (this.ctx.livingBases) {
+          drawObservationCrown(g, e, gl, { x: wx - rx, y: wy - ry + 23, w: rx * 2, h: ry - 23 });
+          const shelf = f0 - 63;
+          g.roundRect(b.ox + 80, shelf, 154, 12, 5).fill(0x5f6f64);
+          g.roundRect(b.ox + 89, shelf - 10, 135, 13, 5).fill(0xad805d);
+          g.rect(b.ox + 90, shelf + 12, 7, 50).fill(0x3f5355);
+          g.rect(b.ox + 217, shelf + 12, 7, 50).fill(0x3f5355);
+          addText(sign('OBSERVATION DECK', wx, b.oy + 31, 11, 0xd5bb8e));
+        } else {
+          const half = (ax: number, ay: number) => {
+            const pts: number[] = [];
+            for (let i = 0; i <= 32; i++) {
+              const t = (i / 32) * Math.PI;
+              pts.push(wx + Math.cos(t) * ax, wy - Math.sin(t) * ay);
+            }
+            return pts;
+          };
+          g.poly(half(rx + 8, ry + 8)).fill({ color: COL.chrome });
+          g.poly(half(rx, ry)).fill({ color: COL.glassSea });
+          g.poly(half(rx, ry)).fill({ color: 0x3a7a3a, alpha: 0.75 });
+          g.poly(half(rx * 0.8, ry * 0.6)).fill({ color: 0x2a5a2a, alpha: 0.3 });
+          for (const k of [-0.6, -0.3, 0, 0.3, 0.6]) g.rect(wx + k * rx - 2, wy - ry * Math.sqrt(1 - k * k), 4, ry * Math.sqrt(1 - k * k)).fill({ color: COL.chromeDark });
+          g.rect(wx - rx - 8, wy - 4, rx * 2 + 16, 8).fill({ color: COL.chrome });
+          e.moveTo(wx - rx * 0.7, wy - ry * 0.55).quadraticCurveTo(wx - rx * 0.2, wy - ry * 0.95, wx + rx * 0.3, wy - ry * 0.9).stroke({ color: 0xe8ffc0, width: 4, alpha: 0.18 });
+        }
         // The base planner: a table with a lime holographic grid.
         const px = b.ox + b.ow - 90;
         g.roundRect(px - 44, f0 - 46, 88, 12, 3).fill({ color: COL.chromeDark });
@@ -996,6 +1014,19 @@ export class BaseHooks implements InteriorHooks {
         // Lower level: the airlock, a bunk, and a galley console.
         const ax = b.cx;
         const ay = bot - 64;
+        if (this.ctx.livingBases) {
+          g.roundRect(b.ox + 44, bot - 157, b.ow - 88, 144, 36).fill({ color: 0x475650, alpha: 0.88 });
+          g.roundRect(b.ox + 59, bot - 144, b.ow - 118, 111, 26).fill({ color: 0x292f31, alpha: 0.78 });
+          g.moveTo(b.ox + 72, bot - 146).lineTo(b.ox + b.ow - 72, bot - 146)
+            .stroke({ color: 0x9d8464, width: 4, alpha: 0.81 });
+          const y = bot - 115;
+          for (const x of [b.ox + 120, b.ox + b.ow - 120]) {
+            g.roundRect(x - 38, y - 16, 76, 32, 12).fill(0x746a54);
+            g.roundRect(x - 28, y - 9, 56, 18, 6).fill(0x4b5f57);
+            e.roundRect(x - 22, y - 6, 44, 12, 4).fill({ color: 0xd5ae78, alpha: 0.45 });
+            gl.ellipse(x, y, 51, 27).fill({ color: 0xd5a674, alpha: 0.18 });
+          }
+        }
         g.circle(ax, ay, 54).fill({ color: COL.chrome });
         g.circle(ax, ay, 54).stroke({ color: COL.chromeDark, width: 3 });
         g.circle(ax, ay, 42).fill({ color: COL.wallDark });
@@ -1150,16 +1181,18 @@ export class BaseHooks implements InteriorHooks {
       case 'tank':
       case 'gtank': {
         const t = this.tanks.find((q) => q.room === r)!;
-        g.roundRect(t.x - 14, t.y - 14, t.w + 28, t.h + 28, 12).fill({ color: COL.chrome });
-        g.roundRect(t.x - 14, t.y - 14, t.w + 28, 4, 2).fill({ color: COL.chromeHi, alpha: 0.7 });
-        g.roundRect(t.x, t.y, t.w, t.h, 6).fill({ color: COL.glassSea });
-        // Water and sand drawn unlit so the tank glows from inside.
-        g.roundRect(t.x, t.y, t.w, t.h, 6).fill({ color: 0x2a8a98, alpha: 1 });
-        g.rect(t.x, t.y, t.w, 26).fill({ color: 0x4ab0b0, alpha: 0.18 });
+        if (this.ctx.livingBases) drawHabitatFrame(g, t, 17);
+        else {
+          g.roundRect(t.x - 14, t.y - 14, t.w + 28, t.h + 28, 12).fill({ color: COL.chrome });
+          g.roundRect(t.x - 14, t.y - 14, t.w + 28, 4, 2).fill({ color: COL.chromeHi, alpha: 0.7 });
+          g.roundRect(t.x, t.y, t.w, t.h, 6).fill({ color: COL.glassSea });
+          g.roundRect(t.x, t.y, t.w, t.h, 6).fill({ color: 0x2a8a98, alpha: 1 });
+          g.rect(t.x, t.y, t.w, 26).fill({ color: 0x4ab0b0, alpha: 0.18 });
+        }
         g.roundRect(t.x, t.y + t.h - 24, t.w, 24, 6).fill({ color: 0xb09a6e, alpha: 0.9 });
         for (let i = 0; i < t.w / 18; i++) g.circle(t.x + rand() * t.w, t.y + t.h - 20 + rand() * 14, 2 + rand() * 4).fill({ color: 0x6a5a42, alpha: 0.8 });
         // Vertical frame bars every few metres.
-        for (let x = t.x + 160; x < t.x + t.w - 40; x += 160) g.rect(x - 4, t.y - 14, 8, t.h + 28).fill({ color: COL.chromeDark });
+        if (!this.ctx.livingBases) for (let x = t.x + 160; x < t.x + t.w - 40; x += 160) g.rect(x - 4, t.y - 14, 8, t.h + 28).fill({ color: COL.chromeDark });
         gl.roundRect(t.x + 20, t.y + 20, t.w - 40, t.h - 40, 30).fill({ color: 0x1a8080, alpha: 0.12 });
         // The frame is bolted all round; a level scale by the glass.
         bolts(g, t.x - 7, t.y - 7, t.x + t.w + 7, t.y - 7, 26, 1.2);
@@ -1173,18 +1206,19 @@ export class BaseHooks implements InteriorHooks {
         }
         if (this.ctx.livingBases) {
           const { consoleX, trayX } = habitatStations(b.ox, b.ow);
+          const controls = this.habitatForeground.addChild(new Graphics());
           for (let k = 0; k < r.h; k++) {
             const floor = b.floor(k);
-            g.poly([consoleX - 53, floor - 71, consoleX + 53, floor - 71, consoleX + 42, floor - 35, consoleX - 42, floor - 35]).fill(0x24363b);
-            g.roundRect(consoleX - 23, floor - 37, 46, 37, 7).fill(0x34494a);
-            g.roundRect(consoleX - 44, floor - 65, 88, 22, 5).fill(0x0d2e34);
-            g.moveTo(consoleX - 52, floor - 71).lineTo(consoleX + 52, floor - 71).stroke({ color: 0x789d96, width: 3 });
-            addText(sign('HABITAT', consoleX, floor - 54, 13, 0xb5e5d9, 0.95));
+            controls.poly([consoleX - 53, floor - 71, consoleX + 53, floor - 71, consoleX + 42, floor - 35, consoleX - 42, floor - 35]).fill(0x24363b);
+            controls.roundRect(consoleX - 23, floor - 37, 46, 37, 7).fill(0x34494a);
+            controls.roundRect(consoleX - 44, floor - 65, 88, 22, 5).fill(0x0d2e34);
+            controls.moveTo(consoleX - 52, floor - 71).lineTo(consoleX + 52, floor - 71).stroke({ color: 0x789d96, width: 3 });
+            this.habitatForeground.addChild(sign('HABITAT', consoleX, floor - 54, 13, 0xb5e5d9, 0.95));
           }
-          g.roundRect(trayX - 62, bot - 32, 124, 32, 6).fill(0x513c30);
-          g.poly([trayX - 69, bot - 39, trayX + 69, bot - 39, trayX + 57, bot - 21, trayX - 57, bot - 21]).fill(0x98714e);
-          g.roundRect(trayX - 56, bot - 36, 112, 12, 4).fill(0x352b28);
-          addText(sign('COLLECTION', trayX, bot - 11, 12, 0xffd7a1, 0.95));
+          controls.roundRect(trayX - 62, bot - 32, 124, 32, 6).fill(0x513c30);
+          controls.poly([trayX - 69, bot - 39, trayX + 69, bot - 39, trayX + 57, bot - 21, trayX - 57, bot - 21]).fill(0x98714e);
+          controls.roundRect(trayX - 56, bot - 36, 112, 12, 4).fill(0x352b28);
+          this.habitatForeground.addChild(sign('COLLECTION', trayX, bot - 11, 12, 0xffd7a1, 0.95));
         }
         this.screens.push({ x: t.x + t.w / 2, y: t.y + t.h / 2, radius: Math.max(t.w, t.h) * 0.7, intensity: 0.45, color: [0.3, 0.75, 0.8] });
         break;
@@ -1653,13 +1687,13 @@ export class BaseHooks implements InteriorHooks {
       if (count) {
         for (let i = 0; i < Math.min(count, 5); i++) {
           const x = trayX - 37 + i * 17;
-          d.poly([x - 6, b.bottom - 30, x - 3, b.bottom - 42, x + 5, b.bottom - 46, x + 9, b.bottom - 35, x + 6, b.bottom - 30]).fill(0xb49871);
+          d.poly([x - 6, b.bottom - 35, x - 3, b.bottom - 47, x + 5, b.bottom - 51, x + 9, b.bottom - 40, x + 6, b.bottom - 35]).fill(0xb49871);
         }
       }
       de.circle(trayX + 58, b.bottom - 29, 3.2).fill({ color: count ? 0xffc770 : 0x695944, alpha: count ? 0.85 + 0.15 * Math.sin(time * 1.6) : 0.65 });
     }
     // Bubbles from the filter inlet, when powered.
-    if (on) for (let i = 0; i < 8; i++) de.circle(t.x + t.w - 30 + Math.sin(time * 2 + i) * 4, t.y + t.h - 20 - ((time * 50 + i * 37) % (t.h - 30)), 2 + (i % 3)).fill({ color: 0xc8ffff, alpha: 0.35 });
+    if (on && !this.ctx.livingBases) for (let i = 0; i < 8; i++) de.circle(t.x + t.w - 30 + Math.sin(time * 2 + i) * 4, t.y + t.h - 20 - ((time * 50 + i * 37) % (t.h - 30)), 2 + (i % 3)).fill({ color: 0xc8ffff, alpha: 0.35 });
 
   }
 }

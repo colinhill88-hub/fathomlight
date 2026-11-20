@@ -1,5 +1,6 @@
 import { Container, FillGradient, Graphics, Point } from 'pixi.js';
 import { approach, batchAll, clamp } from './animkit';
+import type { Stroke } from './shoreCreatureRigs';
 
 export interface GlowfinColors {
   body: number;
@@ -28,6 +29,7 @@ export class GlowfinRig {
   readonly body = new Container();
   readonly lure = new Point();
   readonly wake = new Point();
+  readonly feedStroke: Stroke = { x: 0, y: 0, vx: -18, vy: 2, radius: 30, strength: 0 };
   private readonly wrist = new Container();
   private readonly paddle = new Container();
   private readonly near = new Container();
@@ -110,7 +112,7 @@ export class GlowfinRig {
     this.update(0, 0, 0);
   }
 
-  update(dt: number, speed: number, notice: number, sick = 0, currentY = 0): void {
+  update(dt: number, speed: number, notice: number, sick = 0, currentY = 0, feeding = 0): void {
     const acceleration = dt > 0 ? (speed - this.previousSpeed) / dt : 0;
     this.previousSpeed = speed;
     this.pace = approach(this.pace, clamp(speed / 135, 0, 1), 6.2, dt);
@@ -123,12 +125,13 @@ export class GlowfinRig {
     this.startle *= Math.exp(-dt * 4.1);
     this.attention = approach(this.attention, notice, 5.5, dt);
     const stroke = this.pace * 0.56 + this.effort * 0.7;
-    this.phase = (this.phase + dt * (3.8 + stroke * 13) * (1 - sick * 0.56)) % (Math.PI * 2);
+    const previous = this.phase;
+    this.phase = (this.phase + dt * (3.8 + stroke * 13 + feeding * 4) * (1 - sick * 0.56)) % (Math.PI * 2);
     const amplitude = (0.1 + 0.58 * stroke) * (1 - sick * 0.36);
     this.wrist.rotation = Math.sin(this.phase) * amplitude;
     this.paddle.rotation = Math.sin(this.phase - 0.8) * amplitude * 0.8;
     // Use the fins most actively while hovering. Fold the fins in during the dash.
-    const scull = (0.42 - 0.28 * this.pace) * (1 - sick * 0.55);
+    const scull = (0.42 - 0.28 * this.pace + feeding * 0.2) * (1 - sick * 0.55);
     this.near.rotation = Math.sin(this.phase + 0.92) * scull + 0.18 * this.attention;
     this.far.rotation = -0.21 + Math.sin(this.phase - 0.4) * scull;
     this.stalk.rotation = Math.sin(this.phase - 1.58) * (0.055 + 0.1 * stroke)
@@ -140,5 +143,8 @@ export class GlowfinRig {
     const finAngle = rootAngle + this.paddle.rotation;
     this.wake.set(this.wrist.x + this.paddle.x * Math.cos(rootAngle) + this.finTip.x * Math.cos(finAngle),
       this.wrist.y + this.paddle.x * Math.sin(rootAngle) + this.finTip.x * Math.sin(finAngle));
+    this.feedStroke.x = this.wake.x;
+    this.feedStroke.y = this.wake.y;
+    this.feedStroke.strength = this.phase < previous ? feeding * 0.26 : 0;
   }
 }

@@ -97,6 +97,8 @@ export interface InteriorFocus {
   h: number;
   /** Width of the panel on the right, in CSS px: the focus is centred in what is left. */
   panelPx: number;
+  /** Presentation multiplier for close inspection views with reflective glass. */
+  lampGain?: number;
 }
 
 /**
@@ -178,6 +180,7 @@ export class Interior {
   progress = 0;
   banner = '';
   lampOn = true;
+  private lampGain = 1;
 
   private map: string[] = [];
   private W = 0;
@@ -347,6 +350,7 @@ export class Interior {
     this.hooks = hooks;
     hooks?.attach?.(this.actorLit, this.actorEm, this.actorGlow);
     this.focus = null;
+    this.lampGain = 1;
     this.climbing = false;
     this.map = map;
     this.W = map[0].length;
@@ -1650,7 +1654,8 @@ export class Interior {
     this.headLamp.y = lamp.y;
     this.headLamp.dirX = w.face * 0.97;
     this.headLamp.dirY = 0.24;
-    this.headLamp.intensity = this.lampOn ? 1.6 : 0;
+    this.lampGain += ((this.focus?.lampGain ?? 1) - this.lampGain) * (1 - Math.exp(-dt * 8));
+    this.headLamp.intensity = this.lampOn ? 1.6 * this.lampGain : 0;
     if (this.hooks)
       for (const l of this.lamps) {
         const on = this.hooks.powered(l.zone);

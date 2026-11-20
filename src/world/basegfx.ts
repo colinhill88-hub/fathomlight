@@ -2,6 +2,7 @@ import { Container, Graphics, Text } from 'pixi.js';
 import { MATERIAL_ORDER } from '../game/state';
 import { mulberry32, WORLD_SEED } from '../rng';
 import { groundY, WORLD_W, WORLD_X0 } from './terrain';
+import { drawHabitatFrame, drawObservationCrown } from './habitatFrame';
 import {
   BaseLayout,
   CELL,
@@ -417,6 +418,49 @@ function drawDome(n: number): PieceArt {
   streak.mask = clip;
 
   return { body, windows, windowGlow, lamp: { x: cx, y: drumTop - ry - 20 }, sheen, streak, streakSpan: rx * 2.6 };
+}
+
+function drawKestrelHabitat(n: number): PieceArt {
+  const body = new Container();
+  const g = body.addChild(new Graphics());
+  const windows = new Graphics();
+  const windowGlow = new Graphics();
+  const sheen = new Graphics();
+  const mid = CELL;
+  const w = CELL * 2;
+  const hatch = w - 56;
+  g.moveTo(4, 129).lineTo(19, 122).lineTo(w - 19, 122).lineTo(w - 4, 129)
+    .lineTo(w - 4, 190).lineTo(w - 22, 212).lineTo(22, 212).lineTo(4, 190).closePath().fill(0x385151);
+  g.poly([13, 144, 94, 144, 92, 193, 25, 205, 13, 187]).fill(0x63756b);
+  g.poly([130, 144, w - 13, 144, w - 13, 187, w - 25, 205, 132, 193]).fill(0x556a64);
+  g.moveTo(18, 150).lineTo(85, 150).moveTo(139, 150).lineTo(w - 18, 150)
+    .stroke({ color: 0xc3ac87, width: 2.1, alpha: 0.72 });
+  g.roundRect(17, 195, w - 34, 14, 4).fill(0x34484a);
+  for (const x of [23, w - 56]) {
+    g.poly([x, 202, x + 32, 202, x + 28, 220, x + 3, 220]).fill(0x415857);
+    g.rect(x + 1, 216, 29, 4).fill(0x776649);
+  }
+  drawObservationCrown(g, windows, windowGlow, { x: 9, y: 21, w: w - 18, h: 112 });
+  g.poly([80, 25, 88, 12, 146, 12, 156, 25]).fill(0x596d65);
+  g.moveTo(90, 14).lineTo(135, 14).stroke({ color: 0xb5ad89, width: 2 });
+  g.roundRect(124, 6, 18, 8, 2).fill(0x313c3b);
+  g.circle(138, 8, 2.7).fill(0x74614a);
+  for (const x of [43, w - 43]) {
+    g.roundRect(x - 21, hatch - 12, 42, 26, 8).fill(0x364b48);
+    g.roundRect(x - 16, hatch - 8, 32, 18, 5).fill(0x5b5e48);
+    windows.roundRect(x - 14, hatch - 6, 28, 13, 4).fill({ color: 0xeec58b, alpha: 0.68 });
+    windowGlow.ellipse(x, hatch, 22, 15).fill({ color: 0xe9af70, alpha: 0.47 });
+  }
+  g.circle(mid, hatch, 27).fill(0x263736).circle(mid, hatch, 24).fill(0x988464).circle(mid, hatch, 18).fill(0x33413e);
+  g.moveTo(mid - 11, hatch).lineTo(mid + 11, hatch).moveTo(mid, hatch - 11).lineTo(mid, hatch + 11)
+    .stroke({ color: 0xbeb08d, width: 2.4 });
+  g.circle(mid, hatch, 3.7).fill(0xaea282);
+  windows.circle(mid, hatch, 20).stroke({ color: 0xffc28b, width: 1.3, alpha: 0.87 });
+  algaeLine(g, 15, w - 15, 211, 19);
+  streaks(g, 20, w - 20, 174, 17, 9);
+  body.addChild(stencil(`HAB-0${n}`, mid, 140, 7));
+  sheen.moveTo(42, 68).quadraticCurveTo(68, 48, 108, 48).stroke({ color: 0xe3efdb, width: 5, alpha: 0.18, cap: 'round' });
+  return { body, windows, windowGlow, sheen, lamp: { x: 138, y: 8 } };
 }
 
 function drawCorridor(n: number, rot: number, withStencil = true): PieceArt {
@@ -1024,7 +1068,7 @@ export function tankInner(kind: PieceKind): { x: number; y: number; w: number; h
  * drawn here; the creatures, plant, murk and front glass are drawn by
  * TankLife (src/world/tanklife.ts) on top.
  */
-function drawTank(n: number, grand = false): PieceArt {
+function drawTank(n: number, grand = false, livingBases = false): PieceArt {
   const W = CELL * (grand ? 3 : 2);
   const H = CELL * (grand ? 2 : 1);
   const body = new Container();
@@ -1036,9 +1080,12 @@ function drawTank(n: number, grand = false): PieceArt {
   tubeH(g, 0, 18, H / 2, 1);
   tubeH(g, W - 18, W, H / 2, 1);
   // Back wall and water.
-  g.rect(I.x - 4, I.y - 4, I.w + 8, I.h + 8).fill({ color: PAL.steelDeep });
-  g.rect(I.x, I.y, I.w, I.h).fill({ color: 0x1f4a4c });
-  g.rect(I.x, I.y, I.w, I.h * 0.45).fill({ color: 0x3d7470, alpha: 0.55 });
+  if (livingBases) drawHabitatFrame(g, I, 10);
+  else {
+    g.rect(I.x - 4, I.y - 4, I.w + 8, I.h + 8).fill({ color: PAL.steelDeep });
+    g.rect(I.x, I.y, I.w, I.h).fill({ color: 0x1f4a4c });
+    g.rect(I.x, I.y, I.w, I.h * 0.45).fill({ color: 0x3d7470, alpha: 0.55 });
+  }
   // Sand floor with a few pebbles and a rock.
   const floor = I.y + I.h - 12;
   const sand: number[] = [I.x, I.y + I.h];
@@ -1050,31 +1097,38 @@ function drawTank(n: number, grand = false): PieceArt {
   g.ellipse(I.x + I.w * 0.78 - 4, floor - 4, 9, 3).fill({ color: 0xffffff, alpha: 0.12 });
   g.ellipse(I.x + I.w * 0.86, floor + 2, 8, 5).fill({ color: 0x585a52 });
   algaeLine(g, I.x + I.w * 0.72, I.x + I.w * 0.9, floor - 6, 5);
-  // Frame: steel posts, rust-red top and bottom rails.
-  g.rect(8, 6, 10, H - 10).fill({ color: PAL.steel });
-  g.rect(W - 18, 6, 10, H - 10).fill({ color: PAL.steel });
-  g.rect(8, 6, 3, H - 10).fill({ color: 0xffffff, alpha: 0.12 });
-  g.rect(W - 18, 6, 3, H - 10).fill({ color: 0xffffff, alpha: 0.12 });
-  g.roundRect(4, 2, W - 8, 14, 3).fill({ color: PAL.rust });
-  g.roundRect(4, 2, W - 8, 4, 2).fill({ color: 0xffffff, alpha: 0.14 });
-  g.roundRect(4, H - 16, W - 8, 14, 3).fill({ color: PAL.rust });
-  g.rect(4, H - 6, W - 8, 4).fill({ color: PAL.rustDark, alpha: 0.7 });
-  rivets(g, 12, 9, W - 12, 9, 22);
-  rivets(g, 12, H - 9, W - 12, H - 9, 22);
+  if (!livingBases) {
+    // Frame: steel posts, rust-red top and bottom rails.
+    g.rect(8, 6, 10, H - 10).fill({ color: PAL.steel });
+    g.rect(W - 18, 6, 10, H - 10).fill({ color: PAL.steel });
+    g.rect(8, 6, 3, H - 10).fill({ color: 0xffffff, alpha: 0.12 });
+    g.rect(W - 18, 6, 3, H - 10).fill({ color: 0xffffff, alpha: 0.12 });
+    g.roundRect(4, 2, W - 8, 14, 3).fill({ color: PAL.rust });
+    g.roundRect(4, 2, W - 8, 4, 2).fill({ color: 0xffffff, alpha: 0.14 });
+    g.roundRect(4, H - 16, W - 8, 14, 3).fill({ color: PAL.rust });
+    g.rect(4, H - 6, W - 8, 4).fill({ color: PAL.rustDark, alpha: 0.7 });
+    rivets(g, 12, 9, W - 12, 9, 22);
+    rivets(g, 12, H - 9, W - 12, H - 9, 22);
+  } else {
+    g.roundRect(W * 0.6 - 18, 0, 42, 13, 3).fill(0x655743);
+    g.roundRect(W * 0.6 - 12, 3, 32, 5, 2).fill(0xa98a58);
+    g.poly([28, H - 9, 56, H - 9, 51, H, 25, H]).fill(0x42615e);
+    g.poly([W - 56, H - 9, W - 28, H - 9, W - 25, H, W - 51, H]).fill(0x42615e);
+  }
   // Lamp housing on the top rail.
   g.roundRect(W / 2 - 40, 4, 80, 8, 2).fill({ color: PAL.steelDark });
   windows.rect(W / 2 - 36, 10, 72, 3).fill({ color: 0xfff1d0, alpha: 0.9 });
   windowGlow.rect(W / 2 - 50, 8, 100, 30).fill({ color: PAL.warm, alpha: 0.25 });
-  if (grand) {
+  if (grand && !livingBases) {
     // A middle post, and resin-amber seals along the rails.
     g.rect(W / 2 - 4, 14, 8, H - 28).fill({ color: PAL.steel, alpha: 0.85 });
     g.rect(4, 15, W - 8, 3).fill({ color: 0xc88a2a, alpha: 0.8 });
     g.rect(4, H - 19, W - 8, 3).fill({ color: 0xc88a2a, alpha: 0.8 });
   }
   body.addChild(stencil(grand ? `GT-${n}` : `TANK ${n}`, 42, H - 9, 6));
-  streaks(g, 8, W - 8, 14, 16, 16);
+  streaks(g, 8, W - 8, livingBases ? 8 : 14, 16, livingBases ? 5 : 16);
   streaks(g, 8, W - 8, H - 4, 10, 8);
-  scratches(g, 6, 2, W - 6, 14, 8);
+  scratches(g, 6, 2, W - 6, livingBases ? 7 : 14, 8);
   algaeLine(g, 6, W - 6, H - 3, 24);
   return { body, windows, windowGlow, lamp: { x: W - 30, y: 8 }, whorlAt: { x: W - 30, y: 26 } };
 }
@@ -1531,9 +1585,9 @@ function drawWorkshop(n: number): PieceArt {
 }
 
 /** Draw a piece's art. The same drawing is used for placed pieces and the build ghost. */
-export function drawPiece(kind: PieceKind, n: number, rot: number, seed: number): PieceArt {
+export function drawPiece(kind: PieceKind, n: number, rot: number, seed: number, livingBases = false): PieceArt {
   rand = mulberry32(WORLD_SEED ^ (seed * 7919 + 0x1b5e));
-  if (kind === 'dome') return drawDome(n);
+  if (kind === 'dome') return livingBases ? drawKestrelHabitat(n) : drawDome(n);
   if (kind === 'corridor') return drawCorridor(n, rot);
   if (kind === 'shaft') return drawShaft(n);
   if (kind === 'junction') return drawJunction(n);
@@ -1541,8 +1595,7 @@ export function drawPiece(kind: PieceKind, n: number, rot: number, seed: number)
   if (kind === 'bracket') return drawBracket(n, rot);
   if (kind === 'turbine') return drawTurbine(n);
   if (kind === 'thermal') return drawThermal(n);
-  if (kind === 'tank') return drawTank(n);
-  if (kind === 'gtank') return drawTank(n, true);
+  if (kind === 'tank' || kind === 'gtank') return drawTank(n, kind === 'gtank', livingBases);
   if (kind === 'sorter') return drawSorter(n);
   if (kind === 'recomp') return drawRecomp(n);
   if (kind === 'crane') return drawCrane(n);
@@ -1660,7 +1713,7 @@ export class BaseView {
   private live = new Map<number, Live>();
   private sparks: Spark[] = [];
 
-  constructor() {
+  constructor(private readonly livingBases = false) {
     this.view.addChild(this.legs, this.pieceLayer, this.collarG, this.whorlLayer);
   }
 
@@ -1684,7 +1737,7 @@ export class BaseView {
     for (const p of [...layout.pieces].sort((a, b) => a.id - b.id)) {
       counts[p.kind]++;
       if (this.live.has(p.id)) continue;
-      const art = drawPiece(p.kind, counts[p.kind], p.rot, p.id);
+      const art = drawPiece(p.kind, counts[p.kind], p.rot, p.id, this.livingBases);
       const r = pieceRect(p);
       const root = new Container();
       root.addChild(art.body);
@@ -2059,7 +2112,7 @@ export class BuildOverlay {
   private links = new Graphics();
   private ports = new Graphics();
 
-  constructor() {
+  constructor(private readonly livingBases = false) {
     this.view.addChild(this.grid, this.links, this.ghostRoot, this.ghostOutline, this.marks, this.select, this.ports);
     this.view.visible = false;
     // Faint cell corners over open water, drawn once (the site is big).
@@ -2185,7 +2238,7 @@ export class BuildOverlay {
       this.ghostKey = key;
       this.ghostRoot.removeChildren().forEach((c) => c.destroy({ children: true }));
       if (ghost) {
-        const art = drawPiece(ghost.kind, 0, ghost.rot, 99);
+        const art = drawPiece(ghost.kind, 0, ghost.rot, 99, this.livingBases);
         this.ghostRoot.addChild(art.body);
         art.windows.destroy();
         art.windowGlow.destroy();
