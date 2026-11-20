@@ -3,6 +3,7 @@ import { MATERIAL_ORDER, MaterialId, SaveData } from '../game/state';
 import { FINDS, GEAR, GEAR_ORDER, gearBlocker, jobOf, jobRunning, jobSecondsLeft, KIT_GEAR, OTHER_BLUEPRINTS, PIECE_BLUEPRINTS, RESEARCH, RESEARCH_ORDER, researchBlocker } from '../game/gear';
 import { payCost } from '../game/creatures';
 import { haveFor, missingText } from '../game/sub';
+import { entry } from '../game/scanner';
 import { MATERIAL_ICONS } from './hud';
 
 /**
@@ -206,8 +207,10 @@ export class StationMode {
           if (r.scans.includes('trench') && !save.scans.includes('trench')) return '';
           if (jobRunning(save, `research:${id}`)) return `<div class="mod"><div><b>${r.name}</b><small>Decoding now.</small></div></div>`;
           const why = researchBlocker(save, r);
+          const missingScans = r.scans.filter(scan => !save.scans.includes(scan)).map(scan => entry(scan)?.name ?? scan);
+          const instructions = missingScans.length ? `Still need to scan ${missingScans.join(', ')}.` : why ?? r.text;
           const busy = !!j;
-          return `<div class="mod"><div><b>${r.name}</b><small>${why ?? r.text}</small><div class="costs"><span class="cost">${r.seconds} s</span></div></div>
+          return `<div class="mod"><div><b>${r.name}</b><small>${instructions}</small><div class="costs"><span class="cost">${r.seconds} s</span></div></div>
             <button type="button" class="act" data-act="research" data-id="${id}" ${why || busy || !powered ? 'disabled' : ''}>Decode</button></div>`;
         }).join('');
         body += `<h3>Blueprints</h3>${rows}<p>More blueprints wait out in the deeper zones.</p>`;

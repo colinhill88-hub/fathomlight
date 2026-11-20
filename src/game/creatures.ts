@@ -157,18 +157,16 @@ export const PLANTS: Record<PlantId, { name: string; cost: Partial<Record<Materi
 export const PLANT_ORDER: PlantId[] = ['coral', 'kelp', 'grass', 'bladder', 'lumen'];
 
 /**
- * After milestone 12 (Colin): the wild spares only this many young (or eggs) of
- * each species, enough for one breeding pair. More come from the Hatchery. If
- * the base has none of a species left at all (none in tanks, the Hatchery or
- * the jar, and no dormant remains), the wild spares one more, so a lost
- * species is never gone for good.
+ * Take a founding pair from the wild, then breed in tanks. A lost or dormant
+ * founder can be replaced even before the player has the Revival pool.
  */
 export const WILD_CAP = 2;
 export function wildAllowed(save: SaveData, sp: SpeciesId): boolean {
   if ((save.wildCaught[sp] ?? 0) < WILD_CAP) return true;
-  const have =
-    save.creatures.some((c) => c.species === sp) || save.nursery.some((c) => c.species === sp) || save.jar?.species === sp || (save.dormant[sp] ?? 0) > 0;
-  return !have;
+  const founders = save.creatures.filter(c => c.species === sp).length +
+    save.nursery.filter(c => c.species === sp).length +
+    Number(save.jar?.species === sp) + Number(save.jar2?.species === sp);
+  return founders < WILD_CAP;
 }
 
 /** Creatures per tank (eggs count too). */
@@ -194,6 +192,8 @@ export const DIRT_RATE = 1 / 1200;
 export const FILTER_RATE = 1 / 150;
 /** One Clean tank scrub. */
 export const CLEAN_AMOUNT = 0.4;
+/** One juvenile with its own plant can weather a full outing between care visits. */
+const SHELTER_USE = 0.6;
 /** Below this, a need makes the creature sick. */
 export const SICK_BELOW = 0.25;
 /** Sick this long without help and it goes dormant (6 minutes). */
@@ -393,7 +393,7 @@ export function statusLine(save: SaveData, c: CreatureData): string {
     return needsMet(save, c)
       ? `Healthy and growing: ${Math.floor(c.growth * 100)}% grown.`
       : c.comfort < COMFORT_HAPPY && w.value >= HAPPY_AT
-        ? `Settling in. Needs ${Math.round(COMFORT_HAPPY * 100)}% comfort to grow: its plant in the tank helps most.`
+        ? `Settling in. Needs ${Math.round(COMFORT_HAPPY * 100)}% comfort to grow. Plant ${PLANTS[sp.plant].name.toLowerCase()}. One youngster with its own plant uses food and clean water more slowly.`
         : `Settling in. Needs food and water above ${Math.round(HAPPY_AT * 100)}% to grow.`;
   return needsMet(save, c)
     ? `Grown and thriving. It ${sp.makesText}.`
@@ -427,14 +427,19 @@ export function tickCare(save: SaveData, layout: BaseLayout, dt: number): CareEv
   const filtered = filteredTanks(layout);
   const thriving = thrivingTanks(save, layout);
   const live = new Set(layout.pieces.filter((p) => isTankKind(p.kind)).map((p) => p.id));
+  const sheltered = new Set<number>();
   // Water.
   for (const t of tanks(layout)) {
     const td = tankDataFor(save, t.id);
     const here = creaturesIn(save, t.id).filter((c) => c.stage !== 'egg');
     const n = here.length;
+    const juvenile = here[0];
+    const shelter = n === 1 && juvenile.stage === 'young' &&
+      (td.plant === SPECIES[juvenile.species].plant || td.plant2 === SPECIES[juvenile.species].plant);
+    if (shelter) sheltered.add(juvenile.id);
     const cleaner = here.some((c) => c.species === 'shrimp') ? 1 - SHRIMP_CLEAN_WATER : 1;
     // Echo whorls quicken the whole tank: its creatures foul the water faster too.
-    td.water -= n * DIRT_RATE * cleaner * whorlMult(save, t.id) * dt;
+    td.water -= n * DIRT_RATE * cleaner * (shelter ? SHELTER_USE : 1) * whorlMult(save, t.id) * dt;
     if (filtered.has(t.id)) td.water += FILTER_RATE * dt;
     td.water = Math.max(0, Math.min(1, td.water));
   }
@@ -451,7 +456,7 @@ export function tickCare(save: SaveData, layout: BaseLayout, dt: number): CareEv
       }
       continue;
     }
-    c.fed = Math.max(0, c.fed - HUNGER_RATE * whorlMult(save, c.tank) * dt);
+    c.fed = Math.max(0, c.fed - HUNGER_RATE * (sheltered.has(c.id) ? SHELTER_USE : 1) * whorlMult(save, c.tank) * dt);
     // Milestone 5: creatures eat from the tank's feed trough (filled by an
     // auto feeder through a feed pipe) whenever they get peckish.
     const trough = tankDataFor(save, c.tank);
