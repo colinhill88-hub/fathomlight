@@ -7,6 +7,8 @@ import { deckTread, lampFixture, rivet } from './detail';
 import { InteriorLighting } from './light';
 import { mulberry32, WORLD_SEED } from '../rng';
 import { drawSurveyDecks } from './corvinaArt';
+import { drawFulmarDecks } from './fulmarArt';
+import { drawNacreVault } from '../world/nacreVault';
 
 /**
  * Dry interiors on foot (after milestone 8 part 2, Colin's direction): a
@@ -490,8 +492,10 @@ export class Interior {
     }
     // Back wall: riveted plates, ribs, pipes and a few portholes onto the black water.
     const steel = this.art?.materials[this.opts.style === 'fulmar' ? 'fulmar' : 'corvina'];
-    const survey = this.livingBases && this.opts.style !== 'fulmar';
+    const listening = this.livingBases && this.opts.style === 'fulmar';
+    const survey = this.livingBases && !listening;
     if (survey) drawSurveyDecks(g, T, PW, PH);
+    else if (listening) drawFulmarDecks(g, T, PW, PH);
     else this.drawWreckWalls(g, e, steel, PW, PH, rand);
     // Tiles retain their exact collision shapes and interaction hardware.
     for (let ty = 0; ty < this.H; ty++) {
@@ -500,11 +504,11 @@ export class Interior {
         const x = tx * T;
         const y = ty * T;
         if (c === '#') {
-          const metal = survey ? 0x4c5753 : 0x4a5052;
+          const metal = survey ? 0x4c5753 : listening ? 0x444c47 : 0x4a5052;
           g.rect(x, y, T + 0.5, T + 0.5).fill({ color: metal });
           if (steel) g.rect(x, y, T + 0.5, T + 0.5).fill(materialFill(steel, metal, 0.67, 860, 520));
           if (!this.solidTileStatic(tx, ty - 1)) {
-            g.rect(x, y, T + 0.5, 6).fill({ color: survey ? 0x8d8b77 : 0x6e7476 });
+            g.rect(x, y, T + 0.5, 6).fill({ color: survey ? 0x8d8b77 : listening ? 0x8c8270 : 0x6e7476 });
             g.rect(x, y + 6, T + 0.5, 2).fill({ color: 0x2c3234 });
             for (let k = 6; k < T; k += 12) g.circle(x + k, y + 3, 1.2).fill({ color: 0x2c3234 });
           }
@@ -759,6 +763,7 @@ export class Interior {
       e.ellipse(x, y, r * 0.35 - 4, r - 4).stroke({ color: CH[i % 3], width: 1, alpha: 0.25 });
     }
     for (let i = 0; i < (PW * PH) / 9000; i++) e.circle(R(0, PW), R(0, PH), R(0.6, 1.6)).fill({ color: CH[i % 3], alpha: R(0.15, 0.45) });
+    if (this.livingBases) this.drawHeartVaults(g);
     const solid = (tx: number, ty: number) => this.solidTileStatic(tx, ty);
     for (let ty = 0; ty < this.H; ty++)
       for (let tx = 0; tx < this.W; tx++) {
@@ -846,6 +851,29 @@ export class Interior {
         const rgb: [number, number, number] = [((col >> 16) & 255) / 255, ((col >> 8) & 255) / 255, (col & 255) / 255];
         this.lamps.push({ light: { x, y: y + 24, radius: 340, intensity: 0, color: rgb, haze: 0.06 }, core, halo, zone: 0 });
       }
+  }
+
+  private drawHeartVaults(g: Graphics): void {
+    // The foreground tile silhouettes still define each walkway and the chasm.
+    const upperFloor = 9 * T;
+    const lowerFloor = 28 * T;
+    for (const [tx, w, h, lean] of [[9, 595, 328, -0.065], [22, 430, 264, 0.08],
+      [35, 424, 290, -0.08], [46, 352, 318, 0.07], [58, 557, 308, 0.06], [74, 595, 320, -0.05]]) {
+      drawNacreVault(g, tx * T, upperFloor, w, h, lean);
+      drawNacreVault(g, tx * T + w * 0.018, upperFloor, w * 0.79, h * 0.84, lean);
+    }
+    g.poly([29 * T, upperFloor, 33 * T, upperFloor, 36 * T, 31 * T, 29 * T, 31 * T])
+      .fill({ color: 0x242840, alpha: 0.79 });
+    g.poly([49 * T, upperFloor, 53 * T, upperFloor, 53 * T, 31 * T, 47 * T, 31 * T])
+      .fill({ color: 0x302c4b, alpha: 0.72 });
+    for (const [tx, w, h] of [[10, 780, 628], [17, 645, 542], [37, 470, 620], [45, 400, 542], [65, 569, 350], [77, 395, 350]]) {
+      drawNacreVault(g, tx * T, lowerFloor, w, h, (tx % 5 - 2) * 0.052);
+    }
+    // The Choir chamber has a darker central recess around the answering plinth.
+    g.moveTo(7 * T, lowerFloor).lineTo(7.9 * T, 20 * T).quadraticCurveTo(11 * T, 13.1 * T, 14 * T, 12.7 * T)
+      .quadraticCurveTo(19.2 * T, 13.5 * T, 21 * T, 21.1 * T).lineTo(21 * T, lowerFloor).closePath()
+      .fill({ color: 0x17172f, alpha: 0.84 });
+    drawNacreVault(g, 14 * T, lowerFloor, 14.7 * T, 14.4 * T, -0.042);
   }
 
   /** Milestone 11: the sanctum's doors (song-locks) and the pool's shimmer, each frame. */
@@ -1657,6 +1685,7 @@ export class Interior {
     this.front.clear();
     if (this.grapple) this.drawGrapple(this.grapple);
     if (this.sanctum) this.animateSanctum(d, de);
+    else if (this.livingBases && !this.hooks && this.power) this.animateWreckInstruments(de, viewW, viewH);
     if (this.opts.animate) this.opts.animate(d, de, this.time);
     if (this.hooks) {
       de.clear();
@@ -1708,6 +1737,25 @@ export class Interior {
     perf.lights = lights.length;
     perf.pass('lit', () => this.renderer.render({ container: this.litRoot, target: this.sceneRT, clear: true, clearColor: [0, 0, 0, 0] }));
     perf.pass('glow', () => this.renderer.render({ container: this.glowCam, target: this.glowRT, clear: true, clearColor: [0, 0, 0, 0] }));
+  }
+
+  private animateWreckInstruments(g: Graphics, viewW: number, viewH: number): void {
+    const fulmar = this.opts.style === 'fulmar';
+    const y = fulmar ? 3 * T + 24 : 6.5 * T - 24;
+    if (y < this.cam.y - 32 || y > this.cam.y + viewH + 32) return;
+    const stations = fulmar ? [74, 78, 82, 86, 90] : [53, 69, 83];
+    for (const station of stations) {
+      const x = station * T;
+      if (x < this.cam.x - 128 || x > this.cam.x + viewW + 32) continue;
+      const start = x + (fulmar ? 26 : 21);
+      const hue = fulmar ? 0xedbd73 : 0xa8bfad;
+      g.moveTo(start, y + 3);
+      for (let k = 1; k <= 9; k++) {
+        const wave = Math.sin(station + k * 0.91 + this.time * 2.4) * Math.sin(k / 9 * Math.PI);
+        g.lineTo(start + k * 4, y + 3 + wave * 4);
+      }
+      g.stroke({ color: hue, width: 1.35, alpha: 0.59 });
+    }
   }
 
   /** For tests and the sound: where the walker is. */

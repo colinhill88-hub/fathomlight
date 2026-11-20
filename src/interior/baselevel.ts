@@ -287,6 +287,12 @@ const dockWater = new FillGradient({
   colorStops: [{ offset: 0, color: 0x417b7c }, { offset: 0.27, color: 0x214c59 }, { offset: 1, color: 0x102b39 }],
 });
 
+const workBayWall = new FillGradient({
+  type: 'linear', start: { x: 0.08, y: 0 }, end: { x: 0.38, y: 1 },
+  colorStops: [{ offset: 0, color: 0x31484a }, { offset: 0.3, color: 0x647e72 },
+    { offset: 0.72, color: 0x526e68 }, { offset: 1, color: 0x253839 }],
+});
+
 function sign(text: string, x: number, y: number, size = 13, color = 0xd8dde0, alpha = 0.7): Text {
   const t = new Text({ text, style: { fontFamily: 'Courier New, monospace', fontSize: size, fill: color, fontWeight: 'bold', letterSpacing: 2 }, resolution: 3 });
   t.anchor.set(0.5);
@@ -975,6 +981,15 @@ export class BaseHooks implements InteriorHooks {
     for (let k = 0; k < decks; k++) {
       const f = b.floor(k);
       const ceil = k === 0 ? b.oy : b.floor(k - 1) + T;
+      if (this.ctx.livingBases && r.kind !== 'dome' && r.kind !== 'dock' && r.kind !== 'corridor' && r.kind !== 'tank' && r.kind !== 'gtank') {
+        const height = f - ceil;
+        g.rect(b.ox, ceil, b.ow, height).fill(workBayWall);
+        g.rect(b.ox, f - 32, b.ow, 27).fill({ color: 0x283d3c, alpha: 0.71 });
+        for (let x = b.ox + 8; x < b.ox + b.ow - 17; x += CW * T) {
+          drawPressureRib(g, x, ceil + 10, height - 23, 12);
+        }
+        g.rect(b.ox + 19, ceil + 46, b.ow - 38, 2).fill({ color: 0xb79b69, alpha: 0.5 });
+      }
       // Grime gathers along the floor; a skirting plate; a gold line at waist height.
       floorGrime(g, b.ox, b.ow, f, rand);
       skirting(g, b.ox, b.ow, f);

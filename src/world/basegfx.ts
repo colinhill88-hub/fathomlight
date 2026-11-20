@@ -470,7 +470,19 @@ const pressureShell = new FillGradient({
     { offset: 0.58, color: 0x3c6664 }, { offset: 1, color: 0x1e363b }],
 });
 
-function drawPressureCorridor(n: number, rot: number): PieceArt {
+/** The service modules share the dome's enamel, with their original machinery mounted above it. */
+function drawMachineShell(g: Graphics, x: number, y: number, w: number, h: number, radius: number, livingBases: boolean): void {
+  g.roundRect(x, y, w, h, radius).fill(livingBases ? pressureShell : PAL.steel);
+  if (!livingBases) return;
+  const inset = Math.min(radius, 12);
+  g.moveTo(x + 4, y + inset + 6).quadraticCurveTo(x + 4, y + 5, x + inset + 7, y + 4)
+    .lineTo(x + w - inset, y + 4).stroke({ color: 0xccc3a0, alpha: 0.49, width: 1.8, cap: 'round' });
+  g.roundRect(x + 5, y + h - 17, w - 10, 11, 4).fill({ color: 0x263b3e, alpha: 0.46 });
+  g.moveTo(x + 8, y + h - 11).lineTo(x + w - 8, y + h - 11)
+    .stroke({ color: 0xbc9260, alpha: 0.64, width: 1.5 });
+}
+
+function drawPressureCorridor(n: number, rot: number, withStencil = true): PieceArt {
   const body = new Container();
   const chamber = body.addChild(new Container());
   const g = chamber.addChild(new Graphics());
@@ -494,7 +506,7 @@ function drawPressureCorridor(n: number, rot: number): PieceArt {
     windows.roundRect(panel[0], panel[1], panel[2], panel[3], 3).fill({ color: 0xffcb88, alpha: 0.58 });
     windowGlow.ellipse(panel[0] + panel[2] / 2, panel[1] + panel[3] / 2, 17, 14).fill({ color: 0xffc081, alpha: 0.24 });
   }
-  chamber.addChild(stencil(`C-${String(n).padStart(2, '0')}`, c, y + height - 4, 6));
+  if (withStencil) chamber.addChild(stencil(`C-${String(n).padStart(2, '0')}`, c, y + height - 4, 6));
   if (upright) {
     chamber.pivot.set(c, c);
     chamber.rotation = Math.PI / 2;
@@ -559,7 +571,7 @@ function flangeH(g: Graphics, cx: number, y: number, w: number, h = 10): void {
 }
 
 /** A riser shaft: three upright corridor drums stacked, with one stencil. */
-function drawShaft(n: number): PieceArt {
+function drawShaft(n: number, livingBases: boolean): PieceArt {
   const body = new Container();
   const windows = new Graphics();
   const windowGlow = new Graphics();
@@ -573,11 +585,18 @@ function drawShaft(n: number): PieceArt {
     flangeV(sides, CELL - 9, c + k * CELL, TUBE + 14, 12);
   }
   for (let k = 0; k < 3; k++) {
-    const cell = drawCorridor(n, 1, false);
+    const cell = livingBases ? drawPressureCorridor(n, 1, false) : drawCorridor(n, 1, false);
     cell.body.y = k * CELL;
     body.addChild(cell.body);
-    windows.circle(c, c + k * CELL, 11).fill({ color: PAL.glass, alpha: 0.85 });
-    windowGlow.circle(c, c + k * CELL, 22).fill({ color: PAL.glass, alpha: 0.45 });
+    if (livingBases) {
+      windows.roundRect(c - 5, c + k * CELL - 20, 14, 40, 4).fill({ color: 0xffcb88, alpha: 0.48 });
+      windowGlow.ellipse(c + 2, c + k * CELL, 20, 29).fill({ color: 0xffc081, alpha: 0.24 });
+    } else {
+      windows.circle(c, c + k * CELL, 11).fill({ color: PAL.glass, alpha: 0.85 });
+      windowGlow.circle(c, c + k * CELL, 22).fill({ color: PAL.glass, alpha: 0.45 });
+    }
+    cell.windows.destroy();
+    cell.windowGlow.destroy();
   }
   body.addChild(stencil(`SH-${n}`, c - 22, CELL * 1.5 + 30, 6, -Math.PI / 2));
   return { body, windows, windowGlow, lamp: { x: c + 22, y: CELL * 3 - 26 } };
@@ -690,7 +709,7 @@ function drawBracket(n: number, rot: number): PieceArt {
  * sealed: a chrome-ringed porthole onto a core of glowing vent ore, heat fins
  * down both sides, and the gold spine carrying its power.
  */
-function drawThermal(n: number): PieceArt {
+function drawThermal(n: number, livingBases: boolean): PieceArt {
   const W = CELL;
   const H = CELL * 2;
   const body = new Container();
@@ -703,7 +722,7 @@ function drawThermal(n: number): PieceArt {
   tubeH(g, W - 16, W, H - CELL / 2, 1);
   tubeH(g, 0, 16, CELL / 2, 1);
   tubeH(g, W - 16, W, CELL / 2, 1);
-  g.roundRect(20, 6, W - 40, H - 14, 10).fill({ color: PAL.steel });
+  drawMachineShell(g, 20, 6, W - 40, H - 14, 10, livingBases);
   g.roundRect(20, 6, W - 40, 10, 5).fill({ color: PAL.steelDark });
   g.rect(24, 16, 6, H - 30).fill({ color: 0xffffff, alpha: 0.06 });
   // Heat fins.
@@ -741,7 +760,7 @@ function drawThermal(n: number): PieceArt {
   return { body, windows, windowGlow, lamp: { x: W - 30, y: 14 } };
 }
 
-function drawTurbine(n: number): PieceArt {
+function drawTurbine(n: number, livingBases: boolean): PieceArt {
   // Colin's turbine board: a tall charcoal column with lime grille vents top and
   // bottom, a glowing gold spine carrying the current, side clamps, and the
   // impeller turning inside a thick chrome ring in the middle.
@@ -764,7 +783,7 @@ function drawTurbine(n: number): PieceArt {
     for (let k = 0; k < 4; k++) g.rect(sx + 2, hubY - 28 + k * 16, 12, 3).fill({ color: PAL.chrome, alpha: 0.7 });
   }
   // The column.
-  g.roundRect(22, 6, W - 44, H - 14, 8).fill({ color: PAL.steel });
+  drawMachineShell(g, 22, 6, W - 44, H - 14, 8, livingBases);
   g.roundRect(22, 6, W - 44, 10, 5).fill({ color: PAL.steelDark });
   g.rect(26, 16, 6, H - 30).fill({ color: 0xffffff, alpha: 0.06 });
   goldTraces(g, 28, 60, W - 56, 8);
@@ -813,7 +832,7 @@ function drawTurbine(n: number): PieceArt {
   return { body, rotor, windows, windowGlow, lamp: { x: W - 30, y: 14 } };
 }
 
-function drawStorage(n: number): PieceArt {
+function drawStorage(n: number, livingBases: boolean): PieceArt {
   const body = new Container();
   const g = body.addChild(new Graphics());
   const windows = new Graphics();
@@ -825,7 +844,7 @@ function drawStorage(n: number): PieceArt {
   tubeV(g, 0, 16, c, 1);
   tubeV(g, CELL - 14, CELL, c, 1);
   // The pod: an upright capsule.
-  g.roundRect(18, 10, CELL - 36, CELL - 20, 24).fill({ color: PAL.steel });
+  drawMachineShell(g, 18, 10, CELL - 36, CELL - 20, 24, livingBases);
   g.roundRect(24, 14, 10, CELL - 30, 5).fill({ color: 0xffffff, alpha: 0.12 });
   g.roundRect(CELL - 38, 14, 16, CELL - 30, 8).fill({ color: PAL.steelDeep, alpha: 0.4 });
   hazardBand(g, 18, 26, CELL - 36, 9);
@@ -854,7 +873,7 @@ function drawStorage(n: number): PieceArt {
  * Sorting pod SP-1 (milestone 7 part 2): a squat resin-sealed cabinet with a
  * row of small bay doors, one per material, each with its own fill light.
  */
-function drawSorter(n: number): PieceArt {
+function drawSorter(n: number, livingBases: boolean): PieceArt {
   const body = new Container();
   const g = body.addChild(new Graphics());
   const windows = new Graphics();
@@ -864,7 +883,7 @@ function drawSorter(n: number): PieceArt {
   tubeH(g, CELL - 18, CELL, c, 1);
   tubeV(g, 0, 14, c, 1);
   tubeV(g, CELL - 12, CELL, c, 1);
-  g.roundRect(12, 14, CELL - 24, CELL - 26, 8).fill({ color: PAL.steel });
+  drawMachineShell(g, 12, 14, CELL - 24, CELL - 26, 8, livingBases);
   g.roundRect(16, 18, 8, CELL - 34, 4).fill({ color: 0xffffff, alpha: 0.12 });
   g.rect(12, 26, CELL - 24, 4).fill({ color: 0xc88a2a });
   g.rect(12, CELL - 26, CELL - 24, 4).fill({ color: 0xc88a2a });
@@ -921,7 +940,7 @@ function drawRecomp(n: number): PieceArt {
  * Salvage crane SC-1 (milestone 8 part 2): a slewing jib on a riveted base,
  * a cable and hook, and a breaking floor where salvage is cut up.
  */
-function drawCrane(n: number): PieceArt {
+function drawCrane(n: number, livingBases: boolean): PieceArt {
   const W = CELL * 2;
   const H = CELL * 2;
   const body = new Container();
@@ -931,7 +950,7 @@ function drawCrane(n: number): PieceArt {
   tubeH(g, 0, 18, H - CELL / 2, 1);
   tubeH(g, W - 18, W, H - CELL / 2, 1);
   // Base and breaking floor.
-  g.roundRect(10, H - 60, W - 20, 52, 6).fill({ color: PAL.steel });
+  drawMachineShell(g, 10, H - 60, W - 20, 52, 6, livingBases);
   hazardBand(g, 10, H - 60, W - 20, 8);
   g.rect(18, H - 44, W - 36, 30).fill({ color: PAL.steelDeep });
   // Mast and jib.
@@ -955,7 +974,7 @@ function drawCrane(n: number): PieceArt {
  * Hatchery HX-1 (milestone 9): a rounded incubator hull with a window strip of
  * egg cradles, warm under lamps, and a little egg-cup crane on top.
  */
-function drawHatchery(n: number): PieceArt {
+function drawHatchery(n: number, livingBases: boolean): PieceArt {
   const W = CELL * 2;
   const H = CELL;
   const body = new Container();
@@ -964,7 +983,7 @@ function drawHatchery(n: number): PieceArt {
   const windowGlow = new Graphics();
   tubeH(g, 0, 18, H / 2, 1);
   tubeH(g, W - 18, W, H / 2, 1);
-  g.roundRect(14, 12, W - 28, H - 22, 22).fill({ color: PAL.steel });
+  drawMachineShell(g, 14, 12, W - 28, H - 22, 22, livingBases);
   g.roundRect(20, 16, W - 40, 8, 4).fill({ color: 0xffffff, alpha: 0.12 });
   g.roundRect(14, H - 34, W - 28, 24, 10).fill({ color: PAL.steelDeep, alpha: 0.5 });
   // The cradle window: four cups in a row, each a warm pool of light.
@@ -1030,7 +1049,7 @@ function drawFarm(n: number): PieceArt {
  * Revival pool RP-1 (milestone 9): a low brass-rimmed basin under a glass
  * hood, its still water lit warm from below.
  */
-function drawRevive(n: number): PieceArt {
+function drawRevive(n: number, livingBases: boolean): PieceArt {
   const W = CELL * 2;
   const H = CELL;
   const body = new Container();
@@ -1039,7 +1058,7 @@ function drawRevive(n: number): PieceArt {
   const windowGlow = new Graphics();
   tubeH(g, 0, 18, H / 2, 1);
   tubeH(g, W - 18, W, H / 2, 1);
-  g.roundRect(14, 30, W - 28, H - 40, 12).fill({ color: PAL.steel });
+  drawMachineShell(g, 14, 30, W - 28, H - 40, 12, livingBases);
   g.moveTo(26, 34).bezierCurveTo(30, 4, W - 30, 4, W - 26, 34).fill({ color: 0x86b3ae, alpha: 0.25 });
   g.moveTo(26, 34).bezierCurveTo(30, 4, W - 30, 4, W - 26, 34).stroke({ color: PAL.chrome, width: 2 });
   g.roundRect(30, 46, W - 60, 22, 10).fill({ color: 0xa8822e });
@@ -1058,7 +1077,7 @@ function drawRevive(n: number): PieceArt {
  * Signal array SA-1 (milestone 10): a squat brass-and-charcoal hull with a
  * listening dish raised on a mast, a ring of receiver rods and a decoder window.
  */
-function drawSignal(n: number): PieceArt {
+function drawSignal(n: number, livingBases: boolean): PieceArt {
   const W = CELL * 2;
   const H = CELL * 2;
   const body = new Container();
@@ -1068,7 +1087,7 @@ function drawSignal(n: number): PieceArt {
   tubeH(g, 0, 18, H - CELL / 2, 1);
   tubeH(g, W - 18, W, H - CELL / 2, 1);
   // The hull.
-  g.roundRect(12, H - CELL + 6, W - 24, CELL - 14, 10).fill({ color: PAL.steel });
+  drawMachineShell(g, 12, H - CELL + 6, W - 24, CELL - 14, 10, livingBases);
   g.rect(12, H - CELL + 18, W - 24, 4).fill({ color: 0xa8822e });
   g.roundRect(30, H - CELL + 32, W - 60, 30, 6).fill({ color: PAL.steelDeep });
   windows.roundRect(34, H - CELL + 36, W - 68, 22, 4).fill({ color: 0xffd98a, alpha: 0.7 });
@@ -1179,7 +1198,7 @@ function drawTank(n: number, grand = false, livingBases = false): PieceArt {
  * a pressure gauge and pipes to its collars. Clean water is pumped through
  * the corridors to up to two creature tanks.
  */
-function drawFilter(n: number): PieceArt {
+function drawFilter(n: number, livingBases: boolean): PieceArt {
   const body = new Container();
   const g = body.addChild(new Graphics());
   const windows = new Graphics();
@@ -1189,7 +1208,7 @@ function drawFilter(n: number): PieceArt {
   tubeH(g, CELL - 22, CELL, c, 1);
   tubeV(g, 0, 18, c, 1);
   // Drum.
-  g.roundRect(16, 18, CELL - 32, CELL - 30, 10).fill({ color: PAL.steel });
+  drawMachineShell(g, 16, 18, CELL - 32, CELL - 30, 10, livingBases);
   g.roundRect(20, 22, 8, CELL - 40, 4).fill({ color: 0xffffff, alpha: 0.12 });
   g.roundRect(CELL - 36, 22, 14, CELL - 40, 6).fill({ color: PAL.steelDeep, alpha: 0.4 });
   hazardBand(g, 16, 24, CELL - 32, 8);
@@ -1232,7 +1251,7 @@ function drawFilter(n: number): PieceArt {
  * the mash collects in a tank with a glass sight window at the bottom. A
  * copper riser carries the mash back up to the feed pipe port on top.
  */
-function drawFeeder(n: number): PieceArt {
+function drawFeeder(n: number, livingBases: boolean): PieceArt {
   const W = CELL;
   const H = CELL * 2;
   const body = new Container();
@@ -1288,7 +1307,7 @@ function drawFeeder(n: number): PieceArt {
   g.circle(78, 92, 5.5).fill({ color: 0xe8e2cc });
   g.moveTo(78, 92).lineTo(81, 88.5).stroke({ color: PAL.rust, width: 1.2 });
   // Mash tank with a sight window.
-  g.roundRect(14, 134, W - 28, H - 146, 8).fill({ color: PAL.steel });
+  drawMachineShell(g, 14, 134, W - 28, H - 146, 8, livingBases);
   g.roundRect(18, 138, 6, H - 156, 3).fill({ color: 0xffffff, alpha: 0.12 });
   g.roundRect(W - 34, 138, 12, H - 156, 5).fill({ color: PAL.steelDeep, alpha: 0.4 });
   const mash = { x: 32, y: 146, w: 18, h: 54 };
@@ -1562,7 +1581,7 @@ function drawDock(n: number): PieceArt {
  * on the roof a short aerial mast. The reader's screen and the bench lamp
  * light up with power, and a scan bar sweeps the screen while it decodes.
  */
-function drawLab(n: number): PieceArt {
+function drawLab(n: number, livingBases: boolean): PieceArt {
   const W = CELL;
   const H = CELL;
   const body = new Container();
@@ -1574,7 +1593,7 @@ function drawLab(n: number): PieceArt {
   tubeH(g, W - 18, W, 66, 1);
   tubeV(g, 0, 18, c, 1);
   // Shell: a rounded drum on a skirt.
-  g.roundRect(12, 18, W - 24, H - 30, 22).fill({ color: PAL.steel });
+  drawMachineShell(g, 12, 18, W - 24, H - 30, 22, livingBases);
   g.roundRect(18, 22, 10, H - 42, 5).fill({ color: 0xffffff, alpha: 0.12 });
   g.roundRect(W - 34, 22, 16, H - 42, 8).fill({ color: PAL.steelDeep, alpha: 0.4 });
   g.roundRect(8, H - 18, W - 16, 10, 3).fill({ color: PAL.steelDark });
@@ -1622,7 +1641,7 @@ function drawLab(n: number): PieceArt {
  * fabrication arm on a rail inside, a parts rack and a work lamp. The arm
  * swings and its torch flickers while gear is being built.
  */
-function drawWorkshop(n: number): PieceArt {
+function drawWorkshop(n: number, livingBases: boolean): PieceArt {
   const W = CELL * 2;
   const H = CELL;
   const body = new Container();
@@ -1633,7 +1652,7 @@ function drawWorkshop(n: number): PieceArt {
   tubeH(g, 0, 16, cy, 1);
   tubeH(g, W - 16, W, cy, 1);
   // Shed shell with a gently curved roof.
-  g.roundRect(10, 12, W - 20, H - 22, 14).fill({ color: PAL.steel });
+  drawMachineShell(g, 10, 12, W - 20, H - 22, 14, livingBases);
   g.roundRect(10, 12, W - 20, 9, 6).fill({ color: PAL.yellow });
   g.rect(10, 19, W - 20, 3).fill({ color: PAL.yellowDark, alpha: 0.7 });
   g.rect(10, H - 22, W - 20, 12).fill({ color: PAL.steelDeep, alpha: 0.4 });
@@ -1691,27 +1710,27 @@ export function drawPiece(kind: PieceKind, n: number, rot: number, seed: number,
   rand = mulberry32(WORLD_SEED ^ (seed * 7919 + 0x1b5e));
   if (kind === 'dome') return livingBases ? drawKestrelHabitat(n) : drawDome(n);
   if (kind === 'corridor') return livingBases ? drawPressureCorridor(n, rot) : drawCorridor(n, rot);
-  if (kind === 'shaft') return drawShaft(n);
+  if (kind === 'shaft') return drawShaft(n, livingBases);
   if (kind === 'junction') return drawJunction(n);
   if (kind === 'lantern') return drawLantern(n);
   if (kind === 'bracket') return drawBracket(n, rot);
-  if (kind === 'turbine') return drawTurbine(n);
-  if (kind === 'thermal') return drawThermal(n);
+  if (kind === 'turbine') return drawTurbine(n, livingBases);
+  if (kind === 'thermal') return drawThermal(n, livingBases);
   if (kind === 'tank' || kind === 'gtank') return drawTank(n, kind === 'gtank', livingBases);
-  if (kind === 'sorter') return drawSorter(n);
+  if (kind === 'sorter') return drawSorter(n, livingBases);
   if (kind === 'recomp') return drawRecomp(n);
-  if (kind === 'crane') return drawCrane(n);
-  if (kind === 'hatch') return drawHatchery(n);
+  if (kind === 'crane') return drawCrane(n, livingBases);
+  if (kind === 'hatch') return drawHatchery(n, livingBases);
   if (kind === 'farm') return drawFarm(n);
-  if (kind === 'revive') return drawRevive(n);
-  if (kind === 'signal') return drawSignal(n);
-  if (kind === 'filter') return drawFilter(n);
-  if (kind === 'feeder') return drawFeeder(n);
+  if (kind === 'revive') return drawRevive(n, livingBases);
+  if (kind === 'signal') return drawSignal(n, livingBases);
+  if (kind === 'filter') return drawFilter(n, livingBases);
+  if (kind === 'feeder') return drawFeeder(n, livingBases);
   if (kind === 'press') return drawPress(n);
   if (kind === 'dock') return livingBases ? drawPressureDock(n) : drawDock(n);
-  if (kind === 'lab') return drawLab(n);
-  if (kind === 'workshop') return drawWorkshop(n);
-  return drawStorage(n);
+  if (kind === 'lab') return drawLab(n, livingBases);
+  if (kind === 'workshop') return drawWorkshop(n, livingBases);
+  return drawStorage(n, livingBases);
 }
 
 /**

@@ -1038,13 +1038,13 @@ export class Scenery {
       this.slices.push({ obj: strip, x0: BUOY_X, x1: ANCHOR_X });
     }
     // Milestone 10: the trench.
-    this.trench = new TrenchScenery(detail, this.art, living);
+    this.trench = new TrenchScenery(detail, this.art, living, this.livingBases);
     this.view.addChild(this.trench.view);
     this.emissive.addChild(this.trench.emissive);
     this.glow.addChild(this.trench.glow);
     this.lights.push(...this.trench.lights);
     // Milestone 11: the sanctum.
-    this.sanctum = new SanctumScenery(detail, this.art);
+    this.sanctum = new SanctumScenery(detail, this.art, this.livingBases);
     this.view.addChild(this.sanctum.view);
     this.emissive.addChild(this.sanctum.emissive);
     this.glow.addChild(this.sanctum.glow);

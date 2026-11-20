@@ -2,6 +2,7 @@ import { Container, Graphics, Sprite, Text } from 'pixi.js';
 import { materialFill, type WorldArt } from '../art/worldArt';
 import type { WaterMotion } from '../scene/waterMotion';
 import { BottomAnimal, type BottomKind } from '../actors/bottomLife';
+import { drawListeningStation } from './fulmarArt';
 import { mulberry32, WORLD_SEED } from '../rng';
 import {
   CLEFT,
@@ -67,7 +68,7 @@ export class TrenchScenery {
   private readonly plumeFlow = { x: 0, y: 0, silt: 0, energy: 0 };
   private readonly animals: BottomAnimal[] = [];
 
-  constructor(detail: number, art?: WorldArt, living = false) {
+  constructor(detail: number, art?: WorldArt, living = false, livingBases = false) {
     this.rand = mulberry32(WORLD_SEED ^ 0x7e3c);
     const R = (a: number, b: number) => a + this.rand() * (b - a);
     const rock = new Container();
@@ -352,27 +353,30 @@ export class TrenchScenery {
       const pts: number[] = [];
       for (let x = FULMAR.x0; x <= FULMAR.x1; x += 6) pts.push(x, fulmarTop(x));
       pts.push(FULMAR.x1, f + 20, FULMAR.x0, f + 20);
-      g2.poly(pts).fill({ color: 0x4a4a46 });
       const hull = art?.materials.fulmar;
-      if (hull) g2.poly(pts).fill(materialFill(hull, 0x4a4a46, 0.73, 1050, 540));
-      // Hull bands, rivets and portholes.
-      for (let x = FULMAR.x0 + 50; x < FULMAR.x1 - 20; x += 90) {
-        const t = fulmarTop(x);
-        g2.rect(x, t + 4, 8, f - t - 4).fill({ color: 0x3a3a36 });
-        for (let ry = t + 16; ry < f; ry += 20) g2.circle(x + 4, ry, 1.4).fill({ color: 0x2a2a26 });
+      if (livingBases) drawListeningStation(g2, pts, f, hull);
+      else {
+        g2.poly(pts).fill({ color: 0x4a4a46 });
+        if (hull) g2.poly(pts).fill(materialFill(hull, 0x4a4a46, 0.73, 1050, 540));
+        // Hull bands, rivets and portholes.
+        for (let x = FULMAR.x0 + 50; x < FULMAR.x1 - 20; x += 90) {
+          const t = fulmarTop(x);
+          g2.rect(x, t + 4, 8, f - t - 4).fill({ color: 0x3a3a36 });
+          for (let ry = t + 16; ry < f; ry += 20) g2.circle(x + 4, ry, 1.4).fill({ color: 0x2a2a26 });
+        }
+        for (let x = FULMAR.x0 + 110; x < FULMAR.mainX1 - 60; x += 120) {
+          if (Math.abs(x - FULMAR.domeX) < 120) continue;
+          const py = fulmarTop(x) + 90;
+          g2.circle(x, py, 16).fill({ color: 0x6a665c });
+          g2.circle(x, py, 11).fill({ color: 0x081014 });
+        }
+        // The listening dome: cracked glass over a dark frame.
+        g2.ellipse(FULMAR.domeX, f - 250, 110, 12).fill({ color: 0x5a5650 });
+        for (let k = -3; k <= 3; k++) g2.moveTo(FULMAR.domeX + k * 30, f - 250).lineTo(FULMAR.domeX + k * 22, fulmarTop(FULMAR.domeX + k * 22) + 2).stroke({ color: 0x3a3632, width: 3 });
+        g2.moveTo(FULMAR.domeX - 40, f - 300).lineTo(FULMAR.domeX - 10, f - 280).lineTo(FULMAR.domeX + 20, f - 310).lineTo(FULMAR.domeX + 50, f - 286).stroke({ color: 0xa8c8c8, width: 1, alpha: 0.4 });
+        // A red band and the station's name.
+        g2.rect(FULMAR.x0 + 30, f - 140, FULMAR.mainX1 - FULMAR.x0 - 40, 10).fill({ color: 0x7a3a2a });
       }
-      for (let x = FULMAR.x0 + 110; x < FULMAR.mainX1 - 60; x += 120) {
-        if (Math.abs(x - FULMAR.domeX) < 120) continue;
-        const py = fulmarTop(x) + 90;
-        g2.circle(x, py, 16).fill({ color: 0x6a665c });
-        g2.circle(x, py, 11).fill({ color: 0x081014 });
-      }
-      // The listening dome: cracked glass over a dark frame.
-      g2.ellipse(FULMAR.domeX, f - 250, 110, 12).fill({ color: 0x5a5650 });
-      for (let k = -3; k <= 3; k++) g2.moveTo(FULMAR.domeX + k * 30, f - 250).lineTo(FULMAR.domeX + k * 22, fulmarTop(FULMAR.domeX + k * 22) + 2).stroke({ color: 0x3a3632, width: 3 });
-      g2.moveTo(FULMAR.domeX - 40, f - 300).lineTo(FULMAR.domeX - 10, f - 280).lineTo(FULMAR.domeX + 20, f - 310).lineTo(FULMAR.domeX + 50, f - 286).stroke({ color: 0xa8c8c8, width: 1, alpha: 0.4 });
-      // A red band and the station's name.
-      g2.rect(FULMAR.x0 + 30, f - 140, FULMAR.mainX1 - FULMAR.x0 - 40, 10).fill({ color: 0x7a3a2a });
       rustStreaks(g2, FULMAR.x0 + 40, FULMAR.x1 - 40, f - 200, 40, 50);
       const t = new Text({ text: 'FULMAR DEEP STATION', style: { fontFamily: 'monospace', fontSize: 22, fill: 0xd8d0b8, fontWeight: 'bold', letterSpacing: 5 } });
       t.alpha = 0.5;
@@ -383,8 +387,8 @@ export class TrenchScenery {
       // The dead antenna mast, leaning, with its cross-arms.
       const mx = FULMAR.mainX1 - 70;
       const mt = fulmarTop(mx);
-      g2.moveTo(mx, mt).lineTo(mx + 70, mt - 330).stroke({ color: 0x4a4440, width: 6 });
-      for (let k = 1; k < 5; k++) {
+      if (!livingBases) g2.moveTo(mx, mt).lineTo(mx + 70, mt - 330).stroke({ color: 0x4a4440, width: 6 });
+      for (let k = 1; !livingBases && k < 5; k++) {
         const ax = mx + 70 * (k / 5);
         const ay = mt - 330 * (k / 5);
         g2.moveTo(ax - 30, ay + 6).lineTo(ax + 30, ay - 6).stroke({ color: 0x4a4440, width: 3 });
