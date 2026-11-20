@@ -3321,7 +3321,10 @@ async function boot(): Promise<void> {
     }
     if (baseAct && collectTap) baseAct.run();
 
-    if (pool && diver.surfaced) hud.setCollect(poolLadder ? 'Swim up to climb onto the catwalk' : 'Swim right to the catwalk ladder', 0);
+    if (pool && diver.surfaced) {
+      hud.setCollect(null, 0);
+      hud.setBanner(poolLadder ? 'Swim up to climb onto the catwalk' : 'Swim to the ladder on the right');
+    }
     else if (holdAct) hud.setCollect(holdAct.label, holdProgress);
     else if (infoAct && !baseAct) hud.setCollect(infoAct, 0);
     else if (baseAct) hud.setCollect(baseAct.label, 0, true);
@@ -4131,7 +4134,8 @@ async function boot(): Promise<void> {
     const dsp = viaDock !== null ? baseHooks.dockSpawn(viaDock) : null;
     const ladder = viaPool && viaDock !== null ? baseHooks.moonpoolLadder(viaDock) : null;
     if (ladder) {
-      interior.mountLadder(ladder.x, ladder.y, diver.facing);
+      const screen = { x: (diver.x - camX) * zoom / cssW, y: (diver.y - camY) * zoom / cssH };
+      interior.mountLadder(ladder.x, ladder.y, diver.facing, screen);
       interior.lampOn = diver.lampOn;
     } else if (dsp) interior.place(dsp.x, dsp.y, -1);
     swimmingPool = null;
@@ -4170,7 +4174,7 @@ async function boot(): Promise<void> {
 
   function descendIntoMoonpool(dock: Placed): void {
     const pool = moonpoolOf(dock);
-    const face = interior.walker.face;
+    const screen = interior.walkerScreenPosition();
     diver.lampOn = interior.lampOn;
     interior.leave();
     inside = null;
@@ -4183,9 +4187,8 @@ async function boot(): Promise<void> {
     diver.surfaced = true;
     diver.surfaceTime = 0;
     diver.cancelSurfaceReaction();
-    diver.pose(0);
-    camCX = pool.x + (face === 1 ? 32 : -32);
-    camCY = pool.y + 35;
+    camCX = diver.x + (0.5 - screen.x) * lastViewW;
+    camCY = diver.y + (0.5 - screen.y) * viewH;
     poolFx.reset();
     poolFx.splash(pool.ladder - pool.x, 0.34, time, 0, true);
     persist();
@@ -4408,6 +4411,7 @@ async function boot(): Promise<void> {
     station.update(dt);
     contact.update(dt);
     const frozen = care.active || hatchPanel.active || station.active || contact.active;
+    const poolAt = livingBases && inside === 'base' ? baseHooks?.moonpoolAt(interior.walker.x, interior.walker.y) : undefined;
     // The resonator sings at the song-lock, and while you answer the Choir.
     {
       const want = Math.max(contact.singing, interior.label === 'Sing to the song-lock' && s.collect ? 1 : 0);
@@ -4415,12 +4419,16 @@ async function boot(): Promise<void> {
     }
     const evs: InteriorEvent[] = interior.update(
       dt,
-      frozen ? { moveX: 0, moveY: 0, jump: false, collect: false, lamp: false } : { moveX: s.moveX, moveY: s.moveY, jump: s.jumpHeld, sprint: s.sprint, collect: s.collect, lamp: s.lamp },
+      frozen ? { moveX: 0, moveY: 0, jump: false, collect: false, lamp: false } : {
+        moveX: s.moveX, moveY: s.moveY, jump: s.jumpHeld, sprint: s.sprint, collect: s.collect, lamp: s.lamp,
+        sealVisor: !!poolAt && (s.moveY > 0.5 || interior.pos.climbing),
+      },
       paused,
     );
     if (livingBases && inside === 'base' && !paused && !frozen && s.moveY > 0.5) {
       const dock = baseHooks?.moonpoolAt(interior.walker.x, interior.walker.y);
-      if (dock) {
+      const ladder = dock && baseHooks?.moonpoolLadder(dock.id);
+      if (dock && ladder && interior.walker.y >= ladder.y) {
         descendIntoMoonpool(dock);
         return;
       }

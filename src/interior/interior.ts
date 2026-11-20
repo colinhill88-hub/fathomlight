@@ -172,6 +172,7 @@ export interface InteriorInput {
   sprint?: boolean;
   collect: boolean;
   lamp: boolean;
+  sealVisor?: boolean;
 }
 
 export class Interior {
@@ -434,13 +435,20 @@ export class Interior {
     this.cam.y = y - 400;
   }
 
-  mountLadder(x: number, y: number, face: number): void {
+  mountLadder(x: number, y: number, face: number, screen: { x: number; y: number }): void {
     this.place(x, y, face);
     this.climbing = true;
     this.walker.onGround = false;
     this.walker.pose = 'climb';
     this.walker.visor = this.walker.visorTarget = 0;
     this.lastSafe = { x, y: y - 2 * T };
+    this.cam.x = x - screen.x * this.viewNow * this.cssW / this.cssH;
+    this.cam.y = y - HEIGHT / 2 - screen.y * this.viewNow;
+  }
+
+  walkerScreenPosition(): { x: number; y: number } {
+    const w = this.walker;
+    return { x: (w.x - this.cam.x) * this.cssH / (this.viewNow * this.cssW), y: (w.y - HEIGHT / 2 - this.cam.y) / this.viewNow };
   }
 
   /** Point at the save's own state lists (they're changed in place). */
@@ -1096,7 +1104,7 @@ export class Interior {
     // Holding Collect: going out shuts the face plate first; anything else, the near hand works at it.
     const leaving = act?.key === 'exit' || act?.key === 'airlock';
     const holding = !!act && act.key !== 'grapple' && inp.collect && w.onGround && this.progress > 0;
-    w.visorTarget = holding && leaving ? 0 : 1;
+    w.visorTarget = inp.sealVisor || (holding && leaving) ? 0 : 1;
     w.working += ((holding && !leaving ? 1 : 0) - w.working) * Math.min(1, dt * 10);
     w.breakerPull = holding && act?.breaker ? this.progress : 0;
     this.label = act ? act.label : info || null;

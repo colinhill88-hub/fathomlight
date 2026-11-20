@@ -562,8 +562,11 @@ export class BaseHooks implements InteriorHooks {
   }
 
   moonpoolAt(x: number, y: number): Placed | undefined {
-    return this.level.rooms.find((r) => r.kind === 'dock' &&
-      Math.abs(x - (poolLadderTile(r) + 0.5) * T) < T / 2 && y >= this.box(r).floor(0) + 2 * T)?.piece;
+    return this.level.rooms.find((r) => {
+      if (r.kind !== 'dock' || Math.abs(x - (poolLadderTile(r) + 0.5) * T) >= T / 2) return false;
+      const top = this.box(r).floor(0);
+      return y >= top - 2 && y <= top + 2.5 * T;
+    })?.piece;
   }
 
   /** The ceiling height of one level of a room (0 = the top level), plus a lane offset. */
