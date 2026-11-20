@@ -17,6 +17,20 @@ const observationGlass = new FillGradient({
   colorStops: [{ offset: 0, color: 0x648e87 }, { offset: 0.38, color: 0x315b60 }, { offset: 1, color: 0x152e36 }],
 });
 
+/** Kestrel's ribs have a soft enamel face and an exposed bronze pressure seam. */
+export function drawPressureRib(g: Graphics, x: number, y: number, length: number, breadth: number, horizontal = false): void {
+  const outer = horizontal ? [x, y, length, breadth] as const : [x, y, breadth, length] as const;
+  g.roundRect(...outer, 3).fill(enamel);
+  if (horizontal) g.rect(x + 3, y + 1, length - 6, 1.5).fill(0xbea67c);
+  else g.rect(x + 1, y + 3, 1.5, length - 6).fill(0xbea67c);
+  for (const t of [0.12, 0.49, 0.88]) {
+    const cx = horizontal ? x + length * t : x + breadth * 0.54;
+    const cy = horizontal ? y + breadth * 0.54 : y + length * t;
+    g.circle(cx, cy, breadth * 0.18).fill(0x324747);
+    g.circle(cx - 0.5, cy - 0.5, breadth * 0.085).fill(0xc2bba3);
+  }
+}
+
 /** The crown is deliberately broad-shouldered, with a flat ridge for the service spine. */
 export function drawObservationCrown(g: Graphics, lamps: Graphics, glow: Graphics, box: WaterBox): void {
   const { x, y, w, h } = box;

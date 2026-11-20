@@ -1,4 +1,4 @@
-import { Container, Graphics, Text, type Texture } from 'pixi.js';
+import { Container, FillGradient, Graphics, Text, type Texture } from 'pixi.js';
 import { DC, bolts, ceilingBeam, flangeRect, floorGrime, hazard, pipeRun, pipeUp, rivet, skirting, wallPanels } from './detail';
 import type { Light } from '../fx/lighting';
 import { T, type InteriorAct, type InteriorHooks } from './interior';
@@ -10,7 +10,7 @@ import { HATCH_CAP } from '../game/creatures';
 import { WHORLS_PER_PIECE } from '../game/factory';
 import { ITEM_COLOURS, pointAlong } from '../world/linegfx';
 import { drawPlant, TankLife } from '../world/tanklife';
-import { drawHabitatFrame, drawObservationCrown } from '../world/habitatFrame';
+import { drawHabitatFrame, drawObservationCrown, drawPressureRib } from '../world/habitatFrame';
 import { mulberry32, WORLD_SEED } from '../rng';
 
 /**
@@ -76,7 +76,11 @@ export function baseSignature(layout: BaseLayout): string {
     .join('|');
 }
 
-export function buildBaseLevel(layout: BaseLayout): BaseLevel | null {
+function poolLadderTile(room: Room): number {
+  return room.tx0 + room.tw / 2 + 2;
+}
+
+export function buildBaseLevel(layout: BaseLayout, livingBases = false): BaseLevel | null {
   const done = layout.pieces.filter(isDone);
   if (!done.some((p) => p.kind === 'dome')) return null;
   let gx0 = Infinity;
@@ -115,6 +119,10 @@ export function buildBaseLevel(layout: BaseLayout): BaseLevel | null {
         for (let tx = r.tx0 + 1; tx < r.tx0 + r.tw - 1; tx++) {
           set(tx, r.ty0 + CH - 1, '#');
           for (let ty = r.ty0 + CH; ty < r.ty0 + r.th - 1; ty++) set(tx, ty, 'P');
+        }
+        if (livingBases) {
+          const tx = poolLadderTile(r);
+          for (let ty = r.ty0 + CH - 1; ty < r.ty0 + CH + 3; ty++) set(tx, ty, 'H');
         }
       } else {
         // A grating mezzanine on each upper level, and a ladder up the left side.
@@ -273,6 +281,11 @@ const COL = {
   glassSea: 0x0c3440,
   sand: 0xb7a47a,
 };
+
+const dockWater = new FillGradient({
+  type: 'linear', start: { x: 0, y: 0 }, end: { x: 0, y: 1 },
+  colorStops: [{ offset: 0, color: 0x417b7c }, { offset: 0.27, color: 0x214c59 }, { offset: 1, color: 0x102b39 }],
+});
 
 function sign(text: string, x: number, y: number, size = 13, color = 0xd8dde0, alpha = 0.7): Text {
   const t = new Text({ text, style: { fontFamily: 'Courier New, monospace', fontSize: size, fill: color, fontWeight: 'bold', letterSpacing: 2 }, resolution: 3 });
@@ -535,6 +548,16 @@ export class BaseHooks implements InteriorHooks {
     if (!r) return null;
     const b = this.box(r);
     return { x: b.cx + 130, y: b.floor(0) };
+  }
+
+  moonpoolLadder(dockId: number): { x: number; y: number } | null {
+    const r = this.level.rooms.find((q) => q.kind === 'dock' && q.piece.id === dockId);
+    return r ? { x: (poolLadderTile(r) + 0.5) * T, y: this.box(r).floor(0) + 2 * T } : null;
+  }
+
+  moonpoolAt(x: number, y: number): Placed | undefined {
+    return this.level.rooms.find((r) => r.kind === 'dock' &&
+      Math.abs(x - (poolLadderTile(r) + 0.5) * T) < T / 2 && y >= this.box(r).floor(0) + 2 * T)?.piece;
   }
 
   /** The ceiling height of one level of a room (0 = the top level), plus a lane offset. */
@@ -948,7 +971,8 @@ export class BaseHooks implements InteriorHooks {
     wallPanels(g, b.ox, b.oy, b.ow, b.oh, rand, wallTexture);
     // A conduit along the wall, under the line lanes, where the machines leave the wall clear.
     const conduit = r.kind === 'storage' || r.kind === 'sorter' || r.kind === 'lab' || r.kind === 'workshop' || r.kind === 'filter' || r.kind === 'dock';
-    for (let k = 0; k < r.h; k++) {
+    const decks = this.ctx.livingBases && r.kind === 'dock' ? 1 : r.h;
+    for (let k = 0; k < decks; k++) {
       const f = b.floor(k);
       const ceil = k === 0 ? b.oy : b.floor(k - 1) + T;
       // Grime gathers along the floor; a skirting plate; a gold line at waist height.
@@ -1061,6 +1085,26 @@ export class BaseHooks implements InteriorHooks {
         break;
       }
       case 'corridor': {
+        if (this.ctx.livingBases) {
+          const y = b.oy + 45;
+          const upright = r.piece.rot % 2 === 1;
+          const port = upright ? { x: b.cx - 34, y, w: 68, h: 108 } : { x: b.cx - 72, y, w: 144, h: 82 };
+          g.rect(b.ox, b.oy + 16, b.ow, b.oh - 29).fill({ color: 0x4f7067, alpha: 0.68 });
+          g.rect(b.ox, bot - 48, b.ow, 35).fill(0x314b4a);
+          for (const x of [b.ox + 8, b.ox + b.ow - 26]) drawPressureRib(g, x, b.oy + 12, b.oh - 20, 18);
+          drawHabitatFrame(g, port, 11);
+          g.roundRect(port.x + 2, port.y + 2, port.w - 4, port.h - 4, 5).fill(0x234b50);
+          g.moveTo(port.x + 8, port.y + port.h * 0.74).quadraticCurveTo(b.cx, port.y + port.h * 0.42,
+            port.x + port.w - 6, port.y + port.h * 0.49).stroke({ color: 0x83a8a0, width: 9, alpha: 0.16 });
+          if (upright) drawPressureRib(g, port.x, port.y + port.h / 2, port.w, 7, true);
+          else drawPressureRib(g, b.cx - 4, port.y, port.h, 8);
+          for (const x of [b.ox + 39, b.ox + b.ow - 56]) {
+            e.roundRect(x, bot - 44, 17, 4, 2).fill({ color: 0xffcf93, alpha: 0.9 });
+            gl.ellipse(x + 8, bot - 41, 23, 19).fill({ color: 0xffc081, alpha: 0.33 });
+          }
+          addText(sign(code, b.cx, bot - 30, 11, 0xe6c49b, 0.84));
+          break;
+        }
         if (r.piece.rot % 2 === 0) {
           // A tube: chrome ribs, and a round window in the middle.
           for (let x = b.ox + 20; x < b.ox + b.ow; x += 60) {
@@ -1300,6 +1344,47 @@ export class BaseHooks implements InteriorHooks {
       case 'dock': {
         // The catwalk's railing, a winch gantry over the pool, and the pool's lip.
         const f0 = b.floor(0);
+        if (this.ctx.livingBases) {
+          const roof = b.oy + 26;
+          const poolY = f0 + 2 * T;
+          g.rect(b.ox, f0 + T, b.ow, poolY - f0 - T).fill(0x20383c);
+          g.rect(b.ox, poolY, b.ow, bot - poolY).fill(dockWater);
+          for (const x of [b.ox + 26, b.cx - 245, b.cx + 221, b.ox + b.ow - 47]) {
+            g.poly([x, f0 + T, x + 18, f0 + T, x + 11, bot, x - 7, bot]).fill({ color: 0x263f44, alpha: 0.8 });
+          }
+          g.rect(b.ox, poolY, b.ow, 3).fill({ color: 0xb7e2cc, alpha: 0.55 });
+          g.rect(b.ox, roof, b.ow, f0 - roof).fill(0x2a4747);
+          for (const x of [b.ox + 20, b.cx - 230, b.cx + 206, b.ox + b.ow - 42]) {
+            drawPressureRib(g, x, roof - 6, f0 - roof + 6, 22);
+          }
+          const port = { x: b.cx - 195, y: roof + 22, w: 390, h: 90 };
+          drawHabitatFrame(g, port, 12);
+          g.roundRect(port.x, port.y, port.w, port.h, 5).fill(0x193d44);
+          g.moveTo(port.x + 5, port.y + 48).bezierCurveTo(b.cx - 68, port.y + 24, b.cx + 60, port.y + 64, port.x + port.w - 4, port.y + 35)
+            .stroke({ color: 0x6a9690, width: 12, alpha: 0.22 });
+          for (const x of [b.cx - 69, b.cx + 61]) drawPressureRib(g, x, port.y, port.h, 8);
+          drawPressureRib(g, b.cx - 243, roof - 1, 486, 12, true);
+          for (const x of [b.cx - 151, b.cx + 151]) {
+            g.roundRect(x - 19, roof, 38, 16, 4).fill(0x8f7253);
+            g.moveTo(x, roof + 16).lineTo(x, f0 - 50).stroke({ color: 0x88998d, width: 2 });
+            g.circle(x, f0 - 50, 6).stroke({ color: 0xb7af8d, width: 3 });
+          }
+          g.rect(b.ox + 3, f0 - 38, b.ow - 6, 4).fill({ color: 0x9c977b, alpha: 0.8 });
+          for (let x = b.ox + 28; x < b.ox + b.ow - 20; x += 90) g.rect(x, f0 - 38, 4, 38).fill(0x536762);
+          const ladder = poolLadderTile(r) * T;
+          for (const [x, w] of [[b.ox, ladder - b.ox], [ladder + T, b.ox + b.ow - ladder - T]]) {
+            g.rect(x, f0 - 8, w, 8).fill(0x789084);
+            g.rect(x, f0 - 8, w, 2).fill(0xc7a775);
+          }
+          for (const x of [b.cx - 224, b.cx + 224]) {
+            e.roundRect(x - 13, f0 - 13, 26, 5, 2).fill(0xffc887);
+            gl.ellipse(x, f0 - 8, 32, 19).fill({ color: 0xffbc7d, alpha: 0.38 });
+          }
+          addText(sign('MOONPOOL', b.cx, f0 - 50, 12, 0xe5c397, 0.85));
+          addText(sign('↓ SWIM LADDER', ladder + T / 2, f0 - 15, 9, 0xffd7a1, 0.92));
+          addText(sign('KS-1 BERTH', b.cx - 289, f0 - 49, 10, 0xb3c6bd, 0.78));
+          break;
+        }
         g.rect(b.ox, f0 - 40, b.ow, 4).fill({ color: COL.chrome });
         for (let x = b.ox + 20; x < b.ox + b.ow; x += 70) g.rect(x, f0 - 40, 3, 40).fill({ color: COL.chromeDark });
         g.rect(b.ox + 40, b.oy + 8, b.ow - 80, 14).fill({ color: COL.chrome });
@@ -1513,6 +1598,18 @@ export class BaseHooks implements InteriorHooks {
     // Milestone 12: only draw what is near the screen (a big base has many rooms and lines).
     const M = 300;
     const near = (x0: number, y0: number, x1: number, y1: number) => !view || (x1 > view.x0 - M && x0 < view.x1 + M && y1 > view.y0 - M && y0 < view.y1 + M);
+    if (c.livingBases) for (const r of this.level.rooms) {
+      if (r.kind !== 'dock') continue;
+      const b = this.box(r);
+      const y = b.floor(0) + 2 * T;
+      if (!near(b.ox, y, b.ox + b.ow, y + 40)) continue;
+      for (let i = 0; i < 7; i++) {
+        const x = b.ox + ((i * 139 + time * (8 + i % 3 * 3)) % (b.ow - 95));
+        const lift = Math.sin(i * 1.9 + time * 1.2) * 2;
+        de.moveTo(x, y + 2).quadraticCurveTo(x + 37, y + lift, x + 83, y + 2)
+          .stroke({ color: 0xc4edde, width: 2, alpha: 0.19, cap: 'round' });
+      }
+    }
     // Things riding the lines: bundles of material on belts (their colour), soft pulses in pipes.
     for (const r of this.routes) {
       const fl = c.flow(r.id);

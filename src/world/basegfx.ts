@@ -1,8 +1,9 @@
-import { Container, Graphics, Text } from 'pixi.js';
+import { Container, FillGradient, Graphics, Text } from 'pixi.js';
 import { MATERIAL_ORDER } from '../game/state';
 import { mulberry32, WORLD_SEED } from '../rng';
 import { groundY, WORLD_W, WORLD_X0 } from './terrain';
-import { drawHabitatFrame, drawObservationCrown } from './habitatFrame';
+import { drawHabitatFrame, drawObservationCrown, drawPressureRib } from './habitatFrame';
+import { POOL_HALF_WIDTH, POOL_LADDER_X, POOL_SURFACE_Y } from './moonpool';
 import {
   BaseLayout,
   CELL,
@@ -461,6 +462,46 @@ function drawKestrelHabitat(n: number): PieceArt {
   body.addChild(stencil(`HAB-0${n}`, mid, 140, 7));
   sheen.moveTo(42, 68).quadraticCurveTo(68, 48, 108, 48).stroke({ color: 0xe3efdb, width: 5, alpha: 0.18, cap: 'round' });
   return { body, windows, windowGlow, sheen, lamp: { x: 138, y: 8 } };
+}
+
+const pressureShell = new FillGradient({
+  type: 'linear', start: { x: 0, y: 0 }, end: { x: 0.15, y: 1 },
+  colorStops: [{ offset: 0, color: 0x9fa68d }, { offset: 0.24, color: 0x69857d },
+    { offset: 0.58, color: 0x3c6664 }, { offset: 1, color: 0x1e363b }],
+});
+
+function drawPressureCorridor(n: number, rot: number): PieceArt {
+  const body = new Container();
+  const chamber = body.addChild(new Container());
+  const g = chamber.addChild(new Graphics());
+  const windows = new Graphics();
+  const windowGlow = new Graphics();
+  const c = CELL / 2;
+  const y = c - (TUBE + 10) / 2;
+  const height = TUBE + 10;
+  g.roundRect(4, y, CELL - 8, height, 10).fill(pressureShell);
+  g.roundRect(12, y + 5, CELL - 24, height - 10, 7).stroke({ color: 0xb0a481, width: 1.2, alpha: 0.7 });
+  g.moveTo(18, y + height - 7).lineTo(35, y + height - 7).lineTo(42, y + height - 11)
+    .lineTo(CELL - 16, y + height - 11).stroke({ color: 0xb48054, width: 2.2 });
+  for (const x of [4, CELL - 13]) drawPressureRib(g, x, y - 5, height + 10, 9);
+  const port = { x: c - 24, y: c - 12, w: 48, h: 24 };
+  drawHabitatFrame(g, port, 4);
+  g.roundRect(port.x + 1, port.y + 1, port.w - 2, port.h - 2, 4).fill(0x20464c);
+  g.rect(c - 1.5, c - 12, 3, 24).fill(0x67766a);
+  const upright = rot % 2 === 1;
+  for (const x of [c - 22, c + 2]) {
+    const panel = upright ? [c - 5, x, 14, 20] as const : [x, c - 9, 20, 14] as const;
+    windows.roundRect(panel[0], panel[1], panel[2], panel[3], 3).fill({ color: 0xffcb88, alpha: 0.58 });
+    windowGlow.ellipse(panel[0] + panel[2] / 2, panel[1] + panel[3] / 2, 17, 14).fill({ color: 0xffc081, alpha: 0.24 });
+  }
+  chamber.addChild(stencil(`C-${String(n).padStart(2, '0')}`, c, y + height - 4, 6));
+  if (upright) {
+    chamber.pivot.set(c, c);
+    chamber.rotation = Math.PI / 2;
+    chamber.position.set(c, c);
+  }
+  const lamp = upright ? { x: CELL - y - 5, y: CELL - 23 } : { x: CELL - 23, y: y + 5 };
+  return { body, windows, windowGlow, lamp };
 }
 
 function drawCorridor(n: number, rot: number, withStencil = true): PieceArt {
@@ -1366,6 +1407,67 @@ function drawPress(n: number): PieceArt {
  * Heavy side pillars carry the hall down to the seabed; amber guide lamps
  * on the pillars show the way in.
  */
+function drawPressureDock(n: number): PieceArt {
+  const W = 3 * CELL;
+  const H = 2 * CELL;
+  const cx = W / 2;
+  const body = new Container();
+  const g = body.addChild(new Graphics());
+  const windows = new Graphics();
+  const windowGlow = new Graphics();
+  tubeH(g, 0, 26, CELL / 2, 1);
+  tubeH(g, W - 26, W, CELL / 2, 1);
+  for (const s of [-1, 1]) {
+    const x = cx + s * 143;
+    g.poly([x - 13, 92, x + 13, 92, x + 13 + s * 7, H - 5, x - 13 + s * 7, H - 5]).fill(pressureShell);
+    g.moveTo(x, 110).lineTo(x + s * 7, H - 8).stroke({ color: 0xb19a73, alpha: 0.75, width: 2 });
+    g.roundRect(x + s * 7 - 22, H - 10, 44, 10, 3).fill(0x395354);
+    g.moveTo(x + s * 5, H - 33).lineTo(cx + s * 102, 105).stroke({ color: 0x3f6a65, width: 9 });
+    const clamp = cx + s * 74;
+    g.poly([clamp - 6, 103, clamp + 6, 103, clamp + 6, 137, clamp - s * 16, 151,
+      clamp - s * 21, 145, clamp - 6, 134]).fill(0x816954);
+    g.circle(clamp, 137, 5).fill(0xaea98e);
+    for (const y of [152, 194]) {
+      windows.roundRect(x - 5, y, 10, 4, 2).fill(0xffbd72);
+      windowGlow.ellipse(x, y + 2, 12, 10).fill({ color: 0xffb76e, alpha: 0.35 });
+    }
+  }
+  g.moveTo(13, 97).lineTo(23, 40).quadraticCurveTo(30, 16, 66, 15).lineTo(W - 66, 15)
+    .quadraticCurveTo(W - 30, 16, W - 23, 40).lineTo(W - 13, 97).lineTo(W - 13, 109)
+    .lineTo(cx + 72, 109).lineTo(cx + 64, 82).lineTo(cx - 64, 82).lineTo(cx - 72, 109)
+    .lineTo(13, 109).closePath().fill(pressureShell);
+  g.moveTo(33, 40).quadraticCurveTo(35, 24, 70, 24).lineTo(W - 70, 24).quadraticCurveTo(W - 35, 24, W - 33, 40)
+    .stroke({ color: 0xc6bf9e, width: 2, alpha: 0.72 });
+  drawPressureRib(g, 88, 22, 83, 10);
+  drawPressureRib(g, W - 98, 22, 83, 10);
+  for (const x of [29, W - 81]) {
+    drawHabitatFrame(g, { x, y: 55, w: 52, h: 25 }, 5);
+    windows.roundRect(x + 3, 59, 46, 16, 3).fill({ color: 0xffcb88, alpha: 0.6 });
+    windowGlow.ellipse(x + 26, 68, 34, 20).fill({ color: 0xffc081, alpha: 0.26 });
+  }
+  g.roundRect(cx - POOL_HALF_WIDTH, 44, POOL_HALF_WIDTH * 2, POOL_SURFACE_Y - 43, 8).fill(0x19383d);
+  g.rect(cx - POOL_HALF_WIDTH + 4, POOL_SURFACE_Y, (POOL_HALF_WIDTH - 4) * 2, 3).fill({ color: 0x7baca5, alpha: 0.42 });
+  g.rect(cx - 55, 49, 110, 4).fill(0x687e73);
+  g.roundRect(cx - 18, 47, 36, 14, 3).fill(0x97704e);
+  g.moveTo(cx, 61).lineTo(cx, 79).stroke({ color: 0xadbaaa, width: 2 });
+  const ladder = cx + POOL_LADDER_X;
+  for (const x of [ladder - 9, ladder + 9]) {
+    g.moveTo(x, 59).lineTo(x, 121).stroke({ color: 0x94876a, width: 3 });
+  }
+  for (let y = 63; y < 121; y += 9) {
+    g.moveTo(ladder - 9, y).lineTo(ladder + 9, y).stroke({ color: 0xbba480, width: 2.5 });
+  }
+  g.moveTo(cx - 74, 108).lineTo(cx - 64, 82).lineTo(cx + 64, 82).lineTo(cx + 74, 108)
+    .stroke({ color: 0xcf9c65, width: 4, alpha: 0.86, join: 'round' });
+  for (const x of [cx - 49, cx + 49]) {
+    windows.rect(x - 7, 81, 14, 3).fill({ color: 0xffdb9e, alpha: 0.92 });
+    windowGlow.ellipse(x, 95, 22, 18).fill({ color: 0xffcd8e, alpha: 0.25 });
+  }
+  body.addChild(stencil(`MP-${n} · MOONPOOL`, cx, 34, 9));
+  body.addChild(stencil('KS-1', W - 54, 94, 6));
+  return { body, windows, windowGlow, lamp: { x: cx + 44, y: 32 } };
+}
+
 function drawDock(n: number): PieceArt {
   const W = CELL * 3;
   const H = CELL * 2;
@@ -1588,7 +1690,7 @@ function drawWorkshop(n: number): PieceArt {
 export function drawPiece(kind: PieceKind, n: number, rot: number, seed: number, livingBases = false): PieceArt {
   rand = mulberry32(WORLD_SEED ^ (seed * 7919 + 0x1b5e));
   if (kind === 'dome') return livingBases ? drawKestrelHabitat(n) : drawDome(n);
-  if (kind === 'corridor') return drawCorridor(n, rot);
+  if (kind === 'corridor') return livingBases ? drawPressureCorridor(n, rot) : drawCorridor(n, rot);
   if (kind === 'shaft') return drawShaft(n);
   if (kind === 'junction') return drawJunction(n);
   if (kind === 'lantern') return drawLantern(n);
@@ -1606,7 +1708,7 @@ export function drawPiece(kind: PieceKind, n: number, rot: number, seed: number,
   if (kind === 'filter') return drawFilter(n);
   if (kind === 'feeder') return drawFeeder(n);
   if (kind === 'press') return drawPress(n);
-  if (kind === 'dock') return drawDock(n);
+  if (kind === 'dock') return livingBases ? drawPressureDock(n) : drawDock(n);
   if (kind === 'lab') return drawLab(n);
   if (kind === 'workshop') return drawWorkshop(n);
   return drawStorage(n);

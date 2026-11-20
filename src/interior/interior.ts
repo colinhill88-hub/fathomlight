@@ -431,6 +431,15 @@ export class Interior {
     this.cam.y = y - 400;
   }
 
+  mountLadder(x: number, y: number, face: number): void {
+    this.place(x, y, face);
+    this.climbing = true;
+    this.walker.onGround = false;
+    this.walker.pose = 'climb';
+    this.walker.visor = this.walker.visorTarget = 0;
+    this.lastSafe = { x, y: y - 2 * T };
+  }
+
   /** Point at the save's own state lists (they're changed in place). */
   syncState(breakers: boolean[], taken: string[]): void {
     this.state.breakers = breakers;
