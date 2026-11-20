@@ -19,7 +19,7 @@
  *
  * All three breakers bring her emergency power back: the lamps, the lift and
  * the array room's door. Letters as in src/interior/corvina.ts, plus H for a
- * ladder.
+ * ladder. The short crew-deck grate steps up to the comms spool from the east.
  */
 export const FULMAR_MAP: string[] = [
   '####################################################################################################',
@@ -39,7 +39,7 @@ export const FULMAR_MAP: string[] = [
   '#                                                            H                                 #LLL#',
   '#     4                       ###                            H              =======            #LLL#',
   '#   ===========               ###                            H                                 #LLL#',
-  '#                             ###                            H                                 #LLL#',
+  '#              ===            ###                            H                                 #LLL#',
   '#                   B         ###       v                    H        v             $          #LLL#',
   '##H#########################################          ######################################   #LLL#',
   '# H                                                                                            #LLL#',
