@@ -759,13 +759,14 @@ export function isSolid(x: number, y: number): boolean {
     const c = corvinaSolid(x, y);
     if (c !== null) return c;
   }
-  // Milestone 10: the drowned station is solid; the cleft is open once its chimney is grazed away.
-  if (x > 31200 && x < 32200 && y >= fulmarTop(x)) return true;
   // Milestone 11: the sanctum under the floor, behind its doors.
+  // This opening is below the Fulmar, whose silhouette is solid from its roof down.
   if (x > 29000 && x < 32500 && y > 7250) {
     if (sanctumDoorSolid(x, y)) return true;
     if (inSanctum(x, y)) return false;
   }
+  // Milestone 10: the drowned station is solid; the cleft is open once its chimney is grazed away.
+  if (x > 31200 && x < 32200 && y >= fulmarTop(x)) return true;
   if (x > 28700 && x < 29520 && y > 3920 && y < 4200) {
     if (!cleft.open && x > CLEFT.plug.x0 && x < CLEFT.plug.x1 && y > CLEFT.plug.y0 && y < CLEFT.plug.y1) return true;
     if (inShape(CLEFT.tunnel, x, y) || inShape(CLEFT.room, x, y)) return false;
