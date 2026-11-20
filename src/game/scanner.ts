@@ -252,6 +252,12 @@ export const SCAN_ENTRIES: ScanEntry[] = [
     text: 'A fan of fine grey silt and stones heaped against the foot of the shelf edge. Something about the way the current eddies around it suggests a hollow behind.',
   },
   {
+    id: 'crablock',
+    name: 'Scored strongbox',
+    category: 'Wreckage',
+    text: 'Paired scratches run under the lip of a rusted padlock. Something finer than a cutter has been probing the keyhole. Bits of bladder kelp are caught in the hinge.',
+  },
+  {
     id: 'salvage',
     name: 'Heavy salvage',
     category: 'Wreckage',
@@ -291,7 +297,7 @@ export const SCAN_ENTRIES: ScanEntry[] = [
     id: 'chimney',
     name: 'Sealed chimney',
     category: 'Place',
-    text: 'A young chimney has grown across the mouth of a cleft in the ledge wall, hot and brittle-hard: the cutter only shatters the surface and the crust grows back. Cinder snails graze chimneys like this down to nothing.',
+    text: 'A young chimney has grown across a cleft. The cutter would shatter its surface, but the mineral crust grows back. Smooth, pale trails are worn into the soft seams. Something has been feeding here.',
   },
   {
     id: 'snail',

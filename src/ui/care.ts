@@ -18,6 +18,7 @@ import {
 } from '../game/creatures';
 import { genText, isRare, traitsOf, traitText } from '../game/traits';
 import { CreatureData, MATERIALS, SaveData } from '../game/state';
+import { creatureMilestone } from '../game/discovery';
 import { TRAY_CAP, trayCount, TROUGH_CAP, whorlMult } from '../game/factory';
 import { MATERIAL_ORDER, TankData } from '../game/state';
 
@@ -257,14 +258,8 @@ export class CareMode {
     }
     save.creatures = save.creatures.filter((x) => x.id !== c.id);
     save.jar = { species: c.species, stage: c.stage, keep: c };
-    // Milestone 9: grown glowfins and tinker crabs are keys out in the world.
-    const key =
-      c.stage === 'grown' && c.species === 'glowfin'
-        ? ' Outside, it swims beside you as a light: it can lead you through lightless water where the dive light dies.'
-        : c.stage === 'grown' && c.species === 'crab'
-          ? ' Its fine claws can pick locks too small and rusted for the cutter.'
-          : ' Put it in another tank from inside the base.';
-    this.deps.toast(`${SPECIES[c.species].name} moved into the specimen jar.${key}`, 'big');
+    const ability = c.stage === 'grown' ? creatureMilestone(save, c.species) : '';
+    this.deps.toast(`${SPECIES[c.species].name} moved into the specimen jar. ${ability || 'Put it in another tank from inside the base.'}`, 'big');
     this.afterRemove();
   }
 

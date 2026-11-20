@@ -130,8 +130,10 @@ import { BuildMode } from './ui/build';
 import { Wildlife } from './world/wildlife';
 import { TankLife } from './world/tanklife';
 import { Escort } from './actors/escort';
+import { Critter } from './actors/critters';
 import { CareMode } from './ui/care';
 import { creaturesIn, newCreature, payCost, PLANT_ORDER, PLANTS, SPECIES, SPECIES_ORDER, tankCapacity, tankNumber, tickCare, wildAllowed, WILD_CAP } from './game/creatures';
+import { creatureMilestone, creatureSiteHint, fieldResearch, type CreatureSite } from './game/discovery';
 import { HatchPanel } from './ui/hatch';
 import { traitText, wildTraits } from './game/traits';
 import { RatesPanel } from './ui/rates';
@@ -318,6 +320,7 @@ async function boot(): Promise<void> {
   const tankLife = new TankLife({ livingCreatures, livingBases });
   // Milestone 9: a grown glowfin from the jar swims beside the diver as a light.
   const escort = new Escort(livingCreatures);
+  let workingSpecimen: Critter | null = null;
   let llSafe = { x: 0, y: 0 };
   const schools = [
     new School(22, { x0: 1850, x1: 3500, y0: 200, y1: 380 }, livingCreatures),
@@ -372,6 +375,7 @@ async function boot(): Promise<void> {
     { id: 'vane', points: () => scenery.scanPoints.vane },
     { id: 'cvhook', points: () => scenery.scanPoints.cvhook },
     { id: 'hidden', points: () => (save.hiddenOpen ? [] : scenery.scanPoints.hidden) },
+    { id: 'crablock', points: () => save.hiddenOpen ? [{ x: Scenery.LOCKER.x, y: Scenery.LOCKER.y - 24 }] : [] },
     { id: 'salvage', points: () => scenery.scanPoints.salvage },
     { id: 'lurker', points: () => lurkers.list.map((l) => l.head()) },
     { id: 'crab', points: () => wildlife.scanPoints('crab') },
@@ -1032,11 +1036,32 @@ async function boot(): Promise<void> {
     persist();
   }
   let collectWas = false;
+  let pressureExitUntil = 0;
+
+  function subExitPoint(): { x: number; y: number } {
+    let { x } = sub.domePoint();
+    let y = sub.y - 92;
+    if (isSolid(x, y) || y < 30) {
+      y = sub.y + 80;
+      if (isSolid(x, y)) {
+        x = sub.x - sub.face * 160;
+        y = sub.y;
+      }
+    }
+    return { x, y: Math.max(30, y) };
+  }
+
+  function unsafeExitDepth(): number | null {
+    const { x, y } = subExitPoint();
+    const depth = Math.max(0, y - SURFACE_Y + 6) / WU_PER_METRE;
+    return !inSanctum(x, y) && depth > diverLimit() ? depth : null;
+  }
 
   /** Climb out of the sub. What the diver cannot carry stays in the cargo bay. */
   function leaveSub(quiet: boolean): void {
     const S = save.sub;
     if (!S || !S.aboard) return;
+    pressureExitUntil = 0;
     S.aboard = false;
     const lim = diverLimits();
     let moved = 0;
@@ -1048,18 +1073,9 @@ async function boot(): Promise<void> {
       }
     }
     // Out through the hatch: above the hull, or below if rock is in the way.
-    const dp = sub.domePoint();
-    let x = dp.x;
-    let y = sub.y - 92;
-    if (isSolid(x, y) || y < 30) {
-      y = sub.y + 80;
-      if (isSolid(x, y)) {
-        x = sub.x - sub.face * 160;
-        y = sub.y;
-      }
-    }
+    const { x, y } = subExitPoint();
     diver.x = x;
-    diver.y = Math.max(30, y);
+    diver.y = y;
     diver.vx = sub.vx * 0.5;
     diver.vy = -30;
     // Fade in as they climb out of the hatch (the pilot rises out of the seat in Sub.draw).
@@ -1459,6 +1475,20 @@ async function boot(): Promise<void> {
   let camCX = diver.x + 120;
   let camCY = diver.y + 40;
   let time = 0;
+  const siteLastSeen: Partial<Record<CreatureSite, number>> = {};
+  function investigateCreatureSite(species: CreatureSite): string {
+    const seen = `site:${species}:seen`;
+    const revisited = `site:${species}:return`;
+    if (!save.tips.includes(seen)) {
+      save.tips.push(seen);
+      persist();
+    } else if (time - (siteLastSeen[species] ?? 0) > 20 && !save.tips.includes(revisited)) {
+      save.tips.push(revisited);
+      persist();
+    }
+    siteLastSeen[species] = time;
+    return creatureSiteHint(save, species);
+  }
 
   // ---- KD-1's delivery run (Colin, after milestone 12) ----
   /** Items in KD-1's cargo cradle. */
@@ -1751,7 +1781,10 @@ async function boot(): Promise<void> {
         continue;
       }
       if (ev.type === 'hatched') hud.toast(`The ${name.toLowerCase()} eggs hatched in ${where}! The fry need feeding.`, 'big');
-      else if (ev.type === 'grown') hud.toast(`The ${name.toLowerCase()} in ${where} is fully grown, and glows brighter`, 'big');
+      else if (ev.type === 'grown') {
+        const ability = creatureMilestone(save, ev.c.species);
+        hud.toast(`The ${name.toLowerCase()} in ${where} is fully grown. ${ability || 'Look for its mature glow pattern and what it leaves in the tray.'}`, 'big');
+      }
       else if (ev.type === 'sick') hud.toast(`The ${name.toLowerCase()} in ${where} is sick (${ev.why}). Tend it soon.`, 'warn');
       else if (ev.type === 'better') hud.toast(`The ${name.toLowerCase()} in ${where} is feeling better`);
       else if (ev.type === 'dormant')
@@ -2039,7 +2072,11 @@ async function boot(): Promise<void> {
           enterBase(dm.id, false, dk.id);
           return;
         }
-        leaveSub(false);
+        const depth = unsafeExitDepth();
+        if (depth !== null && time >= pressureExitUntil) {
+          pressureExitUntil = time + 4;
+          hud.toast(`Outside is ${Math.ceil(depth)} m and your suit is rated for ${diverLimit()} m. Ascend, or press Exit again to risk the pressure.`, 'warn');
+        } else leaveSub(false);
       } else if (nearSub) {
         // After milestone 7b (Colin): the diver swims to the hatch on top of the dome and climbs in.
         if (S.hull > 0) {
@@ -2186,7 +2223,12 @@ async function boot(): Promise<void> {
     }
     subBubbles.update(dt, sub.x, 0, 0, 0, 0);
     nearSub = !!S && S.stage === 'built' && !S.aboard && blackout === 0 && Math.hypot(diver.x - sub.x, diver.y - (sub.y - 10)) < 170;
-    hud.setBoard(inControl ? (aboard ? 'Exit' : nearSub ? (S!.hull > 0 ? 'Board' : 'Breached') : null) : null);
+    const dockExit = !!S?.docked && layout.powered.has(S.dock) &&
+      layout.pieces.some(p => p.id === S.dock && p.kind === 'dock' && isDone(p)) &&
+      layout.pieces.some(p => p.kind === 'dome' && isDone(p));
+    const exitDepth = aboard && inControl && !dockExit ? unsafeExitDepth() : null;
+    if (exitDepth === null) pressureExitUntil = 0;
+    hud.setBoard(inControl ? (aboard ? exitDepth === null ? 'Exit' : time < pressureExitUntil ? 'Exit anyway' : 'Exit ⚠' : nearSub ? (S!.hull > 0 ? 'Board' : 'Breached') : null) : null);
     if (nearSub && !wasNearSub && input.state.lastDevice !== 'touch' && !save.tips.includes('subkey')) {
       save.tips.push('subkey');
       hud.toast('KS-1: press V to climb in (RB on a gamepad)', 'big');
@@ -2205,8 +2247,6 @@ async function boot(): Promise<void> {
     const raceHere = aboard ? 0 : raceAt(diver.x, diver.y);
     const atRing = ANCHORS.findIndex((r) => Math.hypot(diver.x - r.x, diver.y - r.y) < 80);
     diver.current.x += -RACE.speed * raceHere * (atRing >= 0 ? 0.1 : 1) * (0.85 + 0.15 * Math.sin(time * 0.7));
-    // After milestone 12: mag-boots grip the seabed, so on the bottom currents hardly push.
-    if (!aboard && hasGear(save, 'boots') && (isSolid(diver.x, diver.y + 44) || isSolid(diver.x - 14, diver.y + 44) || isSolid(diver.x + 14, diver.y + 44))) diver.current.x *= 0.12;
     scenery.updateRace(time, camX, camX + lastViewW);
     diver.current.y = 0;
     // Milestone 10: scalding plumes over the vent chimneys lift and burn; so does the sealed chimney.
@@ -2222,6 +2262,17 @@ async function boot(): Promise<void> {
       }
     }
     if (!aboard && !save.cleftOpen && Math.hypot(diver.x - CLEFT.x, diver.y - CLEFT.y) < 75) scald = Math.max(scald, 0.5);
+    const bootsOnFloor = !aboard && hasGear(save, 'boots') &&
+      (isSolid(diver.x, diver.y + 44) || isSolid(diver.x - 14, diver.y + 44) || isSolid(diver.x + 14, diver.y + 44));
+    const bracing = bootsOnFloor && inControl && !input.suspended && !grapple && !boarding && !swimmingPool &&
+      !diver.surfaced && !s.boost && !diver.boosting && s.moveY > 0.55;
+    if (bootsOnFloor) diver.current.x *= bracing ? 0 : 0.12;
+    if (bracing) diver.current.y = 0;
+    if (bracing && !save.tips.includes('bootbrace')) {
+      save.tips.push('bootbrace');
+      hud.toast('Mag-boots braced. Edge sideways to move along the bottom, or release Down to swim free.');
+      persist();
+    }
     // Milestone 8 part 2: the Corvina's state, and the hidden passage and salvage.
     cv.hatch = save.corvina.hatch;
     cv.door = save.corvina.door;
@@ -2334,7 +2385,7 @@ async function boot(): Promise<void> {
         hud.toast('No thruster to boost with yet. A Kestrel survey left a spare hip thruster somewhere near its beacon, at the drop-off.', 'warn');
       }
       const freeSwimming = inControl && !input.suspended && !peek && !s.boost && !s.board && !s.scan && !s.collect && !s.flare && !s.dart;
-      diver.update(dt, inControl ? s.moveX : 0, inControl ? s.moveY : 0, inControl && s.boost && save.kit.thruster > 0, inControl && s.lamp, freeSwimming, pool?.y);
+      diver.update(dt, inControl ? s.moveX : 0, inControl ? s.moveY : 0, inControl && s.boost && save.kit.thruster > 0, inControl && s.lamp, freeSwimming, pool?.y, bracing);
       // After milestone 12: the TH-3 dash head. A double tap of Boost dashes, every 3 s.
       if (inControl && s.boost && hasGear(save, 'dash')) {
         if (time - boostTapAt < 0.32 && time - dashAt > 3) {
@@ -2526,12 +2577,14 @@ async function boot(): Promise<void> {
         ? `Crush depth: your suit is rated to ${diverLimit()} m. ${hasGear(save, 'psuit') ? 'A stronger pressure suit would go deeper.' : 'A pressure suit would go deeper.'} Climb!`
         : crushing === 'sub'
           ? `Crush depth: KS-1 is rated to ${subLimit()} m. Climb before the hull gives way!`
+          : exitDepth !== null
+            ? `Hatch at ${Math.ceil(exitDepth)} m · suit rated to ${diverLimit()} m. ${time < pressureExitUntil ? 'Press Exit again to leave the sub.' : 'Ascend before exiting.'}`
           : inCave && !hasLight
         ? 'Pitch black ahead. The shoulder lamp barely dents this darkness. A proper dive light would open the way: decode the sled recorder in a Lab, then build the light in a Workshop.'
         : inCave && !lit
           ? 'Too dark to go on: switch your dive light on (Lamp).'
           : aboard && !save.vane && raceAt(sub.x, sub.y) > 0.3
-            ? 'The race is too strong for KS-1, even on full thrusters. The old salvage crew must have had a way to calm it: look on the far side, on foot.'
+            ? 'The race sweeps west from the surface to the bottom. Look for anchor rings and follow them across with a grapple. The flow-vane winch is on the far side.'
           : raceHere > 0.3 && !grapple && !hasGear(save, 'tow')
             ? 'The race: a current too strong to swim against sweeps across the shelf edge, right up to the surface. Old anchor rings cross it: a grapple line could pull you from ring to ring.'
           : inSqueeze
@@ -2760,6 +2813,10 @@ async function boot(): Promise<void> {
     const grab = aboard && !!S && S.modules.includes('grabber');
     const reachPt = aboard ? (grab ? sub.clawPoint() : { x: sub.x, y: sub.y }) : { x: diver.x, y: diver.y };
     const collectHeld = inControl && s.collect && !diver.surfaced && (!aboard || grab);
+    // Give the sealed throat its own interaction space. The ore nodule to the
+    // east is still collectible when approached on its side.
+    const focusChimney = !aboard && !save.cleftOpen &&
+      Math.hypot(diver.x - (CLEFT.plug.x1 + 5), diver.y - (CLEFT.y - 15)) < 67;
     // The stranded drone takes the Collect button when the diver is next to it.
     const atDrone = drone.inReach && !diver.surfaced && blackout === 0 && !aboard;
     // Wild creatures: the specimen jar takes the Collect button when one is in reach.
@@ -2803,19 +2860,19 @@ async function boot(): Promise<void> {
           : !save.scans.includes(SPECIES[wildTarget.species].scan)
             ? `Scan the ${SPECIES[wildTarget.species].name.toLowerCase()} first, to learn how to keep it`
             : !wildAllowed(save, wildTarget.species)
-              ? `The wild has spared you two ${SPECIES[wildTarget.species].name.toLowerCase()}s already. Breed more at a Hatchery: a happy grown pair in one tank lays eggs.`
+              ? `You already keep a founding group of ${SPECIES[wildTarget.species].name.toLowerCase()}s. To raise more, keep a happy grown pair in one tank with a powered Hatchery.`
               : 'The specimen jar is full. Put its creature in a tank first.',
         'warn',
       );
     }
     const prevT = pickups.target;
     const bagFull = !!prevT && !bagHasRoom(save, prevT.kind);
-    if (bagFull && collectHeld && !atDrone && time - fullWarnAt > 4) {
+    if (bagFull && collectHeld && !atDrone && !focusChimney && time - fullWarnAt > 4) {
       fullWarnAt = time;
       hud.toast(`Dive bag full (${bagLimits(save).max} kg). Unload at a storage pod to carry more.`, 'warn');
     }
     // The sub's grabber arm reaches further than a diver's hand (after milestone 7b: Colin found it hard to line up).
-    for (const ev of pickups.update(dt, time, reachPt.x, reachPt.y, save, collectHeld && !atDrone && !bagFull && !wildBlocks, speed, grab ? GRAB_REACH : undefined)) {
+    for (const ev of pickups.update(dt, time, reachPt.x, reachPt.y, save, collectHeld && !atDrone && !focusChimney && !bagFull && !wildBlocks, speed, grab ? GRAB_REACH : undefined)) {
       if (ev.type === 'material') {
         save.bag[ev.kind]++;
         sound.pickup(ev.kind);
@@ -2895,7 +2952,7 @@ async function boot(): Promise<void> {
     const collectRaw = inControl && s.collect && !diver.surfaced;
     const collectTap = collectRaw && !collectWas;
     collectWas = collectRaw;
-    const otherTarget = atDrone || !!wildTarget || (!!pt && (!aboard || grab));
+    const otherTarget = atDrone || !!wildTarget || (!!pt && !focusChimney && (!aboard || grab));
     // Milestone 7: hold-to-do actions out in the world (the sled recorder, the boom winch).
     let holdAct: { key: string; label: string; seconds: number; done: () => void } | null = null;
     let infoAct = '';
@@ -2997,7 +3054,7 @@ async function boot(): Promise<void> {
         };
       // Milestone 9: the rusted strongbox in the hidden room. A grown tinker crab picks its lock.
       if (save.hiddenOpen && !save.lockerOpen && near({ x: Scenery.LOCKER.x, y: Scenery.LOCKER.y - 24 }, 80)) {
-        if (save.jar?.species === 'crab' && save.jar.stage === 'grown')
+        if ([save.jar, save.jar2].some(c => c?.species === 'crab' && c.stage === 'grown'))
           holdAct = {
             key: 'crablock',
             label: 'Let the tinker crab pick the lock',
@@ -3015,7 +3072,12 @@ async function boot(): Promise<void> {
               );
             },
           };
-        else infoAct = 'A rusted strongbox. Its padlock is seized solid and far too small for the cutter: something with fine claws could pick it. A grown tinker crab, carried in your jar?';
+        else {
+          infoAct = investigateCreatureSite('crab');
+          // The cache and the strongbox occupy the same small room. Leave the cache
+          // action available on its own side, while examining the scored padlock.
+          if (holdAct?.key === 'hiddenlocker' && near({ x: Scenery.LOCKER.x, y: Scenery.LOCKER.y - 24 }, 46)) holdAct = null;
+        }
       }
       // The flow vane's winch, on the far side of the race.
       const vw = Scenery.vaneWinchPoint();
@@ -3028,7 +3090,8 @@ async function boot(): Promise<void> {
             save.vane = true;
             race.vane = true;
             drone.cheer();
-            hud.toast('The flow vane groans up off the seabed and turns the race down along the shelf. The water at the top of the edge goes calm: KS-1 can cross over the top now.', 'big');
+            shake = Math.max(shake, 0.18);
+            hud.toast('The flow vane locks in place. Silt rolls down the face of the shelf as the upper water clears. KS-1 now has a permanent route over the race.', 'big');
           },
         };
       // Sealed hatches on the small wrecks: the cutter torch opens them.
@@ -3059,8 +3122,8 @@ async function boot(): Promise<void> {
           };
         else infoAct = 'Sealed hatch, rusted shut: a cutter torch would open it';
       }
-      if (Math.hypot(diver.x - CORVINA.doorX, diver.y - (groundY(CORVINA.doorX) - 90)) < 140)
-        infoAct = "The Corvina's bulkhead door: sealed from inside, and far too thick to cut. Its way in comes in the next update.";
+      if (!save.corvina.door && Math.hypot(diver.x - CORVINA.doorX, diver.y - (groundY(CORVINA.doorX) - 90)) < 140)
+        infoAct = "The Corvina's bulkhead is sealed from inside. The service hatch is on deck, above the stern grapple bollard.";
       // Milestone 7 part 2: the finds in the kelp caves.
       for (const k of Object.keys(KC_FINDS) as (keyof typeof KC_FINDS)[]) {
         const f = FIND_INFO[k];
@@ -3148,7 +3211,7 @@ async function boot(): Promise<void> {
         };
       // The sealed chimney across the cleft: a grown cinder snail grazes it away.
       if (!save.cleftOpen && near({ x: CLEFT.x + 40, y: CLEFT.y }, 120)) {
-        if (save.jar?.species === 'snail' && save.jar.stage === 'grown')
+        if ([save.jar, save.jar2].some(c => c?.species === 'snail' && c.stage === 'grown'))
           holdAct = {
             key: 'snailgraze',
             label: 'Let the cinder snail graze the chimney',
@@ -3156,6 +3219,7 @@ async function boot(): Promise<void> {
             done: () => {
               save.cleftOpen = true;
               cleft.open = true;
+              shake = Math.max(shake, 0.27);
               drone.cheer();
               sound.find('bag');
               hud.showReading(
@@ -3165,10 +3229,7 @@ async function boot(): Promise<void> {
               );
             },
           };
-        else
-          infoAct = save.scans.includes('chimney')
-            ? 'A hot, brittle chimney seals the cleft. Cinder snails graze these: bring a grown one in your jar.'
-            : 'A young chimney seals a cleft in the wall. Scan it.';
+        else infoAct = investigateCreatureSite('snail');
       }
       // In the cleft: a Fulmar cargo pod with the PS-2 drawings and a pattern spool.
       if (save.cleftOpen) {
@@ -3349,6 +3410,27 @@ async function boot(): Promise<void> {
         persist();
       }
     } else holdProgress = Math.max(0, holdProgress - dt * 0.5);
+    // A creature works beside its diver, returning to the jar as the hold completes.
+    const workSpecies = holdAct?.key === 'crablock' ? 'crab' : holdAct?.key === 'snailgraze' ? 'snail' : null;
+    if (workingSpecimen && (holdProgress === 0 || workSpecies !== workingSpecimen.species)) {
+      workingSpecimen.destroy();
+      workingSpecimen = null;
+    }
+    if (workSpecies && holdProgress > 0) {
+      if (!workingSpecimen) {
+        const jar = [save.jar, save.jar2].find(c => c?.species === workSpecies && c.stage === 'grown');
+        workingSpecimen = new Critter(workSpecies, 'grown', jar?.keep?.id ?? 1, jar?.keep?.traits ?? jar?.traits, livingCreatures);
+        escort.view.addChild(workingSpecimen.view);
+        escort.emissive.addChild(workingSpecimen.emissive);
+        escort.glow.addChild(workingSpecimen.glow);
+      }
+      const target = workSpecies === 'crab' ? { x: Scenery.LOCKER.x - 20, y: Scenery.LOCKER.y - 22 } : { x: CLEFT.plug.x1 + 3, y: CLEFT.y + 16 };
+      const reach = smooth(holdProgress / 0.22) * smooth((1 - holdProgress) / 0.18);
+      const face = Math.sign(target.x - diver.x) || diver.facing;
+      const x = diver.x + (target.x - diver.x) * reach;
+      const y = diver.y + (target.y - diver.y) * reach;
+      workingSpecimen.update(dt, time, x, y, face * (reach > 0.96 ? 10 : 40), 0, { vigour: 1, sick: 0, size: 0.95 });
+    }
     // Milestone 11: the resonator sings while you hold Collect at a door, and the song spreads in rings.
     {
       const singing = !!holdAct && holdAct.key.startsWith('sing') && collectHeld ? 1 : 0;
@@ -3780,7 +3862,7 @@ async function boot(): Promise<void> {
     {
       let work: WorkKind | null = null;
       if (holdAct && collectHeld && speed < 70)
-        work = holdAct.key === 'snailgraze' ? 'creature' : holdAct.key === 'winch' || holdAct.key === 'relay' || holdAct.key === 'vane' || holdAct.key === 'fulmarhatch' ? 'winch' : holdAct.key === 'kwall' ? 'cutter' : holdAct.key.startsWith('bracket') ? 'moss' : 'recorder';
+        work = holdAct.key === 'snailgraze' || holdAct.key === 'crablock' ? 'creature' : holdAct.key === 'winch' || holdAct.key === 'relay' || holdAct.key === 'vane' || holdAct.key === 'fulmarhatch' ? 'winch' : holdAct.key === 'kwall' ? 'cutter' : holdAct.key.startsWith('bracket') ? 'moss' : 'recorder';
       else if (grapple?.phase === 'reel') work = 'winch';
       else if (repairing) work = 'repair';
       else if (wildlife.working && wildTarget) work = 'creature';
@@ -4231,7 +4313,11 @@ async function boot(): Promise<void> {
     goOnFoot();
     baseCameraCut = !waking;
     if (!waking && !viaPool) sound.hatchCue(true);
-    if (!save.tips.includes('basefoot'))
+    const fieldNote = !waking && fieldResearch(save).find(r => !save.tips.includes(`returned:${r.id}`));
+    if (fieldNote) {
+      save.tips.push(`returned:${fieldNote.id}`);
+      hud.toast(`Back at Kestrel with new research. Decode the ${fieldNote.name} at a powered Lab when you're ready.`, 'big');
+    } else if (!save.tips.includes('basefoot'))
       setTimeout(() => {
         save.tips.push('basefoot');
         hud.toast(

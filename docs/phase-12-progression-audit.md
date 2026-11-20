@@ -1,0 +1,35 @@
+# Phase 12 progression audit
+
+This audit covers the code at the Phase 12 branch point, `78c8bb3`. The original Claude “Milestone 12” was a polish milestone. This Phase 12 is the separate gameplay pass following Codex Phase 11D.
+
+## Route from a new save
+
+| Area | Gates and prerequisites | Optional discoveries and alternate routes |
+| --- | --- | --- |
+| Sunlit Shallows and Kestrel | Follow survey wreckage for the specimen jar, drone and hip thruster. Gather scrap, quartz and copper. Build a powered base with storage, Lab and Workshop. The Workshop requires hull plating, made from scrap in a Plate press or salvaged. Decode the dive light, fabricate it and use it to pass the dark east cliff. | Find air and movement upgrades, scan wildlife, raise early specimens and use the basin for expansion. The dock and KS-1 require a considerable plating investment. Start them alongside other exploration. |
+| Kelp Forest and caves | Open the boom from its far-side winch for KS-1. Use surge lulls and air pockets. Gather lumen moss, light four brackets, recover the cutter cache and fabricate the torch. Collect the tow-line notes above the junction and fabricate the grapple. Cut the kelp wall to recover the nursery log needed for the Hatchery. | Relay and welder finds, fourth air reserve, KD-1 cargo cradle. The separate lightless grotto requires a grown glowfin in the jar. Its glowing blooms support revival. |
+| Shelf race and Corvina | Cross the race with the grapple rings. Raise the flow vane from the far-side winch to calm the surface for the sub. Cut the Corvina deck hatch and solve the interior power and cargo hold route. Recover the sonar and PS-1 path via the wreck finds. | Mag-boots contact grip is optional. Cut the small wreck hatches for supplies and air. A sonar pulse opens the silt slump. Its grown-crab strongbox contains Revival pool plans. |
+| Trench, cleft and Fulmar | PS-1 reaches the vents. Raise a cinder snail with lumen moss and carry it grown in the jar to graze the chimney. Inside the cleft are PS-2 drawings and the second spool. Fit depth plating if taking KS-1 deep. PS-2 permits the dive to Fulmar and the trench floor. Restore three Fulmar breakers for the array room. Recover the two Fulmar spools and resonator plans. | Read the logs and use the lift after restoring power. The drill nose opens a separate sub-sized grotto. The probe recorder enables hull plating. Fulmar's crew-deck spool now has a two-jump route from the right. |
+| Signal array and Sanctum | Recover spools from the trench-rim buoy, cleft and Fulmar. A powered Signal array decodes them with 2/4/6/8 distinct species-pattern pairs in grown tank animals, including 1/2 distinct bred patterns for the third/fourth. Build and provision the Hatchery, raise healthy breeding pairs and grow distinct offspring. Decode resonator plans, craft the resonator after the four fragments, sing open the trench-floor door and two song-locks, then reach the Heart and make contact. | First contact activates the paired Choir gates for return trips. |
+
+The **tinker crab picks a strongbox lock**, which is the optional revival path. The **cinder snail clears the mandatory cave obstruction**, which blocks the PS-2 and signal-spool route. Both connections need to be legible. Treating the strongbox as mandatory would change existing saves and the story dependency graph.
+
+## Capability inventory
+
+- **Found kit:** oxygen reserve upgrades extend dive time, specimen jar transports one animal, hip thrusters improve burst swimming, and KD-1's cargo cradle carries materials to powered storage. See [state](../src/game/state.ts) and [pickup placements](../src/world/pickups.ts).
+- **Workshop gear:** dive light opens the east cliff, cutter opens kelp and welded hatches, grapple crosses the race and reaches hooks, welder speeds construction, relay provides remote air, sonar repels predators and reveals the hidden chamber, pressure suits extend safe depth from 30 to 60 to 110 m, and the resonator opens Choir locks. Satchel adds a second specimen slot, flares light explored spaces, echo visor locates resources and juveniles, dash head adds a boost burst, mag-boots resist bottom currents, darts repel predators and cowl reduces vent damage. See [gear definitions](../src/game/gear.ts).
+- **KS-1:** a dock supports fabrication, fitting, repair and unloading. Cargo adds capacity, lights extend visibility, grabber carries heavy salvage, afterburner boosts, ballast resists the race, tractor retrieves loose materials, sonar dome locates them, habitat extends air and drill opens the seam. Depth plating raises the hull's rating from 45 to 120 m without changing the suit rating. See [sub modules](../src/game/sub.ts), [terrain](../src/world/terrain.ts) and [world rules](../src/main.ts).
+- **Creatures:** glowfin produces quartz and escorts the diver in lightless water; puffcap produces fibre; ray produces copper; tinker crab produces scrap and picks the strongbox; shrimp produces moss and cleans habitat water; cinder snail produces vent ore and grazes the mandatory chimney. All add distinct light patterns and can breed. Plant and compatible company drive comfort. Growth takes 480 healthy seconds, hatching 90 seconds, and a happy pair produces an egg after 360 seconds with a powered Hatchery and capacity. Feed and water upkeep can be automated. See [care rules](../src/game/creatures.ts) and [array rules](../src/game/signals.ts).
+
+## Priorities
+
+1. Make the snail and crab discoveries teach the player what to observe and how to raise and carry the animal. Make repeat visits reveal staged clues. Add readable evidence to the sites and meaningful feedback when the gate opens.
+2. Keep the race's grapple route and vane payoff. Make mag-boots a separate precision movement option wherever currents, vent flows and close-in work are present. Keep KS-1's speed advantage for open travel.
+3. Connect previously discovered sites and new capabilities in the existing log. Surface what a player can do with a grown animal and clarify the next return-to-base opportunity. Protect against surprise pressure exposure while retaining an explicit choice to exit.
+4. Validate field-to-base-to-field gameplay with player inputs and isolated save profiles. Separate observed sequences from code-derived dependencies, and record any progression or economy assumptions that still need an uninterrupted fresh-save run.
+
+## Blockers found while testing
+
+- Dormant founders could prevent recapture of the very species needed to unlock revival. Keep two living founders recoverable from the wild and let breeding expand the population.
+- The Fulmar collision check treated its whole world-space column as solid. That column intersects the Sanctum below. Let Sanctum doors and tunnels resolve first, and retain the solid Fulmar hull at its actual depth.
+- The nearby vent ore could claim Collect while examining the chimney. Give the sealed throat interaction priority at close range and leave the ore accessible from its own side.

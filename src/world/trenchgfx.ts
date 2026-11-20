@@ -325,6 +325,12 @@ export class TrenchScenery {
       const cx = (x0 + x1) / 2;
       p.poly([x0 - 6, y1 + 4, x0 + 4, y0 + 30, cx - 8, y0 - 16, cx + 10, y0 - 6, x1 + 2, y0 + 26, x1 + 8, y1 + 4]).fill({ color: 0x302a26 });
       for (let k = 0; k < 14; k++) dab(p, R(x0, x1), R(y0, y1), R(6, 14), R(5, 10), this.rand() < 0.5 ? 0x4a3e34 : 0x221e1c, 0.65);
+      const yTrail = y1 - 25;
+      p.moveTo(x1 + 1, yTrail + 10).quadraticCurveTo(cx + 9, yTrail + 12, cx + 3, yTrail + 1)
+        .quadraticCurveTo(cx - 2, yTrail - 6, cx - 12, yTrail - 5)
+        .stroke({ color: 0x937d61, width: 5, alpha: 0.75 });
+      p.moveTo(x1 - 1, yTrail - 4).quadraticCurveTo(cx + 13, yTrail - 3, cx + 6, yTrail - 12)
+        .stroke({ color: 0xb49a75, width: 3, alpha: 0.62 });
       const pg = this.plugGlow;
       for (let k = 0; k < 5; k++) {
         let x = R(x0 + 8, x1 - 8);

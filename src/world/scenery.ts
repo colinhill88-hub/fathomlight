@@ -1812,6 +1812,11 @@ export class Scenery {
     sh.roundRect(x - 5, y - 20, 10, 9, 2).fill({ color: 0x8a6a3a });
     sh.arc(x, y - 20, 3.6, Math.PI, 0).stroke({ color: 0x8a6a3a, width: 1.6 });
     sh.circle(x, y - 15.5, 1.2).fill({ color: 0x2a2018 });
+    sh.moveTo(x - 12, y - 24).quadraticCurveTo(x - 8, y - 24, x - 6, y - 19)
+      .moveTo(x - 14, y - 21).quadraticCurveTo(x - 10, y - 21, x - 7, y - 17)
+      .stroke({ color: 0xc2a080, width: 1.6, alpha: 0.75 });
+    sh.moveTo(x + 17, y - 24).quadraticCurveTo(x + 15, y - 29, x + 22, y - 34)
+      .stroke({ color: 0x728452, width: 2.4, alpha: 0.9 });
     rustStreaks(sh, x - 20, x + 20, y - 24, 5, 10);
     const op = this.lockerOpenG;
     op.ellipse(x, y + 2, 30, 5).fill({ color: 0x2a2826, alpha: 0.6 });

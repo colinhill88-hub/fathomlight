@@ -2,6 +2,8 @@ import { airClock, MODULES } from '../game/sub';
 import { MATERIAL_ORDER, MATERIALS, MaterialId, SaveData, TOTAL_AIR_TANKS, maxOxygen, bagLimits, bagWeight } from '../game/state';
 import { SCAN_ENTRIES, entry } from '../game/scanner';
 import { SPECIES, SPECIES_ORDER, statusLine } from '../game/creatures';
+import { discoveryNotes, fieldResearch } from '../game/discovery';
+import { GEAR } from '../game/gear';
 
 /**
  * The on-screen interface around the dive watch: carried materials, short
@@ -183,6 +185,8 @@ export class Hud {
         ok ? `<p>${e.text}</p>` : ''
       }</li>`;
     }).join('');
+    const discoveries = discoveryNotes(save);
+    const research = fieldResearch(save);
     const mats = MATERIAL_ORDER.map(
       (id) =>
         `<li class="mat">${MATERIAL_ICONS[id]}<div><b>${MATERIALS[id].plural}: ${save.bag[id]} carried${
@@ -237,6 +241,7 @@ export class Hud {
       : 'Nothing built yet. Swim to the Kestrel buoy and tap Build.';
     this.logPanel.innerHTML = `
       <h2>Scanner log <small>${done.size} / ${SCAN_ENTRIES.length}</small></h2>
+      ${discoveries.length ? `<h3>Field notes</h3><ul class="note">${discoveries.map(note => `<li>${note}</li>`).join('')}</ul>` : ''}
       <ul class="log">${rows}</ul>
       <h2>Materials</h2>
       <p class="note">Dive bag: ${kg.toFixed(1)} kg of ${lim.max} kg. Past ${lim.rated} kg you swim and climb slower, sink when still and use more air. Unload at a storage pod.</p>
@@ -250,11 +255,12 @@ export class Hud {
       }</p>
       <p class="note">${subNote(save)}</p>
       <h2>Gear and blueprints</h2>
+      ${research.length ? `<p class="note">Ready to decode at the Lab · ${research.map(item => item.name).join(' · ')}</p>` : ''}
       <p class="note">${
         save.gear.includes('light')
           ? 'Dive light DL-1: built and in use. It opens the dark cave in the east cliff.'
           : save.blueprints.includes('light')
-            ? 'Dive light blueprint decoded: build it in a Workshop (2 hull plating, 2 quartz, 1 copper).'
+            ? `Dive light blueprint decoded: build it in a Workshop (${GEAR.light.cost.plate} hull plating, ${GEAR.light.cost.quartz} quartz, ${GEAR.light.cost.copper} copper).`
             : save.finds.includes('recorder')
               ? 'Carrying the SLED 2 recorder: decode it in a Lab.'
               : 'The survey sled wreck\'s recorder holds a dive light design. Scan the sled, then unclip the recorder.'
@@ -278,7 +284,6 @@ export class Hud {
     const n = save.signals.decoded.length;
     return `<h2>The trench</h2>
       <p class="note">Crush depth: you wear ${suit}; ${sub}.</p>
-      <p class="note">The cleft on the vent field: ${save.cleftOpen ? 'open' : 'sealed by a chimney (a grown cinder snail grazes chimneys)'}.</p>
       <p class="note">Signal fragments: ${save.signals.found.length} of 4 spools found, ${n} decoded${n ? ' (read them above, as Artefacts)' : ''}. A Signal array reads them once your grown creatures show enough different glow patterns.</p>${
         n >= 4 || save.gear.includes('resonator')
           ? `<h2>The sanctum</h2>

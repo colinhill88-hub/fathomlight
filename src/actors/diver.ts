@@ -1386,7 +1386,7 @@ export class Diver {
     this.eyelid.visible = this.glance.blinking;
   }
 
-  update(dt: number, moveX: number, moveY: number, boost: boolean, toggleLamp: boolean, freeSwimming = false, waterline = 0): void {
+  update(dt: number, moveX: number, moveY: number, boost: boolean, toggleLamp: boolean, freeSwimming = false, waterline = 0, bracing = false): void {
     this.time += dt;
     if (toggleLamp) this.lampOn = !this.lampOn;
     this.lampLevel += ((this.lampOn ? 1 : 0) - this.lampLevel) * Math.min(1, dt * 10);
@@ -1452,12 +1452,12 @@ export class Diver {
     const L = Math.min(1.6, this.load);
     const heavy = 1 - 0.22 * L;
     const slow = (this.surfaced ? 0.5 : this.working ? 0.15 : 1) * heavy;
-    const wantX = moveX * top * slow;
+    const wantX = moveX * top * slow * (bracing ? 0.45 : 1);
     const effort = Math.min(1, Math.hypot(moveX, moveY));
     const climb = moveY < 0 ? 1 - 0.15 * L : 1;
     const sink = this.surfaced || this.working || this.noSink ? 0 : 30 * L * (1 - 0.75 * effort);
-    const wantY = this.surfaced ? 0 : moveY * top * slow * climb + sink;
-    const accel = Math.hypot(moveX, moveY) > 0.05 ? 3.2 : 1.4;
+    const wantY = bracing ? 16 : this.surfaced ? 0 : moveY * top * slow * climb + sink;
+    const accel = bracing ? 9 : Math.hypot(moveX, moveY) > 0.05 ? 3.2 : 1.4;
     const k = 1 - Math.exp(-accel * dt);
     // A current carries the diver: it adds to the speed they swim at.
     this.vx += (wantX + this.current.x - this.vx) * k;
@@ -1477,7 +1477,7 @@ export class Diver {
     const speed = Math.hypot(this.vx, this.vy);
     this.speedNorm = Math.min(1.6, speed / Diver.SPEED);
 
-    this.animate(dt, moveX, moveY);
+    this.animate(dt, bracing ? moveX * 0.45 : moveX, bracing ? 0 : moveY);
   }
 
   /**
