@@ -544,7 +544,8 @@ async function boot(): Promise<void> {
   let baseHooks: BaseHooks | null = null;
   let swimmingPool: Placed | null = null;
   /** A console inside the base has opened its panel out in the world for a moment. */
-  let peek: { kind: 'care' | 'station' | 'dock' | 'build'; id: number | null; select: number | null; x: number; y: number; face: number; opened: boolean } | null = null;
+  let peek: { kind: 'care' | 'station' | 'dock' | 'build'; id: number | null; select: number | null; x: number; y: number;
+    face: number; screen: { x: number; y: number }; height: number; opened: boolean } | null = null;
   /** Where a dome's airlock is from outside: the round hatch on the front of its drum. */
   function airlockOutside(p: Placed): { x: number; y: number } {
     const r = pieceRect(p);
@@ -577,6 +578,8 @@ async function boot(): Promise<void> {
   let camX = 0;
   let camY = 0;
   let viewH = VIEW_H;
+  let swimLead = 0;
+  let baseCameraCut = false;
   const rates = new RatesPanel(() => ({ save, layout, factory, capacity: storageCapacity(layout) }));
   const build = new BuildMode(host, {
     showRates: () => rates.toggle(),
@@ -745,22 +748,34 @@ async function boot(): Promise<void> {
       /* storage blocked */
     }
   };
-  const swimViewFree = () => !build.active && !care.active && !dockUI.active && !station.active;
+  const zoomFree = () => (!inside || inside === 'base') && !peek && !build.active && !care.active && !dockUI.active &&
+    !station.active && !hatchPanel.active && !contact.active && !hud.reading && !zoneMap.open && !rates.open &&
+    !menus.paused && settingsPanel.hidden && logPanel.hidden && !padNav.active;
+  const adjustZoom = (factor: number) => {
+    if (inside === 'base') interior.adjustBaseZoom(factor);
+    else setSwimZoom(swimZoom * factor);
+  };
   host.addEventListener(
     'wheel',
     (e) => {
-      if (!swimViewFree()) return;
+      // A trackpad's two-finger scroll zooms the game. Browser pinch remains available indoors.
+      if (e.defaultPrevented || !zoomFree() || (inside === 'base' && e.ctrlKey)) return;
       e.preventDefault();
-      const d = e.deltaMode === 1 ? e.deltaY * 30 : e.deltaY;
-      setSwimZoom(swimZoom * Math.exp(Math.max(-0.4, Math.min(0.4, d * 0.0012))));
+      const d = e.deltaY * (e.deltaMode === 1 ? 30 : e.deltaMode === 2 ? cssH : 1);
+      adjustZoom(Math.exp(Math.max(-0.4, Math.min(0.4, d * 0.0012))));
     },
     { passive: false },
   );
   window.addEventListener('keydown', (e) => {
-    if (!swimViewFree() || (e.target as HTMLElement)?.tagName === 'INPUT') return;
-    if (e.key === '-' || e.key === '_') setSwimZoom(swimZoom * 1.15);
-    else if (e.key === '=' || e.key === '+') setSwimZoom(swimZoom / 1.15);
+    const target = e.target as HTMLElement | null;
+    if (e.defaultPrevented || !zoomFree() || target?.closest?.('input, textarea, select, [contenteditable]')) return;
+    if (e.altKey || e.metaKey || (e.ctrlKey && e.key !== '0')) return;
+    if (e.key === '-' || e.key === '_') adjustZoom(1.15);
+    else if (e.key === '=' || e.key === '+') adjustZoom(1 / 1.15);
+    else if (e.key === '0' && inside === 'base') interior.resetBaseZoom();
     else if (e.key === '0' && e.ctrlKey) setSwimZoom(1);
+    else return;
+    e.preventDefault();
   });
   /** Climbing into the sub (after milestone 7b): seconds to swim to the hatch, then to sink through it. */
   let boarding: { t: number; x0: number; y0: number } | null = null;
@@ -1869,6 +1884,12 @@ async function boot(): Promise<void> {
       perf.height = app.canvas.height;
       // Paused: draw a few frames to settle, then stop drawing (saves the battery; the picture stays).
       if (pausedFrames > 3) return;
+      if (baseCameraCut) {
+        // Keep the last presented frame until the destination camera has drawn its own targets.
+        baseCameraCut = false;
+        perf.frameEnd(ticker.elapsedMS);
+        return;
+      }
       if (pausedFrames === 0) adaptFrame(ticker.deltaMS);
       drawPost(ticker.elapsedMS);
       perf.frameEnd(ticker.elapsedMS);
@@ -3487,7 +3508,9 @@ async function boot(): Promise<void> {
     zoom = cssH / viewH;
     const viewW = cssW / zoom;
     lastViewW = viewW;
-    let lookX = diver.x + diver.vx * 0.35 + (diver.vx >= 0 ? 60 : -60);
+    const lead = Math.max(-110, Math.min(110, diver.vx * 0.38 + diver.facing * 28));
+    swimLead += (lead - swimLead) * (1 - Math.exp(-5 * dt));
+    let lookX = diver.x + swimLead;
     let lookY = diver.y + diver.vy * 0.25 + 30;
     if (aboard) {
       lookX = sub.x + sub.vx * 0.45 + sub.face * 130;
@@ -4175,19 +4198,21 @@ async function boot(): Promise<void> {
   function enterBase(domeId: number, waking = false, viaDock: number | null = null, viaPool = false): void {
     const level = buildBaseLevel(layout, livingBases);
     if (!level) return;
+    const screen = { x: (diver.x - camX) * zoom / cssW, y: (diver.y - camY) * zoom / cssH };
     baseDome = domeId;
     baseHooks = new BaseHooks(level, baseCtx, domeId);
     interior.enter(level.map, { breakers: [], taken: [] }, baseHooks);
     const dsp = viaDock !== null ? baseHooks.dockSpawn(viaDock) : null;
     const ladder = viaPool && viaDock !== null ? baseHooks.moonpoolLadder(viaDock) : null;
     if (ladder) {
-      const screen = { x: (diver.x - camX) * zoom / cssW, y: (diver.y - camY) * zoom / cssH };
-      interior.mountLadder(ladder.x, ladder.y, diver.facing, screen);
+      interior.mountLadder(ladder.x, ladder.y, diver.facing, screen, viewH);
       interior.lampOn = diver.lampOn;
     } else if (dsp) interior.place(dsp.x, dsp.y, -1);
+    else if (!waking) interior.frameWalker(screen, viewH);
     swimmingPool = null;
     inside = 'base';
     goOnFoot();
+    baseCameraCut = !waking;
     if (!waking && !viaPool) sound.hatchCue(true);
     if (!save.tips.includes('basefoot'))
       setTimeout(() => {
@@ -4203,6 +4228,8 @@ async function boot(): Promise<void> {
     persist();
   }
   function exitBase(domeId: number): void {
+    const screen = interior.walkerScreenPosition();
+    const height = interior.cameraHeight;
     interior.leave();
     inside = null;
     backToWater();
@@ -4213,8 +4240,7 @@ async function boot(): Promise<void> {
     diver.vx = 0;
     diver.vy = 30;
     diver.surfaced = false;
-    camCX = diver.x;
-    camCY = diver.y;
+    frameExteriorEntrance(screen, height);
     sound.hatchCue(false);
     persist();
   }
@@ -4222,6 +4248,7 @@ async function boot(): Promise<void> {
   function descendIntoMoonpool(dock: Placed): void {
     const pool = moonpoolOf(dock);
     const screen = interior.walkerScreenPosition();
+    const height = interior.cameraHeight;
     diver.lampOn = interior.lampOn;
     interior.leave();
     inside = null;
@@ -4234,16 +4261,30 @@ async function boot(): Promise<void> {
     diver.surfaced = true;
     diver.surfaceTime = 0;
     diver.cancelSurfaceReaction();
-    camCX = diver.x + (0.5 - screen.x) * lastViewW;
-    camCY = diver.y + (0.5 - screen.y) * viewH;
+    frameExteriorEntrance(screen, height);
     poolFx.reset();
     poolFx.splash(pool.ladder - pool.x, 0.34, time, 0, true);
     persist();
   }
+
+  /** Keep the subject in roughly the same part of the screen across the cut. */
+  function frameExteriorEntrance(screen: { x: number; y: number }, height: number): void {
+    viewH = Math.max(VIEW_H * SWIM_ZOOM_MIN, Math.min(VIEW_H * SWIM_ZOOM_MAX, height));
+    const width = viewH * cssW / cssH;
+    camCX = diver.x + (0.5 - Math.max(0.16, Math.min(0.84, screen.x))) * width;
+    camCY = diver.y + (0.5 - Math.max(0.20, Math.min(0.84, screen.y))) * viewH;
+    camX = camCX - width / 2;
+    camY = camCY - viewH / 2;
+    zoom = cssH / viewH;
+    lastViewW = width;
+    swimLead = 0;
+    baseCameraCut = true;
+  }
   /** Open a panel out in the world (the console's view), then come back in where you stood. */
   function peekOut(kind: 'care' | 'station' | 'dock' | 'build', id: number | null, select: number | null = null): void {
     const w = interior.walker;
-    peek = { kind, id, select, x: w.x, y: w.y, face: w.face, opened: false };
+    peek = { kind, id, select, x: w.x, y: w.y, face: w.face,
+      screen: interior.walkerScreenPosition(), height: interior.cameraHeight, opened: false };
     interior.leave();
     inside = null;
     backToWater();
@@ -4271,9 +4312,13 @@ async function boot(): Promise<void> {
     if (!level.airlocks.some((a) => a.id === baseDome)) baseDome = level.airlocks[0].id;
     baseHooks = new BaseHooks(level, baseCtx, baseDome);
     interior.enter(level.map, { breakers: [], taken: [] }, baseHooks);
-    if (interior.standable(pk.x, pk.y)) interior.place(pk.x, pk.y, pk.face);
+    if (interior.standable(pk.x, pk.y)) {
+      interior.place(pk.x, pk.y, pk.face);
+      interior.frameWalker(pk.screen, pk.height);
+    }
     inside = 'base';
     goOnFoot();
+    baseCameraCut = true;
     persist();
   }
 

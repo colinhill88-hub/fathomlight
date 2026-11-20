@@ -22,6 +22,8 @@ import type { OceanSource } from './oceanCapture';
  */
 
 export const T = 40;
+export const BASE_ZOOM_MIN = 0.64;
+export const BASE_ZOOM_MAX = 1.55;
 const HEART_UPPER_VAULTS = [[9, 595, 328, -0.065], [22, 430, 264, 0.08], [35, 424, 290, -0.08],
   [46, 352, 318, 0.07], [58, 557, 308, 0.06], [74, 595, 320, -0.05]];
 export const GRAVITY = 1900;
@@ -227,6 +229,8 @@ export class Interior {
   private cam = { x: 0, y: 0 };
   private viewH = 560;
   private viewNow = 560;
+  private baseZoom = 1;
+  private lookAhead = 0;
   /** Milestone 9: hold the camera on something while a panel is open (tending a tank). */
   focus: InteriorFocus | null = null;
   private actorLit = new Container();
@@ -378,6 +382,8 @@ export class Interior {
       this.baseScenery.addChild(this.facilityOcean.root);
     }
     this.focus = null;
+    this.viewNow = this.hooks ? this.viewH * this.baseZoom : this.viewH;
+    this.lookAhead = 0;
     this.lampGain = 1;
     this.climbing = false;
     this.map = map;
@@ -417,8 +423,7 @@ export class Interior {
     // Just in through the hatch or the airlock: stand up from a crouch, then lift the face plate.
     w.arrive(9);
     this.lastSafe = { x: w.x, y: w.y };
-    this.cam.x = w.x - 400;
-    this.cam.y = w.y - 400;
+    this.frameWalker({ x: 0.5, y: this.hooks ? 0.62 : 0.5 });
     this.dropGrapple();
     this.active = true;
     this.view.visible = true;
@@ -431,10 +436,13 @@ export class Interior {
    */
   reload(map: string[], hooks: InteriorHooks): void {
     const w = this.walker;
-    const keep = { x: w.x, y: w.y, vx: w.vx, vy: w.vy, face: w.face, visor: w.visor, cam: { ...this.cam }, safe: { ...this.lastSafe } };
+    const keep = { x: w.x, y: w.y, vx: w.vx, vy: w.vy, face: w.face, visor: w.visor,
+      cam: { ...this.cam }, viewNow: this.viewNow, lookAhead: this.lookAhead, safe: { ...this.lastSafe } };
     this.enter(map, this.state, hooks);
     Object.assign(w, { x: keep.x, y: keep.y, vx: keep.vx, vy: keep.vy, face: keep.face, visor: keep.visor });
     this.cam = keep.cam;
+    this.viewNow = keep.viewNow;
+    this.lookAhead = keep.lookAhead;
     this.lastSafe = keep.safe;
   }
   /** Is there room to stand here (no hull in the way)? */
@@ -455,24 +463,45 @@ export class Interior {
     this.lastSafe = { x, y };
     this.climbing = false;
     this.dropGrapple();
-    this.cam.x = x - 400;
-    this.cam.y = y - 400;
+    this.lookAhead = 0;
+    this.frameWalker({ x: 0.5, y: this.hooks ? 0.62 : 0.5 });
   }
 
-  mountLadder(x: number, y: number, face: number, screen: { x: number; y: number }): void {
+  mountLadder(x: number, y: number, face: number, screen: { x: number; y: number }, previousView: number): void {
     this.place(x, y, face);
     this.climbing = true;
     this.walker.onGround = false;
     this.walker.pose = 'climb';
     this.walker.visor = this.walker.visorTarget = 0;
     this.lastSafe = { x, y: y - 2 * T };
-    this.cam.x = x - screen.x * this.viewNow * this.cssW / this.cssH;
-    this.cam.y = y - HEIGHT / 2 - screen.y * this.viewNow;
+    this.frameWalker(screen, previousView);
+  }
+
+  /** Seed the new room at the subject's screen position before easing into its usual framing. */
+  frameWalker(screen: { x: number; y: number }, previousView?: number): void {
+    if (previousView !== undefined) {
+      this.viewNow = Math.max(this.viewH * BASE_ZOOM_MIN, Math.min(this.viewH * BASE_ZOOM_MAX, previousView));
+    }
+    const { x, y } = this.walker;
+    this.cam.x = x - Math.max(0.16, Math.min(0.84, screen.x)) * this.viewNow * this.cssW / this.cssH;
+    this.cam.y = y - HEIGHT / 2 - Math.max(0.20, Math.min(0.84, screen.y)) * this.viewNow;
+  }
+
+  adjustBaseZoom(factor: number): void {
+    this.baseZoom = Math.max(BASE_ZOOM_MIN, Math.min(BASE_ZOOM_MAX, this.baseZoom * factor));
+  }
+
+  resetBaseZoom(): void {
+    this.baseZoom = 1;
   }
 
   walkerScreenPosition(): { x: number; y: number } {
     const w = this.walker;
     return { x: (w.x - this.cam.x) * this.cssH / (this.viewNow * this.cssW), y: (w.y - HEIGHT / 2 - this.cam.y) / this.viewNow };
+  }
+
+  get cameraHeight(): number {
+    return this.viewNow;
   }
 
   /** Point at the save's own state lists (they're changed in place). */
@@ -727,8 +756,12 @@ export class Interior {
     const PW = this.W * T;
     const PH = this.H * T;
     // Black water outside the hull, with drifting specks and faint light from above.
-    g.rect(0, 0, PW, PH).fill({ color: 0x06141a });
-    for (let y = 0; y < PH; y += 80) g.rect(0, y, PW, 80).fill({ color: 0x0b2630, alpha: 0.5 * Math.max(0, 1 - y / PH) });
+    // The camera can see beyond a small base's tile map at the widest zoom.
+    const margin = 1600;
+    const waterWidth = PW + margin * 2;
+    g.rect(-margin, -margin, waterWidth, PH + margin * 2).fill({ color: 0x06141a });
+    g.rect(-margin, -margin, waterWidth, margin).fill({ color: 0x0b2630, alpha: 0.5 });
+    for (let y = 0; y < PH; y += 80) g.rect(-margin, y, waterWidth, 80).fill({ color: 0x0b2630, alpha: 0.5 * Math.max(0, 1 - y / PH) });
     for (let i = 0; i < (PW * PH) / 14000; i++) g.circle(rand() * PW, rand() * PH, 0.6 + rand() * 1.4).fill({ color: 0x9ec8c8, alpha: 0.08 + rand() * 0.12 });
     // Far off in the black water: the basin's rock floor and the base's own legs, barely there.
     {
@@ -1719,13 +1752,25 @@ export class Interior {
     // Camera: follow with a little look-ahead, clamped to the level.
     const f = this.focus;
     // Milestone 9: tending a tank, the camera eases in on it (beside the care panel).
-    this.viewNow += ((f ? f.h : this.viewH) - this.viewNow) * (1 - Math.exp(-4 * dt));
+    const previousH = this.viewNow;
+    const targetH = f?.h ?? (this.hooks ? this.viewH * this.baseZoom : this.viewH);
+    this.viewNow += (targetH - previousH) * (1 - Math.exp(-(f ? 4 : 8) * dt));
     const viewH = this.viewNow;
     const zoom = this.cssH / viewH;
     const viewW = this.cssW / zoom;
     let lx = w.x + w.face * 120 + w.vx * 0.2 - viewW / 2;
     // In the base the floor sits low on screen (rooms are what you look at, not the water below).
     let ly = this.hooks ? w.y - viewH * 0.7 : w.y - 60 - viewH / 2;
+    if (this.hooks) {
+      const lead = Math.min(90, viewW * 0.13);
+      const moving = this.climbing ? 0 : Math.max(-lead, Math.min(lead, w.vx * 0.35));
+      this.lookAhead += (moving - this.lookAhead) * (1 - Math.exp(-5 * dt));
+      lx = w.x + this.lookAhead - viewW / 2;
+      // Scaling around the torso keeps the reference point steady as a wheel or panel changes zoom.
+      const scale = viewH / previousH - 1;
+      this.cam.x += (this.cam.x - w.x) * scale;
+      this.cam.y += (this.cam.y - (w.y - HEIGHT / 2)) * scale;
+    }
     if (f) {
       lx = f.x - viewW / 2 + f.panelPx / zoom / 2;
       ly = f.y - viewH / 2;
@@ -1733,8 +1778,10 @@ export class Interior {
     const k = 1 - Math.exp(-(f ? 3.5 : 5) * dt);
     this.cam.x += (lx - this.cam.x) * k;
     this.cam.y += (ly - this.cam.y) * k;
-    this.cam.x = Math.max(0, Math.min(this.W * T - viewW, this.cam.x));
-    this.cam.y = Math.max(0, Math.min(this.H * T - viewH, this.cam.y));
+    const maxX = this.W * T - viewW;
+    const maxY = this.H * T - viewH;
+    this.cam.x = maxX < 0 && this.hooks ? maxX / 2 : Math.max(0, Math.min(maxX, this.cam.x));
+    this.cam.y = maxY < 0 && this.hooks ? maxY / 2 : Math.max(0, Math.min(maxY, this.cam.y));
     for (const c of [this.litCam, this.emissiveCam, this.glowCam]) {
       c.scale.set(zoom);
       c.position.set(-this.cam.x * zoom, -this.cam.y * zoom);
