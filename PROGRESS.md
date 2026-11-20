@@ -1,8 +1,33 @@
 # Fathomlight progress
 
-Last updated: 2026-11-18, **milestone 12, part 1 (polish) deployed**: power as a real limit (three tiers), the gamepad in every panel and menu, a title screen and pause menu, moving a save between devices, the final audio mix, and adaptive resolution. The Steam desktop build waits, by Colin's choice. Next: more polish, then the Steam build (prompt to write when Colin is ready).
+The live branch includes the Fulmar foothold and Codex Phases 1–11D. The separate **Phase 12 gameplay pass** is local and awaiting review. See the [development handoff](docs/AI_DEVELOPMENT_HANDOFF.md) for the current source map and the [progression audit](docs/phase-12-progression-audit.md) for the route from a new save to first contact.
 
 Play link: https://colinhill88-hub.github.io/fathomlight/ (live; first successful deploy 2026-11-14)
+
+## Codex phases and current state
+
+| Work | Merged history | Implemented state |
+| --- | --- | --- |
+| Phases 1–6A | PR #21, `238c5a6` | Painted Shallows reefs, seabed and animated kelp; legacy face, visor and suit materials; surfacing reaction; Forest canopy and registered outcrop; Wreck Shelf hulks. Approved modes default on, with procedural fallbacks. Legacy face and suit still belong to the original character path. |
+| Phase 7 | PR #23, `99f3a98` | Painterly biome and facility plates with procedural terrain, depth layers, constraints and fallbacks. Captures and generation intermediates from the original working sessions are outside this repository. |
+| Phase 8 | PR #24, `0e142d9` | Living Water wakes, surface impulses, vegetation response, subsurface drift and better braking/reversal readability. |
+| Phase 9 and live-branch integration | PRs #25 and #26, `6b27182`, `e56913a` | Compact salvage diver with shared swim and dry-interior identity, revised poses and equipment contact. Extra basin copper and KD-1 cargo-cradle deliveries carried forward. |
+| Phase 10 | PR #27, `4b13c4b` | Articulated keepable wildlife, schools, predators, eggs and Choir, with consistent tank and field rigs. See [the creature checkpoint](docs/phase-10-creature-checkpoint.md). |
+| Phases 11–11B | PRs #28 and #29, `1a07d8f`, `9ee6e5f` | Habitat tank motion, separated care and collection, swim-to-ladder moonpool entry, revised Corvina/Fulmar/Sanctum architecture and panoramic windows. See [the living bases notes](docs/phase-11-living-bases.md). |
+| Phase 11C | PR #30, `f1f85be` | Native detail work on the compositor, Kestrel, lighting and edge fidelity. Retained the renderer comparison. |
+| Phase 11D | PR #31, `c07277f` | Indoor zoom and camera handoff, live surrounding ocean, per-module pressure hulls, connector seals and separate scaffolds. Layout collision stays on the existing map. |
+| Fulmar accessibility | PR #32, `78c8bb3` | Three-tile crew-deck foothold creates two normal jumps to the comms spool. |
+
+### Phase 12 gameplay pass (local)
+
+- The strongbox and trench chimney now offer physical clues, scanner entries and staged prompts. A later visit can surface more specific instructions, and a young or grown specimen changes the advice. During Collect holds, the corresponding creature visibly works and returns to the jar. Existing rewards and completion flags are retained.
+- Mag-boots add a braced stance near the bottom. Hold Down to stop being carried and edge sideways to work in the deep race or vent flow. The grapple still crosses the race, and raising the vane still opens permanent access to the upper water for KS-1.
+- The log highlights investigated sites, pending spools and their grown/bred pattern requirements, recovered research and the boots. A return to housing can surface a recovered research item. The Lab names the remaining scans for a blueprint.
+- A solitary juvenile with its preferred plant consumes food and fouls water more slowly. Lost or dormant founders can be replaced from the wild up to a living pair, counting both specimen slots. The Hatchery still supplies any additional animals.
+- The hatch compares the candidate exit depth with the suit rating. An over-depth voluntary exit gives a warning and requires a second press within four seconds. Normal exits, powered dock handoffs and emergency ejections retain their own paths.
+- Sanctum openings now take precedence over the Fulmar hull test. The hull collision used to extend into the deep tunnel and block access to the first song-lock. The station and the closed song-lock retain collision in their own spaces.
+- Validation included a clean-save opening swim and scan. A separate empty save used normal Collect and Build controls to gather materials, recover the jar and recorder, repair KD-1 and weld the first dome, with repositioning between sites. Browser checkpoints covered the Lab and Workshop dive-light sequence, habitat planting/feeding/cleaning/jar transfer, both animal gate actions, bracing, a grapple, the vane and upgraded KS-1 crossing, safe and guarded hatch exits, entering Fulmar, the Sanctum door and both song-locks, and the Choir's three phrases, gift and return gate. Isolated simulations covered growth, breeding, hatching and four-spool decoding. A legacy fixture retained completed gates and its Fulmar spool.
+- Still open for playtesting are an uninterrupted fresh-save run through construction, fabrication, all region gates and first contact, a real-device check of the boots and hatch prompt, and the long-interval habitat economy. Historical visual reviews outside the repository cannot serve as a complete archival record.
 
 ## Tech choices (decided in milestone 0)
 
@@ -1817,17 +1842,12 @@ Colin: the companion robot should find a dive-bag attachment in the kelp forest 
 
 ## Next
 
-**Next session: more polish** (Colin wants more before the Steam build). Ideas to choose from:
-- the left-over walkable-base items: line code plates indoors, and sounds for the lines and machines;
-- the zone map in portrait on a phone;
-- anything from Colin's next playtest.
-
-Then **the Steam desktop build** (DESIGN.md, Platform and tech), when Colin asks.
+First, play a full new save with the Phase 12 changes. Check the time and materials between milestones, identify friction in care and crafting, and test no-spoiler guidance with a new player. The Steam desktop build remains deferred until Colin asks.
 
 ## Problems and open questions
 
 - **Milestone 12, to check after Colin plays:**
-  - **Power numbers** (`POWER_MAKE`, `POWER_DRAW`, `TURBINE_LIMIT` in `src/game/base.ts`): whether three turbines (36 W) is the right ceiling before the trench, and the vent generator's cost (`PIECES.thermal`) and research (`RESEARCH.thermal`: scans of the vents and the Fulmar).
+  - **Power numbers** (`POWER_MAKE`, `POWER_DRAW`, `TURBINE_LIMIT` in `src/game/base.ts`): whether three turbines (36 W) is the right ceiling before the Corvina, and the Core generator's cost (`PIECES.thermal`). Its research comes from the Corvina's log.
   - **Old bases:** a save with more than three turbines or a big base may now be short of power when it loads. That's the new rule, not a bug; a core generator (from the Corvina's log) fixes it.
   - **Gamepad:** the highlight's moves between buttons are worked out from where they sit on screen; if a panel moves somewhere odd, note which one.
   - **The title screen** shows on every start. If that's too much on the phone, it could show only after an hour away.

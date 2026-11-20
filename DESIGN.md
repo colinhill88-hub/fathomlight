@@ -1,16 +1,10 @@
-# Fathomlight: build plan for Opus 5.5
+# Fathomlight design
 
 Nov 14, 2026 · @Colin Hill
 
 ## How to use this plan
 
-This document is the design brief for the game. It lives in the GitHub repository as `DESIGN.md`, and Opus 5.5 builds one playable slice per Claude Code session.
-
-- **Three files carry the project between sessions.** `DESIGN.md` is this plan. `PROGRESS.md` records what is done, what is next and known problems. `docs/art/` holds screenshots of the concept art boards.
-- **Every session follows the same loop.** Read `DESIGN.md` and `PROGRESS.md`, build the next milestone only, deploy it to the play link, update `PROGRESS.md`, commit and stop.
-- **Start a new session for each milestone.** A fresh session reads two short files instead of carrying a long conversation, which keeps usage low on the Pro plan.
-- **Colin tests on his iPhone after each session** and gives feedback at the start of the next one.
-- **The concept art is private to Colin's account.** Opus cannot open the [concept art canvas](https://claude.ai/artifact/4gko4BG31fMzFWNR5GHkkC), so save a screenshot of each board into `docs/art/` before the first session.
+This is the creative brief. Start with the [development handoff](docs/AI_DEVELOPMENT_HANDOFF.md) for the current system map and workflow, and [Progress](PROGRESS.md) for shipped milestones. The original milestone list and kickoff prompts below are historical. Review local work and captures before publishing or deploying.
 
 ## Vision
 
@@ -27,6 +21,8 @@ Five pillars decide every design question:
 5. **It must look beautiful.** Visual quality on Colin's own devices matters more than reach or broad compatibility.
 
 ## Art direction
+
+Modern Fathomlight uses original painterly biome and interior assets supported by procedural lighting, terrain and animation. Kestrel's compact salvage rig keeps a squat shell, short split fins and broad gauntlets readable in silhouette. The water carries wakes and recovers after the diver passes. Base cutaways follow individual hulls with the live exterior visible around them. Preserve these layers and the crisp Phase 11C presentation when changing gameplay.
 
 The look is weathered, realistic hardware set in painterly water. The screenshots in `docs/art/` are the style reference; match their mood, not their exact shapes.
 
@@ -190,9 +186,17 @@ The beings communicate in patterns of light. Raising glowing creatures is how th
 
 Names are final: the game is Fathomlight, the crew's station is Outpost Kestrel and the beings are the Choir.
 
-## Milestones
+## Current progression and discovery
 
-The game is built in thirteen slices, one per session, and each ends with a playable build on the link. A large milestone may be split across two sessions; record the split in `PROGRESS.md`.
+The [progression audit](docs/phase-12-progression-audit.md) maps the full route and lists equipment, gates and creature abilities. Explore for evidence, equipment and specimens, then use Kestrel's base to give those discoveries a purpose. Read the existing scanner log for connections between sites and capabilities. Keep hints close to the relevant object and let them build from visible marks to a practical clue as the player examines or revisits a site.
+
+Phase 12 gives the Wreck Shelf strongbox paired claw scratches, a scan and a creature interaction. A grown tinker crab works the lock and returns to the jar. The mandatory trench cleft has grazing marks and a separate mature cinder-snail interaction. Its PS-2 drawings and signal spool are the deep progression payoff. Good habitat setup should let the player prepare for those trips. A solitary juvenile with its preferred plant now consumes food and fouls water more slowly. Players can replace lost founders without a Revival pool. Population growth beyond the founding pair still comes from breeding happy adults with a powered Hatchery.
+
+The Wreck Shelf race teaches the grapple's anchor route and ends with the flow vane calming the upper crossing. KS-1 keeps that lasting route. Mag-boots give Kestrel a separate low-speed stance near the seabed. Hold Down to resist currents and edge sideways to line up an interaction. Releasing Down restores free swimming. Deep operation of KS-1 and stepping outside remain separate decisions, with the hatch warning before a voluntary over-depth exit.
+
+## Original milestones
+
+The original plan divided the game into thirteen playable slices. Later Codex phases continued from those milestones. Phase 12 gameplay is distinct from the earlier numbered polish milestone.
 
 0. **Setup.** Repository, automatic deploy, an empty scene that opens on the iPhone, both graphics presets wired up.
 1. **Water and diver.** The look-and-feel benchmark: one explorer swimming through a small lit scene with every visual effect on. Do not move on until Colin approves the look.
@@ -209,7 +213,7 @@ The game is built in thirteen slices, one per session, and each ends with a play
 11. **Contact** (done). Alien resonator, the sanctum and the ending. Colin's choices: the resonator is built in the Workshop only once all four fragments are decoded, and is worn on the pack and arm; the sanctum lies under the trench floor, swum down through song-locks, with a dry heart explored on foot (grapple swings, a lift on a column of light); the ending is a call and response with the Choir in its heart (no way to fail), credits, then the game goes on with a Choir gate home and a Choir lantern power source; the Signal array's "maps zones" job is a zone map at its console. Details in PROGRESS.md.
 12. **Polish** (part 1 done). The final sound and music mix (audio itself arrives in 7b), menus, save transfer between devices, performance tuning for both presets, and the Steam desktop build (see Platform and tech). Colin's choices: power became a real limit here (three tiers: current turbine 12 W, capped at three; a vent generator 40 W from the trench; the Choir lantern 100 W; a shortage slows machines, never air or doors), the gamepad drives every panel and menu, and **the Steam desktop build waits** until more polish is done. Details in PROGRESS.md.
 
-## Kickoff prompts
+## Archived kickoff prompts
 
 Paste the first prompt into a new Claude Code session connected to the game's repository, with this plan and the art screenshots attached.
 
