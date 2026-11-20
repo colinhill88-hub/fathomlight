@@ -1837,6 +1837,13 @@ export class BaseView {
   readonly lights: PointLight[] = [];
 
   private legs = new Graphics();
+  private routeLegs = new Graphics();
+
+  /** Shares the moonpool and habitat foundations without drawing the solid rooms. */
+  oceanSupports(): Graphics {
+    return this.routeLegs.clone();
+  }
+
   private collarG = new Graphics();
   private pieceLayer = new Container();
   private whorlLayer = new Container();
@@ -1844,7 +1851,7 @@ export class BaseView {
   private sparks: Spark[] = [];
 
   constructor(private readonly livingBases = false, private readonly housingOcean = livingBases, private readonly panorama = false) {
-    this.view.addChild(this.legs, this.pieceLayer, this.collarG, this.whorlLayer);
+    this.view.addChild(this.legs, this.routeLegs, this.pieceLayer, this.collarG, this.whorlLayer);
   }
 
   /** Bring the drawing in line with the layout. `fresh` ids get the assembly animation. */
@@ -1937,10 +1944,12 @@ export class BaseView {
 
   /** Legs down to the sand, and the collar flanges (which depend on the neighbours). */
   private drawJoins(layout: BaseLayout): void {
-    const g = this.legs;
-    g.clear();
+    this.legs.clear();
+    this.routeLegs.clear();
     rand = mulberry32(WORLD_SEED ^ 0x1e95);
     for (const p of layout.pieces) {
+      const route = p.kind === 'dock' || p.kind === 'corridor' || p.kind === 'tank' || p.kind === 'gtank';
+      const g = this.panorama && route ? this.routeLegs : this.legs;
       const s = shapeOf(p);
       const r = pieceRect(p);
       for (let i = 0; i < s.w; i++) {

@@ -7,6 +7,13 @@ const baffle = new FillGradient({
     { offset: 0.62, color: 0x444c47 }, { offset: 1, color: 0x3a3c39 }],
 });
 
+export function traceFulmarGlazing(g: Graphics, x: number, y: number): Graphics {
+  return g.moveTo(x - 295, y - 48).lineTo(x - 282, y - 104)
+    .bezierCurveTo(x - 224, y - 239, x - 62, y - 258, x + 35, y - 219)
+    .lineTo(x + 90, y - 191).quadraticCurveTo(x + 227, y - 214, x + 281, y - 93)
+    .lineTo(x + 293, y - 48).closePath();
+}
+
 export function drawFulmarDecks(g: Graphics, t: number, width: number, height: number): void {
   g.rect(0, 0, width, height).fill(0x242b2b);
   // Acoustic baffles surround the listening rooms. Compression ribs continue below them.
@@ -29,8 +36,7 @@ export function drawFulmarDecks(g: Graphics, t: number, width: number, height: n
   const y = 8 * t;
   g.moveTo(x - 330, y).lineTo(x - 315, y - 96).bezierCurveTo(x - 273, y - 259, x - 61, y - 292, x + 40, y - 250)
     .lineTo(x + 86, y - 218).quadraticCurveTo(x + 235, y - 240, x + 318, y - 101).lineTo(x + 330, y).closePath().fill(0x26322f);
-  g.moveTo(x - 295, y - 48).lineTo(x - 282, y - 104).bezierCurveTo(x - 224, y - 239, x - 62, y - 258, x + 35, y - 219)
-    .lineTo(x + 90, y - 191).quadraticCurveTo(x + 227, y - 214, x + 281, y - 93).lineTo(x + 293, y - 48).closePath().fill(0x142b32);
+  traceFulmarGlazing(g, x, y).fill(0x142b32);
   for (const s of [-1, 1]) {
     g.moveTo(x + s * 202, y - 47).quadraticCurveTo(x + s * 143, y - 216, x + s * 67, y - 231)
       .stroke({ color: PAL.bronze, width: 10, alpha: 0.64 });

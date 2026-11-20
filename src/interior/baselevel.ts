@@ -14,6 +14,7 @@ import { drawHabitatFrame, drawObservationCrown, drawPressureRib } from '../worl
 import { HousingOcean } from './housingOcean';
 import type { OceanRegistration, OceanSource } from './oceanCapture';
 import { mulberry32, WORLD_SEED } from '../rng';
+import { groundY } from '../world/terrain';
 
 /**
  * The walkable base (after the Corvina on foot, Colin's choices): everything
@@ -37,6 +38,8 @@ export const CW = 8;
 export const CH = 6;
 /** Milestone 9: creatures and plants in the indoor tanks are drawn this much bigger than outside. */
 export const TANK_SCALE = 1.45;
+/** The pool sights along the lower foundations. Dry decks can look farther down the same view. */
+export const OCEAN_POOL_DEPTH = 138;
 
 function habitatStations(left: number, width: number) {
   return { consoleX: left + width * 0.31, trayX: left + width * 0.68 };
@@ -350,7 +353,8 @@ export class BaseHooks implements InteriorHooks {
       const distance = Math.max(0, tank.x - x, x - tank.x - tank.w);
       gain = Math.min(gain, 0.26 + 0.74 * Math.min(1, distance / 150));
     }
-    if (gain > 0.64 && this.level.rooms.some((r) => r.kind === 'dock' && x >= r.tx0 * T && x <= (r.tx0 + r.tw) * T &&
+    if (gain > 0.64 && this.level.rooms.some((r) => (r.kind === 'dock' || (this.ctx.panorama && r.kind === 'corridor')) &&
+      x >= r.tx0 * T && x <= (r.tx0 + r.tw) * T &&
       y >= r.ty0 * T && y <= (r.ty0 + r.th) * T)) gain = 0.64;
     return gain;
   }
@@ -365,6 +369,7 @@ export class BaseHooks implements InteriorHooks {
    * same way, drawn bigger for the room's window.
    */
   readonly tankLife: TankLife;
+  private readonly routeLookDown: number;
   /** Conveyors and feed pipes, routed through the rooms' ceilings (part 2). */
   private routes: { id: number; kind: 'belt' | 'pipe'; tier: number; pts: [number, number][]; len: number }[] = [];
 
@@ -374,6 +379,9 @@ export class BaseHooks implements InteriorHooks {
     domeId: number | null,
   ) {
     this.ocean = ctx.housingOcean ? new HousingOcean(ctx.basinBackdrop, ctx.panorama?.(level.exterior)) : undefined;
+    const habitat = level.rooms.find((r) => r.kind === 'tank' || r.kind === 'gtank');
+    const dock = level.rooms.find((r) => r.kind === 'dock');
+    this.routeLookDown = this.seabedSightline(habitat ?? dock ?? level.rooms[0]);
     const a = level.airlocks.find((q) => q.id === domeId) ?? level.airlocks[0];
     this.spawn = { x: a.x, y: a.y };
     for (const r of level.rooms) this.planRoom(r);
@@ -574,6 +582,10 @@ export class BaseHooks implements InteriorHooks {
   tankFocus(id: number): { x: number; y: number; h: number } | null {
     const t = this.tanks.find((q) => q.room.piece.id === id);
     if (!t) return null;
+    if (this.ctx.panorama) {
+      const b = this.box(t.room);
+      return { x: b.cx, y: t.y + t.h / 2 + 20, h: Math.max(382, b.ow * 0.68, t.h + 150) };
+    }
     return { x: t.x + t.w / 2, y: t.y + t.h / 2 + 20, h: Math.max(320, t.h + 150) };
   }
 
@@ -697,6 +709,17 @@ export class BaseHooks implements InteriorHooks {
     return { ox, oy, ow, oh, floor, bottom: floor(r.h - 1), cx: ox + ow / 2 };
   }
 
+  /** Fixed sightline to the bottom edge of the bay. It does not track the walking camera. */
+  private seabedSightline(r: Room): number {
+    const b = this.box(r);
+    const { x, y, sx, sy } = this.level.exterior;
+    const tank = r.kind === 'tank' || r.kind === 'gtank';
+    const sampleX = tank ? b.ox + b.ow * 0.80 : b.cx;
+    const seaFloor = groundY(x + sampleX * sx);
+    const atSill = y + (b.floor(0) - (tank ? 79 : 67)) * sy + OCEAN_POOL_DEPTH;
+    return Math.max(0, Math.min(650, (seaFloor - atSill) / sy));
+  }
+
   private planRoom(r: Room): void {
     const b = this.box(r);
     const id = r.piece.id;
@@ -715,7 +738,7 @@ export class BaseHooks implements InteriorHooks {
         const top = b.oy + 14;
         const bot = b.bottom - 22;
         const serviceBay = this.ctx.panorama ? 170 : this.ocean ? 76 : 0;
-        const x = b.ox + (this.ctx.panorama ? 82 : 30);
+        const x = b.ox + (this.ctx.panorama ? 27 : 30);
         this.tanks.push({ room: r, x, y: top, w: b.ow - 60 - serviceBay, h: bot - top });
         if (this.ctx.livingBases) {
           const { consoleX, trayX } = habitatStations(b.ox, b.ow);
@@ -1066,7 +1089,7 @@ export class BaseHooks implements InteriorHooks {
         if (this.ctx.panorama && this.ocean) {
           const glass = { x: b.ox + 25, y: b.oy + 25, w: b.ow - 50, h: f0 - b.oy - 55 };
           drawHabitatFrame(g, glass, 12);
-          this.ocean.add('panorama', glass);
+          this.ocean.add('panorama', glass, undefined, { lookDown: this.seabedSightline(r) });
           // Lower side bays leave the pressure door and bunk at the center of the room.
           for (const x of [b.ox + 29, b.ox + b.ow - 128]) {
             const bay = { x, y: f0 + T + 59, w: 99, h: 84 };
@@ -1160,13 +1183,14 @@ export class BaseHooks implements InteriorHooks {
         if (this.ctx.livingBases) {
           const y = b.oy + 45;
           const upright = r.piece.rot % 2 === 1;
-          const port = this.ctx.panorama ? { x: b.ox + (upright ? 48 : 28), y: b.oy + 27, w: b.ow - (upright ? 96 : 56), h: bot - b.oy - 72 }
+          const inset = upright ? 37 : 21;
+          const port = this.ctx.panorama ? { x: b.ox + inset, y: b.oy + 19, w: b.ow - inset * 2, h: bot - b.oy - 47 }
             : upright ? { x: b.cx - 34, y, w: 68, h: 108 } : { x: b.cx - 72, y, w: 144, h: 82 };
           g.rect(b.ox, b.oy + 16, b.ow, b.oh - 29).fill({ color: 0x4f7067, alpha: 0.68 });
           g.rect(b.ox, bot - 48, b.ow, 35).fill(0x314b4a);
           for (const x of [b.ox + 8, b.ox + b.ow - 26]) drawPressureRib(g, x, b.oy + 12, b.oh - 20, 18);
           drawHabitatFrame(g, port, 11);
-          if (this.ctx.panorama) this.ocean?.add('panorama', port);
+          if (this.ctx.panorama) this.ocean?.add('panorama', port, undefined, { clear: true, lookDown: this.routeLookDown });
           else {
             g.roundRect(port.x + 2, port.y + 2, port.w - 4, port.h - 4, 5).fill(0x234b50);
             g.moveTo(port.x + 8, port.y + port.h * 0.74).quadraticCurveTo(b.cx, port.y + port.h * 0.42,
@@ -1305,9 +1329,13 @@ export class BaseHooks implements InteriorHooks {
         if (this.ctx.panorama && this.ocean) {
           for (let k = 0; k < r.h; k++) {
             const floor = b.floor(k);
-            const glass = { x: b.ox + 17, y: floor - 140, w: b.ow - 34, h: 105 };
-            drawHabitatFrame(g, glass, 12);
-            this.ocean.add('panorama', glass);
+            const x = t.x + t.w + 34;
+            const glass = { x, y: floor - 149, w: b.ox + b.ow - 24 - x, h: 123 };
+            drawPressureRib(g, x - 19, glass.y - 6, glass.h + 20, 8);
+            drawHabitatFrame(g, glass, 10);
+            this.ocean.add('panorama', glass, undefined, { clear: true, lookDown: this.routeLookDown });
+            trim.roundRect(glass.x - 5, floor - 23, glass.w + 10, 6, 2).fill(0x675f4e);
+            e.roundRect(glass.x + 6, floor - 21, glass.w - 12, 2, 1).fill({ color: 0xe5b174, alpha: 0.57 });
           }
         }
         if (this.ctx.livingBases) drawHabitatFrame(trim, t, 17);
@@ -1458,7 +1486,7 @@ export class BaseHooks implements InteriorHooks {
             : { x: b.cx - 195, y: roof + 22, w: 390, h: 90 };
           drawHabitatFrame(g, port, 12);
           if (this.ocean) {
-            this.ocean.add('port', port);
+            this.ocean.add('port', port, undefined, { lookDown: this.routeLookDown });
             const poolTop = f0 + T;
             this.ocean.add('pool', { x: b.ox + 17, y: poolTop, w: b.ow - 34, h: bot - poolTop }, poolY - poolTop);
           } else {

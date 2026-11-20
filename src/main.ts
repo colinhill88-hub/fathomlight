@@ -144,7 +144,7 @@ import { SoundDirector, WorkKind, zoneMix } from './audio/director';
 import { Lurkers } from './actors/lurker';
 import { Interior, InteriorEvent } from './interior/interior';
 import { CORVINA_MAP } from './interior/corvina';
-import { BaseCtx, BaseHooks, baseSignature, buildBaseLevel } from './interior/baselevel';
+import { BaseCtx, BaseHooks, OCEAN_POOL_DEPTH, baseSignature, buildBaseLevel } from './interior/baselevel';
 import { SCAN_ENTRIES } from './game/scanner';
 import { CHOIR_AT, ChoirForm, HEART_MAP, heartOptions } from './interior/sanctum';
 import { Contact, type ContactWord } from './ui/contact';
@@ -402,6 +402,8 @@ async function boot(): Promise<void> {
   save.pieces = layout.pieces;
   drone.teleport(diver.x, diver.y, layout);
   const baseView = new BaseView(livingBases, housingOcean, panorama);
+  const oceanSupports = panorama ? baseView.oceanSupports() : undefined;
+  if (oceanSupports) oceanSupports.visible = false;
   baseView.sync(layout);
   tankLife.sync(save, layout);
   const buildOverlay = new BuildOverlay(livingBases, housingOcean, panorama);
@@ -470,6 +472,7 @@ async function boot(): Promise<void> {
     litCam.addChild(
       scenery.view,
       baseView.view,
+      ...(oceanSupports ? [oceanSupports] : []),
       tankLife.view,
       linesView.view,
       pickups.view,
@@ -3843,7 +3846,7 @@ async function boot(): Promise<void> {
   // ---- Milestone 10: the Fulmar deep station, on foot ----
   function enterFulmar(): void {
     interior.enter(FULMAR_MAP, { breakers: save.fulmar.breakers, taken: save.fulmar.taken }, null, FULMAR_OPTS,
-      oceanCapture?.source({ x: FULMAR.x0 - 110, y: FULMAR_HATCH.y - 201, sx: 0.30, sy: 0.48 }));
+      oceanCapture?.source({ x: FULMAR.mainX1 - 320, y: FULMAR_HATCH.y - 383, sx: 0.52, sy: 0.78 }));
     inside = 'fulmar';
     goOnFoot();
     sound.hatchCue(true);
@@ -3874,7 +3877,7 @@ async function boot(): Promise<void> {
     // Contact left unfinished (the game closed mid-song): the plinth waits again.
     if (!save.sanctum.contact) save.sanctum.taken = save.sanctum.taken.filter((t) => t !== '9');
     interior.enter(HEART_MAP, { breakers: [], taken: save.sanctum.taken }, null, heartOptions(choir),
-      oceanCapture?.source({ x: SANCTUM.hall.x - 690, y: SANCTUM.hall.y - 237, sx: 0.39, sy: 0.57 }));
+      oceanCapture?.source({ x: SANCTUM.hall.x - 670, y: SANCTUM.hall.y - 420, sx: 0.63, sy: 1.22 }));
     inside = 'sanctum';
     goOnFoot();
     sound.hatchCue(true);
@@ -3956,8 +3959,10 @@ async function boot(): Promise<void> {
     livingBases,
     housingOcean,
     basinBackdrop: worldArt?.plates.basin,
-    panorama: oceanCapture ? (registration) => oceanCapture.source(registration, (x, y) =>
-      Math.min(460, Math.max(0, groundY(x) - y - 8))) : undefined,
+    // The whole route shares one downward-facing sightline. The foundations and
+    // seabed stay registered to the level as the camera follows the walker.
+    panorama: oceanCapture ? (registration) =>
+      oceanCapture.source({ ...registration, y: registration.y + OCEAN_POOL_DEPTH }, oceanSupports) : undefined,
     carried: () => MATERIALS_LIST.reduce((a, k) => a + save.bag[k], 0),
     storageText: () => {
       const n = MATERIALS_LIST.reduce((a, k) => a + save.stored[k], 0);

@@ -6,6 +6,14 @@ const nacre = new FillGradient({
     { offset: 0.61, color: 0x555976 }, { offset: 1, color: 0x363854 }],
 });
 
+export function traceNacreOpening(g: Graphics, x: number, floor: number, width: number, height: number, lean: number): Graphics {
+  const crown = x + width * lean;
+  return g.moveTo(x - width * 0.34, floor)
+    .bezierCurveTo(x - width * 0.31, floor - height * 0.38, x - width * 0.26, floor - height * 0.75, crown, floor - height * 0.8)
+    .bezierCurveTo(x + width * (0.18 + lean), floor - height * 0.76, x + width * 0.31, floor - height * 0.42, x + width * 0.34, floor)
+    .closePath();
+}
+
 export function drawNacreVault(g: Graphics, x: number, floor: number, width: number, height: number, lean = 0): void {
   const X = (u: number) => x + width * u;
   const Y = (v: number) => floor - height * v;
