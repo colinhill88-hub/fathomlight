@@ -81,6 +81,9 @@ export interface InteriorHooks {
   powered(zone: number): boolean;
   /** Extra lights (screens, glowing tanks). */
   lights(): Light[];
+  /** Local cutaway scenery behind the player and any ladder rungs. */
+  readonly oceanBackdrop?: Container;
+  walkLampGain?(x: number, y: number): number;
   /**
    * Milestone 9: real actors (the creatures in the tanks), added to the lit,
    * emissive and glow layers when the level is entered, and taken away
@@ -201,6 +204,8 @@ export class Interior {
   private dynamic = new Graphics();
   private dynEmissive = new Graphics();
   private static_ = new Graphics();
+  private baseScenery = new Container();
+  private baseLadders = new Graphics();
   private emissiveStatic = new Graphics();
   private glowStatic = new Graphics();
   private lamps: { light: Light; core: Graphics; halo: Graphics; zone: number }[] = [];
@@ -279,7 +284,7 @@ export class Interior {
     this.glowSprite.blendMode = 'add';
     this.glowSprite.filters = [new BlurFilter({ strength: 10, quality: 3 })];
     this.litRoot.addChild(this.litCam);
-    this.litCam.addChild(this.static_, this.doorG, this.breakerG, this.takenG, this.dynamic, this.actorLit, this.walker.view, this.front);
+    this.litCam.addChild(this.static_, this.baseScenery, this.baseLadders, this.doorG, this.breakerG, this.takenG, this.dynamic, this.actorLit, this.walker.view, this.front);
     this.emissiveCam.addChild(this.emissiveStatic, this.dynEmissive, this.actorEm, this.walker.lens, this.overlay);
     this.glowCam.addChild(this.glowStatic, this.actorGlow);
     this.view.addChild(this.lighting.view, this.emissiveCam, this.glowSprite);
@@ -353,6 +358,7 @@ export class Interior {
     if (this.hooks && this.hooks !== hooks) this.hooks.detach?.();
     this.hooks = hooks;
     hooks?.attach?.(this.actorLit, this.actorEm, this.actorGlow);
+    if (hooks?.oceanBackdrop) this.baseScenery.addChild(hooks.oceanBackdrop);
     this.focus = null;
     this.lampGain = 1;
     this.climbing = false;
@@ -472,6 +478,7 @@ export class Interior {
 
   private buildStatic(): void {
     const g = this.static_.clear();
+    this.baseLadders.clear();
     const e = this.emissiveStatic.clear();
     const gl = this.glowStatic.clear();
     for (const l of this.lamps) {
@@ -686,7 +693,7 @@ export class Interior {
       this.lamps.push({ light: { x, y: y + 30, radius: 330, intensity: 0, color: [0.95, 0.97, 0.86], haze: 0.03 }, core, halo, zone });
     };
     const addText = (t: Text) => {
-      this.litCam.addChildAt(t, 1);
+      this.litCam.addChildAt(t, this.litCam.getChildIndex(this.baseLadders) + 1);
       this.texts.push(t);
     };
     this.hooks!.decorate(g, e, gl, addLamp, addText, 'back', this.art?.materials.kestrel);
@@ -742,7 +749,7 @@ export class Interior {
           g.rect(x, y + 7, T + 0.5, 2).fill({ color: 0x15191c });
           if (tx % 3 === 0) g.moveTo(x + 4, y + 9).lineTo(x + 4, y + 22).stroke({ color: 0x3a4146, width: 2 });
         }
-        if (c === 'H') this.drawLadder(g, x, y);
+        if (c === 'H') this.drawLadder(this.hooks!.oceanBackdrop ? this.baseLadders : g, x, y);
       }
     this.hooks!.decorate(g, e, gl, addLamp, addText, 'front');
   }
@@ -1709,7 +1716,8 @@ export class Interior {
     this.headLamp.y = lamp.y;
     this.headLamp.dirX = w.face * 0.97;
     this.headLamp.dirY = 0.24;
-    this.lampGain += ((this.focus?.lampGain ?? 1) - this.lampGain) * (1 - Math.exp(-dt * 8));
+    const lampGain = this.focus?.lampGain ?? this.hooks?.walkLampGain?.(w.x, w.y) ?? 1;
+    this.lampGain += (lampGain - this.lampGain) * (1 - Math.exp(-dt * 8));
     this.headLamp.intensity = this.lampOn ? 1.6 * this.lampGain : 0;
     if (this.hooks)
       for (const l of this.lamps) {

@@ -189,6 +189,7 @@ async function boot(): Promise<void> {
   const urlq = new URLSearchParams(location.search);
   const livingCreatures = urlq.get('creatures') !== 'original';
   const livingBases = urlq.get('bases') !== 'original';
+  const housingOcean = livingBases && urlq.get('housingOcean') !== 'original';
   let choice: PresetChoice = loadChoice();
   let preset: Preset = resolveChoice(choice);
 
@@ -391,10 +392,10 @@ async function boot(): Promise<void> {
   const layout = new BaseLayout(save.pieces);
   save.pieces = layout.pieces;
   drone.teleport(diver.x, diver.y, layout);
-  const baseView = new BaseView(livingBases);
+  const baseView = new BaseView(livingBases, housingOcean);
   baseView.sync(layout);
   tankLife.sync(save, layout);
-  const buildOverlay = new BuildOverlay(livingBases);
+  const buildOverlay = new BuildOverlay(livingBases, housingOcean);
   overlayCam.addChild(buildOverlay.view, gearFx.overlay);
   // Milestone 5: conveyors, feed pipes and the machines they join.
   const factory = new Factory();
@@ -3929,6 +3930,8 @@ async function boot(): Promise<void> {
     layout,
     livingCreatures,
     livingBases,
+    housingOcean,
+    basinBackdrop: worldArt?.plates.basin,
     carried: () => MATERIALS_LIST.reduce((a, k) => a + save.bag[k], 0),
     storageText: () => {
       const n = MATERIALS_LIST.reduce((a, k) => a + save.stored[k], 0);

@@ -3,7 +3,7 @@ import { MATERIAL_ORDER } from '../game/state';
 import { mulberry32, WORLD_SEED } from '../rng';
 import { groundY, WORLD_W, WORLD_X0 } from './terrain';
 import { drawHabitatFrame, drawObservationCrown, drawPressureRib } from './habitatFrame';
-import { POOL_HALF_WIDTH, POOL_LADDER_X, POOL_SURFACE_Y } from './moonpool';
+import { drawDockBrace, POOL_HALF_WIDTH, POOL_LADDER_X, POOL_SURFACE_Y } from './moonpool';
 import {
   BaseLayout,
   CELL,
@@ -1426,7 +1426,7 @@ function drawPress(n: number): PieceArt {
  * Heavy side pillars carry the hall down to the seabed; amber guide lamps
  * on the pillars show the way in.
  */
-function drawPressureDock(n: number): PieceArt {
+function drawPressureDock(n: number, housingOcean: boolean): PieceArt {
   const W = 3 * CELL;
   const H = 2 * CELL;
   const cx = W / 2;
@@ -1441,7 +1441,8 @@ function drawPressureDock(n: number): PieceArt {
     g.poly([x - 13, 92, x + 13, 92, x + 13 + s * 7, H - 5, x - 13 + s * 7, H - 5]).fill(pressureShell);
     g.moveTo(x, 110).lineTo(x + s * 7, H - 8).stroke({ color: 0xb19a73, alpha: 0.75, width: 2 });
     g.roundRect(x + s * 7 - 22, H - 10, 44, 10, 3).fill(0x395354);
-    g.moveTo(x + s * 5, H - 33).lineTo(cx + s * 102, 105).stroke({ color: 0x3f6a65, width: 9 });
+    if (housingOcean) drawDockBrace(g, cx, 0, s);
+    else g.moveTo(x + s * 5, H - 33).lineTo(cx + s * 102, 105).stroke({ color: 0x3f6a65, width: 9 });
     const clamp = cx + s * 74;
     g.poly([clamp - 6, 103, clamp + 6, 103, clamp + 6, 137, clamp - s * 16, 151,
       clamp - s * 21, 145, clamp - 6, 134]).fill(0x816954);
@@ -1706,7 +1707,7 @@ function drawWorkshop(n: number, livingBases: boolean): PieceArt {
 }
 
 /** Draw a piece's art. The same drawing is used for placed pieces and the build ghost. */
-export function drawPiece(kind: PieceKind, n: number, rot: number, seed: number, livingBases = false): PieceArt {
+export function drawPiece(kind: PieceKind, n: number, rot: number, seed: number, livingBases = false, housingOcean = livingBases): PieceArt {
   rand = mulberry32(WORLD_SEED ^ (seed * 7919 + 0x1b5e));
   if (kind === 'dome') return livingBases ? drawKestrelHabitat(n) : drawDome(n);
   if (kind === 'corridor') return livingBases ? drawPressureCorridor(n, rot) : drawCorridor(n, rot);
@@ -1727,7 +1728,7 @@ export function drawPiece(kind: PieceKind, n: number, rot: number, seed: number,
   if (kind === 'filter') return drawFilter(n, livingBases);
   if (kind === 'feeder') return drawFeeder(n, livingBases);
   if (kind === 'press') return drawPress(n);
-  if (kind === 'dock') return livingBases ? drawPressureDock(n) : drawDock(n);
+  if (kind === 'dock') return livingBases ? drawPressureDock(n, housingOcean) : drawDock(n);
   if (kind === 'lab') return drawLab(n, livingBases);
   if (kind === 'workshop') return drawWorkshop(n, livingBases);
   return drawStorage(n, livingBases);
@@ -1834,7 +1835,7 @@ export class BaseView {
   private live = new Map<number, Live>();
   private sparks: Spark[] = [];
 
-  constructor(private readonly livingBases = false) {
+  constructor(private readonly livingBases = false, private readonly housingOcean = livingBases) {
     this.view.addChild(this.legs, this.pieceLayer, this.collarG, this.whorlLayer);
   }
 
@@ -1858,7 +1859,7 @@ export class BaseView {
     for (const p of [...layout.pieces].sort((a, b) => a.id - b.id)) {
       counts[p.kind]++;
       if (this.live.has(p.id)) continue;
-      const art = drawPiece(p.kind, counts[p.kind], p.rot, p.id, this.livingBases);
+      const art = drawPiece(p.kind, counts[p.kind], p.rot, p.id, this.livingBases, this.housingOcean);
       const r = pieceRect(p);
       const root = new Container();
       root.addChild(art.body);
@@ -2233,7 +2234,7 @@ export class BuildOverlay {
   private links = new Graphics();
   private ports = new Graphics();
 
-  constructor(private readonly livingBases = false) {
+  constructor(private readonly livingBases = false, private readonly housingOcean = livingBases) {
     this.view.addChild(this.grid, this.links, this.ghostRoot, this.ghostOutline, this.marks, this.select, this.ports);
     this.view.visible = false;
     // Faint cell corners over open water, drawn once (the site is big).
@@ -2359,7 +2360,7 @@ export class BuildOverlay {
       this.ghostKey = key;
       this.ghostRoot.removeChildren().forEach((c) => c.destroy({ children: true }));
       if (ghost) {
-        const art = drawPiece(ghost.kind, 0, ghost.rot, 99, this.livingBases);
+        const art = drawPiece(ghost.kind, 0, ghost.rot, 99, this.livingBases, this.housingOcean);
         this.ghostRoot.addChild(art.body);
         art.windows.destroy();
         art.windowGlow.destroy();
