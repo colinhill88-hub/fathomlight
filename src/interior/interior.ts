@@ -12,6 +12,7 @@ import { drawNacreVault, traceNacreOpening } from '../world/nacreVault';
 import { drawHabitatFrame } from '../world/habitatFrame';
 import { HousingOcean } from './housingOcean';
 import type { OceanSource } from './oceanCapture';
+import type { HousingHull } from './housingHull';
 
 /**
  * Dry interiors on foot (after milestone 8 part 2, Colin's direction): a
@@ -91,6 +92,7 @@ export interface InteriorHooks {
   /** Local cutaway scenery behind the player and any ladder rungs. */
   readonly oceanBackdrop?: Container;
   readonly oceanSurround?: Container;
+  readonly housingHull?: HousingHull;
   walkLampGain?(x: number, y: number): number;
   /**
    * Milestone 9: real actors (the creatures in the tanks), added to the lit,
@@ -213,6 +215,8 @@ export class Interior {
   private dynEmissive = new Graphics();
   private static_ = new Graphics();
   private baseScenery = new Container();
+  private baseSkin = new Container();
+  private baseTrim = new Container();
   private baseExterior = new Container();
   private baseLadders = new Graphics();
   private facilityOcean?: HousingOcean;
@@ -297,7 +301,8 @@ export class Interior {
     this.glowSprite.blendMode = 'add';
     this.glowSprite.filters = [new BlurFilter({ strength: 10, quality: 3 })];
     this.litRoot.addChild(this.litCam);
-    this.litCam.addChild(this.static_, this.baseScenery, this.baseLadders, this.doorG, this.breakerG, this.takenG, this.dynamic, this.actorLit, this.walker.view, this.front);
+    this.baseSkin.addChild(this.static_, this.baseScenery);
+    this.litCam.addChild(this.baseSkin, this.baseTrim, this.baseLadders, this.doorG, this.breakerG, this.takenG, this.dynamic, this.actorLit, this.walker.view, this.front);
     this.emissiveCam.addChild(this.emissiveStatic, this.dynEmissive, this.actorEm, this.walker.lens, this.overlay);
     this.glowCam.addChild(this.glowStatic, this.actorGlow);
     this.view.addChild(this.baseExterior, this.lighting.view, this.emissiveCam, this.glowSprite);
@@ -373,11 +378,21 @@ export class Interior {
     if (opts) this.opts = opts;
     else if (!hooks) this.opts = { labels: CORVINA_LABELS, sign: { ch: '1', text: 'SURVEY LAB' } };
     else this.opts = {};
-    if (this.hooks && this.hooks !== hooks) this.hooks.detach?.();
+    if (this.hooks && this.hooks !== hooks) {
+      this.baseSkin.mask = null;
+      this.hooks.detach?.();
+    }
     this.hooks = hooks;
     hooks?.attach?.(this.actorLit, this.actorEm, this.actorGlow);
     if (hooks?.oceanBackdrop) this.baseScenery.addChild(hooks.oceanBackdrop);
     if (hooks?.oceanSurround) this.baseExterior.addChild(hooks.oceanSurround);
+    if (hooks?.housingHull) {
+      const hull = hooks.housingHull;
+      this.baseExterior.addChild(hull.waterLight);
+      this.baseSkin.addChildAt(hull.shell, 0);
+      this.baseTrim.addChild(hull.trim, hull.mask);
+      this.baseSkin.mask = hull.mask;
+    }
     this.clearFacilityOcean();
     if (ocean) {
       const plate = this.sanctum ? this.art?.plates.sanctum : this.opts.style === 'fulmar' ? this.art?.plates.trench : this.art?.plates.shelf;
@@ -514,6 +529,7 @@ export class Interior {
   }
 
   leave(): void {
+    this.baseSkin.mask = null;
     this.hooks?.detach?.();
     this.hooks = null;
     this.clearFacilityOcean();
@@ -797,8 +813,9 @@ export class Interior {
   private buildBaseStatic(g: Graphics, e: Graphics, gl: Graphics, rand: () => number): void {
     const PW = this.W * T;
     const PH = this.H * T;
-    if (this.hooks?.oceanSurround) this.drawDryBacking(g);
-    else this.drawBaseVoid(g, PW, PH, rand);
+    const modular = !!this.hooks?.housingHull;
+    if (this.hooks?.oceanSurround && !modular) this.drawDryBacking(g);
+    else if (!this.hooks?.oceanSurround) this.drawBaseVoid(g, PW, PH, rand);
     const addLamp = (x: number, y: number, zone: number) => {
       lampFixture(g, x, y);
       const core = new Graphics().roundRect(x - 14, y + 2, 28, 3, 1.5).fill({ color: 0xf4ffd8 });
@@ -830,10 +847,12 @@ export class Interior {
           };
           // Outer skin facing the water: darker, with a chrome seam.
           const outside = (dx: number, dy: number) => this.ch(tx + dx, ty + dy) === 'X';
-          if (outside(0, -1)) g.rect(x, y, T + 0.5, 4).fill({ color: 0x9aa6ad });
-          if (outside(0, 1)) g.rect(x, y + T - 4, T + 0.5, 4).fill({ color: 0x14181b });
-          if (outside(-1, 0)) g.rect(x, y, 3, T + 0.5).fill({ color: 0x9aa6ad, alpha: 0.7 });
-          if (outside(1, 0)) g.rect(x + T - 3, y, 3, T + 0.5).fill({ color: 0x14181b });
+          if (!modular) {
+            if (outside(0, -1)) g.rect(x, y, T + 0.5, 4).fill({ color: 0x9aa6ad });
+            if (outside(0, 1)) g.rect(x, y + T - 4, T + 0.5, 4).fill({ color: 0x14181b });
+            if (outside(-1, 0)) g.rect(x, y, 3, T + 0.5).fill({ color: 0x9aa6ad, alpha: 0.7 });
+            if (outside(1, 0)) g.rect(x + T - 3, y, 3, T + 0.5).fill({ color: 0x14181b });
+          }
           // Floors: a chrome-capped deck with a gold power line just under it.
           if (open(0, -1)) {
             g.rect(x, y, T + 0.5, 7).fill({ color: 0x8e9aa2 });

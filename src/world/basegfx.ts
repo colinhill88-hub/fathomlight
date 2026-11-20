@@ -1838,15 +1838,17 @@ export class BaseView {
 
   private legs = new Graphics();
   private routeLegs = new Graphics();
+  private oceanFrames?: Container;
 
   /** Shares the moonpool and habitat foundations without drawing the solid rooms. */
   oceanSupports(): Graphics {
     return this.routeLegs.clone();
   }
 
-  oceanFoundations(): Container {
+  oceanFoundations(construction = false): Container {
     const foundations = new Container();
     foundations.addChild(this.legs.clone(), this.routeLegs.clone());
+    if (construction) foundations.addChild(this.oceanFrames ??= new Container());
     return foundations;
   }
 
@@ -1946,6 +1948,17 @@ export class BaseView {
     this.lights.length = 0;
     for (const l of this.live.values()) if (l.light) this.lights.push(l.light);
     this.drawJoins(layout);
+    if (this.oceanFrames) {
+      for (const child of this.oceanFrames.removeChildren()) child.destroy();
+      for (const p of layout.pieces) {
+        if (isDone(p)) continue;
+        const live = this.live.get(p.id);
+        if (!live?.frame) continue;
+        const scaffold = live.frame.scaffold.clone();
+        scaffold.position.copyFrom(live.root.position);
+        this.oceanFrames.addChild(scaffold);
+      }
+    }
   }
 
   /** Legs down to the sand, and the collar flanges (which depend on the neighbours). */

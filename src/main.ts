@@ -196,6 +196,7 @@ async function boot(): Promise<void> {
   const housingOcean = livingBases && urlq.get('housingOcean') !== 'original';
   const panorama = housingOcean && urlq.get('panorama') !== 'original';
   const surroundHousing = panorama && urlq.get('housingSurround') !== 'original';
+  const modularHousing = surroundHousing && urlq.get('housingHull') !== 'original';
   const fidelity = urlq.get('render') !== 'original';
   let choice: PresetChoice = loadChoice();
   let preset: Preset = resolveChoice(choice);
@@ -407,7 +408,7 @@ async function boot(): Promise<void> {
   const baseView = new BaseView(livingBases, housingOcean, panorama);
   const oceanSupports = panorama ? baseView.oceanSupports() : undefined;
   if (oceanSupports) oceanSupports.visible = false;
-  const oceanFoundations = surroundHousing ? baseView.oceanFoundations() : undefined;
+  const oceanFoundations = surroundHousing ? baseView.oceanFoundations(modularHousing) : undefined;
   if (oceanFoundations) oceanFoundations.visible = false;
   baseView.sync(layout);
   tankLife.sync(save, layout);
@@ -4008,6 +4009,7 @@ async function boot(): Promise<void> {
     livingCreatures,
     livingBases,
     housingOcean,
+    modularHousing,
     basinBackdrop: worldArt?.plates.basin,
     // The whole route shares one downward-facing sightline. The foundations and
     // seabed stay registered to the level as the camera follows the walker.
