@@ -162,6 +162,7 @@ Each item is built in the Workshop from a blueprint found at a major site, and e
 | Pressure suit, in tiers | Each deeper zone |
 | Sonar pulse | Hidden passages; calms hostile creatures |
 | Sub depth plating and grabber arm | Crush depths and heavy objects |
+| Sub drill nose (Phase 13 status) | The soft trench seam's grotto, and five resealing mineral lodes (optional mining) |
 | Alien resonator | Doors in the ancient structures |
 
 ## World and story
@@ -189,6 +190,8 @@ Names are final: the game is Fathomlight, the crew's station is Outpost Kestrel 
 ## Current progression and discovery
 
 The [progression audit](docs/phase-12-progression-audit.md) maps the full route and lists equipment, gates and creature abilities. Explore for evidence, equipment and specimens, then use Kestrel's base to give those discoveries a purpose. Read the existing scanner log for connections between sites and capabilities. Keep hints close to the relevant object and let them build from visible marks to a practical clue as the player examines or revisits a site.
+
+Phase 13 adds three things. A contextual control helper reads the single binding table (`src/controls/bindings.ts`). KS-1's drill nose becomes a lasting tool: besides the trench seam, it mines five resealing mineral lodes along the sub's routes, which only add materials and never replace a creature or gear gate. Kept creatures carry stable names. See the [Phase 13 audit](docs/phase-13-gameplay-audit.md).
 
 Phase 12 gives the Wreck Shelf strongbox paired claw scratches, a scan and a creature interaction. A grown tinker crab works the lock and returns to the jar. The mandatory trench cleft has grazing marks and a separate mature cinder-snail interaction. Its PS-2 drawings and signal spool are the deep progression payoff. Good habitat setup should let the player prepare for those trips. A solitary juvenile with its preferred plant now consumes food and fouls water more slowly. Players can replace lost founders without a Revival pool. Population growth beyond the founding pair still comes from breeding happy adults with a powered Hatchery.
 

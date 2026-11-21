@@ -59,6 +59,62 @@ try {
   };
   assert.doesNotMatch(roomTiles(buildBaseLevel(grand, true)), /[=H]/, 'A living Grand tank has a single floor');
   assert.match(roomTiles(buildBaseLevel(grand, false)), /=/, 'The original comparison path keeps its mezzanine');
+  // ---- Phase 13 ----
+  const bindings = await server.ssrLoadModule('/src/controls/bindings.ts');
+  const { helperRows } = await server.ssrLoadModule('/src/ui/controlHelper.ts');
+  const lodes = await server.ssrLoadModule('/src/game/lodes.ts');
+
+  // The helper reads the real bindings, and follows a remap.
+  assert.equal(bindings.isKey('collect', 'c'), true);
+  assert.equal(bindings.isKey('lamp', 'f'), true, 'F is the lamp, not interact');
+  const ctx = (over) => ({ mode: 'swim', device: 'keyboard', collect: null, scan: null, board: null, build: false, tend: false, dock: false, lab: false, flare: false, dart: false, haul: false, sonar: false, lights: true, brace: false, ladder: false, zoom: true, moving: false, ...over });
+  const ids = (c) => helperRows(c).map((r) => r.id);
+  assert.deepEqual(ids(ctx({})).slice(0, 4), ['move', 'boost', 'scan', 'lamp'], 'Swimming shows movement first');
+  const sub = helperRows(ctx({ mode: 'sub', collect: { label: 'Drill the trench ledge lode', tap: false }, board: 'Exit', lights: false }));
+  assert.equal(sub[0].label, 'Drill the trench ledge lode', 'World offers come first');
+  assert.equal(sub[0].hold, true);
+  assert.ok(sub.some((r) => r.label === 'Exit KS-1'));
+  assert.ok(!sub.some((r) => r.id === 'lamp'), 'No floodlights row without the module');
+  assert.ok(ids(ctx({ mode: 'foot', ladder: true })).includes('ladder'), 'A ladder in reach offers Climb');
+  assert.deepEqual(ids(ctx({ mode: 'swing' })), ['pump', 'reel', 'let', 'zoom']);
+  assert.ok(ids(ctx({ mode: 'build' })).includes('bplace'));
+  assert.ok(!ids(ctx({ device: 'gamepad', build: true })).includes('build'), 'Actions without a pad button are not shown on a pad');
+  assert.ok(!ids(ctx({ device: 'gamepad' })).includes('zoom'));
+  bindings.setKeys('collect', ['g']);
+  assert.equal(bindings.isKey('collect', 'g'), true);
+  assert.equal(bindings.isKey('collect', 'c'), false);
+  bindings.resetBindings();
+  assert.equal(bindings.isKey('collect', 'c'), true);
+
+  // The drill nose: lodes yield, reseal, and sit in sub-reachable water away from creature gates.
+  const ls = state.freshSave(0, 0);
+  assert.equal(lodes.LODES.length, 5);
+  for (const l of lodes.LODES) {
+    const y = lodes.lodeY(l);
+    assert.equal(terrain.isSolid(l.x, y + 12), true, `${l.id} sits on rock`);
+    assert.equal(terrain.isSolid(l.x, y - 90), false, `${l.id} has open water above for KS-1`);
+    assert.ok(Math.abs(l.x - terrain.CLEFT.x) > 600 && Math.abs(l.x - terrain.SEAM.x) > 600, `${l.id} stays clear of the cleft and the seam`);
+    assert.equal(lodes.lodeAt(l.x, y - 90), l, `${l.id} is found from the sub's bow`);
+    assert.equal(lodes.lodeWait(ls, l), 0);
+  }
+  ls.playSeconds = 100;
+  ls.lodes = { 'lode-trench': 100 };
+  const trench = lodes.LODES.find((l) => l.id === 'lode-trench');
+  assert.equal(lodes.lodeWait(ls, trench), lodes.LODE_REGROW);
+  ls.playSeconds += lodes.LODE_REGROW;
+  assert.equal(lodes.lodeWait(ls, trench), 0, 'A drilled lode reseals and can be drilled again');
+  assert.equal(lodes.lodeFirst(ls, trench), true);
+  ls.lodeNotes = ['lode-trench'];
+  assert.equal(lodes.lodeFirst(ls, trench), false);
+  assert.ok(lodes.LODES.some((l) => l.yield.ore), 'The drill gives a repeatable vent ore source');
+
+  // Lode fields load from old saves without them.
+  assert.match(discovery.discoveryNotes({ ...state.freshSave(0, 0), scans: ['lode'] }).join(' '), /Mineral lodes/);
+
+  // Creature names are stable and survive the jar (the id is kept).
+  const named = care.newCreature(habitat, 'glowfin', 'young', 1);
+  assert.equal(care.creatureName(named), care.creatureName({ id: named.id, species: 'glowfin' }));
+  assert.match(care.creatureName(named), /^[A-Z][a-z]+$/);
   console.log('Progression checks passed.');
 } finally {
   await server.close();

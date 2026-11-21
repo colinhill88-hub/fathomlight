@@ -324,6 +324,9 @@ export interface SaveData {
   jar2?: JarData | null;
   /** After milestone 12: the soft rock seam in the trench wall, drilled open by KS-1's drill nose. */
   seamOpen?: boolean;
+  /** Phase 13: mineral lodes drilled by KS-1 (play time when, so they reseal), and those whose core sample is logged. */
+  lodes?: Record<string, number>;
+  lodeNotes?: string[];
   /**
    * The kit found out in the world (Colin, before milestone 11: the diver's kit
    * builds up as things are found). The specimen jar, and the hip thruster:
@@ -563,6 +566,8 @@ export function loadSave(spawnX: number, spawnY: number): { data: SaveData; load
       hiddenOpen: d.hiddenOpen === true,
       hiddenLooted: d.hiddenLooted === true,
       salvageTaken: d.salvageTaken && typeof d.salvageTaken === 'object' ? d.salvageTaken : {},
+      lodes: d.lodes && typeof d.lodes === 'object' ? d.lodes : {},
+      lodeNotes: Array.isArray(d.lodeNotes) ? d.lodeNotes : [],
       craneQueue: typeof d.craneQueue === 'number' ? d.craneQueue : 0,
       craneProgress: typeof d.craneProgress === 'number' ? d.craneProgress : 0,
       cleftOpen: d.cleftOpen === true,

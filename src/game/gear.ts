@@ -269,7 +269,7 @@ export const RESEARCH: Record<BlueprintId, ResearchDef> = {
   drill: {
     id: 'drill',
     name: 'Drill nose DN-S blueprint',
-    text: "From your scans of the trench and the crushed probe: a cutting nose for KS-1 that bores through soft rock. A soft seam glints in the wall under the trench's rim. Fitted at the dock.",
+    text: "From your scans of the trench and the crushed probe: a cutting nose for KS-1 that bores through soft rock and mines the hard mineral lodes along the sub's routes. A soft seam glints in the wall under the trench's rim. Fitted at the dock.",
     finds: [],
     scans: ['trench', 'probe'],
     seconds: 90,

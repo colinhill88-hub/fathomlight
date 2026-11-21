@@ -1,3 +1,4 @@
+import { LODES } from './lodes';
 import type { SaveData } from './state';
 import { SPECIES } from './creatures';
 import { jobRunning, RESEARCH, RESEARCH_ORDER, researchBlocker } from './gear';
@@ -65,6 +66,17 @@ export function discoveryNotes(save: SaveData): string[] {
   if (save.vane) notes.push('Wreck Shelf · Flow vane raised. KS-1 can cross above the deep race. The lower anchors still mark a route for a diver.');
   else if (save.scans.includes('race')) notes.push('Wreck Shelf · Follow the anchor rings with a grapple to reach the flow-vane winch on the far side.');
   if (save.gear.includes('boots')) notes.push('Mag-boots · Hold Down near the seabed to brace in currents, including lift from vents. Move sideways to edge along the bottom. Release Down to swim freely.');
+  // Phase 13: the drill nose, from its first clue to its lasting job.
+  const drillFitted = !!save.sub?.modules.includes('drill');
+  const lodesSeen = save.scans.includes('lode');
+  const cores = (save.lodeNotes ?? []).length;
+  if (drillFitted) {
+    const seam = save.seamOpen ? '' : ' The soft seam under the trench rim is still sealed.';
+    notes.push(`Drill nose · Bow over a mineral lode and hold Collect: copper and quartz in the kelp forest and on the wreck shelf, vent ore in the trench. Lodes seal over after about ten minutes.${seam}${cores ? ` Core samples logged: ${cores} of ${LODES.length}.` : ''}`);
+  } else if (save.scans.includes('seam') || lodesSeen) {
+    const bp = save.blueprints.includes('drill') || save.scans.includes('probe');
+    notes.push(`${lodesSeen ? 'Mineral lodes' : 'Soft seam'} · Too hard for hands or the cutter. ${bp ? 'The crushed probe\'s drawings point to a drill nose for KS-1 (Lab, then the Dock).' : 'A powered drill on the sub might bore it. The trench may hold the design.'}`);
+  }
   const fragment = nextFragment(save);
   if (fragment) {
     const bred = fragment.bred ? ` · ${bredWords(save)}/${fragment.bred} distinct patterns bred at Kestrel` : '';

@@ -50,6 +50,8 @@ export interface InputState {
   lastDevice: 'touch' | 'keyboard' | 'mouse' | 'gamepad';
 }
 
+import { isKey, keysFor, padFor, type Action } from './controls/bindings';
+
 const STICK_RADIUS = 56;
 const DEADZONE = 0.15;
 
@@ -112,13 +114,14 @@ export class Input {
       const k = e.key.toLowerCase();
       this.keys.add(k);
       this.state.lastDevice = 'keyboard';
-      if (k === 'shift' || k === ' ') this.boostQueued = true;
-      if (k === 'l' || k === 'f') this.lampQueued = true;
-      if (k === 'e' || k === 'q') this.scanTapQueued = true;
-      if (k === 'v') this.boardQueued = true;
-      if (k === 'z') this.flareQueued = true;
-      if (k === 'x') this.dartQueued = true;
-      if (k === 'h') this.haulQueued = true;
+      // Phase 13: every key comes from src/controls/bindings.ts (what the control helper shows).
+      if (isKey('boost', k)) this.boostQueued = true;
+      if (isKey('lamp', k)) this.lampQueued = true;
+      if (isKey('scan', k)) this.scanTapQueued = true;
+      if (isKey('board', k)) this.boardQueued = true;
+      if (isKey('flare', k)) this.flareQueued = true;
+      if (isKey('dart', k)) this.dartQueued = true;
+      if (isKey('haul', k)) this.haulQueued = true;
       if (k.startsWith('arrow') || k === ' ') e.preventDefault();
     });
     window.addEventListener('keyup', (e) => this.keys.delete(e.key.toLowerCase()));
@@ -267,11 +270,11 @@ export class Input {
   update(): void {
     let x = 0;
     let y = 0;
-    const k = this.keys;
-    if (k.has('a') || k.has('arrowleft')) x -= 1;
-    if (k.has('d') || k.has('arrowright')) x += 1;
-    if (k.has('w') || k.has('arrowup')) y -= 1;
-    if (k.has('s') || k.has('arrowdown')) y += 1;
+    const held = (a: Action) => keysFor(a).some((key) => this.keys.has(key));
+    if (held('left')) x -= 1;
+    if (held('right')) x += 1;
+    if (held('up')) y -= 1;
+    if (held('down')) y += 1;
     if (x || y) {
       const l = Math.hypot(x, y);
       x /= l;
@@ -292,11 +295,11 @@ export class Input {
       }
     }
 
-    let scan = this.scanButton || k.has('e') || k.has('q');
-    let collect = this.collectButton || k.has('c') || k.has('r');
+    let scan = this.scanButton || held('scan');
+    let collect = this.collectButton || held('collect');
     // On foot, Space jumps and Shift sprints (Colin, after the terrain pass). In the water both still boost.
-    let jumpHeld = this.boostButton || k.has(' ');
-    let sprint = k.has('shift') || (this.stickId !== null && this.stickFar);
+    let jumpHeld = this.boostButton || held('jump');
+    let sprint = held('sprint') || (this.stickId !== null && this.stickFar);
 
     // Gamepad (first connected pad).
     const pads = navigator.getGamepads?.() ?? [];
@@ -311,20 +314,20 @@ export class Input {
         y = ay * s;
         this.state.lastDevice = 'gamepad';
       }
-      const btn = (i: number) => !!pad.buttons[i]?.pressed;
-      const pressed = (i: number) => btn(i) && !this.padPrev[i];
-      if (pressed(0)) this.boostQueued = true;
-      if (pressed(5)) this.boardQueued = true;
-      if (pressed(6)) this.flareQueued = true;
-      if (pressed(7)) this.dartQueued = true;
-      if (pressed(13)) this.haulQueued = true;
-      if (pressed(3)) this.lampQueued = true;
-      if (btn(1)) scan = true;
-      if (pressed(1)) this.scanTapQueued = true;
-      if (btn(2)) collect = true;
-      if (btn(0)) jumpHeld = true;
-      if (btn(4) || btn(10)) sprint = true;
-      if (pressed(0) || pressed(2) || pressed(3)) this.state.lastDevice = 'gamepad';
+      const btn = (a: Action) => padFor(a).some((i) => !!pad.buttons[i]?.pressed);
+      const pressed = (a: Action) => padFor(a).some((i) => !!pad.buttons[i]?.pressed && !this.padPrev[i]);
+      if (pressed('boost')) this.boostQueued = true;
+      if (pressed('board')) this.boardQueued = true;
+      if (pressed('flare')) this.flareQueued = true;
+      if (pressed('dart')) this.dartQueued = true;
+      if (pressed('haul')) this.haulQueued = true;
+      if (pressed('lamp')) this.lampQueued = true;
+      if (btn('scan')) scan = true;
+      if (pressed('scan')) this.scanTapQueued = true;
+      if (btn('collect')) collect = true;
+      if (btn('jump')) jumpHeld = true;
+      if (btn('sprint')) sprint = true;
+      if (pad.buttons.some((b, i) => b.pressed && !this.padPrev[i])) this.state.lastDevice = 'gamepad';
       this.padPrev = pad.buttons.map((b) => b.pressed);
       break;
     }

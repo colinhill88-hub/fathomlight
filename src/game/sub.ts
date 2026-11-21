@@ -112,7 +112,7 @@ export const MODULES: Record<SubModule, ModuleDef> = {
     id: 'drill',
     name: 'Drill nose',
     code: 'DN-S',
-    job: 'A cutting nose that bores through soft rock. Hold Collect with the bow at a soft seam.',
+    job: 'A cutting nose that bores soft rock and hard mineral lodes. Bow over a lode (or at the soft seam) and hold Collect: the cuttings go in the dive bag, and a lode seals over again in about ten minutes.',
     cost: { brass: 4, plate: 4, ore: 2 },
     blueprint: 'drill',
   },

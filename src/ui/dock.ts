@@ -1,4 +1,5 @@
 import { BaseLayout, isDone, pieceCode, Placed } from '../game/base';
+import { isKey } from '../controls/bindings';
 import { MATERIAL_ORDER, MaterialId, MATERIALS, SaveData } from '../game/state';
 import {
   airClock,
@@ -90,10 +91,10 @@ export class DockMode {
     window.addEventListener('keydown', (e) => {
       if (e.repeat) return;
       const k = e.key.toLowerCase();
-      if (k === 'g') this.toggle();
+      if (isKey('dock', k)) this.toggle();
       else if (!this.active) return;
       else if (k === 'escape') this.close();
-      else if (k === 'r') this.repair();
+      else if (isKey('repair', k)) this.repair();
       else return;
       e.preventDefault();
     });
