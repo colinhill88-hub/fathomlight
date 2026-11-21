@@ -139,6 +139,32 @@ try {
   keepSave.jar = { species: 'crab', stage: 'young', keep: kept };
   care.releaseFromJar(keepSave);
   assert.equal(keepSave.wildCaught.crab, 2, 'A named tank creature is not a wild catch');
+  // Phase 16: every creature id has a real name (half of them used to read "undefined").
+  for (let id = 1; id <= 400; id++)
+    for (const sp of ['glowfin', 'ray', 'crab', 'snail']) assert.match(care.creatureName({ id, species: sp }), /^[A-Z][a-z]+$/, `creature ${id} (${sp}) has a name`);
+
+  // Phase 16: the satchel's second slot works indoors too (Habitat console, Hatchery, Revival pool).
+  const sj = state.freshSave(0, 0);
+  sj.kit.jar = true;
+  assert.equal(care.jarRoom(sj), 'jar');
+  assert.ok(care.putInJar(sj, { species: 'crab', stage: 'young' }));
+  assert.equal(care.jarRoom(sj), null, 'Without the satchel one creature fills the jar');
+  assert.equal(care.putInJar(sj, { species: 'ray', stage: 'young' }), false, 'A second creature is refused without the satchel');
+  assert.equal(sj.jar2 ?? null, null);
+  sj.gear.push('satchel');
+  assert.equal(care.jarRoom(sj), 'jar2', 'With the satchel there is room for a second creature');
+  assert.ok(care.putInJar(sj, { species: 'ray', stage: 'young' }));
+  assert.equal(care.jarRoom(sj), null, 'Both slots full');
+  assert.equal(care.takeFromJar(sj).species, 'crab', 'Depositing takes the first catch');
+  assert.equal(sj.jar.species, 'ray', 'The satchel creature moves up at once');
+  assert.equal(sj.jar2, null);
+  assert.equal(care.jarRoom(sj), 'jar2', 'The freed space is offered again');
+  assert.equal(care.takeFromJar(sj).species, 'ray');
+  assert.equal(care.takeFromJar(sj), null);
+  const noJar = state.freshSave(0, 0);
+  noJar.gear.push('satchel');
+  assert.equal(care.jarRoom(noJar), null, 'No jar, no room, satchel or not');
+
   const { helperRows: rows15 } = await server.ssrLoadModule('/src/ui/controlHelper.ts');
   const base15 = { mode: 'swim', device: 'keyboard', collect: null, scan: null, board: null, build: false, tend: false, dock: false, lab: false, flare: false, dart: false, haul: false, sonar: false, lights: true, brace: false, ladder: false, zoom: true, moving: false };
   assert.ok(rows15({ ...base15, release: 'the glowfin fry' }).some((r) => r.id === 'release:the glowfin fry' && r.label === 'Release the glowfin fry'));

@@ -17,6 +17,8 @@ import {
   tankCapacity,
   breedNote,
   creatureName,
+  jarRoom,
+  putInJar,
 } from '../game/creatures';
 import { genText, isRare, traitsOf, traitText } from '../game/traits';
 import { CreatureData, MATERIALS, SaveData } from '../game/state';
@@ -254,15 +256,24 @@ export class CareMode {
       this.deps.toast('You have no specimen jar to carry it in. One was lost by the old anchor in the coral garden.', 'warn');
       return;
     }
-    if (save.jar) {
-      this.deps.toast('The specimen jar is already full', 'warn');
+    if (!jarRoom(save)) {
+      this.deps.toast(save.gear.includes('satchel') ? 'The specimen jar and satchel are both full' : 'The specimen jar is already full', 'warn');
       return;
     }
     save.creatures = save.creatures.filter((x) => x.id !== c.id);
-    save.jar = { species: c.species, stage: c.stage, keep: c };
+    putInJar(save, { species: c.species, stage: c.stage, keep: c, traits: c.traits });
     const ability = c.stage === 'grown' ? creatureMilestone(save, c.species) : '';
     this.deps.toast(`${creatureName(c)} the ${SPECIES[c.species].name.toLowerCase()} moved into the specimen jar. ${ability || 'Put it in another tank from inside the base.'}`, 'big');
     this.afterRemove();
+  }
+
+  /** "To jar", or why not: one shared rule for room in the jar (jarRoom). */
+  private jarButton(): string {
+    const { save } = this.deps;
+    if (!save.kit.jar) return '<button type="button" data-act="take" disabled title="You have no specimen jar yet">No jar</button>';
+    if (!jarRoom(save))
+      return `<button type="button" data-act="take" disabled title="${save.gear.includes('satchel') ? 'The jar and the satchel both hold a creature' : 'The specimen jar already holds a creature'}">Jar full</button>`;
+    return `<button type="button" data-act="take" title="Carry it in the specimen ${save.jar ? 'satchel' : 'jar'}">To jar</button>`;
   }
 
   private release(): void {
@@ -371,7 +382,7 @@ export class CareMode {
       <div class="plants"><span>${grand ? 'Planter 1:' : 'Plant:'}</span>${plants}</div>
       <div class="acts">
         ${livingBases ? '' : feed + clean}
-        ${c ? `<button type="button" data-act="take">To jar</button><button type="button" data-act="release" class="${armed ? 'armed' : ''}">${armed ? 'Tap again' : 'Release'}</button>` : ''}
+        ${c ? `${this.jarButton()}<button type="button" data-act="release" class="${armed ? 'armed' : ''}">${armed ? 'Tap again' : 'Release'}</button>` : ''}
       </div>`;
     if (force || html !== this.lastHtml) {
       const active = document.activeElement;

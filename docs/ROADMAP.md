@@ -62,11 +62,13 @@ The order below is Colin's agreed phasing. Phases 15 and 16 are ready to build. 
   - **Choir colours:** only where the action is a Choir one (resonator, song-locks), following the colour rule.
 - **Mock up two or three looks** (screenshots at desktop and iPhone landscape) and let Colin choose before building. Keep the Phase 13 behaviour unchanged: modes, info versus action, pad glyphs and the Settings preference. Change only the styling (the `#ctl-helper` rules in `src/style.css`) and any markup it needs.
 
-## Phase 16: the audio audit (ready to plan; needs Colin's ears)
+## Phase 16: the audio audit (round 1 built on a review branch; needs Colin's ears)
+
+**Status:** the satchel bug is **done**. Round 1 of the audit is built: see [`phase-16-audio-audit.md`](phase-16-audio-audit.md) for the inventory, the changes and the listening guide. Done in round 1: the inventory; gathering shapes for every material; the cutter, winch, drill, grabber (via the material strokes), tractor, scanning, docking and weld shapes; round-robin variety; danger-first mix fixes; phone-speaker harmonics; spatial drone whir and placed welds; indoor room echo, hull filter and footsteps; jar release polish. **Not done yet:** CC0 samples (the session's network blocked the libraries; the loader and shortlist are ready), tuning from Colin's listening notes, creature voices and the sub heard from outside, and the offer ping's level (waiting for Colin).
 
 **Session prompt:** [`docs/prompts/phase-16-audio.md`](prompts/phase-16-audio.md). It also covers the satchel bug below, which should be fixed first.
 
-**Bug to fix first (Colin, after Phase 15):** with the specimen satchel (two jar slots), the base's Habitat console and Hatchery only move **one** creature into the jar. `take()` in `src/ui/care.ts`, `toJar()` and `jarBlock` in `src/ui/hatch.ts`, and the Revival pool's `revive` in main.ts check only `save.jar` and ignore `save.jar2`. Depositing indoors also takes only from `save.jar`, and `jar2` moves up only while swimming (`gearFrame`). Use one helper for jar room and add tests.
+**Bug to fix first (Colin, after Phase 15): done** (`jarRoom()`, `putInJar()`, `takeFromJar()` in creatures.ts). with the specimen satchel (two jar slots), the base's Habitat console and Hatchery only move **one** creature into the jar. `take()` in `src/ui/care.ts`, `toJar()` and `jarBlock` in `src/ui/hatch.ts`, and the Revival pool's `revive` in main.ts check only `save.jar` and ignore `save.jar2`. Depositing indoors also takes only from `save.jar`, and `jar2` moves up only while swimming (`gearFrame`). Use one helper for jar room and add tests.
 
 **Goal (Colin):** polished audio. Natural sounds that pop and have a purpose. Even digging something up should feel satisfying. He likes the current sounds and especially the Phase 14 reward stings.
 

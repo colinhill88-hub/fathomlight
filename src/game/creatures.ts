@@ -188,6 +188,38 @@ export function releaseFromJar(save: SaveData): JarData | null {
   return j;
 }
 
+/**
+ * Phase 16 (satchel fix): where the next creature would go. The jar first, then
+ * the satchel's second slot if the specimen satchel (SJ-2) is owned. Null when
+ * there is no jar at all or every slot Kestrel has is full.
+ */
+export function jarRoom(save: SaveData): 'jar' | 'jar2' | null {
+  if (!save.kit.jar) return null;
+  if (!save.jar) return 'jar';
+  if (!save.jar2 && save.gear.includes('satchel')) return 'jar2';
+  return null;
+}
+
+/** Put a creature in the first free slot. False (and nothing changes) when there is no room. */
+export function putInJar(save: SaveData, j: JarData): boolean {
+  const slot = jarRoom(save);
+  if (!slot) return false;
+  save[slot] = j;
+  return true;
+}
+
+/**
+ * Take the jar's creature out (oldest first) and move the satchel's catch up at
+ * once, so a second deposit is offered straight away, indoors or out.
+ */
+export function takeFromJar(save: SaveData): JarData | null {
+  const j = save.jar ?? null;
+  if (!j) return null;
+  save.jar = save.jar2 ?? null;
+  save.jar2 = null;
+  return j;
+}
+
 /** Creatures per tank (eggs count too). */
 export const TANK_CAPACITY = 4;
 /** Milestone 7 part 2: the Grand tank holds eight. */
@@ -685,5 +717,8 @@ const NAMES = [
 export function creatureName(c: { id: number; species: SpeciesId }): string {
   let h = (c.id * 2654435761 + SPECIES_ORDER.indexOf(c.species) * 40503) >>> 0;
   h ^= h >>> 15;
-  return NAMES[h % NAMES.length];
+  // Phase 16 fix: `^=` makes h a signed number, so about half of all ids gave a negative
+  // index and the name "undefined". Wrap those round; every name that already worked is unchanged.
+  const i = h % NAMES.length;
+  return NAMES[i < 0 ? i + NAMES.length : i];
 }
