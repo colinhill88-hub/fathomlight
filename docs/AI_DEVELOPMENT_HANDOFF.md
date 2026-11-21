@@ -14,7 +14,7 @@ Read [Design](../DESIGN.md) for the creative constraints, [Progress](../PROGRESS
 
 Fathomlight is a single-player 2D underwater exploration, base-building and creature-care game. Kestrel is the compact salvage diver. The opening is small and approachable. The route expands from Sunlit Shallows and the basin through the Kelp Forest, Wreck Shelf and trench to the Choir. The player should make connections through observed behavior, scans, tool use and revisits. Keep calm spaces, hazards, and deliberate moments of discovery. Use the existing log and contextual actions for guidance.
 
-The repository default (live) branch is `claude/underwater-game-m0-0qqajg`. Phases 12, 13 (PR #35) and 14 (reward moments, PR #36, `03b4c8f`) are all merged into it. The next work is Phase 15 in the [roadmap](ROADMAP.md). Merging to the live branch starts the [GitHub Pages workflow](../.github/workflows/deploy.yml). Publish or merge only when Colin requests it.
+The repository default (live) branch is `claude/underwater-game-m0-0qqajg`. Phases 12, 13 (PR #35), 14 (reward moments, PR #36) and 15 (jar release, Field kit, sonar control bar, PR #38) are all merged into it. The next work is Phase 16 in the [roadmap](ROADMAP.md). Merging to the live branch starts the [GitHub Pages workflow](../.github/workflows/deploy.yml). Publish or merge only when Colin requests it.
 
 ## Source map
 
@@ -73,7 +73,7 @@ Start new work from the latest merged default. Keep real player profiles separat
 
 See the [roadmap](ROADMAP.md) for the full plan. In short:
 
-1. **Phase 15** is built (jar release, the Field kit, the sonar control bar). Next is **Phase 16**, the audio audit.
+1. **Phase 15** is merged (PR #38). Next is **Phase 16**, the audio audit, with the satchel bug fixed first. The ready-made session prompt is [`prompts/phase-16-audio.md`](prompts/phase-16-audio.md).
 2. **Phase 16 in detail:** work in rounds with Colin listening. CC0 samples are now allowed.
 3. **Then design with Colin:** songs Kestrel plays on the resonator, a climax at each major site, movement flow, a goal board, and maps of major sites.
 

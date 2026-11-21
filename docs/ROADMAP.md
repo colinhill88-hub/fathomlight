@@ -64,6 +64,10 @@ The order below is Colin's agreed phasing. Phases 15 and 16 are ready to build. 
 
 ## Phase 16: the audio audit (ready to plan; needs Colin's ears)
 
+**Session prompt:** [`docs/prompts/phase-16-audio.md`](prompts/phase-16-audio.md). It also covers the satchel bug below, which should be fixed first.
+
+**Bug to fix first (Colin, after Phase 15):** with the specimen satchel (two jar slots), the base's Habitat console and Hatchery only move **one** creature into the jar. `take()` in `src/ui/care.ts`, `toJar()` and `jarBlock` in `src/ui/hatch.ts`, and the Revival pool's `revive` in main.ts check only `save.jar` and ignore `save.jar2`. Depositing indoors also takes only from `save.jar`, and `jar2` moves up only while swimming (`gearFrame`). Use one helper for jar room and add tests.
+
 **Goal (Colin):** polished audio. Natural sounds that pop and have a purpose. Even digging something up should feel satisfying. He likes the current sounds and especially the Phase 14 reward stings.
 
 - **Inventory first.** List every cue: the `SoundDirector` methods in `src/audio/director.ts`, the about 50 `sound.*`/`audio.*` calls in `main.ts`, the ambience beds and the music. For each, note what triggers it, its bus, its loudness and what is wrong with it.
