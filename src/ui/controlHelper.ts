@@ -42,6 +42,8 @@ export interface HelperContext {
   flare: boolean;
   dart: boolean;
   haul: boolean;
+  /** Phase 15: what the jar holds, offered for release (e.g. "glowfin fry"). */
+  release?: string | null;
   sonar: boolean;
   /** KS-1 floodlights fitted (aboard), otherwise the diver's lamp. */
   lights: boolean;
@@ -93,6 +95,8 @@ export function helperRows(c: HelperContext): HelperRow[] {
       if (c.flare) add({ id: 'flare', keys: ['flare'], label: 'Flare' });
       if (c.dart) add({ id: 'dart', keys: ['dart'], label: 'Stun dart' });
       if (c.haul) add({ id: 'haul', keys: ['haul'], label: 'Send KD-1 home' });
+      if (c.release) add({ id: 'release:' + c.release, keys: ['release'], label: `Release ${c.release}` });
+      add({ id: 'kit', keys: ['kit'], label: 'Field kit' });
       break;
     case 'sub':
       add({ id: 'move', keys: ['move'], label: 'Steer KS-1' });
@@ -166,6 +170,9 @@ export class ControlHelper {
   constructor() {
     this.el = document.createElement('div');
     this.el.id = 'ctl-helper';
+    // Phase 15c: candidate looks for Colin to choose from (?helper=staff, gauge or sonar). Default is unchanged.
+    const skin = new URLSearchParams(location.search).get('helper');
+    if (skin === 'staff' || skin === 'gauge' || skin === 'sonar') this.el.classList.add(`skin-${skin}`);
     this.el.setAttribute('aria-label', 'Controls');
     this.el.setAttribute('role', 'status');
     document.body.appendChild(this.el);

@@ -92,6 +92,11 @@ const ICONS: Record<RewardIcon, string> = {
   sonar: `<g fill="none" stroke-linecap="round"><path d="M22 20a16 16 0 0 1 0 24" stroke="${LIME}" stroke-width="3"/><path d="M30 12a26 26 0 0 1 0 40" stroke="${LIME}" stroke-width="3" opacity=".7"/><path d="M38 6a36 36 0 0 1 0 52" stroke="${LIME}" stroke-width="3" opacity=".4"/></g><rect x="6" y="24" width="14" height="16" rx="3" fill="${CH}" stroke="${CR}" stroke-width="2"/><circle cx="13" cy="32" r="3" fill="${RED}"/>`,
 };
 
+/** Phase 15: the same emblems in the Field kit. */
+export function emblemSvg(icon: RewardIcon): string {
+  return svg(icon);
+}
+
 function svg(icon: RewardIcon): string {
   return `<svg viewBox="0 0 64 64" aria-hidden="true"><defs><linearGradient id="chg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#6ff3ff"/><stop offset=".5" stop-color="#b07cff"/><stop offset="1" stop-color="#ff6ad5"/></linearGradient></defs>${ICONS[icon]}</svg>`;
 }

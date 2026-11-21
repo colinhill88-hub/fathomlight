@@ -494,6 +494,17 @@ export class SoundDirector {
     audio.bubbles({ n: 8, spread: 0.6, gain: 0.03 });
   }
 
+  /** Phase 15: letting a creature out of the jar: the lid, a gush of bubbles and a soft falling note. */
+  release(): void {
+    if (!audio.running) return;
+    const t = audio.now;
+    audio.tone({ t, freq: 1700, dur: 0.03, gain: 0.04, type: 'triangle' });
+    audio.hiss({ t: t + 0.03, dur: 0.4, gain: 0.05, type: 'lowpass', freq: 1400, to: 500 });
+    audio.bubbles({ t: t + 0.04, n: 12, spread: 0.7, gain: 0.035, low: 400, high: 1500 });
+    audio.bell({ t: t + 0.1, freq: 880, gain: 0.03, decay: 0.9, ratio: 2, index: 0.3, send: 0.5 });
+    audio.bell({ t: t + 0.28, freq: 659, gain: 0.025, decay: 1.2, ratio: 2, index: 0.3, send: 0.6 });
+  }
+
   /** The identify pulse (a tap of Scan): a soft sonar ping. */
   ping(): void {
     if (!audio.running) return;

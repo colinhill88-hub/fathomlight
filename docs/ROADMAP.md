@@ -16,9 +16,9 @@ The order below is Colin's agreed phasing. Phases 15 and 16 are ready to build. 
   - **Format:** use a format iPhone Safari decodes reliably through the Web Audio API (`.mp3` or `.m4a`/AAC; `.wav` for very short one-shots). Keep files short, mono where stereo adds nothing, and the total small, because the game loads on a phone.
   - **Routing:** play samples through the existing engine buses (`sfx`, `ui`, `ambience`, `music` in `src/audio/engine.ts`) so volume sliders, the underwater muffle, the phone-speaker mix and the mute all still apply. Synthesis stays wherever it already sounds good, including the Phase 14 reward stings, which Colin likes.
 
-## Phase 15: quality of life and the Field kit (ready to build)
+## Phase 15: quality of life and the Field kit (15a and 15b built; 15c waiting for Colin's pick)
 
-### 15a. Release the creature in the jar
+### 15a. Release the creature in the jar: **done** (see PROGRESS.md)
 
 **Problem (Colin):** out in the wild, a creature in the jar can only leave by being put in a tank. If you catch the wrong one, you are stuck with it.
 
@@ -32,7 +32,7 @@ The order below is Colin's agreed phasing. Phases 15 and 16 are ready to build. 
 - With two jars held, release the most recently caught first. Say which one in the prompt.
 - Check: release, then catching the right species, works end to end with real input. The wild cap counts correctly after a release. Releasing a named creature without the second press does nothing. `node scripts/test-progression.mjs` gets a check for the quota refund.
 
-### 15b. The Field kit screen (press I)
+### 15b. The Field kit screen (press I): **done** (see PROGRESS.md). Not done yet: per-zone breakdowns in the Collection tab (it shows game-wide totals) and reuse of the Kestrel rig for the portrait (it is a separate SVG drawing).
 
 **Idea (Colin):** a screen showing the character with every attachment and everything unlocked, as a reminder. It grew into an Ocarina of Time-style pause sub-screen.
 
@@ -51,7 +51,7 @@ The order below is Colin's agreed phasing. Phases 15 and 16 are ready to build. 
 - Reuse the Phase 14 emblem icons (`src/ui/reward.ts`) so a reward and its Field kit entry look the same.
 - Gamepad navigation through `src/ui/padnav.ts` like every other panel. Touch targets of at least 44 px. It has to work in iPhone landscape.
 
-### 15c. Restyle the control helper bar
+### 15c. Restyle the control helper bar: **three looks built for Colin to choose** (`?helper=staff`, `?helper=gauge`, `?helper=sonar`; the CSS is at the end of `src/style.css`). After he picks one, make it the default, delete the other two, and add the sonar-ping ripple and soft in-key tone for new offers
 
 **Problem (Colin):** the Phase 13 key bar along the bottom looks bland. It should fit an underwater, somewhat sci-fi world, perhaps musical, since the Choir's story is told in song.
 
