@@ -4465,11 +4465,12 @@ async function boot(): Promise<void> {
     const mode = helperMode();
     const aboard = !!save.sub?.aboard;
     const mods = save.sub && save.sub.stage === 'built' ? save.sub.modules : [];
-    const outside = !interior.active;
+    // Build mode and panels run their own controls: no Collect / Scan / Board offers from the swim frame.
+    const outside = !interior.active && mode !== 'build';
     controlHelper.update(dt, {
       mode,
       device: s.lastDevice,
-      collect: hud.collectOffer,
+      collect: mode === 'build' ? null : hud.collectOffer,
       scan: outside ? hud.scanOffer : null,
       board: outside ? hud.boardOffer : null,
       build: outside && build.available && !build.active && !aboard,
