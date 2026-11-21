@@ -146,7 +146,7 @@ import { RatesPanel } from './ui/rates';
 import { Factory, FARM_TRAY, FEEDER_MASH_CAP, HOPPER_CAP, machineData, PRESS_COPPER_CAP, PRESS_PLATE_CAP, PRESS_SCRAP_CAP, whorlMult, whorlsFree } from './game/factory';
 import { LinesView } from './world/linegfx';
 import { StationMode } from './ui/station';
-import { DIVE_LIGHT, GEAR, hasGear, jobOf, jobRunning, LAMP, OTHER_BLUEPRINTS, PIECE_BLUEPRINTS, RESEARCH, tickStations } from './game/gear';
+import { DIVE_LIGHT, FINDS, GEAR, hasGear, jobOf, jobRunning, LAMP, OTHER_BLUEPRINTS, PIECE_BLUEPRINTS, RESEARCH, tickStations } from './game/gear';
 import type { BlueprintId } from './game/state';
 import { audio } from './audio/engine';
 import { SoundDirector, WorkKind, zoneMix } from './audio/director';
@@ -163,6 +163,8 @@ import { Menus } from './ui/menu';
 import { GearFx } from './world/gearfx';
 import { PATTERNS } from './game/traits';
 import { initSoundUI } from './ui/sound';
+import { Rewards, type RewardSpec } from './ui/reward';
+import { gearReward, kitReward, major, moduleReward, notable, researchReward, tankReward } from './ui/rewardSpecs';
 
 declare const __BUILD_ID__: string;
 
@@ -592,11 +594,24 @@ async function boot(): Promise<void> {
   // Milestone 7b: sound, all made by code. The first tap or key press starts it.
   audio.attachUnlock();
   const sound = new SoundDirector();
+  // Phase 14: reward moments (animation and fanfare) for gear, upgrades, finds and solved puzzles.
+  const reward = new Rewards();
+  /** Show a reward card; `then` runs once the cards have closed (a reading panel, for example). */
+  const grant = (spec: RewardSpec, then?: () => void) => {
+    reward.show(spec);
+    if (then) reward.whenClear(then);
+  };
   {
     const toast = hud.toast.bind(hud);
     hud.toast = (text, kind = 'item') => {
+      // While a major card holds the screen, its notices wait until it closes (warnings don't).
+      if (reward.holding && kind !== 'warn') {
+        reward.whenClear(() => toast(text, kind));
+        return;
+      }
       toast(text, kind);
-      sound.toast(kind);
+      // A reward's own sting already covers the "big" chime.
+      if (!(reward.busy && kind === 'big')) sound.toast(kind);
     };
   }
   const soundUI = initSoundUI();
@@ -688,6 +703,13 @@ async function boot(): Promise<void> {
     save,
     layout,
     toast: (t, k) => hud.toast(t, k),
+    reward: (what) => {
+      // Only the first fit of each module is a moment; refits after swapping are routine.
+      const tip = `fit:${what}`;
+      if (save.tips.includes(tip)) return;
+      save.tips.push(tip);
+      grant(what === 'plating' ? major('module', 'KS-1 upgrade', 'Depth plating', `KS-1 is rated to ${CRUSH.plated} m.`, 'kestrel', 'DP-S') : moduleReward(what));
+    },
     refreshInventory: () => hud.refreshInventory(),
     persist: () => persist(),
     droneReady: () => save.drone === 'active',
@@ -1313,6 +1335,12 @@ async function boot(): Promise<void> {
   let cssH = window.innerHeight;
   let displayDensity = window.devicePixelRatio;
   let zoom = 1;
+  // Phase 14: a major reward lifts off Kestrel (or KS-1) on screen.
+  reward.heroPos = () => {
+    if (interior.active) return interior.heroPx;
+    const at = save.sub?.aboard ? sub : diver;
+    return { x: (at.x - camX) * zoom, y: (at.y - camY) * zoom };
+  };
   let builtDetail = preset.detail;
 
   /** Size the post stack's pictures and pick half-float or the 8-bit fallback (from the preset and the Settings toggles). */
@@ -1646,6 +1674,7 @@ async function boot(): Promise<void> {
         delete save.sub.progress;
         save.sub.docked = true;
         drone.cheer();
+        grant(major('module', 'New vessel', 'Submersible', 'Board it and take the reef further.', 'kestrel', 'KS-1'));
         hud.toast(
           `Submersible KS-1 is finished! Swim up to it and tap Board${input.state.lastDevice === 'touch' ? '' : ' (V)'}. Fit modules from the Dock panel.`,
           'big',
@@ -1663,6 +1692,7 @@ async function boot(): Promise<void> {
         }
         save.drone = 'active';
         hud.refreshInventory();
+        grant(major('drone', 'New companion', 'Build drone', 'It follows you and welds whatever you build.', 'kestrel', 'KD-1'));
         hud.toast('Build drone KD-1 repaired! It follows you now, and welds whatever you build at the Kestrel site.', 'big');
         persist();
       } else if (ev.type === 'finished') {
@@ -1671,6 +1701,8 @@ async function boot(): Promise<void> {
         const p = ev.piece;
         const powered = layout.powered.has(p.id);
         const net = layout.netFor(p.id);
+        if (layout.pieces.filter((q) => q.kind === p.kind && isDone(q)).length === 1)
+          grant(notable('piece', 'New base piece', PIECES[p.kind].name, POWER_MAKE[p.kind] || powered ? '' : 'Join it to power to bring it to life.'));
         if (net && net.rate < 1 && !save.tips.includes('powershort')) {
           save.tips.push('powershort');
           hud.toast(`The base now draws ${net.draw} W but makes ${net.make} W: machines run at ${Math.round(net.rate * 100)}% speed. Add a power source (the build title shows the meter).`, 'warn');
@@ -1691,6 +1723,7 @@ async function boot(): Promise<void> {
     for (const ev of tickStations(save, layout, dt)) {
       drone.cheer();
       if (ev.type === 'decoded') {
+        grant(researchReward(RESEARCH[ev.id].name, PIECE_BLUEPRINTS[ev.id] ? 'A new build card is ready in build mode.' : (OTHER_BLUEPRINTS[ev.id] ?? 'Ready to build in a Workshop.')));
         hud.toast(
           `${pieceCode(layout, ev.piece)} decoded the ${RESEARCH[ev.id].name.toLowerCase()}! ${
             PIECE_BLUEPRINTS[ev.id] ? 'Its build card is in build mode now.' : (OTHER_BLUEPRINTS[ev.id] ?? 'Build it in a Workshop.')
@@ -1701,6 +1734,7 @@ async function boot(): Promise<void> {
           setTimeout(() => hud.toast('A Workshop (build card 11) builds gear from blueprints. It takes hull plating from the plate press.', 'big'), 2600);
       } else {
         const g = GEAR[ev.id];
+        grant(gearReward(ev.id));
         hud.toast(
           ev.id === 'light'
             ? `${g.name} ${g.code} built and clipped to your suit! It replaces the shoulder lamp: much brighter and wider. The dark cave in the east cliff is open to you now.`
@@ -1721,8 +1755,8 @@ async function boot(): Promise<void> {
     for (const ev of tickSignals(save, layout, dt)) {
       if (ev.type !== 'decoded') continue;
       drone.cheer();
-      sound.find('whorl');
       const n = FRAGMENTS.findIndex((f) => f.id === ev.id) + 1;
+      grant(major('fragment', 'Signal decoded', `Fragment ${n} of ${FRAGMENTS.length}`, 'The Choir’s song comes a little clearer.', 'choir'));
       hud.toast(`The Signal array decoded fragment ${n}! Read it at the array's console, or in the scanner log.`, 'big');
       persist();
     }
@@ -1778,6 +1812,7 @@ async function boot(): Promise<void> {
       // Milestone 9: breeding.
       if (ev.type === 'laid') {
         const tp = layout.pieces.find((q) => q.id === ev.parents[0].tank);
+        grant(notable('egg', 'New egg', `A ${name.toLowerCase()} egg`, traitText(ev.c.species, ev.c.traits!), 'life'));
         hud.toast(`A ${name.toLowerCase()} pair in ${tp ? pieceCode(layout, tp) : 'a tank'} laid an egg: it is in the Hatchery (${traitText(ev.c.species, ev.c.traits!)}).`, 'big');
         if (!save.tips.includes('laid')) {
           save.tips.push('laid');
@@ -1787,6 +1822,7 @@ async function boot(): Promise<void> {
         continue;
       }
       if (ev.type === 'nursery-hatched') {
+        grant(notable('creature', 'Hatched', `${creatureName(ev.c)} the ${name.toLowerCase()}`, traitText(ev.c.species, ev.c.traits!), 'life'));
         hud.toast(`A ${name.toLowerCase()} hatched in the Hatchery: ${traitText(ev.c.species, ev.c.traits!)}. Choose a tank for it at the Hatchery console.`, 'big');
         if (!save.tips.includes('younghunger')) {
           save.tips.push('younghunger');
@@ -1796,9 +1832,13 @@ async function boot(): Promise<void> {
         persist();
         continue;
       }
-      if (ev.type === 'hatched') hud.toast(`The ${name.toLowerCase()} eggs hatched in ${where}! The fry need feeding.`, 'big');
+      if (ev.type === 'hatched') {
+        grant(notable('egg', 'Hatched', `${name} fry`, `In ${where}. They need feeding.`, 'life'));
+        hud.toast(`The ${name.toLowerCase()} eggs hatched in ${where}! The fry need feeding.`, 'big');
+      }
       else if (ev.type === 'grown') {
         const ability = creatureMilestone(save, ev.c.species);
+        grant(notable('creature', 'Fully grown', `${creatureName(ev.c)} the ${name.toLowerCase()}`, ability ? 'It has a new ability.' : 'Watch for its mature glow.', 'life'));
         hud.toast(`${who} in ${where} is fully grown. ${ability || 'Look for its mature glow pattern and what it leaves in the tray.'}`, 'big');
       }
       else if (ev.type === 'sick') hud.toast(`${who} in ${where} is sick (${ev.why}). Tend it soon.`, 'warn');
@@ -1964,7 +2004,8 @@ async function boot(): Promise<void> {
   );
 
   app.ticker.add((ticker) => {
-    const dt = Math.min(ticker.deltaMS / 1000, 0.05);
+    // Phase 14: a major reward drops the world into slow motion for a moment.
+    const dt = Math.min(ticker.deltaMS / 1000, 0.05) * reward.timeScale();
     time += dt;
     // Milestone 12: the gamepad drives whichever panel or menu is on screen.
     padNav.update(dt);
@@ -2858,6 +2899,7 @@ async function boot(): Promise<void> {
       const sp = SPECIES[ev.species];
       const name = ev.stage === 'egg' ? sp.eggName : sp.youngName;
       const hasTank = layout.pieces.some((p) => isTankKind(p.kind));
+      grant(notable(ev.stage === 'egg' ? 'egg' : 'jar', 'Specimen caught', name.replace(/^./, (m) => m.toUpperCase()), 'Safe in the specimen jar.', 'life'));
       hud.toast(
         `${name.replace(/^./, (m) => m.toUpperCase())} in the specimen jar! ${
           hasTank ? 'Take it into the base (through the dome airlock) and put it in a creature tank from inside.' : 'Build a creature tank at the Kestrel site to keep it.'
@@ -2896,14 +2938,15 @@ async function boot(): Promise<void> {
         sound.pickup(ev.kind);
         drone.cheer();
         hud.refreshInventory(ev.kind);
+        reward.minor(hud.chip(ev.kind));
         hud.toast(`+1 ${MATERIALS[ev.kind].name}`);
       } else if (ev.type === 'tank') {
         save.oxygen = maxOxygen(save);
-        sound.find('tank');
+        grant(tankReward(TANK_BONUS));
         hud.toast(`Air tank upgrade! Dive time +${TANK_BONUS} s`, 'big');
         drone.cheer();
       } else if (ev.type === 'kit') {
-        sound.find('tank');
+        grant(kitReward(ev.what));
         drone.cheer();
         hud.refreshInventory();
         hud.toast(
@@ -2917,7 +2960,7 @@ async function boot(): Promise<void> {
           'big',
         );
       } else if (ev.type === 'whorl') {
-        sound.find('whorl');
+        grant(notable('whorl', 'Echo whorl', `Echo whorl ${save.whorls.length}`, 'Fit it to a tank or feeder to multiply its output.', 'choir'));
         drone.cheer();
         hud.toast(
           `Echo whorl found (${save.whorls.length})! In build mode, select a creature tank or an auto feeder and fit it: ×2 output with one, ×3 with two, but it uses its inputs that much faster too.`,
@@ -3002,6 +3045,7 @@ async function boot(): Promise<void> {
           done: () => {
             save.finds.push('recorder');
             drone.cheer();
+            grant(notable('data', 'Data found', 'SLED 2 recorder', 'A Lab can decode it.'));
             hud.toast(
               `SLED 2 recorder unclipped! It weighs nothing. Take it to a Lab at the base (build card 10) to decode the dive light design.`,
               'big',
@@ -3045,6 +3089,7 @@ async function boot(): Promise<void> {
             done: () => {
               save.corvina.hatch = true;
               drone.cheer();
+              grant(notable('cutter', 'Way opened', 'The Corvina’s deck hatch'));
               hud.toast("The hatch drops into the dark. A ladder leads down into the Corvina: hold Collect to climb in.", 'big');
             },
           };
@@ -3066,7 +3111,7 @@ async function boot(): Promise<void> {
             save.whorls.push('whorl-hidden');
             save.bag.brass += 3;
             hud.refreshInventory();
-            sound.find('whorl');
+            grant(notable('whorl', 'Echo whorl', `Echo whorl ${save.whorls.length}`, 'And 3 brass fittings beside it.', 'choir'));
             hud.toast(`Inside the locker: 3 brass fittings and an Echo whorl (${save.whorls.length}), glowing in colours nothing else on the reef does.`, 'big');
           },
         };
@@ -3084,7 +3129,7 @@ async function boot(): Promise<void> {
               if (!save.finds.includes('poolplans') && !save.blueprints.includes('revive')) save.finds.push('poolplans');
               scenery.setLocker(true);
               drone.cheer();
-              sound.find('bag');
+              grant(major('blueprint', 'Puzzle solved', 'Revival pool drawings', 'The strongbox gives way.', 'life'));
               hud.showReading(
                 'Revival pool drawings',
                 `${crabName === 'the tinker crab' ? 'The crab' : crabName} clambers onto the padlock, works its fine claws into the keyhole, and with a crunch of rust the shackle drops. Inside, wrapped in oilcloth: drawings for a warm, still pool where a dormant creature can be woken by the light of a glowing bloom.\n\nA Lab can decode them. Glowing blooms grow only where no lamp has ever shone.`,
@@ -3110,6 +3155,7 @@ async function boot(): Promise<void> {
             save.vane = true;
             race.vane = true;
             drone.cheer();
+            grant(notable('gear', 'Route opened', 'The flow vane', 'KS-1 can cross above the race.'));
             shake = Math.max(shake, 0.18);
             hud.toast('The flow vane locks in place. Silt rolls down the face of the shelf as the upper water clears. KS-1 now has a permanent route over the race.', 'big');
           },
@@ -3129,13 +3175,13 @@ async function boot(): Promise<void> {
               if (w.id === 'trawler') {
                 save.tanks.push('tank-trawler');
                 save.oxygen = maxOxygen(save);
-                sound.find('tank');
+                grant(tankReward(TANK_BONUS));
                 hud.toast(`The hatch falls open. Inside the wheelhouse: a sealed emergency air cylinder. Air tank upgrade! Dive time +${TANK_BONUS} s`, 'big');
               } else {
                 save.bag.plate += 3;
                 save.bag.brass += 2;
                 hud.refreshInventory();
-                sound.find('bag');
+                grant(notable('piece', 'Salvage', 'A dry cargo locker', '3 hull plating and 2 brass fittings.'));
                 hud.toast('The hatch falls open onto a dry cargo locker: 3 hull plating and 2 brass fittings, still crated.', 'big');
               }
             },
@@ -3156,7 +3202,7 @@ async function boot(): Promise<void> {
             done: () => {
               save.finds.push(k);
               drone.cheer();
-              sound.find('bag');
+              grant(notable('data', 'Data found', FINDS[k].name, 'A Lab can decode it.'));
               hud.toast(f.toast, 'big');
             },
           };
@@ -3174,6 +3220,8 @@ async function boot(): Promise<void> {
               save.brackets[i] = true;
               hud.refreshInventory();
               const n = save.brackets.filter(Boolean).length;
+              if (n >= BRACKETS.length) grant(notable('light', 'Way lit', 'The black water', 'All four brackets glow.'));
+              else reward.minor(null);
               hud.toast(n >= BRACKETS.length ? 'All four brackets glow: the way through the black water is lit.' : `The moss glows on the bracket (${n} of ${BRACKETS.length} lit).`, 'big');
             },
           };
@@ -3191,6 +3239,7 @@ async function boot(): Promise<void> {
               save.kelpCut = true;
               kelpWall.cut = true;
               drone.cheer();
+              grant(notable('cutter', 'Way opened', 'The kelp wall', 'Something glints beyond.'));
               hud.toast('The cutter torch burns through the kelp wall. Something glints in the little chamber beyond.', 'big');
             },
           };
@@ -3205,7 +3254,7 @@ async function boot(): Promise<void> {
         done: () => {
           if (!save.signals.found.includes(id)) save.signals.found.push(id);
           drone.cheer();
-          sound.find('bag');
+          grant(notable('fragment', 'Signal found', 'Pattern spool', 'A Signal array could read it.', 'choir'));
           hud.toast(text, 'big');
         },
       });
@@ -3225,7 +3274,7 @@ async function boot(): Promise<void> {
           done: () => {
             save.finds.push('hulllogs');
             drone.cheer();
-            sound.find('bag');
+            grant(notable('data', 'Data found', FINDS.hulllogs.name, 'A Lab can decode it.'));
             hud.toast("The probe's stress recorder: where its hull buckled, and the stronger skin its makers drew next. A Lab can decode it into depth plating for KS-1.", 'big');
           },
         };
@@ -3243,7 +3292,7 @@ async function boot(): Promise<void> {
               cleft.open = true;
               shake = Math.max(shake, 0.27);
               drone.cheer();
-              sound.find('bag');
+              grant(major('creature', 'Puzzle solved', 'The cleft is open', `${snailName === 'the cinder snail' ? 'The snail' : snailName.replace(/^./, (m) => m.toUpperCase())} grazed the chimney away.`, 'life'));
               hud.showReading(
                 'The chimney gives way',
                 `${snailName === 'the cinder snail' ? 'The snail' : snailName} creeps out of the jar onto the hot crust and starts to graze, its ember seams brightening. Scale by scale the young chimney thins, cracks, and slumps into gravel. Beyond it, a dark cleft runs back into the rock.\n\n${snailName === 'the cinder snail' ? 'The snail' : snailName} climbs back into your jar, warm and pleased with itself.`,
@@ -3265,7 +3314,7 @@ async function boot(): Promise<void> {
             done: () => {
               save.finds.push('ps2plans');
               drone.cheer();
-              sound.find('bag');
+              grant(notable('blueprint', 'Drawings found', 'PS-2 suit drawings', 'A Lab can decode them.'));
               hud.showReading(
                 'PS-2 suit drawings',
                 "A Fulmar cargo pod, fallen from a supply run and wedged in the cleft. Inside, in a sealed tube: drawings for the station's own deep suit. Vent-ore rings, a forged collar, rated to 110 m.\n\nA Lab can decode them. With it you could reach the trench floor, and the station.",
@@ -3286,6 +3335,7 @@ async function boot(): Promise<void> {
             done: () => {
               save.fulmar.open = true;
               drone.cheer();
+              grant(notable('gear', 'Way opened', 'The Fulmar’s hatch'));
               hud.toast("The wheel grinds round and the hatch lifts. The airlock below is still sealed against the sea: the station's insides are dry. Hold Collect to climb in.", 'big');
             },
           };
@@ -3300,7 +3350,7 @@ async function boot(): Promise<void> {
           holdAct = singAt('sing-door', 'Sing to the door with the resonator', () => {
             save.sanctum.door = true;
             drone.cheer();
-            sound.find('bag');
+            grant(major('fragment', 'The door opens', 'The sanctum', 'The Choir’s song answers yours.', 'choir'));
             hud.showReading(
               'The door opens',
               "The hoop on your pack starts to hum, then to sing: a pattern of light, rings inside rings, cyan into violet. The grooves in the stone take it up, brighter and brighter, until the whole disc is ringing like a struck glass.\n\nThen it parts. Petals of stone fold back into the rock, and below them a shaft falls away into a soft light that is not your lamp.",
@@ -3321,7 +3371,7 @@ async function boot(): Promise<void> {
           holdAct = singAt(`sing-lock${i}`, 'Sing to the song-lock', () => {
             save.sanctum.locks[i] = true;
             drone.cheer();
-            sound.find('bag');
+            grant(notable('fragment', 'Song-lock opened', i === 0 ? 'The great hall' : 'The deepest pool', '', 'choir'));
             hud.toast(i === 0 ? 'The lens of light shivers, sings back, and folds itself away into the stone. The great hall lies beyond.' : 'The second lock sings with you and parts. The way down to the deepest pool is open.', 'big');
           });
         else infoAct = 'A song-lock: it parts only for the resonator.';
@@ -3365,6 +3415,7 @@ async function boot(): Promise<void> {
             save.boomOpen = true;
             boom.open = true;
             drone.cheer();
+            grant(notable('gear', 'Route opened', 'The boom gate', 'KS-1 can cross into the kelp forest.'));
             hud.toast('The boom gate grinds up out of the water. The sub can now cross the shelf on top of the east cliff, into the kelp forest.', 'big');
           },
         };
@@ -3579,6 +3630,7 @@ async function boot(): Promise<void> {
           save.hiddenOpen = true;
           hidden.open = true;
           drone.cheer();
+          grant(notable('sonar', 'Hidden chamber', 'Behind the silt', 'The pulse found a hollow.'));
           hud.toast('The pulse comes back hollow: there is a chamber behind the silt slump at the foot of the shelf edge. The silt slides away.', 'big');
           persist();
         }
@@ -4295,7 +4347,7 @@ async function boot(): Promise<void> {
       save.dormant[sp] = (save.dormant[sp] ?? 0) - 1;
       const c = { id: save.nextCreatureId++, species: sp, tank: -1, stage: 'young' as const, growth: 0, fed: 0.7, comfort: 0.5, sickness: 0, make: 0, traits: wildTraits() };
       save.jar = { species: sp, stage: 'young', keep: c, traits: c.traits };
-      sound.find('bag');
+      grant(major('creature', 'Revived', `${creatureName(c)} the ${SPECIES[sp].name.toLowerCase()}`, 'A dormant creature wakes in the still water.', 'life'));
       hud.refreshInventory();
       hud.toast(`The bloom's light sinks into the still water, and a young ${SPECIES[sp].name.toLowerCase()} stirs. It is in your specimen jar: put it in a tank.`, 'big');
       persist();
@@ -4521,7 +4573,8 @@ async function boot(): Promise<void> {
     save.lodes = { ...(save.lodes ?? {}), [l.id]: save.playSeconds };
     if (first) save.lodeNotes = [...(save.lodeNotes ?? []), l.id];
     hud.refreshInventory(Object.keys(got)[0] as MaterialId);
-    sound.find('bag');
+    if (first) grant(notable('gear', 'Lode cracked', `The ${l.where} lode`, `+${parts.join(', +')}`));
+    else sound.find('bag');
     drone.cheer();
     hud.toast(`The lode cracks open: +${parts.join(', +')}.${left ? ' The bag could not hold the rest.' : ''} It will seal over again in about ${Math.round(LODE_REGROW / 60)} minutes.`, first ? 'big' : 'item');
     if (first) hud.toast(l.note, 'scan');
@@ -4659,6 +4712,7 @@ async function boot(): Promise<void> {
             save.seamOpen = true;
             scenery.setSeam(true);
             drone.cheer();
+            grant(major('gear', 'Way opened', 'A sealed grotto', 'The drill breaks through the seam.'));
             hud.toast('The drill breaks through! Behind the seam, a sealed grotto: glowing blooms that never saw a lamp, vent ore, and an Echo whorl.', 'big');
             persist();
           } else if (lode) drillLode(lode);
@@ -4778,12 +4832,13 @@ async function boot(): Promise<void> {
         return;
       } else if (e.type === 'find' && inside === 'sanctum') {
         if (e.id === '1') {
-          sound.find('bag');
+          grant(notable('fragment', 'Song-lock opened', 'The heart', '', 'choir'));
           hud.toast('The resonator sings, the lens of light sings back, and the song-lock folds itself away.', 'big');
         } else if (e.id === '9') startContact();
         persist();
       } else if (e.type === 'breaker' && inside === 'fulmar') {
         sound.clip();
+        if (e.power) grant(notable('light', 'Power restored', 'The Fulmar', 'Lamps, the lift and the array room.'));
         const left = save.fulmar.breakers.filter((b) => !b).length;
         hud.toast(
           e.power
@@ -4793,7 +4848,15 @@ async function boot(): Promise<void> {
         );
         persist();
       } else if (e.type === 'find' && inside === 'fulmar') {
-        sound.find('bag');
+        grant(
+          e.id === '4' || e.id === '5'
+            ? notable('fragment', 'Signal found', 'Pattern spool', 'A Signal array could read it.', 'choir')
+            : e.id === '6'
+              ? notable('blueprint', 'Drawings found', 'Resonator drawings', 'A Lab can decode them.', 'choir')
+              : e.id === '7'
+                ? notable('data', 'Log found', 'The Fulmar’s listening log')
+                : notable('piece', 'Salvage', 'A supply locker', 'Vent ore, brass and a glowing bloom.'),
+        );
         if (e.id === '4') {
           if (!save.signals.found.includes('sig3')) save.signals.found.push('sig3');
           hud.toast('A pattern spool from the comms rack, labelled "NIGHT 3,104 · BELOW". A Signal array could read it.', 'big');
@@ -4821,6 +4884,7 @@ async function boot(): Promise<void> {
         persist();
       } else if (e.type === 'breaker') {
         sound.clip();
+        if (e.power) grant(notable('light', 'Power restored', 'The Corvina', 'Lights, the lift and the survey lab.'));
         hud.toast(
           e.power
             ? "With a clunk and a hum the Corvina's emergency power comes back: lights along her decks, the lift, and the door to her survey lab."
@@ -4829,7 +4893,15 @@ async function boot(): Promise<void> {
         );
         persist();
       } else if (e.type === 'find') {
-        sound.find('bag');
+        grant(
+          e.id === '1'
+            ? notable('data', 'Data found', 'Sonar test logs', 'A Lab can decode them.')
+            : e.id === '2'
+              ? notable('blueprint', 'Drawings found', 'Pressure suit drawings', 'A Lab can decode them.')
+              : e.id === '3'
+                ? notable('data', 'Log found', 'The Corvina’s log')
+                : notable('piece', 'Salvage', 'A salvage crate', 'Brass fittings and hull plating.'),
+        );
         if (e.id === '1') {
           if (!save.finds.includes('sonardata') && !save.blueprints.includes('sonar')) save.finds.push('sonardata');
           hud.showReading('Sonar test logs', "Pages of pulse tests from the Corvina's lab: echoes off rock, off silt, off something large that moved between pings.\n\nA Lab can decode these into the sonar pulse: it maps hollows hidden behind silt and rock, and sends hunters back into their dens.", 'Taken: decode it in a Lab.');
@@ -5006,6 +5078,14 @@ async function boot(): Promise<void> {
     baseHooks: () => baseHooks,
     where: () => ({ inside, peek }),
     hudReading: () => hud.reading,
+    // Phase 14: fire a reward moment by hand (tests and tuning), and read the slow-motion scale.
+    reward: (spec: RewardSpec) => grant(spec),
+    rewardGear: (id: Parameters<typeof gearReward>[0]) => grant(gearReward(id)),
+    rewardPickup: (kind: MaterialId) => reward.minor(hud.chip(kind)),
+    rewardScale: () => reward.timeScale(),
+    rewardPin: (ms: number | null) => reward.pin(ms),
+    audioLevel: () => audio.level(),
+    audioRunning: () => audio.running,
     cam: () => ({ camX, camY, camCX, camCY, viewH, zoom }),
     snap: () => {
       camCX = diver.x;

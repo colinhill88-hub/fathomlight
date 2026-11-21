@@ -1,6 +1,6 @@
 # Fathomlight progress
 
-The live branch includes the Fulmar foothold, Codex Phases 1–11D and the Phase 12 gameplay pass (PR #33/#34). **Phase 13** (control helper, drill lodes, named creatures) is local on `claude/kind-keller-x7l9pw` and awaiting review; see the [Phase 13 audit](docs/phase-13-gameplay-audit.md). See the [development handoff](docs/AI_DEVELOPMENT_HANDOFF.md) for the current source map and the [progression audit](docs/phase-12-progression-audit.md) for the route from a new save to first contact.
+The live branch includes the Fulmar foothold, Codex Phases 1–11D the Phase 12 gameplay pass (PR #33/#34) and the Phase 13 control helper, drill lodes and named creatures (PR #35, `d9f4728`); see the [Phase 13 audit](docs/phase-13-gameplay-audit.md). **Phase 14** (reward moments) is on `claude/zen-allen-qvxwtz` and awaiting review as a pull request; see the [Phase 14 notes](docs/phase-14-reward-moments.md). See the [development handoff](docs/AI_DEVELOPMENT_HANDOFF.md) for the current source map and the [progression audit](docs/phase-12-progression-audit.md) for the route from a new save to first contact.
 
 Play link: https://colinhill88-hub.github.io/fathomlight/ (live; first successful deploy 2026-11-14)
 
@@ -17,8 +17,20 @@ Play link: https://colinhill88-hub.github.io/fathomlight/ (live; first successfu
 | Phase 11C | PR #30, `f1f85be` | Native detail work on the compositor, Kestrel, lighting and edge fidelity. Retained the renderer comparison. |
 | Phase 11D | PR #31, `c07277f` | Indoor zoom and camera handoff, live surrounding ocean, per-module pressure hulls, connector seals and separate scaffolds. Layout collision stays on the existing map. |
 | Fulmar accessibility | PR #32, `78c8bb3` | Three-tile crew-deck foothold creates two normal jumps to the comms spool. |
+| Phase 13 | PR #35, `d9f4728` | Contextual control helper on one binding table, five resealing drill lodes for KS-1, and named kept creatures. |
+| Phase 14 | Pull request from `claude/zen-allen-qvxwtz` (awaiting merge) | Reward moments: minor, notable and major tiers with drawn emblems, particles, slow motion and synthesised stings and fanfares. |
 
-### Phase 13 gameplay pass (local)
+### Phase 14: reward moments (awaiting merge)
+
+Colin wanted every reward to feel like a reward: a card that shimmers and smashes down, and a dungeon chest where the hero lifts the item overhead to a short jingle. Rewards now come in three tiers, all drawn and synthesised in code. See the [Phase 14 notes](docs/phase-14-reward-moments.md).
+
+- **Minor (pickups):** the inventory chip flares and sparks. A bright ting climbs a step of the scale with each pickup in quick succession.
+- **Notable (finds, decodes, a first base piece, creatures caught, grown or hatched, whorls, spools, routes opened):** an emblem smashes down under the notices with a shockwave, a ribbon and one line, plus a slam-and-answer sting.
+- **Major (new gear, suits, air tanks, belt kit, KD-1, KS-1 and its first module fits, depth plating, signal fragments, the big puzzle payoffs):** slow motion and a darkened screen. The emblem rises off Kestrel on light rays while a riser swells, then slams to the centre with a flash, a shake, shockwaves and flares. A fanfare plays over a held chord while the music dips. A tap or key closes it after 1.7 s. Ordinary notices wait until it closes.
+- Choir rewards keep the Choir's colours and glassier bells. Creature rewards use a warm palette. `prefers-reduced-motion` drops the shake and slow motion.
+- **Validated:** typecheck, build and the progression checks. Browser captures of every phase at desktop and phone-landscape sizes. A real Workshop build (MB-1 on a fixture base) showed the card and held its notice until a tap. The output meter showed the stings well above the ambient bed. **Still needs Colin's ears and hands:** the mix on the iPhone speaker and headphones, and how the slow motion feels in play.
+
+### Phase 13 gameplay pass (merged, PR #35)
 
 - **Contextual control helper.** A keycap bar along the bottom edge shows the bindings the game actually uses, by situation: swimming, KS-1, on foot, ladder, grapple swing and build mode. It leads with what the world offers on Collect, Scan or Board. Settings let the player choose contextual hints (the default), always show, or hide. Gamepad users get pad glyphs; touch keeps its own buttons. See `src/ui/controlHelper.ts`.
 - **One binding table.** `src/controls/bindings.ts` feeds `Input`, build mode, the panel shortcuts and zoom. It stores overrides per device, ready for a remapping screen.
@@ -1869,7 +1881,7 @@ Colin: the companion robot should find a dive-bag attachment in the kelp forest 
 
 ## Next
 
-First, play a full new save with the Phase 12 and 13 changes on real hardware (the headless rig is too slow for it). Check the time and materials between milestones, identify friction in care and crafting, and test no-spoiler guidance with a new player. The Steam desktop build remains deferred until Colin asks.
+First, play a full new save with the Phase 12–14 changes on real hardware (the headless rig is too slow for it). Listen to the Phase 14 reward stings on the iPhone speaker and with headphones, and judge whether the major cards' slow motion and length feel right in play or need tuning (see the Tuning section of the Phase 14 notes). Check the time and materials between milestones, identify friction in care and crafting, and test no-spoiler guidance with a new player. The Steam desktop build remains deferred until Colin asks.
 
 ## Problems and open questions
 

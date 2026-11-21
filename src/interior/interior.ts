@@ -189,6 +189,8 @@ export interface InteriorInput {
 }
 
 export class Interior {
+  /** Phase 14: the walker's head on screen in CSS px (updated each frame). */
+  heroPx = { x: 0, y: 0 };
   readonly view = new Container();
   readonly walker: Walker;
   active = false;
@@ -1825,6 +1827,8 @@ export class Interior {
     const maxY = this.H * T - viewH;
     this.cam.x = maxX < 0 && this.hooks ? maxX / 2 : Math.max(0, Math.min(maxX, this.cam.x));
     this.cam.y = maxY < 0 && this.hooks ? maxY / 2 : Math.max(0, Math.min(maxY, this.cam.y));
+    // Phase 14: where the walker's head is on screen, for reward moments.
+    this.heroPx = { x: (w.x - this.cam.x) * zoom, y: (w.y - HEIGHT - this.cam.y) * zoom };
     for (const c of [this.baseExterior, this.litCam, this.emissiveCam, this.glowCam]) {
       c.scale.set(zoom);
       c.position.set(-this.cam.x * zoom, -this.cam.y * zoom);
