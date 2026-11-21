@@ -1,5 +1,7 @@
 import { Application, BlurFilter, Container, Graphics, RenderTexture, Sprite, Texture, UPDATE_PRIORITY } from 'pixi.js';
-import { isKey } from './controls/bindings';
+import { isKey, keyName, keysFor, padFor, padName, type Action } from './controls/bindings';
+/** Phase 13: the first key bound to an action, for messages. */
+const keyLabel = (a: Action): string => keyName(keysFor(a)[0] ?? '?');
 import { LodeArt, LODES, LODE_REGROW, LODE_SECONDS, lodeAt, lodeFirst, lodeWait, lodeY, type Lode } from './world/lodes';
 import { ControlHelper, type HelperMode, type HelperPref } from './ui/controlHelper';
 import { perf, PerfOverlay } from './dev/perf';
@@ -2042,15 +2044,15 @@ async function boot(): Promise<void> {
       save.tips.push('station-' + stationHere.kind);
       hud.toast(
         stationHere.kind === 'lab'
-          ? `Lab: tap Lab${input.state.lastDevice === 'touch' ? '' : ' (K)'} to decode data finds and scans into blueprints`
-          : `Workshop: tap Workshop${input.state.lastDevice === 'touch' ? '' : ' (K)'} to build gear from the blueprints the Lab decodes`,
+          ? `Lab: tap Lab${input.state.lastDevice === 'touch' ? '' : ` (${keyLabel('lab')})`} to decode data finds and scans into blueprints`
+          : `Workshop: tap Workshop${input.state.lastDevice === 'touch' ? '' : ` (${keyLabel('lab')})`} to build gear from the blueprints the Lab decodes`,
         'big',
       );
     }
     if (dockHere && !save.tips.includes('dock') && blackout === 0) {
       save.tips.push('dock');
       hud.toast(
-        `Moon pool dock: tap Dock${input.state.lastDevice === 'touch' ? '' : ' (G)'} to build the submersible here, and later to repair and refit it`,
+        `Moon pool dock: tap Dock${input.state.lastDevice === 'touch' ? '' : ` (${keyLabel('dock')})`} to build the submersible here, and later to repair and refit it`,
         'big',
       );
     }
@@ -2060,7 +2062,7 @@ async function boot(): Promise<void> {
       hud.toast(
         input.state.lastDevice === 'touch'
           ? 'Kestrel site: tap Build (top right) to lay out the base'
-          : 'Kestrel site: press B (or Build, top right) to lay out the base',
+          : `Kestrel site: press ${keyLabel('build')} (or Build, top right) to lay out the base`,
         'big',
       );
     }
@@ -3489,7 +3491,7 @@ async function boot(): Promise<void> {
       hud.toast(
         input.state.lastDevice === 'touch'
           ? 'Tap Collect to unload at a storage pod, take what waits in a tank\'s output tray, or put the creature in your jar into a tank. Swimming past no longer moves anything.'
-          : 'Press C (X on a gamepad) to unload at a storage pod, take what waits in a tank\'s output tray, or put the creature in your jar into a tank. Swimming past no longer moves anything.',
+          : `Press ${keyLabel('collect')} (${padName(padFor('collect')[0])} on a gamepad) to unload at a storage pod, take what waits in a tank\'s output tray, or put the creature in your jar into a tank. Swimming past no longer moves anything.`,
         'big',
       );
     }
