@@ -939,6 +939,28 @@ export class SoundDirector {
     }
   }
 
+  /**
+   * Phase 18: Linnea speaks. A soft little chirp per syllable: a rounded sine
+   * that rises like a question, a gentle bell overtone, and the odd tiny bubble
+   * from her gills. Synthesised, on the sfx bus (so the underwater muffle,
+   * sliders and phone mix apply), a little lower and quicker each line so it
+   * never sounds the same twice. `times` are the syllable offsets in seconds.
+   */
+  linneaChirp(times: readonly number[], pan = 0): void {
+    if (!audio.running) return;
+    const t0 = audio.now;
+    const key = 1 + rr('linnea', 3) * 0.06;
+    times.forEach((dt, i) => {
+      const t = t0 + dt;
+      const up = key * jit(0.05) * (i === times.length - 1 ? 1.12 : 1);
+      const f = 760 * up * (1 + (i % 3) * 0.08);
+      audio.tone({ t, freq: f, to: f * 1.45, dur: 0.1, attack: 0.015, gain: 0.032, type: 'sine', pan, send: 0.45 });
+      audio.tone({ t: t + 0.01, freq: f * 2, to: f * 2.6, dur: 0.06, attack: 0.01, gain: 0.006, type: 'sine', pan, send: 0.5 });
+      if (i === 0 || i === times.length - 1) audio.bell({ t: t + 0.04, freq: f * 1.5, gain: 0.008, decay: 0.45, ratio: 2, index: 0.2, pan, send: 0.6 });
+      if (i % 3 === 1) audio.bubbles({ t: t + 0.05, n: 1, spread: 0.05, gain: 0.012, low: 700, high: 1300, pan });
+    });
+  }
+
   /** A bigger find: an air tank upgrade, an echo whorl or the recovered sample bag. */
   find(kind: 'tank' | 'whorl' | 'bag'): void {
     if (!audio.running) return;

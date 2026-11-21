@@ -4464,3 +4464,77 @@ button.fk-slot.unknown.lit {
   #ctl-helper.skin-sonar,
   #ctl-helper.skin-sonar .ctl.fresh { animation: none; }
 }
+
+/* Phase 18: Linnea's speech card. Warm peach and coral on the dark glass of the
+   other cards; no Choir colours. */
+#linnea-say {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: max-content;
+  max-width: min(250px, 70vw);
+  padding: 7px 12px 8px;
+  border-radius: 14px;
+  border: 1px solid rgba(240, 168, 140, 0.6);
+  background: rgba(36, 22, 26, 0.82);
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.3), inset 0 0 0 1px rgba(255, 214, 190, 0.08);
+  color: #ffe9dc;
+  font-size: 14px;
+  line-height: 1.38;
+  transform: translate(-50%, calc(-100% - 14px)) scale(0.92);
+  transform-origin: 50% 100%;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.35s, transform 0.35s;
+  z-index: 8;
+}
+#linnea-say.show {
+  opacity: 1;
+  transform: translate(-50%, calc(-100% - 14px)) scale(1);
+}
+#linnea-say.pop {
+  animation: linnea-pop 0.32s ease-out;
+}
+@keyframes linnea-pop {
+  0% { transform: translate(-50%, calc(-100% - 10px)) scale(0.94); }
+  60% { transform: translate(-50%, calc(-100% - 16px)) scale(1.02); }
+  100% { transform: translate(-50%, calc(-100% - 14px)) scale(1); }
+}
+#linnea-say::after {
+  content: '';
+  position: absolute;
+  left: calc(50% + var(--tail, 0px) - 7px);
+  bottom: -7px;
+  width: 12px;
+  height: 12px;
+  background: rgba(36, 22, 26, 0.82);
+  border-right: 1px solid rgba(240, 168, 140, 0.6);
+  border-bottom: 1px solid rgba(240, 168, 140, 0.6);
+  transform: rotate(45deg);
+}
+#linnea-say b {
+  display: block;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #f4a98c;
+  margin-bottom: 1px;
+}
+#linnea-say p {
+  margin: 0;
+}
+#linnea-say .more {
+  display: block;
+  text-align: right;
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  color: #f4a98c;
+  margin-top: 2px;
+  animation: linnea-more 1.4s ease-in-out infinite;
+}
+#linnea-say .more[hidden] {
+  display: none;
+}
+@keyframes linnea-more {
+  50% { opacity: 0.35; }
+}

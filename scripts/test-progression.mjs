@@ -238,6 +238,107 @@ try {
   assert.ok(!bootRows({}).includes('boots'), 'No boots row before the boots are built');
   assert.deepEqual(bootRows({ mode: 'boots' }).slice(0, 3), ['unclamp', 'walk', 'hop'], 'Clamped: let go, walk and hop come first');
 
+  // Phase 18: Linnea's spot and hint follow the real progression (src/game/linnea.ts).
+  {
+    const L = await server.ssrLoadModule('/src/game/linnea.ts');
+    const { linneaPlan, LINNEA_SPOTS, LINNEA_ORDER, LINNEA_TALK_RANGE, linneaGreeting, markLinneaMet } = L;
+    // Kestrel has been near x (the zone map's record, one character per 250 units).
+    const markSeen = (s, x) => {
+      const c = Math.floor((x - terrain.WORLD_X0) / 250);
+      s.mapSeen = s.mapSeen.padEnd(c + 1, '0');
+      s.mapSeen = s.mapSeen.slice(0, c) + '1' + s.mapSeen.slice(c + 1);
+    };
+    const g = state.freshSave(0, 0);
+    const spots = [];
+    const step = (expectSpot, expectHint, why) => {
+      const p = linneaPlan(g);
+      assert.equal(p.spot, expectSpot, why);
+      if (expectHint) assert.equal(p.hint, expectHint, why);
+      assert.ok(p.lines.length >= 1 && p.lines.length <= 2, 'One or two lines');
+      for (const line of p.lines) assert.ok(line.length <= 120, `Lines stay short: ${line}`);
+      if (spots[spots.length - 1] !== p.spot) spots.push(p.spot);
+    };
+    step('cliff', 'cliff-sled', 'A new save: at the dark east cliff, hinting at the sled recorder');
+    g.finds.push('recorder');
+    step('cliff', 'cliff-lab', 'Carrying the recorder: the Lab');
+    g.finds = [];
+    g.blueprints.push('light');
+    step('cliff', 'cliff-build', 'Decoded: the Workshop');
+    g.gear.push('light');
+    step('forest', 'forest-east', 'With the dive light she waits on the kelp side');
+    g.sub = { aboard: false };
+    step('forest', 'forest-boom', 'With KS-1 and the boom shut, she mentions its winch');
+    g.boomOpen = true;
+    step('forest', 'forest-east');
+    markSeen(g, 14975);
+    step('caves', 'caves-moss', 'Once the caves have been seen she waits outside them, hinting at the moss brackets');
+    g.brackets = [true, true, true, true];
+    step('caves', 'caves-cache');
+    g.finds.push('cache');
+    step('caves', 'caves-cutter');
+    g.gear.push('cutter');
+    step('caves', 'caves-rope');
+    g.finds.push('towcoil');
+    step('caves', 'caves-line');
+    g.gear.push('tow');
+    step('shelf', 'shelf-vane', 'With the grapple: the race (and, with a sub, the vane)');
+    g.vane = true;
+    step('shelf', 'shelf-race');
+    markSeen(g, 25900);
+    step('corvina', 'corvina-hatch', 'At the Corvina: the welded deck hatch');
+    g.corvina.hatch = true;
+    step('corvina', 'corvina-power');
+    g.corvina.breakers = [true, true];
+    step('corvina', 'corvina-hold');
+    g.finds.push('suitplans');
+    step('corvina', 'corvina-suit');
+    g.gear.push('psuit');
+    step('rim', 'rim-chimney', 'PS-1: the trench rim and the snail chimney');
+    g.jar = { species: 'snail', stage: 'grown' };
+    step('rim', 'rim-snail-ready', 'A grown snail in the jar changes her line');
+    g.cleftOpen = true;
+    step('fulmar', 'fulmar-deep', 'Cleft open, no PS-2 yet');
+    g.gear.push('psuit2');
+    step('fulmar', 'fulmar-hatch');
+    g.fulmar.open = true;
+    step('fulmar', 'fulmar-power');
+    g.fulmar.breakers = [true, true, true];
+    step('fulmar', 'fulmar-spools');
+    g.finds.push('resonplans');
+    step('sanctum', 'sanctum-array', 'Resonator plans found: the door, and the array');
+    g.signals.decoded = ['a', 'b', 'c', 'd'];
+    step('sanctum', 'sanctum-resonator');
+    g.gear.push('resonator');
+    step('sanctum', 'sanctum-door');
+    g.sanctum.door = true;
+    step('sanctum', 'sanctum-heart');
+    g.sanctum.contact = true;
+    step('home', 'home', 'After first contact she is home in the shallows');
+    assert.deepEqual(spots, LINNEA_ORDER, 'She visits every spot, once each, in order');
+
+    // Every spot is in open water (not inside rock) and nowhere near another spot.
+    for (const id of LINNEA_ORDER) {
+      const s = LINNEA_SPOTS[id];
+      const y = terrain.groundY(s.x) - s.lift;
+      assert.equal(terrain.isSolid(s.x, y), false, `${id} is in open water`);
+      assert.equal(terrain.isSolid(s.x, y - 30), false, `${id} has room above`);
+      for (const other of LINNEA_ORDER) if (other !== id) assert.ok(Math.abs(LINNEA_SPOTS[other].x - s.x) > LINNEA_TALK_RANGE * 4, `${id} and ${other} are apart`);
+    }
+    // An old save with no Linnea tips loads at the right spot; meeting her is kept in tips only.
+    const loaded = state.freshSave(0, 0);
+    assert.equal(linneaPlan(loaded).spot, 'cliff');
+    assert.equal(linneaGreeting(loaded), "Oh! Hello. I'm Linnea.", 'The first meeting starts with hello');
+    markLinneaMet(loaded, 'cliff');
+    markLinneaMet(loaded, 'cliff');
+    assert.deepEqual(loaded.tips.filter((t) => t.startsWith('linnea:')), ['linnea:cliff'], 'Meeting her is recorded once');
+    assert.equal(linneaGreeting(loaded), null, 'Hello only once');
+    // A save without mapSeen (very old) still works.
+    const bare = state.freshSave(0, 0);
+    bare.gear.push('light');
+    bare.mapSeen = undefined;
+    assert.equal(linneaPlan(bare).spot, 'forest');
+  }
+
   console.log('Progression checks passed.');
 } finally {
   await server.close();
