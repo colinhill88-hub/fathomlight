@@ -42,6 +42,8 @@ export interface HelperContext {
   flare: boolean;
   dart: boolean;
   haul: boolean;
+  /** Phase 15: what the jar holds, offered for release (e.g. "glowfin fry"). */
+  release?: string | null;
   sonar: boolean;
   /** KS-1 floodlights fitted (aboard), otherwise the diver's lamp. */
   lights: boolean;
@@ -93,6 +95,8 @@ export function helperRows(c: HelperContext): HelperRow[] {
       if (c.flare) add({ id: 'flare', keys: ['flare'], label: 'Flare' });
       if (c.dart) add({ id: 'dart', keys: ['dart'], label: 'Stun dart' });
       if (c.haul) add({ id: 'haul', keys: ['haul'], label: 'Send KD-1 home' });
+      if (c.release) add({ id: 'release:' + c.release, keys: ['release'], label: `Release ${c.release}` });
+      add({ id: 'kit', keys: ['kit'], label: 'Field kit' });
       break;
     case 'sub':
       add({ id: 'move', keys: ['move'], label: 'Steer KS-1' });
@@ -163,9 +167,15 @@ export class ControlHelper {
   private busy = 0;
   private onPref = new Set<(p: HelperPref) => void>();
 
+  /** Phase 15c: called when a new world offer appears on the bar (the soft ping). */
+  onOffer: (() => void) | null = null;
+  private pingAt = -99;
+
   constructor() {
     this.el = document.createElement('div');
     this.el.id = 'ctl-helper';
+    // Phase 15c: Colin chose the sonar look (style.css, "skin-sonar").
+    this.el.classList.add('skin-sonar');
     this.el.setAttribute('aria-label', 'Controls');
     this.el.setAttribute('role', 'status');
     document.body.appendChild(this.el);
@@ -225,6 +235,12 @@ export class ControlHelper {
     for (const row of shown) if (!this.seen.has(row.id)) this.seen.set(row.id, this.time);
     // Forget offers that went away, so they pulse again when they come back.
     for (const id of [...this.seen.keys()]) if (!shown.some((s) => s.id === id)) this.seen.delete(id);
+    // Phase 15c: a new offer pings softly (main.ts plays a tone in the music's key), at most every 1.5 s.
+    const ping = shown.some((row) => row.context && this.time - (this.seen.get(row.id) ?? 0) < 0.2);
+    if (ping && this.el.classList.contains('show') && this.time - this.pingAt > 1.5) {
+      this.pingAt = this.time;
+      this.onOffer?.();
+    }
     this.el.innerHTML = shown
       .map((row) => {
         const fresh = row.context && this.time - (this.seen.get(row.id) ?? 0) < 0.2;

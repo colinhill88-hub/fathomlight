@@ -1,6 +1,6 @@
 import { audio, BusName } from './engine';
 import { Ambience, ZoneMix } from './ambience';
-import { Music, MusicZone } from './music';
+import { Music, MusicZone, zoneRoot } from './music';
 import { BASIN_EAST, CAVE, FOREST, GROTTO, inCaveTunnel, inKelpCaves, inSanctum, KC, SITE_MOUTH, TRENCH, WRECK_SHELF } from '../world/terrain';
 
 /*
@@ -492,6 +492,27 @@ export class SoundDirector {
       audio.bell({ t: t + i * 0.12, freq: 440 * Math.pow(2, (n - 69) / 12), gain: 0.05, decay: 1.6, ratio: kind === 'whorl' ? 3.01 : 1, index: 0.5, bus: 'ui', send: 0.6 }),
     );
     audio.bubbles({ n: 8, spread: 0.6, gain: 0.03 });
+  }
+
+  /** Phase 15: letting a creature out of the jar: the lid, a gush of bubbles and a soft falling note. */
+  release(): void {
+    if (!audio.running) return;
+    const t = audio.now;
+    audio.tone({ t, freq: 1700, dur: 0.03, gain: 0.04, type: 'triangle' });
+    audio.hiss({ t: t + 0.03, dur: 0.4, gain: 0.05, type: 'lowpass', freq: 1400, to: 500 });
+    audio.bubbles({ t: t + 0.04, n: 12, spread: 0.7, gain: 0.035, low: 400, high: 1500 });
+    audio.bell({ t: t + 0.1, freq: 880, gain: 0.03, decay: 0.9, ratio: 2, index: 0.3, send: 0.5 });
+    audio.bell({ t: t + 0.28, freq: 659, gain: 0.025, decay: 1.2, ratio: 2, index: 0.3, send: 0.6 });
+  }
+
+  /** Phase 15c: a new action on the control bar: a very soft sonar ping on the music's root and fifth. */
+  offerPing(): void {
+    if (!audio.running) return;
+    const t = audio.now;
+    const r = zoneRoot(this.musicZone) + 36;
+    const hz = (m: number) => 440 * Math.pow(2, (m - 69) / 12);
+    audio.bell({ t, freq: hz(r), gain: 0.014, decay: 1.1, ratio: 1, index: 0.2, bus: 'ui', send: 0.7 });
+    audio.bell({ t: t + 0.09, freq: hz(r + 7), gain: 0.01, decay: 1.3, ratio: 1, index: 0.2, bus: 'ui', send: 0.8 });
   }
 
   /** The identify pulse (a tap of Scan): a soft sonar ping. */

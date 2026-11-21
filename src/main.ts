@@ -103,7 +103,7 @@ import {
 } from './world/terrain';
 import { DeepHunters } from './actors/deep';
 import { FULMAR_MAP, FULMAR_OPTS } from './interior/fulmar';
-import { FRAGMENTS, nextFragment, signalStatus, tickSignals } from './game/signals';
+import { hasArray, FRAGMENTS, nextFragment, signalStatus, tickSignals } from './game/signals';
 import {
   bagHasRoom,
   bagLimits,
@@ -138,7 +138,7 @@ import { TankLife } from './world/tanklife';
 import { Escort } from './actors/escort';
 import { Critter } from './actors/critters';
 import { CareMode } from './ui/care';
-import { creatureName, creaturesIn, newCreature, payCost, PLANT_ORDER, PLANTS, SPECIES, SPECIES_ORDER, tankCapacity, tankNumber, tickCare, wildAllowed, WILD_CAP } from './game/creatures';
+import { creatureName, creaturesIn, releaseFromJar as releaseJar, newCreature, payCost, PLANT_ORDER, PLANTS, SPECIES, SPECIES_ORDER, tankCapacity, tankNumber, tickCare, wildAllowed, WILD_CAP } from './game/creatures';
 import { creatureMilestone, creatureSiteHint, fieldResearch, type CreatureSite } from './game/discovery';
 import { HatchPanel } from './ui/hatch';
 import { traitText, wildTraits } from './game/traits';
@@ -164,6 +164,7 @@ import { GearFx } from './world/gearfx';
 import { PATTERNS } from './game/traits';
 import { initSoundUI } from './ui/sound';
 import { Rewards, type RewardSpec } from './ui/reward';
+import { FieldKit } from './ui/fieldkit';
 import { gearReward, kitReward, major, moduleReward, notable, researchReward, tankReward } from './ui/rewardSpecs';
 
 declare const __BUILD_ID__: string;
@@ -559,6 +560,20 @@ async function boot(): Promise<void> {
   const contact = new Contact(choir);
   /** Milestone 11: the Signal array's zone map (opened at its console). */
   const zoneMap = new ZoneMap();
+  // Phase 15: the Field kit (I): Kestrel's gear, KS-1, KD-1 and the collection. The world holds still while it is open.
+  const fieldKit = new FieldKit({
+    save: () => save,
+    openLog: () => document.getElementById('log-btn')!.click(),
+    canMap: () => hasArray(layout),
+    openMap: () => zoneMap.show(save, interior.active ? null : { x: diver.x, y: diver.y }, (id) => {
+      const e = SCAN_ENTRIES.find((x) => x.id === id);
+      if (e) hud.showReading(e.name, e.text, 'Kept in your scanner log.');
+    }),
+    onOpenChange: (open) => {
+      document.body.classList.toggle('kit-open', open);
+      audio.setPaused(open);
+    },
+  });
   const padNav = new PadNav();
   let seenClock = 0;
   // Saves from before the zone map: map the zones already reached.
@@ -1227,6 +1242,39 @@ async function boot(): Promise<void> {
     return j.stage === 'egg' ? `Jar: ${sp.eggName}` : j.stage === 'young' ? `Jar: ${named}${sp.youngName}` : `Jar: ${named}${sp.name.toLowerCase()}`;
   }
 
+  /** Phase 15: what Release would let go (the satchel's newer catch first), for the helper and prompts. */
+  function jarReleaseLabel(): string | null {
+    const j = save.jar2 ?? save.jar;
+    if (!j) return null;
+    const sp = SPECIES[j.species];
+    if (j.keep && j.stage !== 'egg') return `${creatureName(j.keep)} the ${sp.name.toLowerCase()}`;
+    return `the ${j.stage === 'egg' ? sp.eggName : j.stage === 'young' ? sp.youngName : sp.name.toLowerCase()}`;
+  }
+  /** A named creature's release waits for a second press within 4 s (Colin, Nov 21, 2026). */
+  let releaseArm: { id: number; until: number } | null = null;
+  const releaseBtn = document.getElementById('btn-release') as HTMLButtonElement;
+  function releaseFromJar(): void {
+    const slot: 'jar' | 'jar2' | null = save.jar2 ? 'jar2' : save.jar ? 'jar' : null;
+    if (!slot) return;
+    const j = save[slot]!;
+    const sp = SPECIES[j.species];
+    const what = jarReleaseLabel()!;
+    const again = input.state.lastDevice === 'touch' ? 'Tap Release again' : input.state.lastDevice === 'gamepad' ? `Press ${padName(padFor('release')[0] ?? 14)} again` : `Press ${keyLabel('release')} again`;
+    if (j.keep && releaseArm?.id !== j.keep.id) {
+      releaseArm = { id: j.keep.id, until: time + 4 };
+      hud.toast(`Release ${what}? It will not come back to your tanks. ${again} to let it go.`, 'warn');
+      return;
+    }
+    releaseArm = null;
+    // A wild catch goes back to its spot in the world; the jar logic (and the wild limit) is in creatures.ts.
+    if (!j.keep) wildlife.release(j.species, j.stage, save);
+    releaseJar(save);
+    sound.release();
+    hud.toast(`Released ${what}. ${j.stage === 'egg' ? 'The clutch drifts down to settle' : 'It swims off'} towards ${sp.home}.`);
+    hud.setJar(jarText());
+    persist();
+  }
+
   /** Can the drone repair be paid for (carried first, then stored)? Lists what is missing. */
   function repairMissing(): string[] {
     return MATERIALS_LIST.filter((k) => save.bag[k] + save.stored[k] < (DRONE_REPAIR_COST[k] ?? 0)).map((k) => {
@@ -1492,7 +1540,7 @@ async function boot(): Promise<void> {
     buildId: __BUILD_ID__,
     onPause: (p) => audio.setPaused(p),
     panelOpen: () =>
-      build.active || care.active || dockUI.active || station.active || hatchPanel.active || contact.active || zoneMap.open || hud.reading || rates.open || !settingsPanel.hidden || !logPanel.hidden,
+      build.active || care.active || dockUI.active || station.active || hatchPanel.active || contact.active || zoneMap.open || hud.reading || rates.open || fieldKit.open || !settingsPanel.hidden || !logPanel.hidden,
   });
   window.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && !logPanel.hidden) document.getElementById('log-btn')!.click();
@@ -2012,7 +2060,7 @@ async function boot(): Promise<void> {
     menus.update();
     helperFrame(dt);
     // The title screen and the pause menu hold the world still.
-    if (menus.paused) {
+    if (menus.paused || fieldKit.open) {
       diver.cancelSurfaceReaction();
       pausedFrames++;
       return;
@@ -2110,6 +2158,7 @@ async function boot(): Promise<void> {
 
     input.update();
     const s = input.state;
+    if (s.kit && !padNav.active && !menus.paused) fieldKit.toggle();
     const inControl = blackout === 0 && !build.active && !care.active && !dockUI.active && !station.active && !boarding && !(grapple && grapple.phase === 'reel');
     if (redesigned) {
       diver.visualAction = grapple ? 'grapple' : !inControl || input.suspended || s.collect || s.board || s.flare || s.dart
@@ -4504,6 +4553,7 @@ async function boot(): Promise<void> {
   /** After milestone 12: everything the new suit attachments and sub modules do each frame. */
   // ---- Phase 13: the contextual control helper ----
   const controlHelper = new ControlHelper();
+  controlHelper.onOffer = () => sound.offerPing();
   let bootsNear = false;
   function helperMode(): HelperMode {
     if (menus.paused || blackout > 0 || boarding || hud.reading || zoneMap.open || contact.active || padNav.active) return 'none';
@@ -4532,6 +4582,7 @@ async function boot(): Promise<void> {
       flare: hasGear(save, 'flare') && !aboard,
       dart: hasGear(save, 'dart') && !aboard,
       haul: !!save.kit.carrier,
+      release: outside && !aboard ? jarReleaseLabel() : null,
       sonar: hasGear(save, 'sonar') && !aboard,
       lights: aboard ? mods.includes('lights') : true,
       brace: outside && !aboard && bootsNear,
@@ -4590,6 +4641,10 @@ async function boot(): Promise<void> {
       save.jar = save.jar2;
       save.jar2 = null;
     }
+    // Phase 15: release the creature in the jar (J, d-pad left, or the release button).
+    releaseBtn.hidden = !(jarReleaseLabel() && !aboard);
+    if (releaseArm && time > releaseArm.until) releaseArm = null;
+    if (s.release && live && !aboard) releaseFromJar();
     // Flare launcher (Z, LT, or the flare button).
     if (s.flare && live && !aboard) {
       if (!hasGear(save, 'flare')) {
@@ -4732,6 +4787,7 @@ async function boot(): Promise<void> {
     input.suspended = padNav.active;
     input.update();
     const s = input.state;
+    if (s.kit && !padNav.active && !menus.paused) fieldKit.toggle();
     const paused = hud.reading || zoneMap.open;
     // The interior reads her state straight from the save, so they never drift apart.
     if (inside === 'corvina') interior.syncState(save.corvina.breakers, save.corvina.taken ?? []);
@@ -5084,6 +5140,8 @@ async function boot(): Promise<void> {
     rewardPickup: (kind: MaterialId) => reward.minor(hud.chip(kind)),
     rewardScale: () => reward.timeScale(),
     rewardPin: (ms: number | null) => reward.pin(ms),
+    fieldKit,
+    releaseJar: () => releaseFromJar(),
     audioLevel: () => audio.level(),
     audioRunning: () => audio.running,
     cam: () => ({ camX, camY, camCX, camCY, viewH, zoom }),

@@ -115,6 +115,36 @@ try {
   const named = care.newCreature(habitat, 'glowfin', 'young', 1);
   assert.equal(care.creatureName(named), care.creatureName({ id: named.id, species: 'glowfin' }));
   assert.match(care.creatureName(named), /^[A-Z][a-z]+$/);
+  // Phase 15: releasing from the jar. A wild catch gives its place back; the satchel's newer catch goes first.
+  const rel = state.freshSave(0, 0);
+  // The wild limit is reached and a living pair exists: one in a tank, one just caught by mistake.
+  rel.wildCaught.ray = care.WILD_CAP;
+  rel.creatures.push(care.newCreature(rel, 'ray', 'young', 1));
+  rel.jar = { species: 'glowfin', stage: 'young' };
+  rel.jar2 = { species: 'ray', stage: 'young' };
+  assert.equal(care.wildAllowed(rel, 'ray'), false);
+  assert.equal(care.releaseFromJar(rel).species, 'ray', 'The newest catch (the satchel) is released first');
+  assert.equal(rel.jar2, null);
+  assert.equal(rel.jar.species, 'glowfin');
+  assert.equal(rel.wildCaught.ray, care.WILD_CAP - 1, 'A released wild catch stops counting against the wild limit');
+  assert.equal(care.wildAllowed(rel, 'ray'), true, 'After a release the right one can be caught');
+  rel.wildCaught.glowfin = 0;
+  care.releaseFromJar(rel);
+  assert.equal(rel.jar, null);
+  assert.equal(rel.wildCaught.glowfin, 0, 'The count never goes below zero');
+  assert.equal(care.releaseFromJar(rel), null, 'An empty jar releases nothing');
+  const keepSave = state.freshSave(0, 0);
+  keepSave.wildCaught.crab = 2;
+  const kept = care.newCreature(keepSave, 'crab', 'young', 1);
+  keepSave.jar = { species: 'crab', stage: 'young', keep: kept };
+  care.releaseFromJar(keepSave);
+  assert.equal(keepSave.wildCaught.crab, 2, 'A named tank creature is not a wild catch');
+  const { helperRows: rows15 } = await server.ssrLoadModule('/src/ui/controlHelper.ts');
+  const base15 = { mode: 'swim', device: 'keyboard', collect: null, scan: null, board: null, build: false, tend: false, dock: false, lab: false, flare: false, dart: false, haul: false, sonar: false, lights: true, brace: false, ladder: false, zoom: true, moving: false };
+  assert.ok(rows15({ ...base15, release: 'the glowfin fry' }).some((r) => r.id === 'release:the glowfin fry' && r.label === 'Release the glowfin fry'));
+  assert.ok(!rows15(base15).some((r) => r.id.startsWith('release')), 'No release offer with an empty jar');
+  assert.ok(rows15(base15).some((r) => r.id === 'kit'), 'The Field kit is listed while swimming');
+
   console.log('Progression checks passed.');
 } finally {
   await server.close();

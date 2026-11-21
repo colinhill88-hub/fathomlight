@@ -44,6 +44,11 @@ interface Profile {
   tension?: number[];
 }
 
+/** Phase 15c: the root note (MIDI) of a zone's key, so small interface tones can sit in the music. */
+export function zoneRoot(z: MusicZone): number {
+  return PROFILES[z].root;
+}
+
 const PROFILES: Record<MusicZone, Profile> = {
   shallows: {
     root: 50, // D3

@@ -26,6 +26,9 @@ export type Action =
   | 'flare'
   | 'dart'
   | 'haul'
+  // Phase 15: release the creature in the jar; open the Field kit.
+  | 'release'
+  | 'kit'
   | 'build'
   | 'tend'
   | 'dock'
@@ -74,6 +77,8 @@ const DEFAULTS: Record<Action, Binding> = {
   flare: { keys: ['z'], pad: [6] },
   dart: { keys: ['x'], pad: [7] },
   haul: { keys: ['h'], pad: [13] },
+  release: { keys: ['j'], pad: [14] },
+  kit: { keys: ['i'], pad: [8] },
   build: { keys: ['b'], pad: [] },
   tend: { keys: ['t'], pad: [] },
   dock: { keys: ['g'], pad: [] },

@@ -46,6 +46,9 @@ export interface InputState {
   dart: boolean;
   /** True for the one frame KD-1 was sent home with the dive bag (H, d-pad down, the Send button). */
   haul: boolean;
+  /** Phase 15: one frame each for releasing the jar's creature (J, d-pad left) and the Field kit (I, View). */
+  release: boolean;
+  kit: boolean;
   /** Which kind of control was used last, so on-screen hints can match it. */
   lastDevice: 'touch' | 'keyboard' | 'mouse' | 'gamepad';
 }
@@ -56,7 +59,7 @@ const STICK_RADIUS = 56;
 const DEADZONE = 0.15;
 
 export class Input {
-  readonly state: InputState = { moveX: 0, moveY: 0, boost: false, jumpHeld: false, sprint: false, lamp: false, scan: false, scanTap: false, collect: false, board: false, flare: false, dart: false, haul: false, lastDevice: 'keyboard' };
+  readonly state: InputState = { moveX: 0, moveY: 0, boost: false, jumpHeld: false, sprint: false, lamp: false, scan: false, scanTap: false, collect: false, board: false, flare: false, dart: false, haul: false, release: false, kit: false, lastDevice: 'keyboard' };
 
   private keys = new Set<string>();
   private boostQueued = false;
@@ -69,6 +72,8 @@ export class Input {
   private flareQueued = false;
   private dartQueued = false;
   private haulQueued = false;
+  private releaseQueued = false;
+  private kitQueued = false;
 
   // Touch stick.
   private stickId: number | null = null;
@@ -122,6 +127,8 @@ export class Input {
       if (isKey('flare', k)) this.flareQueued = true;
       if (isKey('dart', k)) this.dartQueued = true;
       if (isKey('haul', k)) this.haulQueued = true;
+      if (isKey('release', k)) this.releaseQueued = true;
+      if (isKey('kit', k)) this.kitQueued = true;
       if (k.startsWith('arrow') || k === ' ') e.preventDefault();
     });
     window.addEventListener('keyup', (e) => this.keys.delete(e.key.toLowerCase()));
@@ -210,6 +217,8 @@ export class Input {
     press('btn-flare', () => (this.flareQueued = true));
     press('btn-dart', () => (this.dartQueued = true));
     press('btn-haul', () => (this.haulQueued = true));
+    press('btn-release', () => (this.releaseQueued = true));
+    press('kit-btn', () => (this.kitQueued = true));
     // Scan is held, not tapped.
     const scanEl = document.getElementById('btn-scan')!;
     scanEl.addEventListener('pointerdown', (e) => {
@@ -321,6 +330,8 @@ export class Input {
       if (pressed('flare')) this.flareQueued = true;
       if (pressed('dart')) this.dartQueued = true;
       if (pressed('haul')) this.haulQueued = true;
+      if (pressed('release')) this.releaseQueued = true;
+      if (pressed('kit')) this.kitQueued = true;
       if (pressed('lamp')) this.lampQueued = true;
       if (btn('scan')) scan = true;
       if (pressed('scan')) this.scanTapQueued = true;
@@ -335,7 +346,7 @@ export class Input {
     if (this._suspended) {
       x = y = 0;
       scan = collect = false;
-      this.boostQueued = this.lampQueued = this.scanTapQueued = this.boardQueued = this.flareQueued = this.dartQueued = this.haulQueued = false;
+      this.boostQueued = this.lampQueued = this.scanTapQueued = this.boardQueued = this.flareQueued = this.dartQueued = this.haulQueued = this.releaseQueued = false;
     }
     this.state.moveX = x;
     this.state.moveY = y;
@@ -351,7 +362,10 @@ export class Input {
     this.state.flare = this.flareQueued;
     this.state.dart = this.dartQueued;
     this.state.haul = this.haulQueued;
-    this.flareQueued = this.dartQueued = this.haulQueued = false;
+    this.state.release = this.releaseQueued;
+    // The Field kit toggles even while panels suspend play (so I closes it again).
+    this.state.kit = this.kitQueued;
+    this.flareQueued = this.dartQueued = this.haulQueued = this.releaseQueued = this.kitQueued = false;
     this.scanTapQueued = false;
     this.boostQueued = false;
     this.lampQueued = false;

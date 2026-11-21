@@ -1,5 +1,5 @@
 import { BaseLayout, isDone, isTankKind, Placed } from './base';
-import { CreatureData, MaterialId, MATERIAL_ORDER, MATERIALS, PlantId, SaveData, SpeciesId, TankData } from './state';
+import { CreatureData, JarData, MaterialId, MATERIAL_ORDER, MATERIALS, PlantId, SaveData, SpeciesId, TankData } from './state';
 import { EAT_BELOW, MASH_FED, NURSERY_TROUGH, TRAY_CAP, trayCount, whorlMult } from './factory';
 import { ensureTraits, inherit, RADIANT_MAKE, traitsOf, wildTraits, type Traits } from './traits';
 
@@ -167,6 +167,25 @@ export function wildAllowed(save: SaveData, sp: SpeciesId): boolean {
     save.nursery.filter(c => c.species === sp).length +
     Number(save.jar?.species === sp) + Number(save.jar2?.species === sp);
   return founders < WILD_CAP;
+}
+
+/**
+ * Phase 15: let the newest catch out of the jar (the satchel's slot first).
+ * A wild catch no longer counts against the wild's limit, so the right one can
+ * be caught instead; a named creature from the tanks is simply gone. Returns
+ * what was released (the caller puts a wild one back in the world), or null.
+ */
+export function releaseFromJar(save: SaveData): JarData | null {
+  const slot = save.jar2 ? 'jar2' : save.jar ? 'jar' : null;
+  if (!slot) return null;
+  const j = save[slot]!;
+  if (!j.keep) save.wildCaught[j.species] = Math.max(0, (save.wildCaught[j.species] ?? 0) - 1);
+  save[slot] = null;
+  if (slot === 'jar' && save.jar2) {
+    save.jar = save.jar2;
+    save.jar2 = null;
+  }
+  return j;
 }
 
 /** Creatures per tank (eggs count too). */
