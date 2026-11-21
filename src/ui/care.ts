@@ -356,7 +356,7 @@ export class CareMode {
     const overview = livingBases ? `<section class="habitat-care" aria-label="Habitat care">
       ${bar('Water quality', td.water, 'water')}
       ${filtered ? '<p class="note">Filter pump running</p>' : ''}
-      <div class="acts">${feed}${clean}${save.jar ? `<button type="button" data-act="deposit" ${list.length >= capacity ? 'disabled' : ''}>${list.length >= capacity ? 'Habitat full' : 'Move specimen from jar'}</button>` : ''}</div>
+      <div class="acts">${feed}${clean}${save.jar ? `<button type="button" data-act="deposit" ${list.length >= capacity ? `disabled title="This habitat holds ${capacity}: make room or use another"` : 'title="Move the jar\'s creature into this habitat"'}>${list.length >= capacity ? 'Habitat full' : 'Move specimen from jar'}</button>` : ''}</div>
       <ul class="notes">${trayLine(save, td, true)}</ul>
     </section>` : '';
     const html = `
