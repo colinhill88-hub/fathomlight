@@ -8,9 +8,15 @@ import { BASE_OXYGEN, GearId, SaveData, TANK_BONUS, TOTAL_AIR_TANKS, maxOxygen }
 import { MODULES, MODULE_ORDER } from '../game/sub';
 import { CRUSH } from '../world/terrain';
 import { emblemSvg, type RewardIcon } from './reward';
+import type { JarLook, KitLook } from '../actors/diver';
+import type { KitPart } from '../actors/walker';
+import { KitPortrait } from './kitPortrait';
 
 /*
  * Phase 15: the Field kit (I, the View button, or the kit button by the log).
+ * Phase 17a: the Kit tab's portrait is the real Kestrel rig (kitPortrait.ts),
+ * and pointing at a card (hover, tap, or the gamepad's highlight) lights that
+ * part up on the body; a part not found yet shows as a dark "???" shape.
  * A pause screen in the spirit of an adventure game's gear sub-screen:
  *
  *   Kit         Kestrel drawn wearing what the save has (suit tier, lamp,
@@ -37,6 +43,8 @@ interface Slot {
   have: boolean;
   /** Known but not in use (a module in the dock, not fitted). */
   dim?: boolean;
+  /** Phase 17a: the part of Kestrel's body this card lights up in the portrait. */
+  part?: KitPart;
 }
 
 export interface FieldKitDeps {
@@ -46,12 +54,19 @@ export interface FieldKitDeps {
   /** The zone map is the Signal array's: offer it once one is built and powered. */
   canMap: () => boolean;
   onOpenChange: (open: boolean) => void;
+  /** Phase 17a: what Kestrel wears (the same look the world's rig uses) and the jar's creature. */
+  kitLook: () => KitLook;
+  jar: () => JarLook | null;
 }
 
 export class FieldKit {
   private el: HTMLDivElement;
   private tab: 'kit' | 'collection' = 'kit';
   open = false;
+  private portrait = new KitPortrait();
+  /** The card under the mouse, and the one tapped or clicked (it stays lit until another is chosen). */
+  private hoverCard: HTMLElement | null = null;
+  private chosenId: string | null = null;
 
   constructor(private deps: FieldKitDeps) {
     this.el = document.createElement('div');
@@ -63,6 +78,12 @@ export class FieldKit {
     this.el.addEventListener('click', (e) => {
       const b = (e.target as HTMLElement).closest('button');
       if (!b) return;
+      if (b.dataset.part) {
+        // A tap or click picks the card (again: lets it go), so touch can light parts too.
+        this.chosenId = this.chosenId === b.dataset.id ? null : b.dataset.id ?? null;
+        this.lightUp();
+        return;
+      }
       const act = b.dataset.act;
       if (act === 'close') this.close();
       else if (act === 'kit' || act === 'collection') {
@@ -76,6 +97,20 @@ export class FieldKit {
         this.deps.openMap();
       }
     });
+    this.el.addEventListener('pointerover', (e) => {
+      if ((e as PointerEvent).pointerType !== 'mouse') return;
+      const c = (e.target as HTMLElement).closest<HTMLElement>('.fk-slot[data-part]');
+      if (c !== this.hoverCard) {
+        this.hoverCard = c;
+        this.lightUp();
+      }
+    });
+    this.el.addEventListener('pointerleave', () => {
+      this.hoverCard = null;
+      this.lightUp();
+    });
+    // The gamepad's highlight (PadNav adds .pad-focus to the button it is on).
+    new MutationObserver(() => this.lightUp()).observe(this.el, { subtree: true, attributes: true, attributeFilter: ['class'] });
     window.addEventListener('keydown', (e) => {
       if (!this.open) return;
       const k = e.key.toLowerCase();
@@ -96,7 +131,11 @@ export class FieldKit {
     if (this.open) return;
     this.open = true;
     this.el.hidden = false;
+    this.chosenId = null;
+    this.hoverCard = null;
+    this.portrait.setKit(this.deps.kitLook(), this.deps.jar());
     this.render();
+    this.portrait.show();
     this.deps.onOpenChange(true);
   }
 
@@ -104,7 +143,32 @@ export class FieldKit {
     if (!this.open) return;
     this.open = false;
     this.el.hidden = true;
+    this.portrait.hide();
     this.deps.onOpenChange(false);
+  }
+
+  /** Light the chosen card's part on the portrait: the hovered card first, then the pad's, then a tapped one. */
+  private lightUp(): void {
+    if (!this.open) return;
+    const cards = [...this.el.querySelectorAll<HTMLElement>('.fk-slot[data-part]')];
+    const hover = this.hoverCard && this.hoverCard.isConnected ? this.hoverCard : null;
+    const pad = cards.find((c) => c.classList.contains('pad-focus')) ?? null;
+    const chosen = cards.find((c) => c.dataset.id === this.chosenId) ?? null;
+    const card = hover ?? pad ?? chosen;
+    for (const c of cards) {
+      const on = c === card;
+      if (c.classList.contains('lit') !== on) c.classList.toggle('lit', on);
+      c.setAttribute('aria-pressed', String(c === chosen));
+    }
+    const part = (card?.dataset.part as KitPart | undefined) ?? null;
+    const known = !card?.classList.contains('unknown');
+    this.portrait.highlight(part, known);
+    const cap = this.el.querySelector<HTMLElement>('.fk-portrait figcaption');
+    if (cap) {
+      const base = cap.dataset.base ?? '';
+      const text = card ? (known ? card.querySelector('b')?.textContent?.trim() ?? base : '??? · not found yet') : base;
+      if (cap.textContent !== text) cap.textContent = text;
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -127,46 +191,51 @@ export class FieldKit {
         <button type="button" data-act="map" ${this.deps.canMap() ? '' : 'hidden'}>Zone map</button>
       </footer>
     </div>`;
+    // The live portrait canvas survives redraws: put it back in its frame.
+    this.el.querySelector('.fk-portrait .fk-rig-box')?.appendChild(this.portrait.canvas);
+    this.lightUp();
   }
 
   private card(sl: Slot): string {
     const esc = (t: string) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;');
-    return `<div class="fk-slot${sl.have ? (sl.dim ? ' dim' : '') : ' unknown'}">
-      <div class="fk-icon">${emblemSvg(sl.icon)}</div>
-      <div class="fk-text"><b>${sl.have ? esc(sl.name) : '???'}${sl.have && sl.code ? ` <span class="fk-code">${esc(sl.code)}</span>` : ''}</b><small>${sl.have ? esc(sl.line) : 'Not found yet'}</small></div>
-    </div>`;
+    const cls = `fk-slot${sl.have ? (sl.dim ? ' dim' : '') : ' unknown'}`;
+    const inner = `<div class="fk-icon">${emblemSvg(sl.icon)}</div>
+      <div class="fk-text"><b>${sl.have ? esc(sl.name) : '???'}${sl.have && sl.code ? ` <span class="fk-code">${esc(sl.code)}</span>` : ''}</b><small>${sl.have ? esc(sl.line) : 'Not found yet'}</small></div>`;
+    // Phase 17a: cards for something Kestrel wears are buttons (hover, tap or pad) that light it on the portrait.
+    if (sl.part) return `<button type="button" class="${cls}" data-part="${sl.part}" data-id="${sl.part}" aria-pressed="false">${inner}</button>`;
+    return `<div class="${cls}">${inner}</div>`;
   }
 
   private kitTab(s: SaveData): string {
     const g = (id: GearId) => s.gear.includes(id);
-    const gear = (id: GearId, icon: RewardIcon, line: string): Slot => ({ icon, name: GEAR[id].name, code: GEAR[id].code, line, have: g(id) });
+    const gear = (id: GearId, icon: RewardIcon, line: string, part?: KitPart): Slot => ({ icon, name: GEAR[id].name, code: GEAR[id].code, line, have: g(id), part });
     const suit: Slot = g('psuit2')
-      ? { icon: 'suit', name: 'Pressure suit', code: 'PS-2', line: `Safe to ${CRUSH.ps2} m`, have: true }
+      ? { icon: 'suit', name: 'Pressure suit', code: 'PS-2', line: `Safe to ${CRUSH.ps2} m`, have: true, part: 'suit' }
       : g('psuit')
-        ? { icon: 'suit', name: 'Pressure suit', code: 'PS-1', line: `Safe to ${CRUSH.ps1} m`, have: true }
-        : { icon: 'suit', name: 'Kestrel salvage suit', line: `Safe to ${CRUSH.kestrel} m`, have: true };
+        ? { icon: 'suit', name: 'Pressure suit', code: 'PS-1', line: `Safe to ${CRUSH.ps1} m`, have: true, part: 'suit' }
+        : { icon: 'suit', name: 'Kestrel salvage suit', line: `Safe to ${CRUSH.kestrel} m`, have: true, part: 'suit' };
     const th = s.kit.thruster;
     const thruster: Slot = g('dash')
-      ? { icon: 'thruster', name: 'Dash head', code: 'TH-3', line: 'Boost, and double-tap to dash', have: true }
+      ? { icon: 'thruster', name: 'Dash head', code: 'TH-3', line: 'Boost, and double-tap to dash', have: true, part: 'thruster' }
       : th >= 2
-        ? { icon: 'thruster', name: 'Twin-nozzle head', code: 'TH-2', line: 'A faster, longer boost', have: true }
-        : { icon: 'thruster', name: 'Hip thruster', code: 'TH-1', line: 'Boost through the water', have: th >= 1 };
+        ? { icon: 'thruster', name: 'Twin-nozzle head', code: 'TH-2', line: 'A faster, longer boost', have: true, part: 'thruster' }
+        : { icon: 'thruster', name: 'Hip thruster', code: 'TH-1', line: 'Boost through the water', have: th >= 1, part: 'thruster' };
     const tanks = s.tanks.length;
     const diver: Slot[] = [
       suit,
-      { icon: 'tank', name: 'Air supply', line: `${maxOxygen(s)} s of air · ${tanks}/${TOTAL_AIR_TANKS} upgrades (+${TANK_BONUS} s each)`, have: true },
-      g('light') ? gear('light', 'light', 'Wide beam for dark caves') : { icon: 'light', name: 'Shoulder lamp', line: 'A small lamp. Something brighter exists.', have: true },
+      { icon: 'tank', name: 'Air supply', line: `${maxOxygen(s)} s of air · ${tanks}/${TOTAL_AIR_TANKS} upgrades (+${TANK_BONUS} s each)`, have: true, part: 'tanks' },
+      g('light') ? gear('light', 'light', 'Wide beam for dark caves', 'light') : { icon: 'light', name: 'Shoulder lamp', line: 'A small lamp. Something brighter exists.', have: true, part: 'light' },
       thruster,
-      { icon: 'jar', name: g('satchel') ? 'Jar and satchel' : 'Specimen jar', code: g('satchel') ? 'SJ-2' : undefined, line: g('satchel') ? 'Carry two creatures at once' : 'Carry one egg or young creature', have: s.kit.jar },
+      { icon: 'jar', name: g('satchel') ? 'Jar and satchel' : 'Specimen jar', code: g('satchel') ? 'SJ-2' : undefined, line: g('satchel') ? 'Carry two creatures at once' : 'Carry one egg or young creature', have: s.kit.jar, part: 'jar' },
       gear('cutter', 'cutter', 'Kelp walls and welded hatches'),
-      gear('tow', 'gear', 'Reel to anchor rings, swing across gaps'),
+      gear('tow', 'gear', 'Reel to anchor rings, swing across gaps', 'harpoon'),
       gear('sonar', 'sonar', 'Find hollows, send lurkers home'),
-      gear('boots', 'boots', 'Hold Down to brace on the seabed'),
-      gear('visor', 'suit', 'See finds through rock'),
-      gear('cowl', 'suit', 'Vent heat scalds far less'),
-      gear('flare', 'light', 'Light dark water ahead'),
-      gear('dart', 'gear', 'Stun a predator'),
-      gear('resonator', 'fragment', "Sings the Choir's song"),
+      gear('boots', 'boots', 'Clamp on to walk the seabed, out of the current', 'boots'),
+      gear('visor', 'suit', 'See finds through rock', 'visor'),
+      gear('cowl', 'suit', 'Vent heat scalds far less', 'cowl'),
+      gear('flare', 'light', 'Light dark water ahead', 'flare'),
+      gear('dart', 'gear', 'Stun a predator', 'dart'),
+      gear('resonator', 'fragment', "Sings the Choir's song", 'resonator'),
     ];
     if (s.relayKits > 0) diver.push({ icon: 'tank', name: 'Air relay kits', code: 'AR-1', line: `${s.relayKits} ready to plant`, have: true });
 
@@ -190,7 +259,7 @@ export class FieldKit {
     ];
     const count = (l: Slot[]) => `${l.filter((x) => x.have).length}/${l.length}`;
     return `<div class="fk-kit">
-      <figure class="fk-portrait">${portrait(s)}<figcaption>Kestrel · ${suit.code ?? 'salvage suit'} · ${maxOxygen(s)} s air</figcaption></figure>
+      <figure class="fk-portrait"><div class="fk-rig-box"></div><figcaption data-base="Kestrel · ${suit.code ?? 'salvage suit'} · ${maxOxygen(s)} s air">Kestrel · ${suit.code ?? 'salvage suit'} · ${maxOxygen(s)} s air</figcaption></figure>
       <div class="fk-lists">
         <h3>Diver <span>${count(diver)}</span></h3>
         <div class="fk-grid">${diver.map((x) => this.card(x)).join('')}</div>
@@ -246,59 +315,4 @@ export class FieldKit {
       </div>
     </div>`;
   }
-}
-
-/**
- * Kestrel, drawn for the Field kit: the squat salvage shell, a lime dome
- * helmet with its crest, broad gauntlets and short split fins, wearing only
- * the gear the save has.
- */
-function portrait(s: SaveData): string {
-  const g = (id: GearId) => s.gear.includes(id);
-  const ps2 = g('psuit2');
-  const ps1 = g('psuit') && !ps2;
-  const ring = ps2 ? '#e0772a' : ps1 ? '#c9a24a' : '#5d676c';
-  const parts: string[] = [];
-  // Back: rebreather tanks, harpoon, resonator hoop.
-  if (g('resonator')) parts.push('<circle cx="100" cy="92" r="46" fill="none" stroke="url(#fkChoir)" stroke-width="5" opacity=".9"/><circle cx="100" cy="92" r="52" fill="none" stroke="#6ff3ff" stroke-width="1" opacity=".35"/>');
-  parts.push('<rect x="74" y="82" width="15" height="54" rx="7" fill="#c9d3d8"/><rect x="111" y="82" width="15" height="54" rx="7" fill="#c9d3d8"/>');
-  if (g('tow') || g('dart')) parts.push(`<path d="M132 70l26 -40" stroke="#8a949a" stroke-width="4" stroke-linecap="round"/><path d="M156 26l8 -4-2 9z" fill="${g('dart') ? '#ffd06a' : '#c9d3d8'}"/>`);
-  // Legs and fins (mag-boots: lime soles).
-  parts.push(`<rect x="78" y="150" width="19" height="28" rx="8" fill="#2c3236"/><rect x="103" y="150" width="19" height="28" rx="8" fill="#2c3236"/>`);
-  // Short split fins (mag-boots: dark plates with lime soles).
-  const fin = g('boots') ? '#3a4246' : '#d8492e';
-  parts.push(`<path d="M76 176h22l-2 12-6-5-5 7-6-6z" fill="${fin}"/><path d="M102 176h22l3 8-6 6-5-7-6 5z" fill="${fin}"/>`);
-  if (g('boots')) parts.push('<rect x="74" y="175" width="26" height="4" rx="2" fill="#c6f56a"/><rect x="100" y="175" width="26" height="4" rx="2" fill="#c6f56a"/>');
-  // Body shell.
-  parts.push(`<path d="M68 96c0-14 14-22 32-22s32 8 32 22v44c0 10-14 16-32 16s-32-6-32-16z" fill="#2c3236" stroke="#c9d3d8" stroke-width="2.5"/>`);
-  parts.push(`<path d="M72 118h56M72 132h56" stroke="${ring}" stroke-width="3"/>`);
-  parts.push('<path d="M86 100l6 8 8-12 8 12 6-8" stroke="#c9a24a" stroke-width="1.4" fill="none" opacity=".8"/>');
-  parts.push('<circle cx="100" cy="106" r="5" fill="#c9d3d8"/><circle cx="100" cy="106" r="2.4" fill="#d8492e"/>');
-  // Belt: jar, satchel, thruster.
-  parts.push('<rect x="68" y="140" width="64" height="7" rx="3" fill="#d8492e"/>');
-  if (s.kit.jar) parts.push('<rect x="56" y="134" width="12" height="18" rx="4" fill="#9fe0d0" opacity=".55" stroke="#c9d3d8" stroke-width="1.5"/><circle cx="62" cy="144" r="3" fill="#ffd27a"/>');
-  if (g('satchel')) parts.push('<rect x="132" y="134" width="12" height="18" rx="4" fill="#9fe0d0" opacity=".55" stroke="#c9d3d8" stroke-width="1.5"/>');
-  const th = g('dash') ? 3 : s.kit.thruster;
-  if (th > 0) {
-    parts.push('<rect x="126" y="112" width="16" height="22" rx="4" fill="#3a4246" stroke="#c9d3d8" stroke-width="1.5"/>');
-    for (let i = 0; i < th; i++) parts.push(`<circle cx="134" cy="${116 + i * 7}" r="2.6" fill="#c6f56a"/>`);
-  }
-  // Arms and gauntlets; flare tube on the left wrist.
-  parts.push('<rect x="50" y="92" width="16" height="40" rx="7" fill="#4a5459"/><rect x="134" y="92" width="16" height="40" rx="7" fill="#4a5459"/>');
-  parts.push('<rect x="46" y="128" width="24" height="16" rx="6" fill="#d8492e"/><rect x="130" y="128" width="24" height="16" rx="6" fill="#d8492e"/>');
-  if (g('flare')) parts.push('<rect x="40" y="116" width="12" height="18" rx="3" fill="#c9a24a"/><circle cx="46" cy="116" r="3" fill="#ffd06a"/>');
-  // Shoulder lamp (the dive light is bigger and brighter).
-  const lamp = g('light');
-  parts.push(`<rect x="${lamp ? 52 : 56}" y="${lamp ? 74 : 78}" width="${lamp ? 20 : 12}" height="${lamp ? 14 : 10}" rx="3" fill="#3a4246" stroke="#c9d3d8" stroke-width="1.2"/>`);
-  parts.push(`<circle cx="${lamp ? 52 : 56}" cy="${lamp ? 81 : 83}" r="${lamp ? 5 : 3}" fill="#fff2c0"/>`);
-  if (lamp) parts.push('<path d="M48 81l-30-16v32z" fill="#fff2b0" opacity=".28"/>');
-  // Collar, helmet, crest, visor band, cowl.
-  if (g('cowl')) parts.push('<path d="M64 72c4-20 20-30 36-30s32 10 36 30l-8 8c-6-14-16-20-28-20s-22 6-28 20z" fill="#c9d3d8"/>');
-  parts.push(`<rect x="74" y="66" width="52" height="12" rx="5" fill="${ps2 ? '#e0772a' : '#c9d3d8'}"/>`);
-  parts.push('<path d="M78 68c0-18 10-30 22-30s22 12 22 30z" fill="#c6f56a" opacity=".85"/>');
-  parts.push('<path d="M100 22c7 4 10 10 10 17-4-4-6-5-10-6z" fill="#c6f56a"/>');
-  parts.push('<path d="M86 62c1-10 6-17 13-19" stroke="#f4ffd8" stroke-width="3" fill="none" opacity=".75"/>');
-  parts.push('<circle cx="96" cy="56" r="7" fill="#e6c3a0" opacity=".7"/>');
-  if (g('visor')) parts.push('<path d="M80 54h40" stroke="#c6f56a" stroke-width="3.5" opacity=".95"/><path d="M80 54h40" stroke="#f6ffe0" stroke-width="1" />');
-  return `<svg viewBox="0 8 200 190" role="img" aria-label="Kestrel's gear"><defs><linearGradient id="fkChoir" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#6ff3ff"/><stop offset=".5" stop-color="#b07cff"/><stop offset="1" stop-color="#ff6ad5"/></linearGradient><radialGradient id="fkGlow"><stop offset="0" stop-color="#c9a24a" stop-opacity=".22"/><stop offset="1" stop-color="#c9a24a" stop-opacity="0"/></radialGradient></defs><circle cx="100" cy="110" r="96" fill="url(#fkGlow)"/>${parts.join('')}</svg>`;
 }

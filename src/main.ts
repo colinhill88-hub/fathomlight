@@ -25,6 +25,8 @@ import { loadWorldArt } from './art/worldArt';
 import { initSettingsUI } from './ui';
 import { Input } from './input';
 import { Diver, type KitLook } from './actors/diver';
+import { Walker } from './actors/walker';
+import { SiltPuffs } from './fx/siltPuffs';
 import { Glowfin } from './actors/glowfin';
 import { Bubbles } from './fx/bubbles';
 import { Light, Lighting } from './fx/lighting';
@@ -301,6 +303,9 @@ async function boot(): Promise<void> {
   diver.x = save.x;
   diver.y = save.y;
   diver.lampOn = save.lampOn;
+  // Phase 17b: the on-foot rig the diver stands in while the mag-boots are clamped (same look flags as the interior's).
+  diver.attachWalker(new Walker(paintedFace, paintedSuit?.walker, redesigned, compact, fidelity));
+  const siltPuffs = new SiltPuffs();
   const bubbles = new Bubbles(renderer);
   // The build drone: stuck in the sled wreck until repaired (milestone 3 follow-up).
   const drone = new Drone(save.drone === 'active');
@@ -513,6 +518,7 @@ async function boot(): Promise<void> {
       subBubbles.view,
       drone.view,
       diver.view,
+      siltPuffs.view,
       bubbles.view,
       baseView.front,
       scenery.over,
@@ -569,6 +575,8 @@ async function boot(): Promise<void> {
       const e = SCAN_ENTRIES.find((x) => x.id === id);
       if (e) hud.showReading(e.name, e.text, 'Kept in your scanner log.');
     }),
+    kitLook: () => kitLook(),
+    jar: () => save.jar,
     onOpenChange: (open) => {
       document.body.classList.toggle('kit-open', open);
       audio.setPaused(open);
@@ -1232,6 +1240,7 @@ async function boot(): Promise<void> {
       boots: hasGear(save, 'boots'),
       cowl: hasGear(save, 'cowl'),
       dash: hasGear(save, 'dash'),
+      dart: hasGear(save, 'dart'),
     };
   }
   let noThrusterAt = -99;
@@ -1259,6 +1268,7 @@ async function boot(): Promise<void> {
   /** A named creature's release waits for a second press within 4 s (Colin, Nov 21, 2026). */
   let releaseArm: { id: number; until: number } | null = null;
   const releaseBtn = document.getElementById('btn-release') as HTMLButtonElement;
+  const bootsBtn = document.getElementById('btn-boots') as HTMLButtonElement;
   function releaseFromJar(): void {
     const slot: 'jar' | 'jar2' | null = save.jar2 ? 'jar2' : save.jar ? 'jar' : null;
     if (!slot) return;
@@ -2076,6 +2086,8 @@ async function boot(): Promise<void> {
     pausedFrames = 0;
     if (interior.active) {
       diver.cancelSurfaceReaction();
+      // Phase 17b: indoors Kestrel walks anyway; the boots let go on the way in.
+      if (diver.clamped) diver.setClamped(false);
       interiorFrame(dt, ticker.deltaMS);
       return;
     }
@@ -2377,17 +2389,30 @@ async function boot(): Promise<void> {
       }
     }
     if (!aboard && !save.cleftOpen && Math.hypot(diver.x - CLEFT.x, diver.y - CLEFT.y) < 75) scald = Math.max(scald, 0.5);
-    const bootsOnFloor = !aboard && hasGear(save, 'boots') &&
-      (isSolid(diver.x, diver.y + 44) || isSolid(diver.x - 14, diver.y + 44) || isSolid(diver.x + 14, diver.y + 44));
-    bootsNear = bootsOnFloor && !diver.surfaced;
-    const bracing = bootsOnFloor && inControl && !input.suspended && !grapple && !boarding && !swimmingPool &&
-      !diver.surfaced && !s.boost && !diver.boosting && s.moveY > 0.55;
-    if (bootsOnFloor) diver.current.x *= bracing ? 0 : 0.12;
-    if (bracing) diver.current.y = 0;
-    if (bracing && !save.tips.includes('bootbrace')) {
-      save.tips.push('bootbrace');
-      hud.toast('Mag-boots braced. Edge sideways to move along the bottom, or release Down to swim free.');
-      persist();
+    // Phase 17b: the mag-boots clamp on and off with the Boots action (they no longer brace while Down is held).
+    const bootsOwned = !aboard && hasGear(save, 'boots');
+    // Offered on the control bar when the seabed is close below, or in the race.
+    bootsNear = bootsOwned && !diver.clamped && !diver.surfaced && blackout === 0 &&
+      ([60, 110, 170].some((d) => isSolid(diver.x, diver.y + d)) || raceHere > 0.3);
+    if (diver.clamped && (!bootsOwned || boarding || grapple || swimmingPool || peek || blackout > 0)) diver.setClamped(false);
+    if (s.boots && inControl && !input.suspended && !peek) {
+      if (aboard) {
+        /* KS-1 has no boots: the key does nothing aboard. */
+      } else if (!hasGear(save, 'boots')) {
+        if (time - noBootsAt > 6) {
+          noBootsAt = time;
+          hud.toast("No mag-boots yet. A Workshop can build them once a Lab has worked out the blueprint.", 'warn');
+        }
+      } else if (!grapple && !boarding && !swimmingPool && blackout === 0) {
+        diver.setClamped(!diver.clamped);
+        sound.magClamp(diver.clamped);
+        if (diver.clamped && !save.tips.includes('magwalk')) {
+          save.tips.push('magwalk');
+          const k = (a: 'boots' | 'jump') => keyName(keysFor(a)[0]);
+          hud.toast(`Mag-boots clamped on. Walk the seabed: currents can't push you. ${k('jump')} hops. Press ${k('boots')} again to let go and swim.`);
+          persist();
+        }
+      }
     }
     // Milestone 8 part 2: the Corvina's state, and the hidden passage and salvage.
     cv.hatch = save.corvina.hatch;
@@ -2494,6 +2519,19 @@ async function boot(): Promise<void> {
         grapple = null;
         scenery.setTow(null);
       }
+    } else if (!aboard && diver.clamped) {
+      // Phase 17b: walking the seabed in clamped mag-boots. Jump (the same key as Boost) hops.
+      const w = diver.walkFrame(dt, inControl ? s.moveX : 0, inControl && s.boost, inControl && s.lamp);
+      if (w.step) {
+        sound.magStep(Math.min(1, Math.abs(diver.vx) / 95));
+        siltPuffs.puff(w.stepX, w.stepY, 0.3);
+      }
+      if (w.landed > 0) {
+        sound.magLand(w.landed);
+        siltPuffs.puff(diver.x, diver.y + 40, 0.35 + 0.65 * w.landed);
+        if (w.landed > 0.5) shake = Math.max(shake, 0.3 * w.landed);
+      }
+      if (w.hopped) siltPuffs.puff(diver.x, diver.y + 40, 0.25);
     } else if (!aboard) {
       // The boost needs the hip thruster, found at the survey beacon (before milestone 11).
       if (inControl && s.boost && save.kit.thruster === 0 && time - noThrusterAt > 6) {
@@ -2501,7 +2539,7 @@ async function boot(): Promise<void> {
         hud.toast('No thruster to boost with yet. A Kestrel survey left a spare hip thruster somewhere near its beacon, at the drop-off.', 'warn');
       }
       const freeSwimming = inControl && !input.suspended && !peek && !s.boost && !s.board && !s.scan && !s.collect && !s.flare && !s.dart;
-      diver.update(dt, inControl ? s.moveX : 0, inControl ? s.moveY : 0, inControl && s.boost && save.kit.thruster > 0, inControl && s.lamp, freeSwimming, pool?.y, bracing);
+      diver.update(dt, inControl ? s.moveX : 0, inControl ? s.moveY : 0, inControl && s.boost && save.kit.thruster > 0, inControl && s.lamp, freeSwimming, pool?.y);
       // After milestone 12: the TH-3 dash head. A double tap of Boost dashes, every 3 s.
       if (inControl && s.boost && hasGear(save, 'dash')) {
         if (time - boostTapAt < 0.32 && time - dashAt > 3) {
@@ -3716,6 +3754,7 @@ async function boot(): Promise<void> {
     }
     const [bx, by] = diver.bubblePoint();
     bubbles.update(dt, bx, aboard ? 0 : by, diver.vx, diver.vy, diver.takeBubbles());
+    siltPuffs.update(dt);
 
     if (Math.hypot(s.moveX, s.moveY) > 0.2 && hintTimer === 0) hintTimer = 0.001;
     if (hintTimer > 0) {
@@ -4571,12 +4610,13 @@ async function boot(): Promise<void> {
   // which in a busy base or a copper field was every second or two. The bar's sonar ripple still shows
   // new offers. To bring the sound back, set: controlHelper.onOffer = () => sound.offerPing();
   let bootsNear = false;
+  let noBootsAt = -99;
   function helperMode(): HelperMode {
     if (menus.paused || blackout > 0 || boarding || hud.reading || zoneMap.open || contact.active || padNav.active) return 'none';
     if (build.active) return 'build';
     if (care.active || dockUI.active || station.active || hatchPanel.active || rates.open || !settingsPanel.hidden || !logPanel.hidden) return 'none';
     if (interior.active) return interior.swinging ? 'swing' : interior.pos.climbing ? 'climb' : 'foot';
-    return save.sub?.aboard ? 'sub' : 'swim';
+    return save.sub?.aboard ? 'sub' : diver.clamped ? 'boots' : 'swim';
   }
   function helperFrame(dt: number): void {
     const s = input.state;
@@ -4601,7 +4641,8 @@ async function boot(): Promise<void> {
       release: outside && !aboard ? jarReleaseLabel() : null,
       sonar: hasGear(save, 'sonar') && !aboard,
       lights: aboard ? mods.includes('lights') : true,
-      brace: outside && !aboard && bootsNear,
+      brace: false,
+      boots: !outside || aboard || !hasGear(save, 'boots') ? null : bootsNear ? 'offer' : 'own',
       ladder: interior.active && interior.nearLadder,
       zoom: zoomFree(),
       moving: Math.hypot(s.moveX, s.moveY) > 0.2 || s.boost || s.jumpHeld,
@@ -4659,6 +4700,12 @@ async function boot(): Promise<void> {
     }
     // Phase 15: release the creature in the jar (J, d-pad left, or the release button).
     releaseBtn.hidden = !(jarReleaseLabel() && !aboard);
+    // Phase 17b: the Boots button shows once the boots are built, and stays lit while they are clamped.
+    bootsBtn.hidden = aboard || !hasGear(save, 'boots');
+    if (bootsBtn.classList.contains('on') !== diver.clamped) {
+      bootsBtn.classList.toggle('on', diver.clamped);
+      bootsBtn.setAttribute('aria-pressed', String(diver.clamped));
+    }
     if (releaseArm && time > releaseArm.until) releaseArm = null;
     if (s.release && live && !aboard) releaseFromJar();
     // Flare launcher (Z, LT, or the flare button).
@@ -5162,6 +5209,9 @@ async function boot(): Promise<void> {
     rewardScale: () => reward.timeScale(),
     rewardPin: (ms: number | null) => reward.pin(ms),
     fieldKit,
+    // Phase 17b: the boots' silt puffs and the swim wake (for checks).
+    siltPuffs,
+    wake,
     releaseJar: () => releaseFromJar(),
     audioLevel: () => audio.level(),
     audioPeak: () => audio.peak(),

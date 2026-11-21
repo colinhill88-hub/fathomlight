@@ -4,7 +4,7 @@ Nov 21, 2026 · planned with Colin after Phase 14 (reward moments, PR #36)
 
 This is the agreed plan for work that is **not built yet**. Nothing here is implemented unless [Progress](../PROGRESS.md) says so. Read the [development handoff](AI_DEVELOPMENT_HANDOFF.md) before starting any of it, whichever AI tool you are. When a phase ships, move its entry into PROGRESS.md and mark it done here. Do not delete it.
 
-The order below is Colin's agreed phasing. Phases 15 and 16 are built. **Phases 17, 18 and 19 are agreed and ready to build** (planned with Colin on Nov 21, 2026, after Phase 16), each with a session prompt in `docs/prompts/`. Later items need a design pass with Colin before code. Ask him the open questions listed with each item.
+The order below is Colin's agreed phasing. Phases 15 and 16 are built. **Phase 17 is built** (on a branch with a pull request for Colin). **Phases 18 and 19 are agreed and ready to build** (planned with Colin on Nov 21, 2026, after Phase 16), each with a session prompt in `docs/prompts/`. Later items need a design pass with Colin before code. Ask him the open questions listed with each item.
 
 ## Colin's decisions (Nov 21, 2026)
 
@@ -41,7 +41,7 @@ The order below is Colin's agreed phasing. Phases 15 and 16 are built. **Phases 
 - With two jars held, release the most recently caught first. Say which one in the prompt.
 - Check: release, then catching the right species, works end to end with real input. The wild cap counts correctly after a release. Releasing a named creature without the second press does nothing. `node scripts/test-progression.mjs` gets a check for the quota refund.
 
-### 15b. The Field kit screen (press I): **done** (see PROGRESS.md). Not done yet: per-zone breakdowns in the Collection tab (it shows game-wide totals) and reuse of the Kestrel rig for the portrait (it is a separate SVG drawing; **planned as Phase 17a**).
+### 15b. The Field kit screen (press I): **done** (see PROGRESS.md). Not done yet: per-zone breakdowns in the Collection tab (it shows game-wide totals). The portrait now reuses the Kestrel rig (**done in Phase 17a**).
 
 **Idea (Colin):** a screen showing the character with every attachment and everything unlocked, as a reminder. It grew into an Ocarina of Time-style pause sub-screen.
 
@@ -98,11 +98,13 @@ The order below is Colin's agreed phasing. Phases 15 and 16 are built. **Phases 
 - **Spatial sound.** Pan and distance for sounds placed in the world (creatures, machines, the drone), and a duller, roomier sound inside hulls.
 - **Work in rounds with Colin listening.** Each round: change a group of sounds, record a short before/after capture or describe exactly where to stand in the game to hear it, then ask for feedback.
 
-## Phase 17: Kestrel's kit (the Field kit portrait, and walking mag-boots). Not built.
+## Phase 17: Kestrel's kit (the Field kit portrait, and walking mag-boots). **Built** (see PROGRESS.md); waiting for Colin to try it and merge.
 
 **Session prompt:** [`docs/prompts/phase-17-kit-portrait-and-boots.md`](prompts/phase-17-kit-portrait-and-boots.md). Both parts are work on Kestrel's rig and poses, so they share one session.
 
-### 17a. The Field kit portrait uses the real Kestrel
+### 17a. The Field kit portrait uses the real Kestrel: **done**
+
+Built with the on-foot rig standing (it reads better in a tall panel than the swimmer), turning round slowly now and then; the roadmap's default of a floating swim pose was not used. Cutter, sonar and relay kits have no piece on the body, so their cards light nothing.
 
 **Problem (Colin):** the Kit tab's portrait looks boxy and code-drawn, not like the character.
 
@@ -111,7 +113,9 @@ The order below is Colin's agreed phasing. Phases 15 and 16 are built. **Phases 
 - Keep it working in iPhone landscape and keep the world paused while the Field kit is open.
 - Open choice for the session (default if Colin doesn't say): a calm floating swim pose, slowly turning a little.
 
-### 17b. Mag-boots: a walking mode
+### 17b. Mag-boots: a walking mode: **done**
+
+Choices the session made (Colin can change them): the key is **N** (B was taken by Build), the pad button is **d-pad up**, the touch button says **Boots** and glows lime while clamped. Only Boots lets go (Boost is Jump, so it hops). The old hold-Down brace is gone. Footsteps reuse the logged CC0 files (slowed metal impacts and steps) under synthesised thumps: no new sound files.
 
 **Problem (Colin):** the boots don't really lock onto the ocean floor. Today you hold Down near the seabed to brace (`bootsOnFloor` and `bracing` in `main.ts`; the control helper shows "brace"). There is no Boots button.
 

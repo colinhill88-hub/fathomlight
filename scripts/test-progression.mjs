@@ -171,6 +171,73 @@ try {
   assert.ok(!rows15(base15).some((r) => r.id.startsWith('release')), 'No release offer with an empty jar');
   assert.ok(rows15(base15).some((r) => r.id === 'kit'), 'The Field kit is listed while swimming');
 
+  // Phase 17b: the mag-boots' walking mode (src/game/magboots.ts).
+  {
+    const mb = await server.ssrLoadModule('/src/game/magboots.ts');
+    const { MAG, magStep, magClamp } = mb;
+    // A flat floor at y = 1000 with a ledge (floor drops to 1200) from x = 600, a wall from x = 900, a 10-unit step at x = 300.
+    const floorAt = (x) => (x >= 900 ? -1e9 : x >= 600 ? 1200 : x >= 300 ? 990 : 1000);
+    const solid = (x, y) => y >= floorAt(x);
+    const run = (b, moveX, sec, hopAt = -1) => {
+      const ev = { landed: 0, hops: 0, blocked: false };
+      for (let t = 0, i = 0; t < sec; t += 1 / 60, i++) {
+        const r = magStep(b, moveX, i === hopAt, 1 / 60, solid);
+        if (r.landed) ev.landed = Math.max(ev.landed, r.landed);
+        if (r.hopped) ev.hops++;
+        if (r.blocked) ev.blocked = true;
+      }
+      return ev;
+    };
+    // Clamping on never moves her; hanging in the water, she then sinks slowly to the floor.
+    const b = { x: 100, y: 700, vx: 40, vy: -30, onFloor: false };
+    magClamp(b, solid);
+    assert.equal(b.x, 100);
+    assert.equal(b.y, 700, 'Clamping on keeps the position');
+    assert.equal(b.vy, 0, 'No upward fling from the swim');
+    let ev = run(b, 0, 0.5);
+    assert.ok(b.vy <= MAG.sink && b.y < 1000 - MAG.foot, 'Sinks no faster than the slow sink');
+    ev = run(b, 0, 3);
+    assert.ok(b.onFloor && Math.abs(b.y + MAG.foot - 1000) < 1.5, 'Lands with the soles on the floor');
+    assert.ok(ev.landed > 0.9, 'A long sink lands with a full thud');
+    // Walking is slower than swimming (230) and goes up a small step.
+    const x0 = b.x;
+    run(b, 1, 2);
+    assert.ok(b.x - x0 > MAG.walk * 1.5 && b.x - x0 < MAG.walk * 2.05, 'Walks at the boots pace');
+    assert.ok(MAG.walk < 230 * 0.5, 'Walking is well under swimming speed');
+    run(b, 1, 1);
+    assert.ok(b.x > 300 && b.onFloor && Math.abs(b.y + MAG.foot - 990) < 1.5, 'Walks up a small step onto it');
+    // The hop is short and heavy, and lands again.
+    const yStand = b.y;
+    let top = b.y;
+    for (let i = 0; i < 90; i++) {
+      magStep(b, 0, i === 0, 1 / 60, solid);
+      top = Math.min(top, b.y);
+    }
+    assert.ok(yStand - top > 35 && yStand - top < 70, 'A heavy hop of about half a body');
+    assert.ok(b.onFloor, 'Back on the floor after the hop');
+    // Walking off the ledge sinks slowly (boots still on) and lands with a thud below.
+    b.x = 580;
+    const off = run(b, 1, 0.4);
+    assert.ok(!b.onFloor && b.vy > 0 && b.vy <= MAG.sink, 'Walking off an edge sinks slowly');
+    const land = run(b, 0, 3);
+    assert.ok(b.onFloor && Math.abs(b.y + MAG.foot - 1200) < 1.5 && land.landed > 0.9, 'Lands heavily on the lower floor');
+    // A wall stops her.
+    const w = run(b, 1, 6);
+    assert.ok(w.blocked && b.x < 900 - MAG.half + 1, 'Stopped by a wall');
+    void off;
+    // Against the real terrain: walking across the Wreck Shelf race floor keeps the soles on the seabed.
+    const rb = { x: 19760, y: terrain.groundY(19760) - MAG.foot - 2, vx: 0, vy: 0, onFloor: false };
+    magClamp(rb, terrain.isSolid);
+    for (let i = 0; i < 60 * 8; i++) magStep(rb, 1, false, 1 / 60, terrain.isSolid);
+    assert.ok(rb.x > 19760 + MAG.walk * 6, 'Walks east across the race floor (currents play no part in the rule)');
+    assert.ok(rb.onFloor && Math.abs(rb.y + MAG.foot - terrain.groundY(rb.x)) < 4, 'The soles stay on the race floor');
+  }
+  const bootRows = (over) => rows15({ ...base15, ...over }).map((r) => r.id);
+  assert.ok(bootRows({ boots: 'offer' }).includes('boots'), 'Near the seabed the bar offers to clamp the boots');
+  assert.ok(bootRows({ boots: 'own' }).includes('boots'), 'Owned boots are listed while swimming');
+  assert.ok(!bootRows({}).includes('boots'), 'No boots row before the boots are built');
+  assert.deepEqual(bootRows({ mode: 'boots' }).slice(0, 3), ['unclamp', 'walk', 'hop'], 'Clamped: let go, walk and hop come first');
+
   console.log('Progression checks passed.');
 } finally {
   await server.close();

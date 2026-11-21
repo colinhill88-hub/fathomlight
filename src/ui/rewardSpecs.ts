@@ -23,7 +23,7 @@ const GEAR_CARD: Partial<Record<GearId, { icon: RewardIcon; ribbon?: string; lin
   flare: { icon: 'light', line: 'Fire a flare to light dark water ahead.' },
   visor: { icon: 'suit', ribbon: 'Suit upgrade', line: 'Materials and young creatures show through rock.' },
   dash: { icon: 'thruster', ribbon: 'New ability', line: 'Double-tap Boost to dash.' },
-  boots: { icon: 'boots', ribbon: 'New ability', line: 'Brace on the seabed against any current.' },
+  boots: { icon: 'boots', ribbon: 'New ability', line: 'Clamp on and walk the seabed, out of any current.' },
   dart: { icon: 'gear', line: 'Stun a predator and turn it away.' },
   cowl: { icon: 'suit', ribbon: 'Suit upgrade', line: 'Vent heat scalds a fifth as much.' },
 };

@@ -29,6 +29,8 @@ export type Action =
   // Phase 15: release the creature in the jar; open the Field kit.
   | 'release'
   | 'kit'
+  // Phase 17b: clamp the mag-boots on and off (walk the seabed).
+  | 'boots'
   | 'build'
   | 'tend'
   | 'dock'
@@ -79,6 +81,8 @@ const DEFAULTS: Record<Action, Binding> = {
   haul: { keys: ['h'], pad: [13] },
   release: { keys: ['j'], pad: [14] },
   kit: { keys: ['i'], pad: [8] },
+  // N (free on the keyboard), the d-pad's up (free on the pad), the Boots button on touch.
+  boots: { keys: ['n'], pad: [12] },
   build: { keys: ['b'], pad: [] },
   tend: { keys: ['t'], pad: [] },
   dock: { keys: ['g'], pad: [] },

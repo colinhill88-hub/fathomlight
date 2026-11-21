@@ -164,7 +164,7 @@ Each item is built in the Workshop from a blueprint found at a major site, and e
 | Tow line | Crossing strong currents |
 | Pressure suit, in tiers | Each deeper zone |
 | Sonar pulse | Hidden passages; calms hostile creatures |
-| Mag-boots (Phase 17 plan) | A clamped-on walking mode along the seabed: heavy footsteps, immune to bottom currents, slower than swimming. Mainly for the Wreck Shelf race; more boot sections may come later |
+| Mag-boots (built in Phase 17) | A clamped-on walking mode along the seabed (the Boots button toggles it): heavy footsteps, immune to currents and vent lift, slower than swimming, a short heavy hop, a slow sink off ledges. Mainly for the Wreck Shelf race; more boot sections may come later |
 | Wreck weapon (Phase 19 plan) | Fighting the machines and rust-things that infest wreck interiors |
 | Sub depth plating and grabber arm | Crush depths and heavy objects |
 | Sub drill nose (Phase 13 status) | The soft trench seam's grotto, and five resealing mineral lodes (optional mining) |
@@ -216,7 +216,7 @@ Phase 14 makes progress feel earned. Pickups, finds and upgrades now land with a
 
 Phase 12 gives the Wreck Shelf strongbox paired claw scratches, a scan and a creature interaction. A grown tinker crab works the lock and returns to the jar. The mandatory trench cleft has grazing marks and a separate mature cinder-snail interaction. Its PS-2 drawings and signal spool are the deep progression payoff. Good habitat setup should let the player prepare for those trips. A solitary juvenile with its preferred plant now consumes food and fouls water more slowly. Players can replace lost founders without a Revival pool. Population growth beyond the founding pair still comes from breeding happy adults with a powered Hatchery.
 
-The Wreck Shelf race teaches the grapple's anchor route and ends with the flow vane calming the upper crossing. KS-1 keeps that lasting route. Mag-boots give Kestrel a separate low-speed stance near the seabed. Hold Down to resist currents and edge sideways to line up an interaction. Releasing Down restores free swimming. **Planned change (Colin, Nov 21, 2026; Phase 17):** the boots become a toggle, like Ocarina's iron boots. Press the Boots button once to clamp on: Kestrel drops to the seabed in a walking pose and stomps along with heavy footsteps, can make a short heavy hop, and is not pushed by currents. Walking off a ledge sinks Kestrel slowly with the boots still on. Press again to let go and swim. Walking is slower than swimming, so it's a choice, mainly for the race. Deep operation of KS-1 and stepping outside remain separate decisions, with the hatch warning before a voluntary over-depth exit.
+The Wreck Shelf race teaches the grapple's anchor route and ends with the flow vane calming the upper crossing. KS-1 keeps that lasting route. Mag-boots give Kestrel a separate low-speed way along the seabed. (Until Phase 17 they braced while Down was held; that is gone.) **Built in Phase 17 (Colin, Nov 21, 2026):** the boots are a toggle, like Ocarina's iron boots. Press the Boots button once to clamp on: Kestrel drops to the seabed in a walking pose and stomps along with heavy footsteps, can make a short heavy hop, and is not pushed by currents. Walking off a ledge sinks Kestrel slowly with the boots still on. Press again to let go and swim. Walking is slower than swimming, so it's a choice, mainly for the race. Deep operation of KS-1 and stepping outside remain separate decisions, with the hatch warning before a voluntary over-depth exit.
 
 ## Original milestones
 
