@@ -31,7 +31,7 @@ Optional routes: the strongbox (grown tinker crab), which leads to the Revival p
 | Fresh save → basin → shallows → SLED 2 recorder → sled wreck / KD-1 → survey beacon | **Played continuously with real keyboard input** (an autopilot pressing WASD, holding C and E, surfacing for air). It ran about 11 minutes of wall time, roughly 5–7 minutes of game time. 12 scans were completed, scrap was pried and the recorder was unclipped. The KD-1 repair correctly refused with the missing materials listed. The pilot steered over the jar and the TH-1 thruster without collecting them, because they lie within 72 units of the floor and its waypoints ran 70 units above it. That is a pilot limit, not a game fault. |
 | Drill lode (kelp forest) | **Fixture save** (KS-1 built with the drill fitted, placed over the lode), then **real C hold**. Label "Drill the kelp forest lode", +3 copper and +1 quartz on the first drill, then "Lode resealing · ready in about 10 min". |
 | Base on foot (bench-seeded base, entered through the `enterBase` test hook) | **Real A/D/Space input** walking the base. The helper showed "C hold · Go out through the airlock", walk/jump/sprint/lamp and zoom. Info-only console labels (for example "CT-1: turning in the reef current…") were correctly *not* advertised as actions. |
-| Mouse-wheel zoom in the base and gamepad prompts | Captured in the same fixture session. Screenshots are listed in section 7. |
+| Ladders, the airlock, zoom, gamepad, build mode and preferences | **Real input on fixture saves.** Walking past a ladder adds "W S Climb". Holding C at the airlock leaves the base, and the helper switches to swimming at once ("C hold · Dig out copper nodule", "B Build", "H Send KD-1 home"). The wheel zooms the base view (1.00 → 1.49) and open water (view height 640 → 952). A gamepad shows "X hold · Go out through the airlock", "LS ↔ Walk", "A Jump", "LB hold Sprint" and "Y Lamp". B opens build mode with Pan, Place, Rotate, Zoom, Fit view and Done. Pause → Settings → Control helper stores the choice. Hide removes the bar and restores the corner labels. |
 | Later stages (Corvina, trench, Fulmar, Signal array, Sanctum) | **Not played in Phase 13.** Their dependencies are code-derived and covered by the existing regression checks (Sanctum collision, staged creature-site hints, founder recovery, habitat growth). |
 
 The autopilot lives outside the repository. To reproduce it, use Playwright against `vite preview`, never against `vite dev`: the dev server hot-reloads the page whenever a source file changes, which killed the first run mid-route.
@@ -44,7 +44,8 @@ The autopilot lives outside the repository. To reproduce it, use Playwright agai
 4. **The drill seam used its own banner** instead of the Collect label, unlike every other interaction. Its banner was also not cleared when the sub moved away from the seam.
 5. **Late-game vent ore is scarce.** PS-2 needs 8 vent ore, the resonator 6, the drill 2 and the cowl 3. The wild source is eight ledge spots that take ten minutes to regrow, plus grown cinder snails. The drill lodes now add a repeatable source on the trench ledge and floor.
 6. **Kept creatures were anonymous.** Toasts said "The tinker crab in tank 2…". Phase 12 asked for creatures to feel like individuals, not keys.
-7. **(Test environment) Vite HMR and software rendering** make naive browser playtests misleading. A "scan that never finishes" was really the game running at 4 FPS.
+7. **Found and fixed during validation:** build mode briefly showed a stale "Dig out copper nodule" offer left over from swimming. Build mode now shows only build controls.
+8. **(Test environment) Vite HMR and software rendering** make naive browser playtests misleading. A "scan that never finishes" was really the game running at 4 FPS.
 
 ## 4. Changes implemented
 
@@ -113,6 +114,7 @@ The 1440p screenshots and the playthrough logs are outside the repository, in th
 - `helper-sub-lode.png`, `drill-lode-drilling.png`, `drill-lode-done.png`: KS-1 over the kelp forest lode, before, during and after drilling.
 - `helper-base-foot.png`, `helper-base-*.png`, `helper-base-gamepad.png`: on foot in the base, with keyboard and with gamepad.
 - `swim-start.png`: a fresh save at the Kestrel site.
+- `helper-left-base.png`, `helper-build.png`, `settings-control-helper.png`: after the airlock, in build mode, and in the settings section.
 
 Before Phase 13, the desktop had a single grey text line that disappeared after 2.5 s and nothing showed the drill. After Phase 13, the screenshots show the keycap bar and the drill prompt.
 
