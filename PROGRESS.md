@@ -1,6 +1,6 @@
 # Fathomlight progress
 
-The live branch includes the Fulmar foothold and Codex Phases 1–11D. The separate **Phase 12 gameplay pass** is local and awaiting review. See the [development handoff](docs/AI_DEVELOPMENT_HANDOFF.md) for the current source map and the [progression audit](docs/phase-12-progression-audit.md) for the route from a new save to first contact.
+The live branch includes the Fulmar foothold, Codex Phases 1–11D and the Phase 12 gameplay pass (PR #33/#34). **Phase 13** (control helper, drill lodes, named creatures) is local on `claude/kind-keller-x7l9pw` and awaiting review; see the [Phase 13 audit](docs/phase-13-gameplay-audit.md). See the [development handoff](docs/AI_DEVELOPMENT_HANDOFF.md) for the current source map and the [progression audit](docs/phase-12-progression-audit.md) for the route from a new save to first contact.
 
 Play link: https://colinhill88-hub.github.io/fathomlight/ (live; first successful deploy 2026-11-14)
 
@@ -18,7 +18,16 @@ Play link: https://colinhill88-hub.github.io/fathomlight/ (live; first successfu
 | Phase 11D | PR #31, `c07277f` | Indoor zoom and camera handoff, live surrounding ocean, per-module pressure hulls, connector seals and separate scaffolds. Layout collision stays on the existing map. |
 | Fulmar accessibility | PR #32, `78c8bb3` | Three-tile crew-deck foothold creates two normal jumps to the comms spool. |
 
-### Phase 12 gameplay pass (local)
+### Phase 13 gameplay pass (local)
+
+- **Contextual control helper.** A keycap bar along the bottom edge shows the bindings the game actually uses, by situation: swimming, KS-1, on foot, ladder, grapple swing and build mode. It leads with what the world offers on Collect, Scan or Board. Settings let the player choose contextual hints (the default), always show, or hide. Gamepad users get pad glyphs; touch keeps its own buttons. See `src/ui/controlHelper.ts`.
+- **One binding table.** `src/controls/bindings.ts` feeds `Input`, build mode, the panel shortcuts and zoom. It stores overrides per device, ready for a remapping screen.
+- **Info versus action.** Collect prompts that only explain something, such as a refusal, a need or a console status, are flagged and never advertised as key actions.
+- **Drill nose, a lasting tool.** Five mineral lodes (kelp forest, two on the wreck shelf, trench ledge and trench floor) yield copper, quartz, scrap, brass and vent ore, and reseal after 10 minutes. The seam and the lodes are scannable and have field notes. The drill now uses the Collect label instead of its own banner. Optional save fields: `lodes` and `lodeNotes`.
+- **Named creatures.** Each kept creature has a stable name derived from its id, shown in care, the jar, events and the crab and snail sites. The save is unchanged.
+- **Validated:** `node scripts/test-progression.mjs` (with the new helper, bindings, lode and name checks), typecheck and build. In the browser with real input: a continuous fresh-save opening to the survey beacon, drilling the kelp forest lode in KS-1, walking the base and climbing its ladder, wheel zoom in the base, and gamepad glyphs. A continuous run to the ending was not possible on the headless software GPU (3–5 FPS); see the audit.
+
+### Phase 12 gameplay pass (merged)
 
 - The strongbox and trench chimney now offer physical clues, scanner entries and staged prompts. A later visit can surface more specific instructions, and a young or grown specimen changes the advice. During Collect holds, the corresponding creature visibly works and returns to the jar. Existing rewards and completion flags are retained.
 - Mag-boots add a braced stance near the bottom. Hold Down to stop being carried and edge sideways to work in the deep race or vent flow. The grapple still crosses the race, and raising the vane still opens permanent access to the upper water for KS-1.
@@ -1815,7 +1824,7 @@ The Flare and Dart buttons show on touch screens once each is built. Visual effe
 | Tractor beam TB-S | Echo whorl, salvage | Driving slowly, it draws the nearest loose material within 4 m into the sub, one every 1.2 s | A lime lens in the chin, and a beam |
 | Sonar dome SD-S | the Corvina's log | Teal marks on materials within about 25 m, through rock | A small glass dome on the back with a sweep |
 | Habitat pod HP-S | air pocket, Corvina | The sub's air reserve falls a quarter as fast | A pressurised pod on the back with lit ports |
-| Drill nose DN-S | trench, crushed probe | Bores the soft rock seam (below) | A chrome drill cone past the bow, spinning while it drills |
+| Drill nose DN-S | trench, crushed probe | Bores the soft rock seam (below) and, since Phase 13, five resealing mineral lodes | A chrome drill cone past the bow, spinning while it drills |
 
 **The drill seam** (`SEAM`, `seam` in `src/world/terrain.ts`; art `buildSeam` in `scenery.ts`): a band of pale, glinting soft rock in the sheer wall under the trench rim (the face of the first ledge, about 28 m). With the drill fitted, put the bow at it and hold Collect (3 s): it opens into a sub-sized tunnel and a **sealed grotto** with 2 glowing blooms, 2 vent ore and an Echo whorl (`seam-*` and `whorl-seam` in `pickups.ts`, hidden until it's open). Without the drill, the banner says what it needs. Saved as `save.seamOpen`.
 
@@ -1860,7 +1869,7 @@ Colin: the companion robot should find a dive-bag attachment in the kelp forest 
 
 ## Next
 
-First, play a full new save with the Phase 12 changes. Check the time and materials between milestones, identify friction in care and crafting, and test no-spoiler guidance with a new player. The Steam desktop build remains deferred until Colin asks.
+First, play a full new save with the Phase 12 and 13 changes on real hardware (the headless rig is too slow for it). Check the time and materials between milestones, identify friction in care and crafting, and test no-spoiler guidance with a new player. The Steam desktop build remains deferred until Colin asks.
 
 ## Problems and open questions
 
