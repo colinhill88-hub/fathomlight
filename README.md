@@ -2,7 +2,7 @@
 
 A single-player 2D underwater adventure about exploration, base-building, and creature care.
 
-Start with the [development handoff](docs/AI_DEVELOPMENT_HANDOFF.md) for the current game and source map, the [Phase 13 gameplay audit](docs/phase-13-gameplay-audit.md) for the latest playtest findings and the drill's status, and the [Phase 14 notes](docs/phase-14-reward-moments.md) for reward moments. See [Design](DESIGN.md) for the creative brief and [Progress](PROGRESS.md) for shipped work and remaining validation.
+Start with the [development handoff](docs/AI_DEVELOPMENT_HANDOFF.md) for the current game, source map and working rules (for any AI tool), the [roadmap](docs/ROADMAP.md) for what comes next, the [Phase 13 gameplay audit](docs/phase-13-gameplay-audit.md) for the latest playtest findings and the drill's status, and the [Phase 14 notes](docs/phase-14-reward-moments.md) for reward moments. See [Design](DESIGN.md) for the creative brief and [Progress](PROGRESS.md) for shipped work and remaining validation.
 
 Play: https://colinhill88-hub.github.io/fathomlight/
 

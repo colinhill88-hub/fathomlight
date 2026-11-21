@@ -1,6 +1,6 @@
 # Fathomlight progress
 
-The live branch includes the Fulmar foothold, Codex Phases 1–11D the Phase 12 gameplay pass (PR #33/#34) and the Phase 13 control helper, drill lodes and named creatures (PR #35, `d9f4728`); see the [Phase 13 audit](docs/phase-13-gameplay-audit.md). **Phase 14** (reward moments) is on `claude/zen-allen-qvxwtz` and awaiting review as a pull request; see the [Phase 14 notes](docs/phase-14-reward-moments.md). See the [development handoff](docs/AI_DEVELOPMENT_HANDOFF.md) for the current source map and the [progression audit](docs/phase-12-progression-audit.md) for the route from a new save to first contact.
+The live branch includes the Fulmar foothold, Codex Phases 1–11D the Phase 12 gameplay pass (PR #33/#34) and the Phase 13 control helper, drill lodes and named creatures (PR #35, `d9f4728`); see the [Phase 13 audit](docs/phase-13-gameplay-audit.md). **Phase 14** reward moments merged as PR #36 (`03b4c8f`); see the [Phase 14 notes](docs/phase-14-reward-moments.md). The agreed plan for Phase 15 onward, including ideas not built yet, is in the [roadmap](docs/ROADMAP.md). See the [development handoff](docs/AI_DEVELOPMENT_HANDOFF.md) for the current source map and the [progression audit](docs/phase-12-progression-audit.md) for the route from a new save to first contact.
 
 Play link: https://colinhill88-hub.github.io/fathomlight/ (live; first successful deploy 2026-11-14)
 
@@ -18,9 +18,9 @@ Play link: https://colinhill88-hub.github.io/fathomlight/ (live; first successfu
 | Phase 11D | PR #31, `c07277f` | Indoor zoom and camera handoff, live surrounding ocean, per-module pressure hulls, connector seals and separate scaffolds. Layout collision stays on the existing map. |
 | Fulmar accessibility | PR #32, `78c8bb3` | Three-tile crew-deck foothold creates two normal jumps to the comms spool. |
 | Phase 13 | PR #35, `d9f4728` | Contextual control helper on one binding table, five resealing drill lodes for KS-1, and named kept creatures. |
-| Phase 14 | Pull request from `claude/zen-allen-qvxwtz` (awaiting merge) | Reward moments: minor, notable and major tiers with drawn emblems, particles, slow motion and synthesised stings and fanfares. |
+| Phase 14 | PR #36, `03b4c8f` | Reward moments: minor, notable and major tiers with drawn emblems, particles, slow motion and synthesised stings and fanfares. |
 
-### Phase 14: reward moments (awaiting merge)
+### Phase 14: reward moments (merged, PR #36)
 
 Colin wanted every reward to feel like a reward: a card that shimmers and smashes down, and a dungeon chest where the hero lifts the item overhead to a short jingle. Rewards now come in three tiers, all drawn and synthesised in code. See the [Phase 14 notes](docs/phase-14-reward-moments.md).
 
@@ -1880,6 +1880,13 @@ Colin: the companion robot should find a dive-bag attachment in the kelp forest 
 - The benchmark save has the cradle, and exposes `window.__haul` for headless checks.
 
 ## Next
+
+The plan is in the [roadmap](docs/ROADMAP.md):
+- **Phase 15:** release the creature in the jar, the Field kit screen and a control-bar restyle.
+- **Phase 16:** an audio audit, which may now use CC0 sound files.
+- **Later, to design with Colin:** playable Choir songs, site climaxes, movement flow, a goal board and site maps.
+
+Alongside that, real-hardware validation continues:
 
 First, play a full new save with the Phase 12–14 changes on real hardware (the headless rig is too slow for it). Listen to the Phase 14 reward stings on the iPhone speaker and with headphones, and judge whether the major cards' slow motion and length feel right in play or need tuning (see the Tuning section of the Phase 14 notes). Check the time and materials between milestones, identify friction in care and crafting, and test no-spoiler guidance with a new player. The Steam desktop build remains deferred until Colin asks.
 

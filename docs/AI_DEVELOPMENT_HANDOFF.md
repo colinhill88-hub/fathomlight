@@ -1,12 +1,20 @@
 # Fathomlight development handoff
 
+This handoff is for **any AI coding tool** working on Fathomlight: Claude Code, OpenAI Codex/GPT, or anything else. Colin may switch tools when one runs out of usage, so it assumes no memory of earlier sessions. Everything a new session needs is in this repository.
+
+**Start here, in this order:**
+1. This file: the source map, rules and workflow.
+2. [Roadmap](ROADMAP.md): what to build next, Colin's latest decisions, and ideas he has agreed to but that aren't built yet.
+3. [Design](../DESIGN.md): the creative brief and the rules every change must respect.
+4. [Progress](../PROGRESS.md): what has shipped. Its top section is the current state.
+
 Read [Design](../DESIGN.md) for the creative constraints, [Progress](../PROGRESS.md) for the shipped history, the [Phase 12 audit](phase-12-progression-audit.md) for route dependencies and spoilers, and the [Phase 13 audit](phase-13-gameplay-audit.md) for the control helper, the drill's exact status and playtest coverage, and the [Phase 14 notes](phase-14-reward-moments.md) for reward moments. Treat source, tests, and the live branch as the evidence for current behavior. Old milestone prompts in `docs/prompts/` explain historical choices.
 
 ## The game and current branch
 
 Fathomlight is a single-player 2D underwater exploration, base-building and creature-care game. Kestrel is the compact salvage diver. The opening is small and approachable. The route expands from Sunlit Shallows and the basin through the Kelp Forest, Wreck Shelf and trench to the Choir. The player should make connections through observed behavior, scans, tool use and revisits. Keep calm spaces, hazards, and deliberate moments of discovery. Use the existing log and contextual actions for guidance.
 
-The repository default is `claude/underwater-game-m0-0qqajg`, and Phase 12 is merged into it (`c06d46d`). Phase 13 merged as PR #35 (`d9f4728`). Phase 14 (reward moments) is on `claude/zen-allen-qvxwtz`, based on `d9f4728`, and is up for review as a pull request. Merging to the live branch starts the [GitHub Pages workflow](../.github/workflows/deploy.yml). Publish or merge only when Colin requests it.
+The repository default (live) branch is `claude/underwater-game-m0-0qqajg`. Phases 12, 13 (PR #35) and 14 (reward moments, PR #36, `03b4c8f`) are all merged into it. The next work is Phase 15 in the [roadmap](ROADMAP.md). Merging to the live branch starts the [GitHub Pages workflow](../.github/workflows/deploy.yml). Publish or merge only when Colin requests it.
 
 ## Source map
 
@@ -43,10 +51,34 @@ Run [`node scripts/test-progression.mjs`](../scripts/test-progression.mjs) for t
 
 Start new work from the latest merged default. Keep real player profiles separate from fixture saves. Validate control inputs and actual interactions in the browser, then typecheck and build. For fixtures, document any seeded gear, resources, positions or elapsed simulation time. Commit related work together. Do not publish, merge, or deploy a local review branch without authorization.
 
+## Rules for every session, whichever tool you are
+
+- **Colin is not a programmer.** Explain choices in plain language. When something in DESIGN.md is unclear or a decision is his (names, costs, feel, which option), ask him before building. Note his answers in the docs, as the roadmap's "Colin's decisions" section does.
+- **Art is drawn by code.** Use no image files unless Colin supplies them. **Audio may now use sound files** (decided Nov 21, 2026), but only public-domain or CC0 files. Bundle them in the build and log each one in `public/audio/CREDITS.md`. The [roadmap](ROADMAP.md) has the full rules.
+- **Originality:** no trademarked names, and no copying of any other game's or film's characters, creatures, vehicles, music or levels. Reference games (Zelda, Ori, Hearthstone, Satisfactory, Subnautica) are inspiration for *feel*, never for content.
+- **Colour rule:** cyan, violet and magenta belong only to the Choir.
+- **Saves:** schema v1 under `fathomlight.save.v1` (see "Behavior and compatibility" above). New fields must be optional with safe defaults. Never break an existing save.
+- **Bindings:** keys, mouse and pad buttons are decided only in `src/controls/bindings.ts`. The control helper reads them from there.
+- **Rewards:** any new unlock, upgrade or solved puzzle should call `grant(...)` in `main.ts` with a tier that matches its weight (Phase 14).
+- **Branches and publishing:** start from the latest default branch. Work on a feature branch and open a pull request. Merging deploys to GitHub Pages, so never merge or deploy unless Colin asks. Commit related work together.
+- **Before finishing:** run `npm run typecheck`, `npm run build` and `node scripts/test-progression.mjs`. Check the change in the browser with real input (see "Working and testing" above). Then update the docs:
+  - **PROGRESS.md:** what shipped, how it was checked, and what still needs Colin's hands.
+  - **ROADMAP.md:** mark finished items done; never delete them.
+  - **This file:** the source map and anything a newcomer must know.
+  - **DESIGN.md:** new creative decisions.
+- **Say what you did not test.** The headless browser can't hear audio or judge feel. Give Colin exact steps to check it on his iPhone and PC.
+
 ## Next priorities
+
+See the [roadmap](ROADMAP.md) for the full plan. In short:
+
+1. **Phase 15:** release the creature in the jar (with confirmation for named tank creatures), the Field kit screen on I, and a restyle of the control helper bar (mock up options first).
+2. **Phase 16:** the audio audit, in rounds with Colin listening, now allowed to use CC0 samples.
+3. **Then design with Colin:** songs Kestrel plays on the resonator, a climax at each major site, movement flow, a goal board, and maps of major sites.
+
+Validation that is still open:
 
 1. Run an uninterrupted new-save progression playthrough on real hardware (Phase 13 covered the opening with real input and the rest by fixtures), especially early material economy, base construction and crafting, both environmental puzzles, Fulmar, and the Signal array to first contact.
 2. Try the boots with a controller and touch in the race and the vents. Check whether the hold-to-brace reads before considering additional optional routes.
 3. Tune the Phase 14 reward moments by ear on the iPhone and with a controller (pad buttons do not yet dismiss a major card).
-4. Add a remapping screen on `bindings.ts`; tune drill-lode yields from a real economy run.
-5. Validate the legacy recovery routes and long-running breeding economy with sparse habitats and a low-power base. The desktop wrapper remains deferred.
+4. Validate the legacy recovery routes and long-running breeding economy with sparse habitats and a low-power base. The desktop wrapper remains deferred.
