@@ -1,6 +1,6 @@
 # Fathomlight progress
 
-The live branch includes the Fulmar foothold, Codex Phases 1–11D the Phase 12 gameplay pass (PR #33/#34) and the Phase 13 control helper, drill lodes and named creatures (PR #35, `d9f4728`); see the [Phase 13 audit](docs/phase-13-gameplay-audit.md). **Phase 14** reward moments merged as PR #36 (`03b4c8f`). **Phase 15** (jar release, the Field kit, control-bar looks) is on `claude/zen-allen-qvxwtz` awaiting merge; see the [Phase 14 notes](docs/phase-14-reward-moments.md). The agreed plan for Phase 15 onward, including ideas not built yet, is in the [roadmap](docs/ROADMAP.md). See the [development handoff](docs/AI_DEVELOPMENT_HANDOFF.md) for the current source map and the [progression audit](docs/phase-12-progression-audit.md) for the route from a new save to first contact.
+The live branch includes the Fulmar foothold, Codex Phases 1–11D the Phase 12 gameplay pass (PR #33/#34) and the Phase 13 control helper, drill lodes and named creatures (PR #35, `d9f4728`); see the [Phase 13 audit](docs/phase-13-gameplay-audit.md). **Phase 14** reward moments merged as PR #36 (`03b4c8f`). **Phase 15** (jar release, the Field kit, the sonar control bar) is on `claude/zen-allen-qvxwtz` awaiting merge; see the [Phase 14 notes](docs/phase-14-reward-moments.md). The agreed plan for Phase 15 onward, including ideas not built yet, is in the [roadmap](docs/ROADMAP.md). See the [development handoff](docs/AI_DEVELOPMENT_HANDOFF.md) for the current source map and the [progression audit](docs/phase-12-progression-audit.md) for the route from a new save to first contact.
 
 Play link: https://colinhill88-hub.github.io/fathomlight/ (live; first successful deploy 2026-11-14)
 
@@ -18,10 +18,10 @@ Play link: https://colinhill88-hub.github.io/fathomlight/ (live; first successfu
 | Phase 11D | PR #31, `c07277f` | Indoor zoom and camera handoff, live surrounding ocean, per-module pressure hulls, connector seals and separate scaffolds. Layout collision stays on the existing map. |
 | Fulmar accessibility | PR #32, `78c8bb3` | Three-tile crew-deck foothold creates two normal jumps to the comms spool. |
 | Phase 13 | PR #35, `d9f4728` | Contextual control helper on one binding table, five resealing drill lodes for KS-1, and named kept creatures. |
-| Phase 15 | Pull request from `claude/zen-allen-qvxwtz` (awaiting merge) | Jar release with confirmation for named creatures, the Field kit on I, and three control-bar looks for Colin to choose from. |
+| Phase 15 | Pull request from `claude/zen-allen-qvxwtz` (awaiting merge) | Jar release with confirmation for named creatures, the Field kit on I, and the sonar-style control bar with an offer ping. |
 | Phase 14 | PR #36, `03b4c8f` | Reward moments: minor, notable and major tiers with drawn emblems, particles, slow motion and synthesised stings and fanfares. |
 
-### Phase 15: jar release, the Field kit, and control-bar looks (on `claude/zen-allen-qvxwtz`, awaiting merge)
+### Phase 15: jar release, the Field kit, and the sonar control bar (on `claude/zen-allen-qvxwtz`, awaiting merge)
 
 - **Release the creature in the jar (15a, done).** Press **J** (d-pad left on a gamepad, or the jar **Release** button on touch) while swimming outside. The satchel's newer catch goes first. The control helper offers it by name ("Release the glowfin fry").
   - A wild catch swims home and **stops counting against the wild limit**, so the right one can be caught instead.
@@ -32,17 +32,13 @@ Play link: https://colinhill88-hub.github.io/fathomlight/ (live; first successfu
   - Gear not found yet shows as a **dark silhouette marked "???"**. KS-1's module slots appear only once the sub is built.
   - **Collection tab:** each species (scanned, kept, grown, patterns, bred); meters for air tanks, echo whorls, the scanner log and drill lodes; and the Choir's song (spools found, fragments decoded, and the glow patterns the next fragment needs).
   - Links to the scanner log, and to the zone map once a Signal array is built.
-- **Control-bar looks (15c, waiting for Colin's pick).** Three candidate skins can be tried with a URL switch. The default look is unchanged until Colin chooses one.
-  - `?helper=staff`: dark glass, brass end caps, a five-line musical staff and round gauge-face keys.
-  - `?helper=gauge`: a riveted console with a gold power line and lit chrome switches.
-  - `?helper=sonar`: a floating capsule with a slow lime sweep and glowing keys.
-  - Once one is picked, it becomes the default, and new offers get their ripple and soft tone.
+- **The control bar's new look (15c, done; Colin chose "sonar" from three candidates).** The Phase 13 key bar is now a floating capsule with a slow lime sonar sweep, glowing capsule keys and small-caps labels; world offers glow warmer. When a new action appears, it ripples like a sonar ping and a very soft two-note tone plays on the current music zone's root and fifth (at most every 1.5 s). The helper's behaviour (modes, info versus action, pad glyphs, the Settings preference) is unchanged. The rejected "staff" and "gauge" looks were removed.
 - **Validated:**
   - Typecheck, build, and `node scripts/test-progression.mjs`, which adds release checks: satchel order, the wild-limit refund, the floor at zero, no refund for named creatures, and the helper rows.
   - **Real keyboard input** in `vite preview` on a fixture save (a wild glowfin in the jar, a named ray in the satchel, mid-game gear):
     - J warned for the ray, a second J released it, and a third J released the glowfin and lowered its wild count from 1 to 0.
     - I opened the Field kit and play time stopped. Esc closed it without opening the pause menu, and I, I opened and closed it again.
-  - Each skin was captured in the game at 1280×720. No console errors.
+  - The three candidate looks were captured in the game for Colin to choose. After the choice, the sonar bar was checked as the default, and the offer ping fired once when the Build offer appeared. No console errors. The tone's loudness still needs Colin's ears.
   - **Not yet checked:** touch buttons on the iPhone and gamepad navigation on real hardware.
 
 ### Phase 14: reward moments (merged, PR #36)

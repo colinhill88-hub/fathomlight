@@ -4334,112 +4334,8 @@ body.stationing #kit-btn {
   }
 }
 
-/* ---- Phase 15c: control helper looks, for Colin to choose (?helper=staff | gauge | sonar) ---- */
-
-/* A. Staff: dark glass with brass end caps and a faint five-line musical staff; keys are round gauge faces. */
-#ctl-helper.skin-staff {
-  padding: 0.5em 1.6em;
-  border-radius: 0.5em;
-  background:
-    repeating-linear-gradient(180deg, transparent 0 calc(20% - 1px), rgba(201, 162, 74, 0.16) calc(20% - 1px) 20%) 0 0.55em / 100% calc(100% - 1.1em) no-repeat,
-    linear-gradient(180deg, rgba(10, 22, 28, 0.82), rgba(4, 12, 16, 0.9));
-  border: 1px solid rgba(201, 162, 74, 0.45);
-  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.6), 0 8px 26px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 240, 200, 0.08);
-}
-#ctl-helper.skin-staff::before,
-#ctl-helper.skin-staff::after {
-  content: '';
-  position: absolute;
-  top: 0.35em;
-  bottom: 0.35em;
-  width: 0.55em;
-  border-radius: 0.25em;
-  background: linear-gradient(90deg, #6b5320, #e8c870 45%, #8a6d2a);
-  box-shadow: 0 0 6px rgba(232, 200, 112, 0.35);
-}
-#ctl-helper.skin-staff::before { left: 0.4em; }
-#ctl-helper.skin-staff::after { right: 0.4em; }
-#ctl-helper.skin-staff .ctl {
-  color: #b9cbc6;
-  padding: 0.1em 0.5em 0.1em 0.1em;
-  border-radius: 999px;
-}
-#ctl-helper.skin-staff .ctl.ctx {
-  color: #fff0c8;
-  background: radial-gradient(ellipse at 1.1em 50%, rgba(232, 200, 112, 0.22), rgba(232, 200, 112, 0.04) 70%);
-  box-shadow: none;
-}
-#ctl-helper.skin-staff kbd {
-  min-width: 1.8em;
-  height: 1.8em;
-  border-radius: 999px;
-  color: #efffd8;
-  background: radial-gradient(circle at 38% 30%, #50615a, #1a2522 70%);
-  border: 2px solid #b8933e;
-  border-bottom-width: 2px;
-  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.7), inset 0 0 6px rgba(198, 245, 106, 0.25), 0 2px 5px rgba(0, 0, 0, 0.45);
-  text-shadow: 0 0 4px rgba(198, 245, 106, 0.6);
-}
-#ctl-helper.skin-staff .ctx kbd {
-  border-color: #f2d488;
-  background: radial-gradient(circle at 38% 30%, #6c6a3c, #2a2814 72%);
-  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.7), 0 0 10px rgba(242, 212, 136, 0.45);
-}
-#ctl-helper.skin-staff em { color: #e8c870; }
-#ctl-helper.skin-staff .ctl.fresh {
-  animation: ctl-in 0.45s ease both, ctl-ripple 1.4s ease-out 0.1s 1;
-}
-@keyframes ctl-ripple {
-  0% { box-shadow: 0 0 0 0 rgba(242, 212, 136, 0.7); }
-  100% { box-shadow: 0 0 0 1.4em rgba(242, 212, 136, 0); }
-}
-
-/* B. Gauge panel: a riveted charcoal console with a gold power line; keys are chrome-bezelled lit switches. */
-#ctl-helper.skin-gauge {
-  padding: 0.55em 1em 0.45em;
-  border-radius: 0.35em;
-  background:
-    radial-gradient(circle at 0.5em 0.5em, #a9b4b6 0 0.13em, transparent 0.15em),
-    radial-gradient(circle at calc(100% - 0.5em) 0.5em, #a9b4b6 0 0.13em, transparent 0.15em),
-    radial-gradient(circle at 0.5em calc(100% - 0.5em), #a9b4b6 0 0.13em, transparent 0.15em),
-    radial-gradient(circle at calc(100% - 0.5em) calc(100% - 0.5em), #a9b4b6 0 0.13em, transparent 0.15em),
-    linear-gradient(90deg, transparent 4%, #c9a24a 4% 96%, transparent 96%) 0 0.18em / 100% 2px no-repeat,
-    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.015) 0 2px, transparent 2px 5px),
-    linear-gradient(180deg, #2c3236, #1a1f22);
-  border: 1px solid #5d676c;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.07), 0 8px 24px rgba(0, 0, 0, 0.45);
-  backdrop-filter: none;
-  gap: 0.35em 0.2em;
-}
-#ctl-helper.skin-gauge .ctl {
-  color: #a8b6b2;
-  border-radius: 0.2em;
-  padding: 0.15em 0.6em 0.15em 0.2em;
-  border-right: 1px solid rgba(169, 180, 182, 0.18);
-}
-#ctl-helper.skin-gauge .ctl:last-child { border-right: 0; }
-#ctl-helper.skin-gauge .ctl.ctx {
-  color: #f6ffe0;
-  background: linear-gradient(180deg, rgba(198, 245, 106, 0.1), rgba(198, 245, 106, 0.02));
-  box-shadow: inset 0 0 0 1px rgba(198, 245, 106, 0.3);
-}
-#ctl-helper.skin-gauge kbd {
-  border-radius: 0.3em;
-  color: #d8ff9a;
-  background: linear-gradient(180deg, #11181a, #0a0f10);
-  border: 2px solid transparent;
-  border-image: linear-gradient(180deg, #e4ecef, #7d878b) 1;
-  box-shadow: inset 0 0 8px rgba(198, 245, 106, 0.22), 0 1px 3px rgba(0, 0, 0, 0.6);
-  text-shadow: 0 0 5px rgba(198, 245, 106, 0.75);
-}
-#ctl-helper.skin-gauge .ctx kbd {
-  color: #1a2208;
-  background: linear-gradient(180deg, #d8ff9a, #9fd04a);
-  text-shadow: none;
-  box-shadow: 0 0 10px rgba(198, 245, 106, 0.55);
-}
-#ctl-helper.skin-gauge em { color: #c6f56a; }
-
+/* ---- Phase 15c: the control helper's look (Colin chose "sonar"): a floating capsule with a slow
+   lime sweep, glowing capsule keys, and a sonar-ping ripple (with a soft in-key tone) when a new offer appears. ---- */
 /* C. Sonar strip: a thin floating band with a slow lime sweep; keys are glowing capsules. */
 #ctl-helper.skin-sonar {
   padding: 0.42em 0.9em;
@@ -4482,6 +4378,15 @@ body.stationing #kit-btn {
   box-shadow: 0 0 10px rgba(242, 212, 136, 0.5);
 }
 #ctl-helper.skin-sonar em { color: #c6f56a; }
+#ctl-helper.skin-sonar .ctl.fresh {
+  animation: ctl-in 0.45s ease both, ctl-ping 1.3s ease-out 0.05s 1;
+}
+@keyframes ctl-ping {
+  0% { box-shadow: 0 0 0 0 rgba(198, 245, 106, 0.65), inset 0 0 0 1px rgba(198, 245, 106, 0.6); }
+  60% { box-shadow: 0 0 0 0.9em rgba(198, 245, 106, 0), inset 0 0 0 1px rgba(198, 245, 106, 0.3); }
+  100% { box-shadow: 0 0 0 0.9em rgba(198, 245, 106, 0), inset 0 0 0 1px rgba(198, 245, 106, 0); }
+}
 @media (prefers-reduced-motion: reduce) {
-  #ctl-helper.skin-sonar { animation: none; }
+  #ctl-helper.skin-sonar,
+  #ctl-helper.skin-sonar .ctl.fresh { animation: none; }
 }

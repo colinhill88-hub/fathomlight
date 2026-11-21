@@ -4553,6 +4553,7 @@ async function boot(): Promise<void> {
   /** After milestone 12: everything the new suit attachments and sub modules do each frame. */
   // ---- Phase 13: the contextual control helper ----
   const controlHelper = new ControlHelper();
+  controlHelper.onOffer = () => sound.offerPing();
   let bootsNear = false;
   function helperMode(): HelperMode {
     if (menus.paused || blackout > 0 || boarding || hud.reading || zoneMap.open || contact.active || padNav.active) return 'none';
