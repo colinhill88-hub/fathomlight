@@ -141,7 +141,7 @@ Play on PC with headphones, then on the iPhone speaker (in the game's Settings, 
 7. **Scanning.** Hold Scan on a creature: ticks that quicken as the ring fills, then the usual chime.
 8. **Danger.** Swim near a lurker den on the Wreck Shelf: the rattle should be clear even deep down, and the music should dip. Let the air run low: the beeps should be the loudest thing on screen apart from a bite.
 9. **Jar release.** Catch something, press J: two small clicks, a pop, bubbles swirling to one side, then the goodbye notes.
-10. **The control bar's offer ping (please judge this one).** Swim up to anything new you can Collect, Scan or Board and listen for the very soft two-note tone. Is it audible on the iPhone speaker? Too much on headphones? Its level is `gain: 0.014` and `0.01` in `offerPing()` in `src/audio/director.ts`.
+10. **(Decided after round 3: Colin turned the offer ping off; it dinged at every new offer.)** **The control bar's offer ping (please judge this one).** Swim up to anything new you can Collect, Scan or Board and listen for the very soft two-note tone. Is it audible on the iPhone speaker? Too much on headphones? Its level is `gain: 0.014` and `0.01` in `offerPing()` in `src/audio/director.ts`.
 
 On the phone speaker especially: are the heartbeat (black out once), sub dents and press stamps audible now?
 

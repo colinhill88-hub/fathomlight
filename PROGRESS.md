@@ -1,6 +1,6 @@
 # Fathomlight progress
 
-The live branch includes the Fulmar foothold, Codex Phases 1–11D the Phase 12 gameplay pass (PR #33/#34) and the Phase 13 control helper, drill lodes and named creatures (PR #35, `d9f4728`); see the [Phase 13 audit](docs/phase-13-gameplay-audit.md). **Phase 14** reward moments merged as PR #36 (`03b4c8f`). **Phase 15** (jar release, the Field kit, the sonar control bar) merged as PR #38 (`faa9e26`). **Phase 16** rounds 1 and 2 (the satchel jar fix, the audio audit, the first Kenney sound files) merged as PRs #40 and #41. **Round 3** (30 more CC0 sound files, creature calls, KS-1 heard from outside) is on review branch `claude/phase-16-round-3-audio-esmprt`, waiting for Colin's ears; see the [Phase 16 audit](docs/phase-16-audio-audit.md) and the [Phase 14 notes](docs/phase-14-reward-moments.md). The agreed plan for Phase 15 onward, including ideas not built yet, is in the [roadmap](docs/ROADMAP.md). See the [development handoff](docs/AI_DEVELOPMENT_HANDOFF.md) for the current source map and the [progression audit](docs/phase-12-progression-audit.md) for the route from a new save to first contact.
+The live branch includes the Fulmar foothold, Codex Phases 1–11D the Phase 12 gameplay pass (PR #33/#34) and the Phase 13 control helper, drill lodes and named creatures (PR #35, `d9f4728`); see the [Phase 13 audit](docs/phase-13-gameplay-audit.md). **Phase 14** reward moments merged as PR #36 (`03b4c8f`). **Phase 15** (jar release, the Field kit, the sonar control bar) merged as PR #38 (`faa9e26`). **Phase 16** rounds 1 and 2 (the satchel jar fix, the audio audit, the first Kenney sound files) merged as PRs #40 and #41. **Round 3** (30 more CC0 sound files, creature calls, KS-1 heard from outside) merged as PR #42. Colin then had the control bar's offer ping turned off (review branch `claude/phase-16-round-3-audio-esmprt`); see the [Phase 16 audit](docs/phase-16-audio-audit.md) and the [Phase 14 notes](docs/phase-14-reward-moments.md). The agreed plan for Phase 15 onward, including ideas not built yet, is in the [roadmap](docs/ROADMAP.md). See the [development handoff](docs/AI_DEVELOPMENT_HANDOFF.md) for the current source map and the [progression audit](docs/phase-12-progression-audit.md) for the route from a new save to first contact.
 
 Play link: https://colinhill88-hub.github.io/fathomlight/ (live; first successful deploy 2026-11-14)
 
@@ -20,10 +20,15 @@ Play link: https://colinhill88-hub.github.io/fathomlight/ (live; first successfu
 | Phase 13 | PR #35, `d9f4728` | Contextual control helper on one binding table, five resealing drill lodes for KS-1, and named kept creatures. |
 | Phase 15 | PR #38, `faa9e26` | Jar release with confirmation for named creatures, the Field kit on I, and the sonar-style control bar with an offer ping. |
 | Phase 16 (rounds 1–2) | PRs #40, #41 | The satchel's second jar slot works indoors; gathering, tools, docking and welds get anticipation, contact and release; round-robin variety; danger first in the mix; phone-speaker harmonics; an indoor room echo and hull filter; footsteps. |
-| Phase 16 (round 3) | review branch, not merged | 30 CC0 Freesound files (bubbles, breath out, diving in, an underwater loop, kelp snaps, moss rips, wreck groans and creaks, sand, wet footsteps), soft creature calls placed in the world, KS-1's idle heard from outside. |
+| Phase 16 (round 3) | PR #42 | 30 CC0 Freesound files (bubbles, breath out, diving in, an underwater loop, kelp snaps, moss rips, wreck groans and creaks, sand, wet footsteps), soft creature calls placed in the world, KS-1's idle heard from outside. |
 | Phase 14 | PR #36, `03b4c8f` | Reward moments: minor, notable and major tiers with drawn emblems, particles, slow motion and synthesised stings and fanfares. |
 
-### Phase 16, round 3: the rest of the sound shortlist (review branch)
+### Phase 16: the offer ping is off (review branch)
+
+- **Colin, after round 3:** running through a base with many rooms, or swimming past things to pick up or dig, the control bar dinged every time a new action appeared. The ding is switched off (`controlHelper.onOffer` is no longer hooked to `sound.offerPing()` in main.ts). The bar's visual sonar ripple still marks a new offer. Nothing else changed.
+- **Validated:** typecheck, build and the progression checks; in `vite preview`, walking up to offers no longer calls the ping (checked with a counter on `offerPing`).
+
+### Phase 16, round 3: the rest of the sound shortlist (merged, PR #42)
 
 - **No tuning from notes this round:** Colin's listening notes hadn't been filled in yet, so no existing level was changed by ear.
 - **30 CC0 sound files from Freesound** (289 KB; all 46 audio files now total 373 KB, mono MP3 at 64 kbps). Each file's own Freesound page says "Creative Commons 0"; Freesound's public preview MP3s were used (same licence). Every file is logged in `public/audio/CREDITS.md`. They layer under the coded sounds, rotate without repeats, vary in pitch and fall back to the coded sound if a file fails to load:
