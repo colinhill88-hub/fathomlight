@@ -1,10 +1,10 @@
 /*
  * Phase 16: the CC0 sound files the game may play (Colin's decision, Nov 21, 2026).
  *
- * None ship yet: the session that built Phase 16 could not download files (its
- * network blocked the sound libraries). Every sound still has a synthesised
- * version, and `audio.sample(name, ...)` returns false until a file is loaded,
- * so the synthesised sound plays instead.
+ * Round 2 (Nov 21, 2026) adds 16 one-shots from Kenney's CC0 "Impact Sounds"
+ * pack, in variant groups (`mining-1`..`mining-5` and so on). Every sound still
+ * has a synthesised version: `audio.sample(name, ...)` returns false until a
+ * file is loaded, so the synthesised sound plays instead.
  *
  * To add one:
  *  1. Only public-domain or CC0 files. No CC-BY, no "royalty-free" licences, no
@@ -19,4 +19,14 @@
  *
  * The shortlist of files to fetch is in docs/phase-16-audio-audit.md.
  */
-export const SAMPLE_FILES: Record<string, string> = {};
+/** Variant groups: name -> how many numbered files (audio/<name>-<n>.mp3). */
+export const SAMPLE_GROUPS: Record<string, number> = {
+  mining: 5, // stone and gravel hits: copper, ore, the drill breaking through
+  metal: 3, // metal impacts: scrap and brass coming free
+  glass: 3, // light glass taps: quartz snapping off
+  step: 5, // footsteps on hard floors: the base's steel decks
+};
+
+export const SAMPLE_FILES: Record<string, string> = Object.fromEntries(
+  Object.entries(SAMPLE_GROUPS).flatMap(([name, n]) => Array.from({ length: n }, (_, i) => [`${name}-${i + 1}`, `audio/${name}-${i + 1}.mp3`])),
+);

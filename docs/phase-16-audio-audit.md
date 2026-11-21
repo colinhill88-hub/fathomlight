@@ -145,7 +145,11 @@ Play on PC with headphones, then on the iPhone speaker (in the game's Settings, 
 
 On the phone speaker especially: are the heartbeat (black out once), sub dents and press stamps audible now?
 
-## Round 2 (after Colin listens)
+## Round 2: first recorded sounds (built)
+
+16 one-shots from Kenney's CC0 Impact Sounds (stone and gravel, metal, light glass, hard-floor footsteps) now layer under copper, ore, scrap, brass and quartz coming loose, the copper strokes, the drill breaking through and footsteps. Measured peaks: copper release 0.52 before trimming, bite 0.75 for reference; nothing clipped. The network now allows kenney.nl, freesound.org, cdn.freesound.org and opengameart.org.
+
+## Round 3 (after Colin listens)
 
 - Tune levels from Colin's notes.
 - Fetch the shortlisted CC0 files once the network allows, and layer them under the synthesised gathering releases, footsteps and bubbles.

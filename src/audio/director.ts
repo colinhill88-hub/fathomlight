@@ -1,7 +1,7 @@
 import { audio, BusName } from './engine';
 import { Ambience, ZoneMix } from './ambience';
 import { Music, MusicZone, zoneRoot } from './music';
-import { SAMPLE_FILES } from './samples';
+import { SAMPLE_FILES, SAMPLE_GROUPS } from './samples';
 import { jit, rr, semi } from './variety';
 import { BASIN_EAST, CAVE, FOREST, GROTTO, inCaveTunnel, inKelpCaves, inSanctum, KC, SITE_MOUTH, TRENCH, WRECK_SHELF } from '../world/terrain';
 
@@ -590,7 +590,7 @@ export class SoundDirector {
         return 0.52 * pace;
       case 'copper': // Dig out: the trowel thuds into gravel, stones scatter, sand trickles as it loosens.
         audio.thump({ freq: 150 * up, gain: 0.09 * amp, dur: 0.16, pan });
-        this.gravel(t + 0.015, 3 + v, 0.05 * amp, up, pan);
+        if (!this.sam('mining', { t, gain: 0.045 * amp, rate: 1.15 * up, pan })) this.gravel(t + 0.015, 3 + v, 0.05 * amp, up, pan);
         if (strain) audio.hiss({ t: t + 0.08, dur: 0.35, attack: 0.05, gain: 0.025 * amp, type: 'lowpass', freq: 1400 * up, pan, brown: true });
         return 0.42 * pace;
       case 'ore': // Chip off vent ore: dull cracks into warm crust, warm water hissing out of the cracks.
@@ -637,6 +637,17 @@ export class SoundDirector {
         audio.tone({ freq: 1800 * up, dur: 0.03, gain: 0.04 * amp, type: 'triangle', pan });
         return 0.4 * pace;
     }
+  }
+
+  /**
+   * Round 2: one recorded CC0 variant from a group (round-robin, pitch and level
+   * nudged). Returns false if the files are not loaded, so callers keep the
+   * synthesised sound. Underwater it passes the muffle like any effect.
+   */
+  private sam(group: string, o: { t?: number; gain: number; rate: number; pan?: number; send?: number; bus?: BusName }): boolean {
+    const n = SAMPLE_GROUPS[group] ?? 0;
+    if (!n) return false;
+    return audio.sample(`${group}-${rr(`sam:${group}`, n) + 1}`, { ...o, gain: o.gain * jit(0.1), rate: o.rate * jit(0.06) });
   }
 
   /** Phase 16: stones and grit scattering (a handful of short, gritty grains). */
@@ -712,16 +723,17 @@ export class SoundDirector {
     switch (kind) {
       case 'copper': // Pops out of the gravel: a crunch, stones skittering, the nugget's dull ring.
         audio.thump({ t, freq: 140 * up, gain: 0.12, dur: 0.2 });
-        this.gravel(t, 7, 0.07, up, 0);
+        if (!this.sam('mining', { t, gain: 0.065, rate: 0.85 * up })) this.gravel(t, 7, 0.07, up, 0);
         audio.metal({ t: t + 0.05, freq: 620 * up, gain: 0.025, decay: 0.35, send: 0.3 });
         break;
       case 'scrap': // Tears free: a short screech, a clank and the rattle of loose bits.
         audio.tone({ t, freq: 420 * up, to: 260 * up, dur: 0.12, gain: 0.03, type: 'sawtooth', lp: 1800 });
-        audio.metal({ t: t + 0.06, freq: 260 * up, gain: 0.07, decay: 0.6 });
+        audio.metal({ t: t + 0.06, freq: 260 * up, gain: 0.05, decay: 0.6 });
+        this.sam('metal', { t: t + 0.05, gain: 0.07, rate: 0.75 * up });
         for (let i = 0; i < 4; i++) audio.metal({ t: t + 0.12 + i * 0.045 * jit(0.3), freq: 1000 * up * jit(0.2), gain: 0.012, decay: 0.08 });
         break;
       case 'quartz': // Snaps off: a sharp crack, a glassy ring and a few tinkling shards.
-        audio.hiss({ t, dur: 0.03, gain: 0.12, freq: 5200 * up, q: 1.6 });
+        if (!this.sam('glass', { t, gain: 0.07, rate: 1.1 * up, send: 0.35 })) audio.hiss({ t, dur: 0.03, gain: 0.12, freq: 5200 * up, q: 1.6 });
         audio.bell({ t: t + 0.005, freq: 2200 * up, gain: 0.03, decay: 0.8, ratio: 2.76, index: 0.5, send: 0.45 });
         for (let i = 0; i < 3; i++) audio.tone({ t: t + 0.05 + i * 0.05 * jit(0.4), freq: 3500 * up * jit(0.15), dur: 0.04, gain: 0.012, send: 0.4 });
         break;
@@ -742,13 +754,14 @@ export class SoundDirector {
         audio.hiss({ t: t + 0.05, dur: 0.3, attack: 0.04, gain: 0.03, freq: 1300, to: 700, q: 1 });
         break;
       case 'ore': // A slab of crust cracks away and warm water hisses out.
-        audio.hiss({ t, dur: 0.05, gain: 0.11, freq: 1600 * up, q: 1.1, brown: true });
+        if (!this.sam('mining', { t, gain: 0.065, rate: 0.7 * up })) audio.hiss({ t, dur: 0.05, gain: 0.11, freq: 1600 * up, q: 1.1, brown: true });
         audio.thump({ t, freq: 105 * up, gain: 0.12, dur: 0.25 });
         audio.hiss({ t: t + 0.06, dur: 0.5, attack: 0.03, gain: 0.03, freq: 3200, to: 1800, q: 0.8 });
         break;
       case 'brass': // The bolt gives: a ratchet tick and the heavy fitting clanks free.
         audio.metal({ t, freq: 900 * up, gain: 0.02, decay: 0.08 });
-        audio.metal({ t: t + 0.06, freq: 290 * up, gain: 0.08, decay: 1.0, send: 0.4 });
+        audio.metal({ t: t + 0.06, freq: 290 * up, gain: 0.06, decay: 1.0, send: 0.4 });
+        this.sam('metal', { t: t + 0.06, gain: 0.06, rate: 0.6 * up, send: 0.3 });
         break;
       default: // Hull plating and anything else: a solid metal set-down.
         audio.metal({ t, freq: 330 * up, gain: 0.06, decay: 0.7 });
@@ -765,7 +778,8 @@ export class SoundDirector {
     const t = audio.now;
     audio.thump({ t, freq: 70, gain: 0.13, dur: 0.7, send: 0.4 });
     audio.hiss({ t, dur: 0.06, gain: 0.09, freq: 1400, q: 1, brown: true });
-    this.gravel(t + 0.03, 12, 0.06, 0.8, 0);
+    if (!this.sam('mining', { t, gain: 0.08, rate: 0.6, send: 0.35 })) this.gravel(t + 0.03, 12, 0.06, 0.8, 0);
+    this.sam('mining', { t: t + 0.18, gain: 0.06, rate: 0.5, send: 0.4 });
     audio.hiss({ t: t + 0.08, dur: 1.1, attack: 0.05, gain: 0.035, type: 'lowpass', freq: 600, to: 200, brown: true, send: 0.4 });
     audio.bubbles({ t: t + 0.1, n: 14, spread: 0.8, gain: 0.035, low: 250, high: 1000 });
   }
@@ -792,6 +806,7 @@ export class SoundDirector {
     const t = audio.now;
     audio.thump({ t, freq: 120 * up, gain: 0.042 * g, dur: 0.09, send: 0.15 });
     audio.hiss({ t, dur: 0.03, gain: 0.025 * g, freq: 2200 * up, q: 1.2 });
+    this.sam('step', { t, gain: (surface === 'deck' ? 0.045 : 0.035) * g, rate: (surface === 'deck' ? 0.9 : 0.75) * up, send: 0.2 });
     if (surface === 'deck') {
       // A grating rings a little.
       if (v % 2 === 0) audio.metal({ t: t + 0.004, freq: 420 * up, gain: 0.012 * g, decay: 0.18 });
