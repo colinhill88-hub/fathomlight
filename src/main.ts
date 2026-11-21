@@ -138,7 +138,7 @@ import { TankLife } from './world/tanklife';
 import { Escort } from './actors/escort';
 import { Critter } from './actors/critters';
 import { CareMode } from './ui/care';
-import { creatureName, creaturesIn, releaseFromJar as releaseJar, newCreature, payCost, PLANT_ORDER, PLANTS, SPECIES, SPECIES_ORDER, tankCapacity, tankNumber, tickCare, wildAllowed, WILD_CAP } from './game/creatures';
+import { creatureName, creaturesIn, releaseFromJar as releaseJar, jarRoom, newCreature, putInJar, takeFromJar, payCost, PLANT_ORDER, PLANTS, SPECIES, SPECIES_ORDER, tankCapacity, tankNumber, tickCare, wildAllowed, WILD_CAP } from './game/creatures';
 import { creatureMilestone, creatureSiteHint, fieldResearch, type CreatureSite } from './game/discovery';
 import { HatchPanel } from './ui/hatch';
 import { traitText, wildTraits } from './game/traits';
@@ -784,6 +784,11 @@ async function boot(): Promise<void> {
   let boostTapAt = -99;
   let dashAt = -99;
   let drillT = 0;
+  /** The sound of a Collect hold action, by its key. */
+  const holdWork = (key: string): WorkKind =>
+    key === 'snailgraze' || key === 'crablock' ? 'creature' : key === 'winch' || key === 'relay' || key === 'vane' || key === 'fulmarhatch' ? 'winch' : key === 'kwall' ? 'cutter' : key.startsWith('bracket') ? 'bracket' : 'recorder';
+  /** Phase 16: the drill's progress for its sound loop (null while it is not biting). */
+  let drillSound: number | null = null;
   let tractorAt = 0;
   let tractorBeam: { x0: number; y0: number; x1: number; y1: number } | null = null;
   let tractorBeamT = 0;
@@ -1016,7 +1021,8 @@ async function boot(): Promise<void> {
       j.keep.tank = tankId;
       save.creatures.push(j.keep);
     } else newCreature(save, j.species, j.stage === 'egg' ? 'egg' : 'young', tankId, j.traits);
-    save.jar = null;
+    takeFromJar(save); // the satchel's catch moves up at once, so a second deposit is offered
+    hud.refreshInventory();
     tankLife.sync(save, layout);
     baseHooks?.syncTanks();
     drone.cheer();
@@ -1747,6 +1753,8 @@ async function boot(): Promise<void> {
         layout.set(layout.pieces);
         baseView.sync(layout);
         const p = ev.piece;
+        const pr = pieceRect(p);
+        sound.weldDone(pr.x + pr.w / 2, pr.y + pr.h / 2);
         const powered = layout.powered.has(p.id);
         const net = layout.netFor(p.id);
         if (layout.pieces.filter((q) => q.kind === p.kind && isDone(q)).length === 1)
@@ -2859,21 +2867,21 @@ async function boot(): Promise<void> {
         }
         // The specimen jar: a creature taken from a tank goes back to it; a wild one swims home.
         let jarMsg = '';
-        if (save.jar) {
-          const j = save.jar;
-          if (j.keep && layout.pieces.some((p) => p.id === j.keep!.tank)) {
-            save.creatures.push(j.keep);
+        // Both slots: the satchel's catch is handled the same way as the jar's.
+        for (let j = takeFromJar(save); j; j = takeFromJar(save)) {
+          const k = j.keep;
+          if (k && layout.pieces.some((p) => p.id === k.tank)) {
+            save.creatures.push(k);
             jarMsg = ` The crew put the ${SPECIES[j.species].name.toLowerCase()} from your jar back in its tank.`;
-          } else if (j.keep && layout.pieces.some((p) => p.kind === 'hatch' && isDone(p))) {
+          } else if (k && layout.pieces.some((p) => p.kind === 'hatch' && isDone(p))) {
             // Milestone 9: one from the Hatchery or the Revival pool (no tank yet) goes back to the Hatchery.
-            j.keep.tank = -1;
-            save.nursery.push(j.keep);
+            k.tank = -1;
+            save.nursery.push(k);
             jarMsg = ` The crew put the ${SPECIES[j.species].name.toLowerCase()} from your jar in the Hatchery.`;
           } else {
             wildlife.release(j.species, j.stage, save);
             jarMsg = ` The specimen jar came open; the ${SPECIES[j.species].name.toLowerCase()} swam home.`;
           }
-          save.jar = null;
           tankLife.sync(save, layout);
         }
         const home = respawnPoint(diver.x, diver.y);
@@ -2932,12 +2940,12 @@ async function boot(): Promise<void> {
     const wtKnown = !!wt && save.scans.includes(SPECIES[wt.species].scan);
     const wildSpare = !!wt && wildAllowed(save, wt.species);
     // After milestone 12: the specimen satchel is a second slot.
-    const jarFull = !!save.jar && (!hasGear(save, 'satchel') || !!save.jar2);
+    const jarFull = !jarRoom(save);
     const wildOk = !!wt && wtKnown && wildSpare && save.kit.jar && !jarFull && !diver.surfaced && !atDrone;
     for (const ev of wildlife.update(dt, time, reachPt.x, reachPt.y, Math.hypot(diver.vx, diver.vy), aboard ? sub.thrust > 0 : diver.boosting, save, collectHeld && wildOk, camX - 200, camX + lastViewW + 200, motion)) {
       const caughtJar = { species: ev.species, stage: ev.stage, traits: wildlife.traitsOf(ev.id) };
-      if (save.jar) save.jar2 = caughtJar;
-      else save.jar = caughtJar;
+      sound.holdDone('creature');
+      putInJar(save, caughtJar);
       save.wildCaught[ev.species] = (save.wildCaught[ev.species] ?? 0) + 1;
       const left = WILD_CAP - (save.wildCaught[ev.species] ?? 0);
       if (left <= 0 && !save.tips.includes(`wildcap-${ev.species}`)) {
@@ -3526,6 +3534,7 @@ async function boot(): Promise<void> {
       holdProgress += dt / holdAct.seconds;
       if (holdProgress >= 1) {
         holdProgress = 0;
+        sound.holdDone(holdWork(holdAct.key), workAt ? workAt.x - diver.x : 0);
         holdAct.done();
         holdAct = null;
         holdKey = '';
@@ -3987,11 +3996,13 @@ async function boot(): Promise<void> {
     {
       let work: WorkKind | null = null;
       if (holdAct && collectHeld && speed < 70)
-        work = holdAct.key === 'snailgraze' || holdAct.key === 'crablock' ? 'creature' : holdAct.key === 'winch' || holdAct.key === 'relay' || holdAct.key === 'vane' || holdAct.key === 'fulmarhatch' ? 'winch' : holdAct.key === 'kwall' ? 'cutter' : holdAct.key.startsWith('bracket') ? 'moss' : 'recorder';
+        work = holdWork(holdAct.key);
       else if (grapple?.phase === 'reel') work = 'winch';
       else if (repairing) work = 'repair';
       else if (wildlife.working && wildTarget) work = 'creature';
       else if (pickups.working && pt) work = pt.kind;
+      // Phase 16: how far along the work is, so the strokes can build towards the release.
+      const workProgress = !work ? 0 : holdAct && collectHeld && speed < 70 ? holdProgress : wildlife.working ? wildlife.progress : pickups.working ? pickups.progress : 0;
       const workX = workAt?.x ?? diver.x;
       let dark = 0;
       if (blackout > 0) dark = blackout < BLACK_IN ? blackout / BLACK_IN : blackout < BLACK_IN + BLACK_HOLD ? 1 : Math.max(0, 1 - (blackout - BLACK_IN - BLACK_HOLD) / BLACK_OUT);
@@ -4025,6 +4036,8 @@ async function boot(): Promise<void> {
         freeAir,
         work,
         workX,
+        workProgress,
+        drill: drillSound,
         scanning: inControl && s.scan && scanner.target && scanner.progress > 0 ? scanner.progress : null,
         drone: { x: drone.x, y: drone.y, welding: !!(drone.welding || drone.weldingSub) },
         presses,
@@ -4387,18 +4400,18 @@ async function boot(): Promise<void> {
       if (save.bag.bloom + save.stored.bloom < 1)
         return { ok: false, text: `Revival pool: ${n} dormant · each waking needs a glowing bloom (they grow only where no lamp has ever shone)` };
       if (!save.kit.jar) return { ok: false, text: 'Revival pool: the woken creature needs a specimen jar to go into' };
-      if (save.jar) return { ok: false, text: 'Revival pool: empty your specimen jar first (the woken creature goes into it)' };
+      if (!jarRoom(save)) return { ok: false, text: `Revival pool: empty your specimen ${hasGear(save, 'satchel') ? 'jar or satchel' : 'jar'} first (the woken creature goes into it)` };
       return { ok: true, text: `Wake a dormant ${SPECIES[sp].name.toLowerCase()} (1 glowing bloom)` };
     },
     revive: () => {
       const sp = SPECIES_ORDER.find((k) => (save.dormant[k] ?? 0) > 0);
-      if (!sp || save.jar || !save.kit.jar || !payCost(save, { bloom: 1 })) return;
+      if (!sp || !jarRoom(save) || !payCost(save, { bloom: 1 })) return;
       save.dormant[sp] = (save.dormant[sp] ?? 0) - 1;
       const c = { id: save.nextCreatureId++, species: sp, tank: -1, stage: 'young' as const, growth: 0, fed: 0.7, comfort: 0.5, sickness: 0, make: 0, traits: wildTraits() };
-      save.jar = { species: sp, stage: 'young', keep: c, traits: c.traits };
+      putInJar(save, { species: sp, stage: 'young', keep: c, traits: c.traits });
       grant(major('creature', 'Revived', `${creatureName(c)} the ${SPECIES[sp].name.toLowerCase()}`, 'A dormant creature wakes in the still water.', 'life'));
       hud.refreshInventory();
-      hud.toast(`The bloom's light sinks into the still water, and a young ${SPECIES[sp].name.toLowerCase()} stirs. It is in your specimen jar: put it in a tank.`, 'big');
+      hud.toast(`The bloom's light sinks into the still water, and a young ${SPECIES[sp].name.toLowerCase()} stirs. It is in your specimen ${save.jar2 ? 'satchel' : 'jar'}: put it in a tank.`, 'big');
       persist();
     },
     // ---- Milestone 10: the Signal array ----
@@ -4737,6 +4750,7 @@ async function boot(): Promise<void> {
     // The drill nose (Phase 13: the seam plus mineral lodes along the sub's routes). Hold Collect with the bow
     // at it; the offer shows on the Collect label (and the control helper) like every other action.
     sub.drilling = false;
+    drillSound = null;
     const seamNear = !seam.open && Math.hypot(sub.bowX() - SEAM.x, sub.y - SEAM.y) < 230;
     const lode = S && aboard && !seamNear ? lodeAt(sub.bowX(), sub.y) : null;
     if (S && aboard && (seamNear || lode) && !hud.collectOffer) {
@@ -4756,12 +4770,13 @@ async function boot(): Promise<void> {
           const by = seamNear ? sub.y + 5 : lodeY(lode!) - 26;
           gearFx.drillSparks(bx, by);
           motion?.disturb({ x: bx, y: by, vx: sub.face * 60, vy: -40, radius: 60, strength: 0.4 });
-          if (Math.random() < dt * 8) sound.drill();
           shake = Math.min(1, Math.max(shake, 0.06));
         } else drillT = Math.max(0, drillT - dt * 1.5);
         hud.setCollect(seamNear ? 'Drill the soft seam' : `Drill the ${lode!.where} lode`, Math.min(1, drillT / secs));
+        if (sub.drilling) drillSound = Math.min(1, drillT / secs);
         if (drillT >= secs) {
           drillT = 0;
+          sound.drillBreak();
           if (seamNear) {
             seam.open = true;
             save.seamOpen = true;
@@ -5020,6 +5035,9 @@ async function boot(): Promise<void> {
       freeAir: true,
       work: interior.progress > 0 ? 'winch' : null,
       workX: soundAt.x,
+      workProgress: interior.progress,
+      indoors: inside === 'base' ? 'base' : inside === 'sanctum' ? null : 'wreck',
+      walk: { speed: interior.walker.vx, ground: interior.walker.onGround },
       scanning: null,
       drone: { x: 0, y: 0, welding: false },
       presses: [],
@@ -5143,6 +5161,7 @@ async function boot(): Promise<void> {
     fieldKit,
     releaseJar: () => releaseFromJar(),
     audioLevel: () => audio.level(),
+    audioPeak: () => audio.peak(),
     audioRunning: () => audio.running,
     cam: () => ({ camX, camY, camCX, camCY, viewH, zoom }),
     snap: () => {

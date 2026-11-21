@@ -1,6 +1,8 @@
 import { audio, BusName } from './engine';
 import { Ambience, ZoneMix } from './ambience';
 import { Music, MusicZone, zoneRoot } from './music';
+import { SAMPLE_FILES } from './samples';
+import { jit, rr, semi } from './variety';
 import { BASIN_EAST, CAVE, FOREST, GROTTO, inCaveTunnel, inKelpCaves, inSanctum, KC, SITE_MOUTH, TRENCH, WRECK_SHELF } from '../world/terrain';
 
 /*
@@ -11,7 +13,10 @@ import { BASIN_EAST, CAVE, FOREST, GROTTO, inCaveTunnel, inKelpCaves, inSanctum,
  * cues. A few cues come straight from game events (pickups, dents, toasts).
  */
 
-export type WorkKind = 'fibre' | 'scrap' | 'copper' | 'quartz' | 'resin' | 'moss' | 'brass' | 'bloom' | 'ore' | 'creature' | 'repair' | 'winch' | 'recorder' | 'cutter';
+export type WorkKind = 'fibre' | 'scrap' | 'copper' | 'quartz' | 'resin' | 'moss' | 'brass' | 'bloom' | 'ore' | 'creature' | 'repair' | 'winch' | 'recorder' | 'cutter' | 'bracket';
+
+/** Phase 16: hold actions with their own release in holdDone() (materials get theirs from pickup()). */
+const HOLD_RELEASE: ReadonlySet<WorkKind> = new Set(['winch', 'cutter', 'bracket', 'recorder', 'creature']);
 
 export interface AudioFrame {
   dt: number;
@@ -50,6 +55,14 @@ export interface AudioFrame {
   /** Milestone 8: the race current here (0..1) and suit integrity (0..1). */
   race: number;
   suit: number;
+  /** Phase 16: 0..1 how far the current Collect work has got (strokes build towards the release). */
+  workProgress?: number;
+  /** Phase 16: KS-1's drill nose biting (0..1 progress), or null. */
+  drill?: number | null;
+  /** Phase 16: on foot inside: the base (steel decks) or a wreck (wet, loose plates); null outside. */
+  indoors?: 'base' | 'wreck' | null;
+  /** Phase 16: on foot: walking speed (px/s) and whether the boots are on the floor. */
+  walk?: { speed: number; ground: boolean };
 }
 
 const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
@@ -102,10 +115,20 @@ export class SoundDirector {
     motor: { gain: GainNode; oscs: OscillatorNode[]; filter: BiquadFilterNode; wash: GainNode; washF: BiquadFilterNode; whine: GainNode; whineO: OscillatorNode };
     hum: { gain: GainNode; pan: StereoPannerNode | null };
     rumble: GainNode;
+    /** Phase 16: the drill nose (motor and rock grind) and KD-1's little propeller. */
+    drill: { gain: GainNode; motor: OscillatorNode; grind: BiquadFilterNode; grindG: GainNode };
+    whir: { gain: GainNode; osc: OscillatorNode; pan: StereoPannerNode | null };
   } | null = null;
+  /** Phase 16: the work under way last frame (to hear its release), and clocks for small repeating cues. */
+  private lastWork: WorkKind | null = null;
+  private scanTick = 0;
+  private drillGrit = 0;
+  private stepClock = 0;
+  private dronePrev: { x: number; y: number } | null = null;
 
   constructor() {
     audio.onReady(() => this.build());
+    audio.loadSamples(SAMPLE_FILES);
     // Soft clicks for every button outside the swim controls (those have their own sounds).
     document.addEventListener(
       'click',
@@ -223,7 +246,63 @@ export class SoundDirector {
     audio.route(rumble, 'ambience', 0.4);
     rSrc.start();
 
+    // Phase 16: the drill nose: a straining electric motor and a gritty grind of rock.
+    const drillG = ctx.createGain();
+    drillG.gain.value = 0;
+    const motor = ctx.createOscillator();
+    motor.type = 'sawtooth';
+    motor.frequency.value = 70;
+    const motorLp = ctx.createBiquadFilter();
+    motorLp.type = 'lowpass';
+    motorLp.frequency.value = 900;
+    motor.connect(motorLp);
+    const motorAmt = ctx.createGain();
+    motorAmt.gain.value = 0.35;
+    motorLp.connect(motorAmt);
+    motorAmt.connect(drillG);
+    motor.start();
+    const gSrc = ctx.createBufferSource();
+    gSrc.buffer = audio.brown;
+    gSrc.loop = true;
+    const grind = ctx.createBiquadFilter();
+    grind.type = 'bandpass';
+    grind.frequency.value = 700;
+    grind.Q.value = 1.1;
+    const grindG = ctx.createGain();
+    grindG.gain.value = 1;
+    gSrc.connect(grind);
+    grind.connect(grindG);
+    grindG.connect(drillG);
+    gSrc.start(0, Math.random() * 3);
+    audio.route(drillG, 'sfx', 0.25);
+
+    // Phase 16: KD-1's propeller: a soft whir that follows the drone around (panned, fading with distance).
+    const whirG = ctx.createGain();
+    whirG.gain.value = 0;
+    const whirO = ctx.createOscillator();
+    whirO.type = 'triangle';
+    whirO.frequency.value = 190;
+    const whirTrem = ctx.createOscillator();
+    whirTrem.frequency.value = 23;
+    const whirAmt = ctx.createGain();
+    whirAmt.gain.value = 0.4;
+    const whirVca = ctx.createGain();
+    whirVca.gain.value = 0.6;
+    whirTrem.connect(whirAmt);
+    whirAmt.connect(whirVca.gain);
+    whirO.connect(whirVca);
+    whirVca.connect(whirG);
+    whirO.start();
+    whirTrem.start();
+    const whirPan = ctx.createStereoPanner ? ctx.createStereoPanner() : null;
+    if (whirPan) {
+      whirG.connect(whirPan);
+      audio.route(whirPan, 'sfx', 0.2);
+    } else audio.route(whirG, 'sfx', 0.2);
+
     this.loops = {
+      drill: { gain: drillG, motor, grind, grindG },
+      whir: { gain: whirG, osc: whirO, pan: whirPan },
       rumble,
       scan: { osc: scanO, gain: scanG },
       motion: { gain: mG, filter: mF },
@@ -258,11 +337,16 @@ export class SoundDirector {
     const depth = clamp01(f.depthM / 25);
     const nearSurface = clamp01(1 - f.depthM / 6);
     const m = this.mix;
+    // Phase 16: inside the base or a wreck the echo is a short steel room, and the ocean is heard
+    // dull through the hull; aboard KS-1 the sea outside is dulled too, but the sub's own sounds are not.
+    const indoors = !!f.indoors;
     audio.setScene({
       muffle: f.surfaced || f.inAir ? 16000 : Math.max(900, 4200 - 2300 * depth - 900 * m.cave - 500 * m.forest),
-      space: f.surfaced ? 0.12 : 0.28 + 0.15 * m.basin + 0.12 * m.forest + 0.8 * m.cave + 0.3 * m.shelf + 0.6 * m.trench + 0.9 * m.sanctum,
+      space: indoors ? 0.32 : f.surfaced ? 0.12 : 0.28 + 0.15 * m.basin + 0.12 * m.forest + 0.8 * m.cave + 0.3 * m.shelf + 0.6 * m.trench + 0.9 * m.sanctum,
       duck: (f.panel ? 0.55 : 1) * (1 - 0.45 * f.lowAir),
       blackout: f.blackout,
+      room: indoors ? 1 : 0,
+      hull: indoors ? 420 : f.aboard ? 750 : 20000,
     });
     this.ambience.update(dt, m, depth, nearSurface, f.surfaced, f.blackout);
     this.music.update(dt);
@@ -299,8 +383,8 @@ export class SoundDirector {
       this.suitClock -= dt;
       if (this.suitClock <= 0) {
         this.suitClock = 2.6;
-        audio.tone({ t, freq: 880, dur: 0.18, gain: 0.035, type: 'triangle', lp: 2400, bus: 'ui' });
-        audio.tone({ t: t + 0.22, freq: 660, dur: 0.24, gain: 0.035, type: 'triangle', lp: 2400, bus: 'ui' });
+        audio.tone({ t, freq: 880, dur: 0.18, gain: 0.045, type: 'triangle', lp: 2400, bus: 'ui' });
+        audio.tone({ t: t + 0.22, freq: 660, dur: 0.24, gain: 0.045, type: 'triangle', lp: 2400, bus: 'ui' });
       }
     } else this.suitClock = 0.6;
     if (p.inAir === false && f.inAir) audio.hiss({ dur: 0.6, attack: 0.05, gain: 0.05, type: 'lowpass', freq: 1400, bus: 'ui', send: 0.3 });
@@ -340,7 +424,8 @@ export class SoundDirector {
       this.beepClock -= dt;
       if (this.beepClock <= 0) {
         this.beepClock = 2.2 - 1.4 * f.lowAir;
-        for (const i of [0, 1]) audio.tone({ t: t + i * 0.16, freq: 1760, dur: 0.07, gain: 0.03 + 0.04 * f.lowAir, type: 'square', lp: 2600, bus: 'ui', send: 0.05 });
+        // Phase 16: danger first. The beeps start a touch louder than a pickup's ting, and grow from there.
+        for (const i of [0, 1]) audio.tone({ t: t + i * 0.16, freq: 1760, dur: 0.07, gain: 0.04 + 0.04 * f.lowAir, type: 'square', lp: 2600, bus: 'ui', send: 0.05 });
       }
     } else this.beepClock = 0.4;
 
@@ -348,13 +433,68 @@ export class SoundDirector {
     if (f.scanning !== null && !out) {
       L.scan.gain.gain.setTargetAtTime(0.03, t, 0.05);
       L.scan.osc.frequency.setTargetAtTime(420 + 900 * f.scanning + 30 * Math.sin(t * 40), t, 0.03);
-    } else L.scan.gain.gain.setTargetAtTime(0, t, 0.06);
+      // Phase 16: the anticipation: soft sonar ticks that speed up and climb as the scan fills.
+      this.scanTick -= dt;
+      if (this.scanTick <= 0) {
+        this.scanTick = 0.26 - 0.17 * f.scanning;
+        audio.tone({ freq: (1900 + 1300 * f.scanning) * jit(0.02), dur: 0.025, gain: 0.012 + 0.01 * f.scanning, type: 'triangle', lp: 5000, send: 0.3 });
+      }
+    } else {
+      L.scan.gain.gain.setTargetAtTime(0, t, 0.06);
+      this.scanTick = 0;
+    }
 
     // ---- Work at the Collect button ----
+    // Phase 16: strokes vary and build with progress; a hold action that completes gets its own release.
+    const workPan = Math.max(-0.7, Math.min(0.7, (f.workX - f.x) / 300));
+    const wk = clamp01(f.workProgress ?? 0);
     if (f.work && !out) {
+      if (this.lastWork !== f.work) this.workStart(f.work, workPan);
       this.workClock -= dt;
-      if (this.workClock <= 0) this.workClock = this.workHit(f.work, Math.max(-0.7, Math.min(0.7, (f.workX - f.x) / 300)));
-    } else this.workClock = 0.05;
+      if (this.workClock <= 0) this.workClock = this.workHit(f.work, workPan, wk);
+      this.lastWork = f.work;
+    } else {
+      this.workClock = 0.05;
+      this.lastWork = null;
+    }
+
+    // ---- Phase 16: the drill nose ----
+    const D = L.drill;
+    if (f.drill !== null && f.drill !== undefined && !out) {
+      const dk = clamp01(f.drill);
+      D.gain.gain.setTargetAtTime(0.06 + 0.05 * dk, t, 0.08);
+      D.motor.frequency.setTargetAtTime(62 + 40 * dk + 6 * Math.sin(t * 7), t, 0.1);
+      D.grind.frequency.setTargetAtTime(500 + 900 * dk, t, 0.15);
+      // Grit: chips of rock cracking off, more often as it bites deeper.
+      this.drillGrit -= dt;
+      if (this.drillGrit <= 0) {
+        this.drillGrit = (0.16 - 0.09 * dk) * jit(0.4);
+        const v = rr('drill', 4);
+        audio.hiss({ dur: 0.018 + 0.01 * v, gain: (0.05 + 0.04 * dk) * jit(0.2), freq: (1600 + 500 * v) * jit(0.1), q: 2.5, send: 0.2 });
+        if (v === 0) audio.metal({ freq: 150 * jit(0.15), gain: 0.03, decay: 0.2, send: 0.25 });
+      }
+    } else D.gain.gain.setTargetAtTime(0, t, 0.12);
+
+    // ---- Phase 16: KD-1's propeller whir, placed in the world ----
+    const dp = this.dronePrev;
+    const droneSpeed = dp && dt > 0 ? Math.hypot(f.drone.x - dp.x, f.drone.y - dp.y) / dt : 0;
+    this.dronePrev = { x: f.drone.x, y: f.drone.y };
+    const W = L.whir;
+    const dpl = this.place(f.drone.x, f.drone.y, f, 900);
+    const whirOn = !out && !indoors && !f.aboard && droneSpeed > 15 && droneSpeed < 2000 && (f.drone.x !== 0 || f.drone.y !== 0);
+    W.gain.gain.setTargetAtTime(whirOn ? 0.03 * dpl.g * clamp01(droneSpeed / 260) : 0, t, 0.2);
+    W.osc.frequency.setTargetAtTime(170 + 0.25 * Math.min(400, droneSpeed), t, 0.3);
+    if (W.pan) W.pan.pan.setTargetAtTime(dpl.pan, t, 0.2);
+
+    // ---- Phase 16: footsteps on foot (steel decks in the base, loose wet plates in a wreck) ----
+    if (f.walk && f.walk.ground && Math.abs(f.walk.speed) > 25 && !out) {
+      this.stepClock -= dt;
+      if (this.stepClock <= 0) {
+        const run = clamp01((Math.abs(f.walk.speed) - 60) / 200);
+        this.stepClock = (0.42 - 0.17 * run) * jit(0.05);
+        this.footstep(f.indoors === 'wreck' ? 'wreck' : 'deck', 0.7 + 0.5 * run);
+      }
+    } else this.stepClock = 0.12;
 
     // ---- The drone's welding torch ----
     if (f.drone.welding && !out) {
@@ -418,69 +558,248 @@ export class SoundDirector {
   // ---------------------------------------------------------------------------
   // One-off cues.
 
-  /** One stroke of work for each kind of thing collected. Returns seconds to the next. */
-  private workHit(kind: WorkKind, pan: number): number {
+  /**
+   * Phase 16: every gather has a shape: anticipation, contact, payoff.
+   *  - contact: workHit() strokes, never the same twice (a round-robin of
+   *    voicings plus a little random pitch and level), getting firmer, higher
+   *    and quicker as the progress ring fills (k = 0..1), with a hint of strain
+   *    near the end;
+   *  - release: pickup() (materials) or workDone() (hold actions) the moment it
+   *    comes loose: a crunch, pop, snap or clunk that suits the material;
+   *  - reward: the Phase 14 ting (stingMinor) that climbs the scale, unchanged.
+   * Returns seconds to the next stroke.
+   */
+  private workHit(kind: WorkKind, pan: number, k: number): number {
     const t = audio.now;
-    const j = () => 0.85 + Math.random() * 0.3;
+    const VOICES = [1, semi(2), semi(-1.5), semi(3), semi(0.7)];
+    const v = rr(`work:${kind}`, VOICES.length);
+    const up = VOICES[v] * (1 + 0.12 * k) * jit(0.03);
+    const amp = (0.7 + 0.5 * k) * jit(0.12);
+    const pace = (1 - 0.3 * k) * jit(0.08);
+    const strain = k > 0.62;
     switch (kind) {
-      case 'fibre': // Cut: a quick blade slice through kelp.
-        audio.hiss({ dur: 0.12, gain: 0.07, type: 'bandpass', freq: 2600 * j(), to: 1200, q: 1.5, pan });
-        return 0.3 * j();
-      case 'scrap': // Pry loose: metal grinding and a clank as it gives.
-        audio.tone({ freq: 140 * j(), to: 180, dur: 0.3, gain: 0.04, type: 'sawtooth', lp: 900, pan });
-        if (Math.random() < 0.6) audio.metal({ t: t + 0.25, freq: 230 * j(), gain: 0.05, decay: 0.45, pan });
-        return 0.55 * j();
-      case 'copper': // Dig out: thuds into gravel.
-        audio.thump({ freq: 150 * j(), gain: 0.09, dur: 0.18, pan });
-        audio.hiss({ dur: 0.12, gain: 0.05, freq: 800 * j(), q: 0.7, brown: true, pan });
-        return 0.42 * j();
-      case 'ore': // Chip off vent ore: dull cracks into warm crust.
-        audio.thump({ freq: 110 * j(), gain: 0.07, dur: 0.14, pan });
-        audio.hiss({ dur: 0.05, gain: 0.06, freq: 1800 * j(), q: 1.2, pan });
-        return 0.4 * j();
-      case 'quartz': // Chip off: hard taps on crystal.
-        audio.tone({ freq: 2900 * j(), dur: 0.06, gain: 0.035, pan, send: 0.3 });
-        audio.hiss({ dur: 0.025, gain: 0.08, freq: 3800, q: 2, pan });
-        return 0.36 * j();
-      case 'resin': // Scrape off: a blade dragged over a holdfast.
-        audio.hiss({ dur: 0.22, attack: 0.03, gain: 0.05, freq: 1300 * j(), to: 2100, q: 3, pan });
-        return 0.42 * j();
+      case 'fibre': // Cut: a blade slicing kelp, the stalk's fibres creaking as it gives.
+        audio.hiss({ dur: 0.1 + 0.03 * (v % 2), gain: 0.07 * amp, freq: 2600 * up, to: 1100 * up, q: 1.5, pan });
+        audio.hiss({ t: t + 0.02, dur: 0.05, gain: 0.03 * amp, freq: 700 * up, q: 3, pan, brown: true });
+        if (strain) audio.tone({ t: t + 0.04, freq: 150 * up, to: 190 * up, dur: 0.16, gain: 0.02 * amp, type: 'sawtooth', lp: 700, pan });
+        return 0.3 * pace;
+      case 'scrap': // Pry loose: metal grinding, a clank as it shifts, loose bits rattling near the end.
+        audio.tone({ freq: 140 * up, to: 185 * up, dur: 0.28, gain: 0.04 * amp, type: 'sawtooth', lp: 900, pan });
+        if (v !== 1) audio.metal({ t: t + 0.22, freq: 230 * up, gain: 0.05 * amp, decay: 0.45, pan });
+        if (strain) for (let i = 0; i < 3; i++) audio.metal({ t: t + 0.3 + i * 0.05 * jit(0.3), freq: 900 * up * jit(0.15), gain: 0.012, decay: 0.08, pan });
+        return 0.52 * pace;
+      case 'copper': // Dig out: the trowel thuds into gravel, stones scatter, sand trickles as it loosens.
+        audio.thump({ freq: 150 * up, gain: 0.09 * amp, dur: 0.16, pan });
+        this.gravel(t + 0.015, 3 + v, 0.05 * amp, up, pan);
+        if (strain) audio.hiss({ t: t + 0.08, dur: 0.35, attack: 0.05, gain: 0.025 * amp, type: 'lowpass', freq: 1400 * up, pan, brown: true });
+        return 0.42 * pace;
+      case 'ore': // Chip off vent ore: dull cracks into warm crust, warm water hissing out of the cracks.
+        audio.thump({ freq: 110 * up, gain: 0.07 * amp, dur: 0.14, pan });
+        audio.hiss({ dur: 0.045, gain: 0.07 * amp, freq: 1800 * up, q: 1.2, pan });
+        if (strain) audio.hiss({ t: t + 0.05, dur: 0.4, attack: 0.04, gain: 0.025 * amp, freq: 3000, to: 2200, q: 0.8, pan });
+        return 0.4 * pace;
+      case 'quartz': // Chip off: hard taps on crystal; it starts to sing as the crack runs.
+        audio.tone({ freq: 2900 * up, dur: 0.05, gain: 0.035 * amp, pan, send: 0.3 });
+        audio.hiss({ dur: 0.022, gain: 0.08 * amp, freq: 3800 * up, q: 2, pan });
+        if (strain) audio.bell({ t: t + 0.02, freq: 1800 * up, gain: 0.012 * amp, decay: 0.5, ratio: 2.76, index: 0.4, pan, send: 0.4 });
+        return 0.36 * pace;
+      case 'resin': // Scrape off: a blade dragged over a holdfast; the resin stretches before it lets go.
+        audio.hiss({ dur: 0.2, attack: 0.03, gain: 0.05 * amp, freq: 1300 * up, to: 2100 * up, q: 3, pan });
+        if (strain) audio.tone({ t: t + 0.08, freq: 210 * up, to: 150 * up, dur: 0.22, gain: 0.025 * amp, type: 'triangle', lp: 600, pan });
+        return 0.42 * pace;
       case 'bloom':
-      case 'moss': // Peel off: a soft tearing crackle.
-        for (let i = 0; i < 4; i++) audio.hiss({ t: t + i * 0.035 * j(), dur: 0.02, gain: 0.04, freq: 1200 * j(), q: 1.5, pan });
-        return 0.32 * j();
-      case 'creature': // Coaxing a creature into the jar: gentle bubbles.
-        audio.bubbles({ n: 2, spread: 0.2, gain: 0.025, low: 500, high: 1100, pan });
-        return 0.5 * j();
+      case 'moss':
+      case 'bracket': // Peel off: a soft tearing crackle (a bloom glimmers faintly as it lifts).
+        for (let i = 0; i < 3 + v; i++) audio.hiss({ t: t + i * 0.033 * jit(0.3), dur: 0.018, gain: 0.04 * amp, freq: 1200 * up * jit(0.2), q: 1.5, pan });
+        if (kind === 'bloom' && v === 0) audio.bell({ t: t + 0.05, freq: 1320 * up, gain: 0.01, decay: 0.6, ratio: 3.01, index: 0.2, pan, send: 0.6 });
+        return 0.32 * pace;
+      case 'creature': // Coaxing a creature into the jar: gentle bubbles, a little quicker as it comes.
+        audio.bubbles({ n: 2 + (v % 2), spread: 0.2, gain: 0.025 * amp, low: 500 * up, high: 1100 * up, pan });
+        return 0.5 * pace;
       case 'repair': // Repairing the drone: welding crackle.
-        for (let i = 0; i < 4; i++) audio.hiss({ t: t + Math.random() * 0.12, dur: 0.015, gain: 0.07, type: 'highpass', freq: 3000, pan });
+        for (let i = 0; i < 4; i++) audio.hiss({ t: t + Math.random() * 0.12, dur: 0.015, gain: 0.07 * jit(0.3), type: 'highpass', freq: 3000 * jit(0.2), pan });
         return 0.14;
-      case 'winch': // Winding the boom winch: ratchet clicks and a strained groan.
-        audio.metal({ freq: 820 * j(), gain: 0.03, decay: 0.12, pan });
-        if (Math.random() < 0.25) audio.tone({ freq: 70, to: 62, dur: 0.6, gain: 0.04, type: 'sawtooth', lp: 400, pan });
-        return 0.18;
-      case 'brass': // Unbolt: a wrench ratchet and a dull bell-metal clank.
-        audio.metal({ freq: 520 * j(), gain: 0.025, decay: 0.1, pan });
-        if (Math.random() < 0.4) audio.metal({ t: t + 0.15, freq: 300 * j(), gain: 0.045, decay: 0.7, pan });
-        return 0.3 * j();
-      case 'cutter': // The cutter torch: a roaring hiss, crackle and boiling bubbles.
-        audio.hiss({ dur: 0.24, gain: 0.07, freq: 3200, q: 0.6, pan });
-        for (let i = 0; i < 3; i++) audio.hiss({ t: t + Math.random() * 0.2, dur: 0.015, gain: 0.08, type: 'highpass', freq: 2600, pan });
+      case 'winch': // Winding the boom winch: ratchet clicks that quicken, and a strained groan that rises.
+        audio.metal({ freq: 820 * up, gain: 0.03 * amp, decay: 0.1, pan });
+        if (v === 0) audio.tone({ freq: (62 + 30 * k) * jit(0.04), to: (58 + 26 * k), dur: 0.6, gain: 0.04 * amp, type: 'sawtooth', lp: 400, pan });
+        return 0.19 * (1 - 0.45 * k) * jit(0.05);
+      case 'brass': // Unbolt: a wrench ratchet, a dull bell-metal clank; the bolt squeals as it turns.
+        audio.metal({ freq: 520 * up, gain: 0.025 * amp, decay: 0.1, pan });
+        if (v % 2 === 0) audio.metal({ t: t + 0.15, freq: 300 * up, gain: 0.045 * amp, decay: 0.7, pan });
+        if (strain) audio.tone({ t: t + 0.06, freq: 1400 * up, to: 1650 * up, dur: 0.12, gain: 0.008, type: 'sawtooth', lp: 3000, pan });
+        return 0.3 * pace;
+      case 'cutter': // The cutter torch: a roaring hiss, crackle and boiling bubbles, fiercer as it cuts through.
+        audio.hiss({ dur: 0.24, gain: 0.07 * amp, freq: 3200 * up, q: 0.6, pan });
+        for (let i = 0; i < 2 + v; i++) audio.hiss({ t: t + Math.random() * 0.2, dur: 0.015, gain: 0.08, type: 'highpass', freq: 2600 * jit(0.3), pan });
         audio.bubbles({ n: 3, spread: 0.2, gain: 0.03, low: 600, high: 1600, pan });
-        return 0.2;
+        return 0.2 * jit(0.1);
       case 'recorder': // Unclipping the recorder: small latches.
-        audio.tone({ freq: 1800 * j(), dur: 0.03, gain: 0.04, type: 'triangle', pan });
-        return 0.4 * j();
+        audio.tone({ freq: 1800 * up, dur: 0.03, gain: 0.04 * amp, type: 'triangle', pan });
+        return 0.4 * pace;
     }
   }
 
+  /** Phase 16: stones and grit scattering (a handful of short, gritty grains). */
+  private gravel(t: number, n: number, gain: number, up: number, pan: number): void {
+    for (let i = 0; i < n; i++)
+      audio.hiss({ t: t + Math.random() * 0.07, dur: 0.008 + Math.random() * 0.014, gain: gain * jit(0.4), freq: (900 + Math.random() * 1500) * up, q: 2.2, pan: pan + (Math.random() - 0.5) * 0.2, brown: i % 2 === 0 });
+  }
+
+  /** Phase 16: the anticipation when a hold starts (the cutter lights, the winch brake lets go). */
+  private workStart(kind: WorkKind, pan: number): void {
+    const t = audio.now;
+    if (kind === 'cutter') {
+      // Ignition: a soft whump and a rising hiss as the flame catches.
+      audio.thump({ t, freq: 160, gain: 0.08, dur: 0.15, pan });
+      audio.hiss({ t, dur: 0.3, attack: 0.08, gain: 0.06, freq: 900, to: 3200, q: 0.7, pan });
+    } else if (kind === 'winch') {
+      audio.metal({ t, freq: 340 * jit(0.05), gain: 0.04, decay: 0.35, pan });
+    }
+  }
+
+  /**
+   * Phase 16: the release when a hold action finishes (called by main.ts at the
+   * moment it completes, never when Collect is let go early). `dx` is how far the
+   * work is from the listener, for panning.
+   */
+  holdDone(kind: WorkKind, dx = 0): void {
+    if (!audio.running || !HOLD_RELEASE.has(kind)) return;
+    this.workDone(kind, Math.max(-0.7, Math.min(0.7, dx / 300)));
+  }
+
+  private workDone(kind: WorkKind, pan: number): void {
+    const t = audio.now;
+    switch (kind) {
+      case 'winch': // The pawl drops home: a heavy clunk, a chain shiver and the strain let go.
+        audio.thump({ t, freq: 95, gain: 0.09, dur: 0.35, pan, send: 0.35 });
+        audio.metal({ t, freq: 210 * jit(0.04), gain: 0.05, decay: 1.1, pan });
+        for (let i = 0; i < 5; i++) audio.metal({ t: t + 0.08 + i * 0.04 * jit(0.3), freq: 1100 * jit(0.2), gain: 0.012, decay: 0.07, pan });
+        audio.bubbles({ t: t + 0.1, n: 8, spread: 0.5, gain: 0.03, pan });
+        break;
+      case 'cutter': // Through: a crack, a low groan of the wall giving way and a gush of bubbles.
+        audio.hiss({ t, dur: 0.05, gain: 0.08, freq: 2400, q: 1, pan });
+        audio.thump({ t: t + 0.02, freq: 80, gain: 0.11, dur: 0.6, pan, send: 0.4 });
+        audio.hiss({ t: t + 0.05, dur: 0.9, attack: 0.04, gain: 0.045, type: 'lowpass', freq: 900, to: 250, pan, brown: true });
+        audio.bubbles({ t: t + 0.05, n: 18, spread: 0.8, gain: 0.04, low: 300, high: 1400, pan });
+        break;
+      case 'bracket': // A bracket lit: the moss comes free with a soft rip and a puff.
+        audio.hiss({ t, dur: 0.12, gain: 0.06, freq: 900, to: 2600, q: 1.2, pan });
+        audio.bubbles({ t: t + 0.04, n: 6, spread: 0.3, gain: 0.03, pan });
+        break;
+      case 'recorder': // The last latch springs.
+        audio.metal({ t, freq: 1300, gain: 0.03, decay: 0.15, pan });
+        audio.thump({ t: t + 0.03, freq: 240, gain: 0.05, dur: 0.08, pan });
+        break;
+      case 'creature': // In: the lid snaps shut over a swirl of bubbles.
+        audio.bubbles({ t, n: 8, spread: 0.35, gain: 0.03, low: 500, high: 1400, pan });
+        audio.tone({ t: t + 0.18, freq: 1500, to: 1100, dur: 0.03, gain: 0.03, type: 'triangle', pan });
+        break;
+      default:
+        break;
+    }
+  }
+
+  /**
+   * A material comes loose (the collect finishes). Phase 16: a release that suits
+   * the material, varied each time. The reward ting (Phase 14 stingMinor) plays
+   * over it; the old per-material clink is now a short tonal tag under the ting.
+   */
   pickup(kind: string): void {
     if (!audio.running) return;
+    const t = audio.now;
+    const v = rr(`loose:${kind}`, 4);
+    const up = [1, semi(1.5), semi(-1), semi(2.5)][v] * jit(0.03);
+    switch (kind) {
+      case 'copper': // Pops out of the gravel: a crunch, stones skittering, the nugget's dull ring.
+        audio.thump({ t, freq: 140 * up, gain: 0.12, dur: 0.2 });
+        this.gravel(t, 7, 0.07, up, 0);
+        audio.metal({ t: t + 0.05, freq: 620 * up, gain: 0.025, decay: 0.35, send: 0.3 });
+        break;
+      case 'scrap': // Tears free: a short screech, a clank and the rattle of loose bits.
+        audio.tone({ t, freq: 420 * up, to: 260 * up, dur: 0.12, gain: 0.03, type: 'sawtooth', lp: 1800 });
+        audio.metal({ t: t + 0.06, freq: 260 * up, gain: 0.07, decay: 0.6 });
+        for (let i = 0; i < 4; i++) audio.metal({ t: t + 0.12 + i * 0.045 * jit(0.3), freq: 1000 * up * jit(0.2), gain: 0.012, decay: 0.08 });
+        break;
+      case 'quartz': // Snaps off: a sharp crack, a glassy ring and a few tinkling shards.
+        audio.hiss({ t, dur: 0.03, gain: 0.12, freq: 5200 * up, q: 1.6 });
+        audio.bell({ t: t + 0.005, freq: 2200 * up, gain: 0.03, decay: 0.8, ratio: 2.76, index: 0.5, send: 0.45 });
+        for (let i = 0; i < 3; i++) audio.tone({ t: t + 0.05 + i * 0.05 * jit(0.4), freq: 3500 * up * jit(0.15), dur: 0.04, gain: 0.012, send: 0.4 });
+        break;
+      case 'resin': // Lets go with a sticky pop.
+        audio.tone({ t, freq: 330 * up, to: 120, dur: 0.1, gain: 0.07, type: 'triangle', lp: 1200 });
+        audio.hiss({ t, dur: 0.05, gain: 0.04, freq: 1500 * up, q: 2 });
+        audio.bubbles({ t: t + 0.04, n: 3, spread: 0.2, gain: 0.025 });
+        break;
+      case 'moss':
+      case 'bloom': // Peels away with a soft rip and a puff of spores.
+        audio.hiss({ t, dur: 0.13, gain: 0.06, freq: 900 * up, to: 2400 * up, q: 1.2 });
+        audio.hiss({ t: t + 0.08, dur: 0.3, attack: 0.05, gain: 0.025, type: 'lowpass', freq: 1500 });
+        if (kind === 'bloom') audio.bell({ t: t + 0.06, freq: 1568 * up, gain: 0.018, decay: 1.1, ratio: 3.01, index: 0.3, send: 0.6 });
+        break;
+      case 'fibre': // The stalk parts: a crisp snap and a swish as it drifts.
+        audio.hiss({ t, dur: 0.025, gain: 0.1, freq: 3000 * up, q: 1.5 });
+        audio.tone({ t, freq: 240 * up, to: 140, dur: 0.06, gain: 0.04, type: 'triangle', lp: 900 });
+        audio.hiss({ t: t + 0.05, dur: 0.3, attack: 0.04, gain: 0.03, freq: 1300, to: 700, q: 1 });
+        break;
+      case 'ore': // A slab of crust cracks away and warm water hisses out.
+        audio.hiss({ t, dur: 0.05, gain: 0.11, freq: 1600 * up, q: 1.1, brown: true });
+        audio.thump({ t, freq: 105 * up, gain: 0.12, dur: 0.25 });
+        audio.hiss({ t: t + 0.06, dur: 0.5, attack: 0.03, gain: 0.03, freq: 3200, to: 1800, q: 0.8 });
+        break;
+      case 'brass': // The bolt gives: a ratchet tick and the heavy fitting clanks free.
+        audio.metal({ t, freq: 900 * up, gain: 0.02, decay: 0.08 });
+        audio.metal({ t: t + 0.06, freq: 290 * up, gain: 0.08, decay: 1.0, send: 0.4 });
+        break;
+      default: // Hull plating and anything else: a solid metal set-down.
+        audio.metal({ t, freq: 330 * up, gain: 0.06, decay: 0.7 });
+    }
+    // A short tonal tag (the old clink, softer) so each material keeps its own note under the ting.
     const f: Record<string, number> = { quartz: 1568, copper: 880, scrap: 698, fibre: 523, resin: 587, moss: 784, plate: 659 };
-    const fr = f[kind] ?? 700;
-    audio.bell({ freq: fr, gain: 0.045, decay: 0.6, ratio: 1, index: 0.4, send: 0.3 });
-    audio.bell({ t: audio.now + 0.07, freq: fr * 1.5, gain: 0.025, decay: 0.5, ratio: 1, index: 0.3, send: 0.3 });
-    audio.bubbles({ n: 3, spread: 0.2, gain: 0.025 });
+    audio.bell({ t: t + 0.04, freq: (f[kind] ?? 700) * jit(0.01), gain: 0.022, decay: 0.45, ratio: 1, index: 0.4, send: 0.3 });
+    audio.bubbles({ t: t + 0.03, n: 3, spread: 0.25, gain: 0.022 });
+  }
+
+  /** Phase 16: a lode or the seam gives way under the drill: a crunch, a rockfall rumble and grit. */
+  drillBreak(): void {
+    if (!audio.running) return;
+    const t = audio.now;
+    audio.thump({ t, freq: 70, gain: 0.13, dur: 0.7, send: 0.4 });
+    audio.hiss({ t, dur: 0.06, gain: 0.09, freq: 1400, q: 1, brown: true });
+    this.gravel(t + 0.03, 12, 0.06, 0.8, 0);
+    audio.hiss({ t: t + 0.08, dur: 1.1, attack: 0.05, gain: 0.035, type: 'lowpass', freq: 600, to: 200, brown: true, send: 0.4 });
+    audio.bubbles({ t: t + 0.1, n: 14, spread: 0.8, gain: 0.035, low: 250, high: 1000 });
+  }
+
+  /** Phase 16: KD-1 finishes a weld: the torch sputters out, the new piece settles with a deep clank. */
+  weldDone(x: number, y: number): void {
+    if (!audio.running) return;
+    const f = this.prev as AudioFrame;
+    const pl = f.x !== undefined ? this.place(x, y, f, 1800) : { g: 1, pan: 0 };
+    if (pl.g < 0.02) return;
+    const t = audio.now;
+    for (let i = 0; i < 4; i++) audio.hiss({ t: t + i * 0.05 * jit(0.4), dur: 0.012, gain: 0.05 * pl.g, type: 'highpass', freq: 3000 * jit(0.2), pan: pl.pan });
+    audio.hiss({ t: t + 0.15, dur: 0.6, attack: 0.03, gain: 0.04 * pl.g, freq: 2400, to: 900, q: 0.8, pan: pl.pan });
+    audio.thump({ t: t + 0.25, freq: 85, gain: 0.09 * pl.g, dur: 0.45, pan: pl.pan, send: 0.4 });
+    audio.metal({ t: t + 0.26, freq: 140 * jit(0.05), gain: 0.045 * pl.g, decay: 1.4, pan: pl.pan, send: 0.5 });
+    audio.bubbles({ t: t + 0.3, n: 10, spread: 0.6, gain: 0.03 * pl.g, pan: pl.pan });
+  }
+
+  /** Phase 16: one footstep on foot: steel deck plates in the base, loose wet plates in a wreck. */
+  private footstep(surface: 'deck' | 'wreck', weight: number): void {
+    const v = rr(`step:${surface}`, 5);
+    const up = [1, semi(1), semi(-1.2), semi(2), semi(-0.5)][v] * jit(0.03);
+    const g = weight * jit(0.15);
+    const t = audio.now;
+    audio.thump({ t, freq: 120 * up, gain: 0.042 * g, dur: 0.09, send: 0.15 });
+    audio.hiss({ t, dur: 0.03, gain: 0.025 * g, freq: 2200 * up, q: 1.2 });
+    if (surface === 'deck') {
+      // A grating rings a little.
+      if (v % 2 === 0) audio.metal({ t: t + 0.004, freq: 420 * up, gain: 0.012 * g, decay: 0.18 });
+    } else {
+      // Wet, loose: a splash underfoot and the odd rattle of a plate.
+      audio.hiss({ t: t + 0.01, dur: 0.12, gain: 0.025 * g, type: 'lowpass', freq: 1800 * up, to: 600 });
+      if (v === 1) audio.metal({ t: t + 0.03, freq: 260 * up, gain: 0.02 * g, decay: 0.3 });
+    }
   }
 
   /** A bigger find: an air tank upgrade, an echo whorl or the recovered sample bag. */
@@ -494,15 +813,24 @@ export class SoundDirector {
     audio.bubbles({ n: 8, spread: 0.6, gain: 0.03 });
   }
 
-  /** Phase 15: letting a creature out of the jar: the lid, a gush of bubbles and a soft falling note. */
+  /**
+   * Phase 15: letting a creature out of the jar. Phase 16 polish: the lid
+   * unscrews (two small clicks) and pops with a low "thoop" of water, a gush of
+   * bubbles swirls away (panned across, as it swims off), then a soft falling
+   * goodbye. Varied a little each time.
+   */
   release(): void {
     if (!audio.running) return;
     const t = audio.now;
-    audio.tone({ t, freq: 1700, dur: 0.03, gain: 0.04, type: 'triangle' });
-    audio.hiss({ t: t + 0.03, dur: 0.4, gain: 0.05, type: 'lowpass', freq: 1400, to: 500 });
-    audio.bubbles({ t: t + 0.04, n: 12, spread: 0.7, gain: 0.035, low: 400, high: 1500 });
-    audio.bell({ t: t + 0.1, freq: 880, gain: 0.03, decay: 0.9, ratio: 2, index: 0.3, send: 0.5 });
-    audio.bell({ t: t + 0.28, freq: 659, gain: 0.025, decay: 1.2, ratio: 2, index: 0.3, send: 0.6 });
+    const up = jit(0.04);
+    const dir = Math.random() < 0.5 ? -1 : 1;
+    audio.tone({ t, freq: 1900 * up, dur: 0.02, gain: 0.025, type: 'triangle' });
+    audio.tone({ t: t + 0.07, freq: 1700 * up, dur: 0.025, gain: 0.03, type: 'triangle' });
+    audio.tone({ t: t + 0.14, freq: 420 * up, to: 160, dur: 0.09, gain: 0.07, type: 'sine', lp: 1400 });
+    audio.hiss({ t: t + 0.15, dur: 0.4, gain: 0.05, type: 'lowpass', freq: 1400, to: 500 });
+    for (let i = 0; i < 3; i++) audio.bubbles({ t: t + 0.16 + i * 0.15, n: 5, spread: 0.25, gain: 0.032 - i * 0.006, low: 400, high: 1500, pan: dir * (i * 0.3) });
+    audio.bell({ t: t + 0.24, freq: 880 * up, gain: 0.028, decay: 0.9, ratio: 2, index: 0.3, send: 0.5 });
+    audio.bell({ t: t + 0.42, freq: 659 * up, gain: 0.024, decay: 1.2, ratio: 2, index: 0.3, send: 0.6, pan: dir * 0.3 });
   }
 
   /** Phase 15c: a new action on the control bar: a very soft sonar ping on the music's root and fifth. */
@@ -515,10 +843,10 @@ export class SoundDirector {
     audio.bell({ t: t + 0.09, freq: hz(r + 7), gain: 0.01, decay: 1.3, ratio: 1, index: 0.2, bus: 'ui', send: 0.8 });
   }
 
-  /** The identify pulse (a tap of Scan): a soft sonar ping. */
+  /** The identify pulse (a tap of Scan): a soft sonar ping (Phase 16: never quite the same twice). */
   ping(): void {
     if (!audio.running) return;
-    audio.bell({ freq: 1320, gain: 0.04, decay: 1.4, ratio: 1, index: 0.25, send: 0.8 });
+    audio.bell({ freq: 1320 * jit(0.01), gain: 0.04 * jit(0.1), decay: 1.4, ratio: 1, index: 0.25, send: 0.8 });
   }
 
   /** Milestone 8 part 2: the sonar pulse: a deep, ringing ping that rolls away. */
@@ -554,16 +882,20 @@ export class SoundDirector {
     audio.hiss({ t, dur: 0.45, gain: 0.14, freq: 500, to: 1600, q: 0.7, brown: true });
     audio.bubbles({ t, n: 14, spread: 0.5, gain: 0.05, low: 300, high: 1200 });
   }
-  /** The tractor beam drawing a material in: a rising hum. */
+  /**
+   * The tractor beam drawing a material in. Phase 16: anticipation (a rising,
+   * shimmering hum while it travels the beam), then the catch: a soft magnetic
+   * clack as it lands in the hopper.
+   */
   tractor(): void {
     if (!audio.running) return;
-    audio.tone({ freq: 220, to: 660, dur: 0.6, attack: 0.05, gain: 0.04, type: 'triangle', send: 0.5 });
-  }
-  /** The drill nose biting soft rock. */
-  drill(): void {
-    if (!audio.running) return;
-    audio.metal({ freq: 140 + Math.random() * 60, gain: 0.05, decay: 0.25, send: 0.3 });
-    audio.hiss({ dur: 0.12, gain: 0.05, freq: 900, q: 1.2, brown: true });
+    const t = audio.now;
+    const up = jit(0.04);
+    audio.tone({ t, freq: 220 * up, to: 660 * up, dur: 0.55, attack: 0.05, gain: 0.04, type: 'triangle', send: 0.5 });
+    audio.tone({ t, freq: 331 * up, to: 990 * up, dur: 0.5, attack: 0.08, gain: 0.015, type: 'sine', send: 0.6 });
+    audio.hiss({ t, dur: 0.5, attack: 0.3, gain: 0.02, freq: 2000, to: 5000, q: 2, send: 0.4 });
+    audio.metal({ t: t + 0.55, freq: 480 * up, gain: 0.04, decay: 0.3 });
+    audio.thump({ t: t + 0.55, freq: 190, gain: 0.06, dur: 0.1 });
   }
 
   /** Milestone 8: a lurker warns (a dry clicking rattle from its den). */
@@ -571,8 +903,12 @@ export class SoundDirector {
     if (!audio.running) return;
     const t = audio.now;
     const pan = Math.max(-0.8, Math.min(0.8, dx / 500));
-    for (let i = 0; i < 7; i++) audio.hiss({ t: t + i * 0.07 + Math.random() * 0.02, dur: 0.012, gain: 0.07, freq: 1400 + Math.random() * 500, q: 6, pan, send: 0.2 });
-    audio.tone({ t, freq: 70, to: 55, dur: 0.6, gain: 0.08, type: 'sawtooth', lp: 260, pan, send: 0.3 });
+    // Phase 16: danger comes first in the mix. The rattle plays unmuffled (deep water used to dull it
+    // to almost nothing), still panned towards the den, and the soundtrack dips under it.
+    for (let i = 0; i < 7; i++) audio.hiss({ t: t + i * 0.07 + Math.random() * 0.02, dur: 0.014, gain: 0.11, freq: 1400 + Math.random() * 500, q: 6, bus: 'ui', pan, send: 0.2 });
+    audio.tone({ t, freq: 70, to: 55, dur: 0.6, gain: 0.11, type: 'sawtooth', lp: 260, bus: 'ui', pan, send: 0.3 });
+    audio.tone({ t, freq: 210, to: 165, dur: 0.5, gain: 0.045, type: 'sawtooth', lp: 700, bus: 'ui', pan, send: 0.2 });
+    audio.duckForSting(1.2);
   }
 
   /** Milestone 8: a lurker's bite: a snap, a crunch on the suit and a hiss of escaping air. */
@@ -584,21 +920,27 @@ export class SoundDirector {
     audio.metal({ t: t + 0.03, freq: 340, gain: 0.08, decay: 0.4, bus: 'ui' });
     audio.hiss({ t: t + 0.1, dur: 1.2, attack: 0.02, gain: 0.08, freq: 3200, to: 1800, q: 1, bus: 'ui', send: 0.1 });
     audio.bubbles({ t: t + 0.05, n: 20, spread: 0.9, gain: 0.05, low: 300, high: 1300, bus: 'ui' });
+    audio.duckForSting(1.5);
   }
 
   /** Milestone 8: the grapple hook firing and biting into an anchor ring. */
   clip(): void {
     if (!audio.running) return;
-    audio.metal({ freq: 900, gain: 0.05, decay: 0.2 });
-    audio.metal({ t: audio.now + 0.09, freq: 700, gain: 0.05, decay: 0.3 });
+    // Phase 16: the line zips out, then the hook bites (varied, so repeated swings don't stutter).
+    const up = [1, semi(1), semi(-1), semi(2)][rr('clip', 4)] * jit(0.02);
+    audio.hiss({ dur: 0.08, gain: 0.03, freq: 2400 * up, to: 4200 * up, q: 2 });
+    audio.metal({ t: audio.now + 0.06, freq: 900 * up, gain: 0.05 * jit(0.1), decay: 0.2 });
+    audio.metal({ t: audio.now + 0.14, freq: 700 * up, gain: 0.05 * jit(0.1), decay: 0.3 });
   }
 
   /** A hard knock against rock in the sub. */
   dent(strength: number): void {
     if (!audio.running) return;
-    const g = Math.min(1, 0.4 + strength * 6);
-    audio.thump({ freq: 70, gain: 0.3 * g, dur: 0.5, send: 0.3 });
+    const g = Math.min(1, 0.4 + strength * 6) * jit(0.08);
+    audio.thump({ freq: 70 * jit(0.08), gain: 0.3 * g, dur: 0.5, send: 0.3 });
     audio.metal({ freq: 120 + Math.random() * 40, gain: 0.12 * g, decay: 1.2, send: 0.4 });
+    // Phase 16: grit scraping along the hull.
+    this.gravel(audio.now + 0.02, 5, 0.04 * g, 0.7, 0);
     audio.bubbles({ n: 6, spread: 0.4, gain: 0.03 });
   }
 
@@ -615,7 +957,8 @@ export class SoundDirector {
   breach(): void {
     if (!audio.running) return;
     const t = audio.now;
-    for (let i = 0; i < 6; i++) audio.tone({ t: t + i * 0.32, freq: i % 2 ? 494 : 659, dur: 0.26, gain: 0.06, type: 'triangle', lp: 2000, bus: 'ui', send: 0.2 });
+    for (let i = 0; i < 6; i++) audio.tone({ t: t + i * 0.32, freq: i % 2 ? 494 : 659, dur: 0.26, gain: 0.09, type: 'triangle', lp: 2000, bus: 'ui', send: 0.2 });
+    audio.duckForSting(2.2);
     audio.hiss({ dur: 2.2, attack: 0.05, gain: 0.2, freq: 500, q: 0.6, brown: true });
     audio.bubbles({ n: 30, spread: 2, gain: 0.04, low: 200, high: 900 });
   }
@@ -668,10 +1011,12 @@ export class SoundDirector {
   }
   step(jump: boolean, hard = false): void {
     if (!audio.running) return;
-    if (jump) audio.hiss({ dur: 0.08, gain: 0.03, type: 'lowpass', freq: 900, bus: 'ui' });
+    // Phase 16: on the effects bus (so the indoor room echo applies) and varied each time.
+    const up = [1, semi(1), semi(-1), semi(1.8)][rr('land', 4)] * jit(0.03);
+    if (jump) audio.hiss({ dur: 0.08, gain: 0.03 * jit(0.15), type: 'lowpass', freq: 900 * up, send: 0.1 });
     else {
-      audio.thump({ freq: hard ? 90 : 130, gain: hard ? 0.22 : 0.12, dur: 0.16, bus: 'ui', send: 0.2 });
-      audio.metal({ freq: 210, gain: hard ? 0.06 : 0.03, decay: 0.3, bus: 'ui' });
+      audio.thump({ freq: (hard ? 90 : 130) * up, gain: (hard ? 0.22 : 0.12) * jit(0.1), dur: 0.16, send: 0.2 });
+      audio.metal({ freq: 210 * up, gain: hard ? 0.06 : 0.03, decay: 0.3 });
     }
   }
   hurt(why: 'steam' | 'bilge'): void {
@@ -684,11 +1029,16 @@ export class SoundDirector {
   }
 
   clamps(docked: boolean): void {
+    // Phase 16: the docking shape. A servo whine as the arms swing in (anticipation), the clamps
+    // biting one after the other (contact), then the seal: a hiss of the water purging (payoff).
     const t = audio.now;
-    audio.thump({ t, freq: 80, gain: 0.15, dur: 0.35 });
-    audio.metal({ t, freq: 150, gain: 0.08, decay: 0.8 });
-    if (docked) audio.metal({ t: t + 0.28, freq: 165, gain: 0.07, decay: 0.8 });
-    audio.hiss({ t: t + 0.3, dur: 0.8, gain: 0.05, freq: 1600, to: 600, q: 0.8 });
+    const up = jit(0.03);
+    audio.tone({ t, freq: 380 * up, to: 620 * up, dur: 0.22, attack: 0.04, gain: 0.02, type: 'sawtooth', lp: 1400 });
+    audio.thump({ t: t + 0.2, freq: 80 * up, gain: 0.11, dur: 0.35 });
+    audio.metal({ t: t + 0.2, freq: 150 * up, gain: 0.06, decay: 0.8 });
+    if (docked) audio.metal({ t: t + 0.46, freq: 165 * up, gain: 0.055, decay: 0.8 });
+    audio.hiss({ t: t + 0.5, dur: 0.8, gain: 0.05, freq: 1600, to: 600, q: 0.8 });
+    if (docked) audio.bubbles({ t: t + 0.55, n: 10, spread: 0.6, gain: 0.03, low: 300, high: 900 });
   }
 
   private splash(strength: number, up: boolean): void {

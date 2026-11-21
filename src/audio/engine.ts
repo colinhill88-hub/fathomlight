@@ -1,6 +1,7 @@
 /*
- * Milestone 7b: the audio engine. Every sound in Fathomlight is made by code
- * with the Web Audio API (no sound files), like the art.
+ * Milestone 7b: the audio engine. Most sounds in Fathomlight are made by code
+ * with the Web Audio API. Phase 16: CC0 sound files may also play through the
+ * same buses (`sample()`), each logged in public/audio/CREDITS.md.
  *
  * The signal path:
  *
@@ -11,6 +12,11 @@
  *
  * The water filter is a low-pass that muffles effects and ambience while the
  * diver is underwater (more with depth); music is never muffled.
+ *
+ * Phase 16: the wet sends split between the big underwater reverb and a short
+ * metal room (inside the base and the wrecks), set by setScene's `room`. The
+ * ambience also passes a hull filter, so the ocean sounds dull and far off
+ * through a hull (in the base, or aboard KS-1) while nearby effects stay crisp.
  *
  * iPhone and iPad: audio can only start inside a tap or key press, so the
  * engine is created on the first one (and resumed on later ones if iOS
@@ -92,6 +98,14 @@ export class AudioEngine {
   /** How much effects and ambience ring in the reverb (cave echo). */
   private space!: GainNode;
   private reverb!: ConvolverNode;
+  /** Phase 16: a short metal room (indoors), and the split of the wet sends between it and the sea. */
+  private roomVerb!: ConvolverNode;
+  private toSea!: GainNode;
+  private toRoom!: GainNode;
+  /** Phase 16: the ocean heard through a hull (the ambience only). */
+  private hull!: BiquadFilterNode;
+  /** Phase 16: decoded CC0 sound files by name (see samples.ts). */
+  private samples = new Map<string, AudioBuffer>();
   noise!: AudioBuffer;
   brown!: AudioBuffer;
   /** Runs once the context exists (the ambience and music build their graphs). */
@@ -119,6 +133,16 @@ export class AudioEngine {
     let sum = 0;
     for (const v of d) sum += v * v;
     return Math.sqrt(sum / d.length);
+  }
+
+  /** Phase 16: the loudest sample in the output right now (0..1), for automated clipping checks. */
+  peak(): number {
+    if (!this.meter) return 0;
+    const d = new Float32Array(this.meter.fftSize);
+    this.meter.getFloatTimeDomainData(d);
+    let m = 0;
+    for (const v of d) m = Math.max(m, Math.abs(v));
+    return m;
   }
 
   /** Time now on the audio clock (seconds). */
@@ -274,7 +298,25 @@ export class AudioEngine {
     verbOut.connect(this.master);
     this.space = ctx.createGain();
     this.space.gain.value = 0.3;
-    this.space.connect(this.reverb);
+    // Phase 16: the sends go to the sea's long tail, or to a short metal room indoors.
+    this.toSea = ctx.createGain();
+    this.toRoom = ctx.createGain();
+    this.toRoom.gain.value = 0;
+    this.roomVerb = ctx.createConvolver();
+    this.roomVerb.buffer = this.roomImpulse(0.55);
+    const roomOut = ctx.createGain();
+    roomOut.gain.value = 0.8;
+    this.space.connect(this.toSea);
+    this.space.connect(this.toRoom);
+    this.toSea.connect(this.reverb);
+    this.toRoom.connect(this.roomVerb);
+    this.roomVerb.connect(roomOut);
+    roomOut.connect(this.master);
+    this.hull = ctx.createBiquadFilter();
+    this.hull.type = 'lowpass';
+    this.hull.frequency.value = 20000;
+    this.hull.Q.value = 0.6;
+    this.hull.connect(this.water);
 
     this.duck = ctx.createGain();
     // A gentle shelf under the music's pads so they don't mask the ambient drone.
@@ -313,7 +355,7 @@ export class AudioEngine {
     musicWet.connect(delay);
     this.buses = {
       music: mk(this.duck, musicWet),
-      ambience: mk(this.water, this.space),
+      ambience: mk(this.hull, this.space),
       sfx: mk(this.water, this.space),
       ui: mk(this.master, this.reverb),
     };
@@ -350,6 +392,31 @@ export class AudioEngine {
         lp += (Math.random() * 2 - 1 - lp) * k;
         d[i] = lp * Math.pow(1 - t, 2.6) * (i < 200 ? i / 200 : 1);
       }
+    }
+    return buf;
+  }
+
+  /**
+   * Phase 16: a short, bright room: a few early reflections off steel walls and
+   * a quick tail. Close and dry next to the sea's long, dark wash.
+   */
+  private roomImpulse(seconds: number): AudioBuffer {
+    const ctx = this.ctx!;
+    const n = Math.floor(ctx.sampleRate * seconds);
+    const buf = ctx.createBuffer(2, n, ctx.sampleRate);
+    const taps = [0.007, 0.013, 0.019, 0.029, 0.041, 0.053];
+    for (let c = 0; c < 2; c++) {
+      const d = buf.getChannelData(c);
+      let lp = 0;
+      for (let i = 0; i < n; i++) {
+        const t = i / n;
+        lp += (Math.random() * 2 - 1 - lp) * 0.65;
+        d[i] = lp * 0.5 * Math.pow(1 - t, 4);
+      }
+      taps.forEach((tap, i) => {
+        const at = Math.floor((tap + (c ? 0.0021 : -0.0013) * (i % 2 ? 1 : -1) + 0.003) * ctx.sampleRate);
+        if (at > 0 && at < n) d[at] += (i % 2 ? -0.55 : 0.6) / (1 + i * 0.35);
+      });
     }
     return buf;
   }
@@ -400,11 +467,15 @@ export class AudioEngine {
   }
 
   /** Called every frame by the director with the scene's state. */
-  setScene(o: { muffle: number; space: number; duck: number; blackout: number }): void {
+  setScene(o: { muffle: number; space: number; duck: number; blackout: number; room?: number; hull?: number }): void {
     if (!this.ctx) return;
     const t = this.ctx.currentTime;
     this.water.frequency.setTargetAtTime(o.muffle, t, 0.25);
     this.space.gain.setTargetAtTime(o.space, t, 0.6);
+    const room = o.room ?? 0;
+    this.toSea.gain.setTargetAtTime(1 - room, t, 0.3);
+    this.toRoom.gain.setTargetAtTime(room, t, 0.3);
+    this.hull.frequency.setTargetAtTime(o.hull ?? 20000, t, 0.3);
     // Phase 14: a reward moment dips the soundtrack so its fanfare stands out.
     const sting = t < this.stingUntil ? 0.22 : 1;
     this.duck.gain.setTargetAtTime(o.duck * (this.paused ? 0.45 : 1) * sting, t, sting < 1 ? 0.12 : 0.8);
@@ -557,6 +628,49 @@ export class AudioEngine {
     const t = o.t ?? this.now;
     this.tone({ t, freq: o.freq, to: o.freq * 0.45, dur: o.dur ?? 0.3, gain: o.gain, bus: o.bus, send: o.send ?? 0.15, pan: o.pan });
     this.hiss({ t, dur: 0.08, gain: o.gain * 0.5, type: 'lowpass', freq: 600, bus: o.bus, pan: o.pan, brown: true });
+    // Phase 16: a phone speaker cannot play the deep body (the phone mix cuts below 110 Hz), so a
+    // deep thud also gets a short knock an octave or two up, which the ear reads as the same weight.
+    if (this.settings.speaker === 'phone' && o.freq < 200) {
+      const up = o.freq * (o.freq < 100 ? 3 : 2);
+      this.tone({ t, freq: up, to: up * 0.6, dur: Math.min(0.12, (o.dur ?? 0.3) * 0.5), gain: o.gain * 0.35, type: 'triangle', bus: o.bus, send: 0.05, pan: o.pan });
+    }
+  }
+
+  /**
+   * Phase 16: play a decoded CC0 sound file through a bus. Returns false when the
+   * file is not loaded (none shipped yet, still decoding, or failed), so the
+   * caller plays its synthesised sound instead. See samples.ts.
+   */
+  sample(name: string, o: { t?: number; gain: number; rate?: number; bus?: BusName; send?: number; pan?: number }): boolean {
+    const buf = this.samples.get(name);
+    if (!this.ctx || !buf) return false;
+    const src = this.ctx.createBufferSource();
+    src.buffer = buf;
+    src.playbackRate.value = o.rate ?? 1;
+    const g = this.ctx.createGain();
+    g.gain.value = o.gain;
+    src.connect(g);
+    this.route(g, o.bus ?? 'sfx', o.send ?? 0.15, o.pan ?? 0);
+    src.start(o.t ?? this.ctx.currentTime);
+    return true;
+  }
+
+  /** Phase 16: fetch and decode bundled sound files (URLs relative to the page) once the context exists. */
+  loadSamples(files: Record<string, string>): void {
+    this.onReady(() => {
+      const ctx = this.ctx!;
+      for (const [name, url] of Object.entries(files)) {
+        fetch(url)
+          .then((r) => (r.ok ? r.arrayBuffer() : Promise.reject(new Error(String(r.status)))))
+          .then((b) => new Promise<AudioBuffer>((ok, bad) => void ctx.decodeAudioData(b, ok, bad)))
+          .then((buf) => {
+            if (this.ctx === ctx) this.samples.set(name, buf);
+          })
+          .catch(() => {
+            /* missing or undecodable: the synthesised sound plays instead */
+          });
+      }
+    });
   }
 
   /** A cluster of rising bubble blips (real bubbles chirp upwards in pitch). */

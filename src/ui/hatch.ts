@@ -1,5 +1,5 @@
 import { BaseLayout, pieceCode } from '../game/base';
-import { BREED_SECONDS, creaturesIn, HATCH_CAP, HATCH_SECONDS, hatcheries, nurseryTroughCap, pairsIn, SPECIES, SPECIES_ORDER, tankCapacity, tanks } from '../game/creatures';
+import { BREED_SECONDS, creaturesIn, HATCH_CAP, HATCH_SECONDS, hatcheries, jarRoom, nurseryTroughCap, putInJar, pairsIn, SPECIES, SPECIES_ORDER, tankCapacity, tanks } from '../game/creatures';
 import { CreatureData, SaveData } from '../game/state';
 import { genText, isRare, traitsOf, traitText } from '../game/traits';
 import { MASH_PER_FIBRE } from '../game/factory';
@@ -125,13 +125,13 @@ export class HatchPanel {
       this.deps.toast('You have no specimen jar to carry it in. One was lost by the old anchor in the coral garden.', 'warn');
       return;
     }
-    if (save.jar) {
-      this.deps.toast('The specimen jar is already full', 'warn');
+    if (!jarRoom(save)) {
+      this.deps.toast(save.gear.includes('satchel') ? 'The specimen jar and satchel are both full' : 'The specimen jar is already full', 'warn');
       return;
     }
     const c = this.take(id);
     if (!c) return;
-    save.jar = { species: c.species, stage: c.stage, keep: c, traits: c.traits };
+    putInJar(save, { species: c.species, stage: c.stage, keep: c, traits: c.traits });
     this.deps.toast(`${SPECIES[c.species].name} ${c.stage === 'egg' ? 'egg' : 'young'} in the specimen jar.`);
     this.deps.persist();
     this.render(true);
@@ -170,10 +170,10 @@ export class HatchPanel {
     const powered = piece ? layout.powered.has(piece.id) : false;
     const list = save.nursery;
     const tankList = tanks(layout);
-    const jarBlock = !save.kit.jar ? 'No jar' : save.jar ? 'Jar full' : '';
+    const jarBlock = !save.kit.jar ? 'No jar' : !jarRoom(save) ? 'Jar full' : '';
     const jarBtn = (id: number) =>
       jarBlock
-        ? `<button type="button" data-act="h-jar" data-id="${id}" disabled title="${jarBlock === 'No jar' ? 'You have no specimen jar yet' : 'The specimen jar already holds a creature'}">${jarBlock}</button>`
+        ? `<button type="button" data-act="h-jar" data-id="${id}" disabled title="${jarBlock === 'No jar' ? 'You have no specimen jar yet' : save.gear.includes('satchel') ? 'The jar and the satchel both hold a creature' : 'The specimen jar already holds a creature'}">${jarBlock}</button>`
         : `<button type="button" data-act="h-jar" data-id="${id}" title="Carry it in the specimen jar">To jar</button>`;
     const rows = list
       .map((c) => {
