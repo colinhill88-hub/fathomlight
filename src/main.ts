@@ -4049,6 +4049,7 @@ async function boot(): Promise<void> {
         inAir: pocketAir,
         race: aboard ? raceAt(sub.x, sub.y) : raceAt(diver.x, diver.y),
         suit: save.suit,
+        critters: aboard ? wildlife.voices(sub.x, sub.y, 900) : wildlife.voices(diver.x, diver.y, 900),
       });
     }
 

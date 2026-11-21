@@ -1,4 +1,6 @@
 import { audio } from './engine';
+import { SAMPLE_GROUPS, SAMPLE_LOOPS } from './samples';
+import { jit, rr } from './variety';
 
 /*
  * Milestone 7b: the ambient bed. A few long-running layers whose levels and
@@ -42,6 +44,8 @@ export class Ambience {
   private nextEvent = 0;
   private nextCrackle = 0;
   private nextSwell = 0;
+  /** Phase 16 round 3: the recorded underwater loop under the synthesised wash (null until it decodes). */
+  private sea: { gain: GainNode } | null = null;
 
   constructor() {
     audio.onReady(() => this.build());
@@ -65,8 +69,16 @@ export class Ambience {
     return { gain, filter };
   }
 
+  /** Round 3: one recorded CC0 variant on the ambience bus; false if not loaded (play the synthesised one). */
+  private sam(group: string, o: { gain: number; rate: number; pan: number; send?: number; t?: number }): boolean {
+    const n = SAMPLE_GROUPS[group] ?? 0;
+    if (!n) return false;
+    return audio.sample(`${group}-${rr(`amb:${group}`, n) + 1}`, { ...o, gain: o.gain * jit(0.15), rate: o.rate * jit(0.05), bus: 'ambience', send: o.send ?? 0.6 });
+  }
+
   private build(): void {
     const ctx = audio.ctx!;
+    this.sea = null;
     this.wash = this.noiseLayer(true, 'lowpass', 700, 0.6);
     this.fizz = this.noiseLayer(false, 'highpass', 4200, 0.5);
     this.surf = this.noiseLayer(true, 'bandpass', 500, 0.6);
@@ -154,6 +166,11 @@ export class Ambience {
     this.drone.oscs[1].frequency.setTargetAtTime(root, t, 3);
     this.drone.oscs[2].frequency.setTargetAtTime(root * 1.498, t, 3);
     this.hollow.gain.gain.setTargetAtTime(0.18 * mix.cave * q, t, 1.5);
+    // Round 3: the recorded hydrophone loop, a living texture under the synthesised wash. It starts
+    // silent once the file has decoded, and follows the same rules: quieter with the head out, dull
+    // through a hull (the ambience bus passes the hull filter and the underwater muffle).
+    if (!this.sea) this.sea = audio.sampleLoop('sea-1', { bus: 'ambience', send: 0.2, loop: SAMPLE_LOOPS['sea-1'] });
+    if (this.sea) this.sea.gain.gain.setTargetAtTime((surfaced ? 0.12 : 0.6 + 0.3 * depth) * q, t, tc);
 
     if (surfaced || quiet > 0.5) return;
     // Snapping shrimp: the crackle of a living reef, only in the sunlit shallows.
@@ -173,7 +190,11 @@ export class Ambience {
     const pan = Math.random() * 1.6 - 0.8;
     if (pick(mix.shallows)) {
       // A trickle of bubbles rising somewhere off to the side.
-      if (Math.random() < 0.5) audio.bubbles({ n: 3 + Math.floor(Math.random() * 6), spread: 0.8, gain: 0.03, bus: 'ambience', pan });
+      // Round 3: every other trickle is a recorded one.
+      if (Math.random() < 0.5) {
+        if (Math.random() < 0.5 || !this.sam('bubble', { gain: 0.03, rate: 0.9 + Math.random() * 0.4, pan, send: 0.4 }))
+          audio.bubbles({ n: 3 + Math.floor(Math.random() * 6), spread: 0.8, gain: 0.03, bus: 'ambience', pan });
+      }
     } else if (pick(mix.basin)) {
       // A distant groan of deep water.
       if (Math.random() < 0.35) {
@@ -185,14 +206,20 @@ export class Ambience {
       else audio.thump({ freq: 120 + Math.random() * 60, gain: 0.04, bus: 'ambience', send: 0.4, pan });
     } else if (pick(mix.shelf)) {
       // Wrecks settling: long metal groans and the odd far-off clank.
+      // Round 3: a recorded hull groan, slowed down to sound huge and far off, or a creak of plates.
       if (Math.random() < 0.6) {
-        const f = 90 + Math.random() * 60;
-        audio.tone({ freq: f, to: f * (0.7 + Math.random() * 0.2), dur: 1.6 + Math.random() * 1.5, attack: 0.5, gain: 0.05, type: 'sawtooth', bus: 'ambience', send: 0.7, pan, lp: 500 });
-      } else audio.metal({ freq: 160 + Math.random() * 80, gain: 0.03, decay: 1.6, bus: 'ambience', send: 0.8, pan });
+        if (!this.sam('groan', { gain: 0.05, rate: 0.5 + Math.random() * 0.2, pan, send: 0.7 })) {
+          const f = 90 + Math.random() * 60;
+          audio.tone({ freq: f, to: f * (0.7 + Math.random() * 0.2), dur: 1.6 + Math.random() * 1.5, attack: 0.5, gain: 0.05, type: 'sawtooth', bus: 'ambience', send: 0.7, pan, lp: 500 });
+        }
+      } else if (Math.random() < 0.5 || !this.sam('creak', { gain: 0.03, rate: 0.55 + Math.random() * 0.15, pan, send: 0.8 }))
+        audio.metal({ freq: 160 + Math.random() * 80, gain: 0.03, decay: 1.6, bus: 'ambience', send: 0.8, pan });
       this.nextEvent = 3 + Math.random() * 5;
     } else if (pick(mix.trench)) {
       // The trench: far-off hull-groans of pressure, and slow, deep pulses like something huge moving.
-      if (Math.random() < 0.5) {
+      if (Math.random() < 0.25 && this.sam('groan', { gain: 0.05, rate: 0.32 + Math.random() * 0.1, pan, send: 0.9 })) {
+        // Round 3: now and then a recorded groan, slowed right down: pressure working on rock.
+      } else if (Math.random() < 0.5) {
         const f = 38 + Math.random() * 18;
         audio.tone({ freq: f, to: f * 0.75, dur: 3.5 + Math.random() * 2.5, attack: 1.4, gain: 0.07, type: 'triangle', bus: 'ambience', send: 0.8, pan, lp: 260 });
       } else if (Math.random() < 0.5) audio.metal({ freq: 70 + Math.random() * 40, gain: 0.03, decay: 2.4, bus: 'ambience', send: 0.9, pan });
