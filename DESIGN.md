@@ -4,7 +4,7 @@ Nov 14, 2026 · @Colin Hill
 
 ## How to use this plan
 
-This is the creative brief. Start with the [development handoff](docs/AI_DEVELOPMENT_HANDOFF.md) for the current system map and workflow, and [Progress](PROGRESS.md) for shipped milestones. The original milestone list and kickoff prompts below are historical. Review local work and captures before publishing or deploying.
+This is the creative brief. Start with the [development handoff](docs/AI_DEVELOPMENT_HANDOFF.md) for the current system map and workflow, the [roadmap](docs/ROADMAP.md) for agreed future work, and [Progress](PROGRESS.md) for shipped milestones. The original milestone list and kickoff prompts below are historical. Review local work and captures before publishing or deploying.
 
 ## Vision
 
@@ -43,6 +43,7 @@ The look is weathered, realistic hardware set in painterly water. The screenshot
 - **New base kit and Crest diver (Colin, after the Corvina on foot; boards in `docs/art/kit2/`):** base pieces are charcoal hull, chrome joints and flanges, neon lime glass, a gold power line and one red lamp, with no yellow plate and no hazard stripes. The diver has a charcoal suit with gold circuit etching, a neon lime crest helmet, a chrome hose rebreather, twin oxygen tanks, hip thrusters with lime nozzles, red gloves, short red-tipped fins and a clipped harpoon (decoration for now; reuse its design for later tools and weapons).
 - **Rewards must feel rewarding (Colin, Phase 14).** Pickups, finds and upgrades get animation and sound in proportion to their weight. A pickup sparkles and climbs a scale. A find smashes down with a short sting. New gear, suits, air tanks, sub upgrades and solved puzzles get a short ceremony: the item rises off the diver, slams to the centre and plays a fanfare, like lifting a found item overhead. Keep these original, drawn and synthesised in code, and keep Choir colours for Choir rewards.
 - **All art is drawn by code.** Shapes, textures, weathering and lighting are procedural. Use no image files unless Colin supplies them.
+- **Audio may use sound files (Colin, Nov 21, 2026).** Milestone 7b synthesised every sound. For natural textures that pop, recorded files are now allowed, but only public-domain or CC0 ones with no copyright obligation. They ship inside the build and each is logged in `public/audio/CREDITS.md`. Synthesis stays where it already works, including the reward stings. Rules are in the [roadmap](docs/ROADMAP.md).
 
 **Originality rules.** Every design must be original. Use no brick, stud or minifigure shapes and no toy-like plastic look. Use no trademarked names. Copy no creature, vehicle, building or character design from Subnautica, The Abyss or any other game or film.
 
@@ -195,6 +196,18 @@ The [progression audit](docs/phase-12-progression-audit.md) maps the full route 
 Phase 13 adds three things. A contextual control helper reads the single binding table (`src/controls/bindings.ts`). KS-1's drill nose becomes a lasting tool: besides the trench seam, it mines five resealing mineral lodes along the sub's routes, which only add materials and never replace a creature or gear gate. Kept creatures carry stable names. See the [Phase 13 audit](docs/phase-13-gameplay-audit.md).
 
 Phase 14 makes progress feel earned. Pickups, finds and upgrades now land with animation and sound in three tiers. The biggest are new gear, suits, air tanks, KS-1 upgrades, signal fragments and solved puzzles. Each gets a short ceremony: slow motion, the item rising off the diver and slamming to the centre, and an original fanfare. See the [Phase 14 notes](docs/phase-14-reward-moments.md).
+
+**Direction after Phase 14 (Colin, Nov 21, 2026; not built yet, see the [roadmap](docs/ROADMAP.md)):**
+- **Releasing from the jar:** Kestrel can release a creature from the jar in the wild. A named creature from your own tanks asks for a second press first.
+- **The Field kit (I):** a pause screen shows Kestrel, KS-1 and KD-1 with every attachment, with dark silhouettes for gear not found yet, and a collection of creatures, patterns and per-zone finds.
+- **The control bar** should look like part of this world: dark glass, brass gauge-face keys and a faint musical staff.
+- **Audio** gets a full audit so every action has anticipation, contact and payoff.
+- **Further ideas to design together:**
+  - songs Kestrel learns from the Choir and plays on the resonator, like an ocarina;
+  - a non-combat climax at each major site;
+  - abilities that chain into each other, as in Ori;
+  - a goal board at the base;
+  - maps of major sites that fill in as you explore.
 
 Phase 12 gives the Wreck Shelf strongbox paired claw scratches, a scan and a creature interaction. A grown tinker crab works the lock and returns to the jar. The mandatory trench cleft has grazing marks and a separate mature cinder-snail interaction. Its PS-2 drawings and signal spool are the deep progression payoff. Good habitat setup should let the player prepare for those trips. A solitary juvenile with its preferred plant now consumes food and fouls water more slowly. Players can replace lost founders without a Revival pool. Population growth beyond the founding pair still comes from breeding happy adults with a powered Hatchery.
 
