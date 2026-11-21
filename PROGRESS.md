@@ -1,6 +1,6 @@
 # Fathomlight progress
 
-The live branch includes the Fulmar foothold, Codex Phases 1–11D the Phase 12 gameplay pass (PR #33/#34) and the Phase 13 control helper, drill lodes and named creatures (PR #35, `d9f4728`); see the [Phase 13 audit](docs/phase-13-gameplay-audit.md). **Phase 14** reward moments merged as PR #36 (`03b4c8f`). **Phase 15** (jar release, the Field kit, the sonar control bar) is on `claude/zen-allen-qvxwtz` awaiting merge; see the [Phase 14 notes](docs/phase-14-reward-moments.md). The agreed plan for Phase 15 onward, including ideas not built yet, is in the [roadmap](docs/ROADMAP.md). See the [development handoff](docs/AI_DEVELOPMENT_HANDOFF.md) for the current source map and the [progression audit](docs/phase-12-progression-audit.md) for the route from a new save to first contact.
+The live branch includes the Fulmar foothold, Codex Phases 1–11D the Phase 12 gameplay pass (PR #33/#34) and the Phase 13 control helper, drill lodes and named creatures (PR #35, `d9f4728`); see the [Phase 13 audit](docs/phase-13-gameplay-audit.md). **Phase 14** reward moments merged as PR #36 (`03b4c8f`). **Phase 15** (jar release, the Field kit, the sonar control bar) merged as PR #38 (`faa9e26`). **Next: Phase 16**, the audio audit, plus a satchel bug fix; the session prompt is [`docs/prompts/phase-16-audio.md`](docs/prompts/phase-16-audio.md); see the [Phase 14 notes](docs/phase-14-reward-moments.md). The agreed plan for Phase 15 onward, including ideas not built yet, is in the [roadmap](docs/ROADMAP.md). See the [development handoff](docs/AI_DEVELOPMENT_HANDOFF.md) for the current source map and the [progression audit](docs/phase-12-progression-audit.md) for the route from a new save to first contact.
 
 Play link: https://colinhill88-hub.github.io/fathomlight/ (live; first successful deploy 2026-11-14)
 
@@ -18,10 +18,10 @@ Play link: https://colinhill88-hub.github.io/fathomlight/ (live; first successfu
 | Phase 11D | PR #31, `c07277f` | Indoor zoom and camera handoff, live surrounding ocean, per-module pressure hulls, connector seals and separate scaffolds. Layout collision stays on the existing map. |
 | Fulmar accessibility | PR #32, `78c8bb3` | Three-tile crew-deck foothold creates two normal jumps to the comms spool. |
 | Phase 13 | PR #35, `d9f4728` | Contextual control helper on one binding table, five resealing drill lodes for KS-1, and named kept creatures. |
-| Phase 15 | Pull request from `claude/zen-allen-qvxwtz` (awaiting merge) | Jar release with confirmation for named creatures, the Field kit on I, and the sonar-style control bar with an offer ping. |
+| Phase 15 | PR #38, `faa9e26` | Jar release with confirmation for named creatures, the Field kit on I, and the sonar-style control bar with an offer ping. |
 | Phase 14 | PR #36, `03b4c8f` | Reward moments: minor, notable and major tiers with drawn emblems, particles, slow motion and synthesised stings and fanfares. |
 
-### Phase 15: jar release, the Field kit, and the sonar control bar (on `claude/zen-allen-qvxwtz`, awaiting merge)
+### Phase 15: jar release, the Field kit, and the sonar control bar (merged, PR #38)
 
 - **Release the creature in the jar (15a, done).** Press **J** (d-pad left on a gamepad, or the jar **Release** button on touch) while swimming outside. The satchel's newer catch goes first. The control helper offers it by name ("Release the glowfin fry").
   - A wild catch swims home and **stops counting against the wild limit**, so the right one can be caught instead.
@@ -1901,6 +1901,8 @@ Colin: the companion robot should find a dive-bag attachment in the kelp forest 
 - The benchmark save has the cradle, and exposes `window.__haul` for headless checks.
 
 ## Next
+
+**Known bug (Colin, after Phase 15):** with the two-slot specimen satchel, the base's Habitat console and Hatchery move only one creature into the jar. It is scheduled first in the Phase 16 prompt; see the roadmap for the cause.
 
 The plan is in the [roadmap](docs/ROADMAP.md):
 - **Phase 15:** release the creature in the jar, the Field kit screen and a control-bar restyle.
