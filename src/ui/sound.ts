@@ -1,4 +1,5 @@
 import { audio, AudioEngine, AudioSettings } from '../audio/engine';
+import { isKey } from '../controls/bindings';
 
 /** Milestone 7b: the Sound part of the Settings panel, and M to mute on a keyboard. */
 export function initSoundUI(): { refresh(): void } {
@@ -31,7 +32,7 @@ export function initSoundUI(): { refresh(): void } {
     refresh();
   });
   window.addEventListener('keydown', (e) => {
-    if (e.repeat || e.key.toLowerCase() !== 'm' || (e.target as HTMLElement)?.tagName === 'INPUT') return;
+    if (e.repeat || !isKey('mute', e.key.toLowerCase()) || (e.target as HTMLElement)?.tagName === 'INPUT') return;
     audio.setSettings({ muted: !audio.settings.muted });
     refresh();
   });

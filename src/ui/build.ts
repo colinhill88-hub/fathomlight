@@ -24,6 +24,7 @@ import {
   Placed,
   shapeOf,
 } from '../game/base';
+import { isKey } from '../controls/bindings';
 import { MATERIAL_ORDER, MATERIALS, MaterialId, SaveData } from '../game/state';
 import { GEAR, RESEARCH } from '../game/gear';
 import {
@@ -1444,7 +1445,7 @@ export class BuildMode {
   private key(e: KeyboardEvent): void {
     if (e.repeat && !['arrowleft', 'arrowright', 'arrowup', 'arrowdown', 'w', 'a', 's', 'd', '=', '+', '-', 'q', 'e'].includes(e.key.toLowerCase())) return;
     const k = e.key.toLowerCase();
-    if (k === 'b') {
+    if (isKey('build', k)) {
       this.toggle();
       return;
     }
@@ -1460,24 +1461,24 @@ export class BuildMode {
     else if (k === 'd') this.panBy(step, 0);
     else if (k === 'w') this.panBy(0, -step);
     else if (k === 's') this.panBy(0, step);
-    else if (k === '=' || k === '+' || k === 'e') this.zoomAt(window.innerWidth / 2, window.innerHeight / 2, 1 / 1.2);
-    else if (k === '-' || k === 'q') this.zoomAt(window.innerWidth / 2, window.innerHeight / 2, 1.2);
-    else if (k === 'f') this.fit();
-    else if ((k === 'c' || k === 'p') && this.selected && !this.ghost) {
+    else if (isKey('buildZoomIn', k)) this.zoomAt(window.innerWidth / 2, window.innerHeight / 2, 1 / 1.2);
+    else if (isKey('buildZoomOut', k)) this.zoomAt(window.innerWidth / 2, window.innerHeight / 2, 1.2);
+    else if (isKey('buildFit', k)) this.fit();
+    else if ((isKey('buildBelt', k) || isKey('buildPipe', k)) && this.selected && !this.ghost) {
       // C / P draw a conveyor / pipe out of the selected piece; with Shift (or
       // when the piece only takes one in), into it.
-      const kind: LineKind = k === 'c' ? 'belt' : 'pipe';
+      const kind: LineKind = isKey('buildBelt', k) ? 'belt' : 'pipe';
       const ports = PIECES[this.selected.kind].ports;
       const out = ports?.[kind === 'belt' ? 'beltOut' : 'pipeOut'];
       const inn = ports?.[kind === 'belt' ? 'beltIn' : 'pipeIn'];
       if (inn && (e.shiftKey || !out)) this.startLink(kind, 'to');
       else if (out) this.startLink(kind, 'from');
-    } else if (k === 'u') {
+    } else if (isKey('buildUpgrade', k)) {
       if (this.link) this.cycleTier();
       else this.upgradeLine();
-    } else if (k === 'o') this.deps.showRates();
-    else if (k === 'r') this.rotate();
-    else if (k === 'enter' || k === ' ') this.place();
+    } else if (isKey('buildRates', k)) this.deps.showRates();
+    else if (isKey('buildRotate', k)) this.rotate();
+    else if (isKey('buildPlace', k)) this.place();
     else if (k === 'escape') {
       if (this.link) {
         this.link = null;

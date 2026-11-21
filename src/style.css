@@ -3647,3 +3647,165 @@ body.touch #btn-haul:not([hidden]) {
 #btn-haul.away {
   opacity: 0.45;
 }
+
+/* ---- Phase 13: the contextual control helper (src/ui/controlHelper.ts) ---- */
+#ctl-helper {
+  position: fixed;
+  left: 50%;
+  bottom: calc(var(--safe-bottom) + 14px);
+  transform: translate(-50%, 6px);
+  z-index: 6;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 0.35em 0.5em;
+  max-width: min(1180px, 64vw);
+  padding: 0.38em 0.6em;
+  border-radius: 0.9em;
+  font-size: clamp(14px, calc(1vh + 5px), 21px);
+  line-height: 1;
+  color: var(--ui-text);
+  background: linear-gradient(180deg, rgba(8, 26, 32, 0.5), rgba(6, 18, 24, 0.66));
+  border: 1px solid rgba(200, 230, 225, 0.12);
+  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.28);
+  backdrop-filter: blur(3px);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.6s ease, transform 0.6s ease;
+}
+#ctl-helper.show {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+#ctl-helper.quiet {
+  opacity: 0.45;
+}
+#ctl-helper .ctl {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4em;
+  padding: 0.18em 0.45em 0.18em 0.2em;
+  border-radius: 0.6em;
+  white-space: nowrap;
+  color: var(--ui-dim);
+  animation: ctl-in 0.45s ease both;
+}
+#ctl-helper .ctl.ctx {
+  color: var(--ui-text);
+  background: rgba(201, 162, 74, 0.1);
+  box-shadow: inset 0 0 0 1px rgba(201, 162, 74, 0.28);
+}
+#ctl-helper .ctl.fresh {
+  animation: ctl-in 0.45s ease both, ctl-pulse 1.6s ease 0.1s 1;
+}
+#ctl-helper .caps {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.16em;
+}
+#ctl-helper .lbl {
+  font-size: 0.92em;
+  letter-spacing: 0.01em;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+}
+#ctl-helper em {
+  font-style: normal;
+  font-size: 0.66em;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ui-accent);
+  margin-left: 0.2em;
+}
+#ctl-helper .sep {
+  font-style: normal;
+  font-size: 0.75em;
+  opacity: 0.45;
+  margin: 0 0.05em;
+}
+#ctl-helper kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.65em;
+  height: 1.65em;
+  padding: 0 0.38em;
+  border-radius: 0.36em;
+  font: 600 0.84em/1 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  color: #eef3ea;
+  background: linear-gradient(180deg, #4a565a 0%, #2c3539 62%, #232b2e 100%);
+  border: 1px solid rgba(214, 226, 220, 0.28);
+  border-bottom-width: 2px;
+  border-bottom-color: rgba(0, 0, 0, 0.55);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.08) inset, 0 2px 4px rgba(0, 0, 0, 0.35);
+}
+#ctl-helper .ctx kbd {
+  border-color: rgba(222, 190, 112, 0.55);
+  border-bottom-color: rgba(60, 40, 10, 0.7);
+  background: linear-gradient(180deg, #5d5a48 0%, #3b3a2e 62%, #2e2c22 100%);
+}
+#ctl-helper kbd.wide {
+  padding: 0 0.55em;
+}
+#ctl-helper kbd.mouse {
+  padding: 0 0.12em;
+  min-width: 1.4em;
+}
+#ctl-helper kbd.mouse svg {
+  width: 1.15em;
+  height: 1.15em;
+}
+#ctl-helper .cluster {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.08em;
+  font-size: 0.72em;
+}
+#ctl-helper .cluster > span {
+  display: inline-flex;
+  gap: 0.08em;
+}
+#ctl-helper kbd.pad {
+  border-radius: 999px;
+  min-width: 1.75em;
+  padding: 0 0.42em;
+}
+#ctl-helper kbd.pad.face {
+  width: 1.75em;
+  padding: 0;
+}
+#ctl-helper kbd.f0 { color: #b9e3a8; }
+#ctl-helper kbd.f1 { color: #f0a090; }
+#ctl-helper kbd.f2 { color: #a9c8f0; }
+#ctl-helper kbd.f3 { color: #f0d890; }
+@keyframes ctl-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes ctl-pulse {
+  0% { box-shadow: inset 0 0 0 1px rgba(201, 162, 74, 0.28), 0 0 0 0 rgba(232, 200, 112, 0.55); }
+  40% { box-shadow: inset 0 0 0 1px rgba(232, 200, 112, 0.8), 0 0 14px 2px rgba(232, 200, 112, 0.35); }
+  100% { box-shadow: inset 0 0 0 1px rgba(201, 162, 74, 0.28), 0 0 0 0 rgba(232, 200, 112, 0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  #ctl-helper .ctl, #ctl-helper .ctl.fresh { animation: none; }
+}
+body.touch #ctl-helper,
+body.caring #ctl-helper,
+body.panel-open #ctl-helper {
+  display: none;
+}
+/* The helper replaces the old fixed key list on desktop. */
+#hint .desk-only { display: none !important; }
+body:not(.touch) #hint { display: none; }
+
+.ctl-pref {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+body.ctl-helper-on #collect-label,
+body.ctl-helper-on #scan-label {
+  display: none;
+}

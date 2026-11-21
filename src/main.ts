@@ -1,4 +1,7 @@
 import { Application, BlurFilter, Container, Graphics, RenderTexture, Sprite, Texture, UPDATE_PRIORITY } from 'pixi.js';
+import { isKey } from './controls/bindings';
+import { LodeArt, LODES, LODE_REGROW, LODE_SECONDS, lodeAt, lodeFirst, lodeWait, lodeY, type Lode } from './world/lodes';
+import { ControlHelper, type HelperMode, type HelperPref } from './ui/controlHelper';
 import { perf, PerfOverlay } from './dev/perf';
 import { PostStack, ZoneWeights } from './fx/post';
 import { Bench, BENCH, BENCH_SCENES, STILL, scenePos, seedBenchSave } from './dev/bench';
@@ -111,6 +114,7 @@ import {
   loadSave,
   MATERIAL_ORDER as MATERIALS_LIST,
   MATERIALS,
+  type MaterialId,
   maxOxygen,
   SaveData,
   TANK_BONUS,
@@ -132,7 +136,7 @@ import { TankLife } from './world/tanklife';
 import { Escort } from './actors/escort';
 import { Critter } from './actors/critters';
 import { CareMode } from './ui/care';
-import { creaturesIn, newCreature, payCost, PLANT_ORDER, PLANTS, SPECIES, SPECIES_ORDER, tankCapacity, tankNumber, tickCare, wildAllowed, WILD_CAP } from './game/creatures';
+import { creatureName, creaturesIn, newCreature, payCost, PLANT_ORDER, PLANTS, SPECIES, SPECIES_ORDER, tankCapacity, tankNumber, tickCare, wildAllowed, WILD_CAP } from './game/creatures';
 import { creatureMilestone, creatureSiteHint, fieldResearch, type CreatureSite } from './game/discovery';
 import { HatchPanel } from './ui/hatch';
 import { traitText, wildTraits } from './game/traits';
@@ -317,6 +321,8 @@ async function boot(): Promise<void> {
   const hunters = new DeepHunters(TR_LANTERNJAWS, TR_STALKERS, TR_SPIDERS, livingCreatures);
   // After milestone 12: flares, darts, visor marks, the tractor beam and drill sparks.
   const gearFx = new GearFx();
+  // Phase 13: mineral lodes for KS-1's drill nose.
+  const lodeArt = new LodeArt();
   const tankLife = new TankLife({ livingCreatures, livingBases });
   // Milestone 9: a grown glowfin from the jar swims beside the diver as a light.
   const escort = new Escort(livingCreatures);
@@ -384,6 +390,9 @@ async function boot(): Promise<void> {
     { id: 'trench', points: () => scenery.trench.scanPoints.trench },
     { id: 'sigbuoy', points: () => scenery.trench.scanPoints.sigbuoy },
     { id: 'probe', points: () => scenery.trench.scanPoints.probe },
+    // Phase 13: the drill nose's targets can be read before it exists.
+    { id: 'seam', points: () => (seam.open ? [] : [{ x: SEAM.x - 10, y: SEAM.y }]) },
+    { id: 'lode', points: () => LODES.map((l) => ({ x: l.x, y: lodeY(l) - 22 })) },
     { id: 'vents', points: () => scenery.trench.scanPoints.vents },
     { id: 'chimney', points: () => (save.cleftOpen ? [] : scenery.trench.scanPoints.chimney) },
     { id: 'fulmar', points: () => scenery.trench.scanPoints.fulmar },
@@ -487,6 +496,7 @@ async function boot(): Promise<void> {
       tankLife.view,
       linesView.view,
       pickups.view,
+      lodeArt.view,
       wildlife.view,
       escort.view,
       lurkers.view,
@@ -503,7 +513,7 @@ async function boot(): Promise<void> {
       scenery.over,
     );
     frontCam.addChild(scenery.front);
-    emissiveCam.addChild(gearFx.emissive, scenery.emissive, baseView.emissive, tankLife.emissive, pickups.emissive, wildlife.emissive, escort.emissive, lurkers.emissive, hunters.emissive, sub.emissive, drone.emissive, ...fish.map((f) => f.lure), diver.lens, diver.resonDot, surfaceFx.view);
+    emissiveCam.addChild(gearFx.emissive, lodeArt.emissive, scenery.emissive, baseView.emissive, tankLife.emissive, pickups.emissive, wildlife.emissive, escort.emissive, lurkers.emissive, hunters.emissive, sub.emissive, drone.emissive, ...fish.map((f) => f.lure), diver.lens, diver.resonDot, surfaceFx.view);
     if (livingBases) emissiveCam.addChild(poolFx.view);
     if (wake) emissiveCam.addChildAt(wake.view, 0);
     glowCam.addChild(scenery.glow, baseView.glow, tankLife.glow, pickups.glow, wildlife.glow, escort.glow, lurkers.glow, hunters.glow, sub.glow, drone.glow, ...fish.map((f) => f.halo), diver.lensGlow, diver.resonGlow);
@@ -788,10 +798,11 @@ async function boot(): Promise<void> {
     const target = e.target as HTMLElement | null;
     if (e.defaultPrevented || !zoomFree() || target?.closest?.('input, textarea, select, [contenteditable]')) return;
     if (e.altKey || e.metaKey || (e.ctrlKey && e.key !== '0')) return;
-    if (e.key === '-' || e.key === '_') adjustZoom(1.15);
-    else if (e.key === '=' || e.key === '+') adjustZoom(1 / 1.15);
-    else if (e.key === '0' && inside === 'base') interior.resetBaseZoom();
-    else if (e.key === '0' && e.ctrlKey) setSwimZoom(1);
+    const zk = e.key.toLowerCase();
+    if (isKey('zoomOut', zk)) adjustZoom(1.15);
+    else if (isKey('zoomIn', zk)) adjustZoom(1 / 1.15);
+    else if (isKey('zoomReset', zk) && inside === 'base') interior.resetBaseZoom();
+    else if (isKey('zoomReset', zk) && e.ctrlKey) setSwimZoom(1);
     else return;
     e.preventDefault();
   });
@@ -1188,7 +1199,8 @@ async function boot(): Promise<void> {
     const j = save.jar;
     if (!j) return null;
     const sp = SPECIES[j.species];
-    return j.stage === 'egg' ? `Jar: ${sp.eggName}` : j.stage === 'young' ? `Jar: ${sp.youngName}` : `Jar: ${sp.name.toLowerCase()}`;
+    const named = j.keep && j.stage !== 'egg' ? `${creatureName(j.keep)}, ` : '';
+    return j.stage === 'egg' ? `Jar: ${sp.eggName}` : j.stage === 'young' ? `Jar: ${named}${sp.youngName}` : `Jar: ${named}${sp.name.toLowerCase()}`;
   }
 
   /** Can the drone repair be paid for (carried first, then stored)? Lists what is missing. */
@@ -1758,6 +1770,8 @@ async function boot(): Promise<void> {
     // ---- Creature care: needs run on play time ----
     for (const ev of tickCare(save, layout, dt)) {
       const name = SPECIES[ev.c.species].name;
+      // Phase 13: kept creatures are named (hatching eggs are still a clutch).
+      const who = ev.c.stage === 'egg' ? `The ${name.toLowerCase()}` : `${creatureName(ev.c)} the ${name.toLowerCase()}`;
       const where = ev.c.tank < 0 ? "the Hatchery" : `tank ${tankNumber(layout, ev.c.tank)}`;
       // Milestone 9: breeding.
       if (ev.type === 'laid') {
@@ -1783,13 +1797,13 @@ async function boot(): Promise<void> {
       if (ev.type === 'hatched') hud.toast(`The ${name.toLowerCase()} eggs hatched in ${where}! The fry need feeding.`, 'big');
       else if (ev.type === 'grown') {
         const ability = creatureMilestone(save, ev.c.species);
-        hud.toast(`The ${name.toLowerCase()} in ${where} is fully grown. ${ability || 'Look for its mature glow pattern and what it leaves in the tray.'}`, 'big');
+        hud.toast(`${who} in ${where} is fully grown. ${ability || 'Look for its mature glow pattern and what it leaves in the tray.'}`, 'big');
       }
-      else if (ev.type === 'sick') hud.toast(`The ${name.toLowerCase()} in ${where} is sick (${ev.why}). Tend it soon.`, 'warn');
-      else if (ev.type === 'better') hud.toast(`The ${name.toLowerCase()} in ${where} is feeling better`);
+      else if (ev.type === 'sick') hud.toast(`${who} in ${where} is sick (${ev.why}). Tend it soon.`, 'warn');
+      else if (ev.type === 'better') hud.toast(`${who} in ${where} is feeling better`);
       else if (ev.type === 'dormant')
         hud.toast(
-          `The ${name.toLowerCase()} in ${where} went dormant. Its remains are kept in storage: ${
+          `${who} in ${where} went dormant. Its remains are kept in storage: ${
             layout.pieces.some((q) => q.kind === 'revive') ? 'a glowing bloom in the Revival pool can wake it' : 'a Revival pool could wake it, if one were found'
           }.`,
           'warn',
@@ -1953,6 +1967,7 @@ async function boot(): Promise<void> {
     // Milestone 12: the gamepad drives whichever panel or menu is on screen.
     padNav.update(dt);
     menus.update();
+    helperFrame(dt);
     // The title screen and the pause menu hold the world still.
     if (menus.paused) {
       diver.cancelSurfaceReaction();
@@ -2264,6 +2279,7 @@ async function boot(): Promise<void> {
     if (!aboard && !save.cleftOpen && Math.hypot(diver.x - CLEFT.x, diver.y - CLEFT.y) < 75) scald = Math.max(scald, 0.5);
     const bootsOnFloor = !aboard && hasGear(save, 'boots') &&
       (isSolid(diver.x, diver.y + 44) || isSolid(diver.x - 14, diver.y + 44) || isSolid(diver.x + 14, diver.y + 44));
+    bootsNear = bootsOnFloor && !diver.surfaced;
     const bracing = bootsOnFloor && inControl && !input.suspended && !grapple && !boarding && !swimmingPool &&
       !diver.surfaced && !s.boost && !diver.boosting && s.moveY > 0.55;
     if (bootsOnFloor) diver.current.x *= bracing ? 0 : 0.12;
@@ -3054,10 +3070,12 @@ async function boot(): Promise<void> {
         };
       // Milestone 9: the rusted strongbox in the hidden room. A grown tinker crab picks its lock.
       if (save.hiddenOpen && !save.lockerOpen && near({ x: Scenery.LOCKER.x, y: Scenery.LOCKER.y - 24 }, 80)) {
-        if ([save.jar, save.jar2].some(c => c?.species === 'crab' && c.stage === 'grown'))
+        const crabJar = [save.jar, save.jar2].find(c => c?.species === 'crab' && c.stage === 'grown');
+        const crabName = crabJar?.keep ? creatureName(crabJar.keep) : 'the tinker crab';
+        if (crabJar)
           holdAct = {
             key: 'crablock',
-            label: 'Let the tinker crab pick the lock',
+            label: `Let ${crabName} pick the lock`,
             seconds: 2.6,
             done: () => {
               save.lockerOpen = true;
@@ -3067,8 +3085,8 @@ async function boot(): Promise<void> {
               sound.find('bag');
               hud.showReading(
                 'Revival pool drawings',
-                'The crab clambers onto the padlock, works its fine claws into the keyhole, and with a crunch of rust the shackle drops. Inside, wrapped in oilcloth: drawings for a warm, still pool where a dormant creature can be woken by the light of a glowing bloom.\n\nA Lab can decode them. Glowing blooms grow only where no lamp has ever shone.',
-                'Taken: decode it in a Lab. The crab climbs back into the jar.',
+                `${crabName === 'the tinker crab' ? 'The crab' : crabName} clambers onto the padlock, works its fine claws into the keyhole, and with a crunch of rust the shackle drops. Inside, wrapped in oilcloth: drawings for a warm, still pool where a dormant creature can be woken by the light of a glowing bloom.\n\nA Lab can decode them. Glowing blooms grow only where no lamp has ever shone.`,
+                `Taken: decode it in a Lab. ${crabName === 'the tinker crab' ? 'The crab' : crabName} climbs back into the jar.`,
               );
             },
           };
@@ -3211,10 +3229,12 @@ async function boot(): Promise<void> {
         };
       // The sealed chimney across the cleft: a grown cinder snail grazes it away.
       if (!save.cleftOpen && near({ x: CLEFT.x + 40, y: CLEFT.y }, 120)) {
-        if ([save.jar, save.jar2].some(c => c?.species === 'snail' && c.stage === 'grown'))
+        const snailJar = [save.jar, save.jar2].find(c => c?.species === 'snail' && c.stage === 'grown');
+        const snailName = snailJar?.keep ? creatureName(snailJar.keep) : 'the cinder snail';
+        if (snailJar)
           holdAct = {
             key: 'snailgraze',
-            label: 'Let the cinder snail graze the chimney',
+            label: `Let ${snailName} graze the chimney`,
             seconds: 4,
             done: () => {
               save.cleftOpen = true;
@@ -3224,7 +3244,7 @@ async function boot(): Promise<void> {
               sound.find('bag');
               hud.showReading(
                 'The chimney gives way',
-                'The snail creeps out of the jar onto the hot crust and starts to graze, its ember seams brightening. Scale by scale the young chimney thins, cracks, and slumps into gravel. Beyond it, a dark cleft runs back into the rock.\n\nThe snail climbs back into your jar, warm and pleased with itself.',
+                `${snailName === 'the cinder snail' ? 'The snail' : snailName} creeps out of the jar onto the hot crust and starts to graze, its ember seams brightening. Scale by scale the young chimney thins, cracks, and slumps into gravel. Beyond it, a dark cleft runs back into the rock.\n\n${snailName === 'the cinder snail' ? 'The snail' : snailName} climbs back into your jar, warm and pleased with itself.`,
                 'The cleft is open.',
               );
             },
@@ -3480,11 +3500,11 @@ async function boot(): Promise<void> {
       hud.setBanner(poolLadder ? 'Swim up to climb onto the catwalk' : 'Swim to the ladder on the right');
     }
     else if (holdAct) hud.setCollect(holdAct.label, holdProgress);
-    else if (infoAct && !baseAct) hud.setCollect(infoAct, 0);
+    else if (infoAct && !baseAct) hud.setCollect(infoAct, 0, false, true);
     else if (baseAct) hud.setCollect(baseAct.label, 0, true);
     else if (aboard && !grab) hud.setCollect(null, 0);
     else if (atDrone) {
-      hud.setCollect(missing.length ? `Repair drone: need ${missing.join(', ')}` : 'Repair build drone', drone.repairProgress);
+      hud.setCollect(missing.length ? `Repair drone: need ${missing.join(', ')}` : 'Repair build drone', drone.repairProgress, false, missing.length > 0);
       if (collectHeld && missing.length && time - fullWarnAt > 4) {
         fullWarnAt = time;
         hud.toast(`To repair the drone you need ${missing.join(' and ')} more`, 'warn');
@@ -3504,10 +3524,12 @@ async function boot(): Promise<void> {
               ? `Ease ${sp.eggName} into jar`
               : `Coax ${sp.youngName} into jar`,
         wildlife.progress,
+        false,
+        !save.kit.jar || !save.scans.includes(sp.scan) || !wildAllowed(save, wildTarget.species) || jarFull,
       );
     } else if (pt && !diver.surfaced) {
       const fits = bagHasRoom(save, pt.kind);
-      hud.setCollect(fits ? Pickups.actionLabel(pt.kind) : 'Dive bag full: unload at a storage pod', pickups.progress);
+      hud.setCollect(fits ? Pickups.actionLabel(pt.kind) : 'Dive bag full: unload at a storage pod', pickups.progress, false, !fits);
     } else hud.setCollect(null, 0);
 
     // ---- Dive bag weight messages ----
@@ -4426,6 +4448,83 @@ async function boot(): Promise<void> {
   }
 
   /** After milestone 12: everything the new suit attachments and sub modules do each frame. */
+  // ---- Phase 13: the contextual control helper ----
+  const controlHelper = new ControlHelper();
+  let bootsNear = false;
+  function helperMode(): HelperMode {
+    if (menus.paused || blackout > 0 || boarding || hud.reading || zoneMap.open || contact.active || padNav.active) return 'none';
+    if (build.active) return 'build';
+    if (care.active || dockUI.active || station.active || hatchPanel.active || rates.open || !settingsPanel.hidden || !logPanel.hidden) return 'none';
+    if (interior.active) return interior.swinging ? 'swing' : interior.pos.climbing ? 'climb' : 'foot';
+    return save.sub?.aboard ? 'sub' : 'swim';
+  }
+  function helperFrame(dt: number): void {
+    const s = input.state;
+    const mode = helperMode();
+    const aboard = !!save.sub?.aboard;
+    const mods = save.sub && save.sub.stage === 'built' ? save.sub.modules : [];
+    const outside = !interior.active;
+    controlHelper.update(dt, {
+      mode,
+      device: s.lastDevice,
+      collect: hud.collectOffer,
+      scan: outside ? hud.scanOffer : null,
+      board: outside ? hud.boardOffer : null,
+      build: outside && build.available && !build.active && !aboard,
+      tend: outside && care.available !== null && !care.active,
+      dock: outside && dockUI.available !== null && !dockUI.active,
+      lab: outside && station.available !== null && !station.active,
+      flare: hasGear(save, 'flare') && !aboard,
+      dart: hasGear(save, 'dart') && !aboard,
+      haul: !!save.kit.carrier,
+      sonar: hasGear(save, 'sonar') && !aboard,
+      lights: aboard ? mods.includes('lights') : true,
+      brace: outside && !aboard && bootsNear,
+      ladder: interior.active && interior.nearLadder,
+      zoom: zoomFree(),
+      moving: Math.hypot(s.moveX, s.moveY) > 0.2 || s.boost || s.jumpHeld,
+    });
+  }
+  (window as unknown as { __helper: unknown }).__helper = controlHelper;
+  {
+    const prefButtons = Array.from(document.querySelectorAll<HTMLButtonElement>('[data-ctlpref]'));
+    const showPref = (p: HelperPref) => {
+      for (const b of prefButtons) b.setAttribute('aria-checked', String(b.dataset.ctlpref === p));
+    };
+    for (const b of prefButtons) b.addEventListener('click', () => controlHelper.setPreference(b.dataset.ctlpref as HelperPref));
+    controlHelper.onPreference(showPref);
+    showPref(controlHelper.preference);
+  }
+
+  /** Phase 13: a drilled lode's cuttings go into the dive bag (what fits), and it reseals over time. */
+  function drillLode(l: Lode): void {
+    const first = lodeFirst(save, l);
+    const want: [MaterialId, number][] = [];
+    for (const src of first ? [l.yield, l.first] : [l.yield]) for (const [k, n] of Object.entries(src) as [MaterialId, number][]) want.push([k, n]);
+    const got: Partial<Record<MaterialId, number>> = {};
+    let left = 0;
+    for (const [k, n] of want)
+      for (let i = 0; i < n; i++) {
+        if (bagHasRoom(save, k)) {
+          save.bag[k]++;
+          got[k] = (got[k] ?? 0) + 1;
+        } else left++;
+      }
+    const parts = (Object.entries(got) as [MaterialId, number][]).map(([k, n]) => `${n} ${n === 1 ? MATERIALS[k].name.toLowerCase() : MATERIALS[k].plural.toLowerCase()}`);
+    if (!parts.length) {
+      hud.toast('The cuttings spill away: the dive bag is full. Unload at a storage pod or the dock, then drill again.', 'warn');
+      return;
+    }
+    save.lodes = { ...(save.lodes ?? {}), [l.id]: save.playSeconds };
+    if (first) save.lodeNotes = [...(save.lodeNotes ?? []), l.id];
+    hud.refreshInventory(Object.keys(got)[0] as MaterialId);
+    sound.find('bag');
+    drone.cheer();
+    hud.toast(`The lode cracks open: +${parts.join(', +')}.${left ? ' The bag could not hold the rest.' : ''} It will seal over again in about ${Math.round(LODE_REGROW / 60)} minutes.`, first ? 'big' : 'item');
+    if (first) hud.toast(l.note, 'scan');
+    persist();
+  }
+
   function gearFrame(dt: number, aboard: boolean, s: typeof input.state, inControl: boolean): void {
     const S = save.sub;
     const mods = S && S.stage === 'built' ? S.modules : [];
@@ -4524,29 +4623,46 @@ async function boot(): Promise<void> {
         }
       }
     }
-    // The drill seam in the trench wall: KS-1's drill nose bores it (hold Collect with the bow at it).
+    // The drill nose (Phase 13: the seam plus mineral lodes along the sub's routes). Hold Collect with the bow
+    // at it; the offer shows on the Collect label (and the control helper) like every other action.
     sub.drilling = false;
-    if (!seam.open && S && aboard) {
-      const near = Math.hypot(sub.bowX() - SEAM.x, sub.y - SEAM.y) < 230;
-      if (near && !mods.includes('drill')) hud.setBanner('A soft rock seam: a drill nose on KS-1 could bore through it.');
-      else if (near && live && s.collect) {
-        drillT += dt;
-        sub.drilling = true;
-        gearFx.drillSparks(sub.bowX() + sub.face * 30, sub.y + 5);
-        if (Math.random() < dt * 8) sound.drill();
-        hud.setBanner(`Drilling the seam · ${Math.round(Math.min(1, drillT / 3) * 100)}%`);
-        if (drillT >= 3) {
-          seam.open = true;
-          save.seamOpen = true;
-          scenery.setSeam(true);
-          drone.cheer();
-          hud.setBanner('');
-          hud.toast('The drill breaks through! Behind the seam, a sealed grotto: glowing blooms that never saw a lamp, vent ore, and an Echo whorl.', 'big');
-          persist();
+    const seamNear = !seam.open && Math.hypot(sub.bowX() - SEAM.x, sub.y - SEAM.y) < 230;
+    const lode = S && aboard && !seamNear ? lodeAt(sub.bowX(), sub.y) : null;
+    if (S && aboard && (seamNear || lode) && !hud.collectOffer) {
+      const wait = lode ? lodeWait(save, lode) : 0;
+      if (!mods.includes('drill')) {
+        hud.setCollect(seamNear ? 'Soft rock seam: a drill nose could bore it' : 'Mineral lode: too hard without a drill nose', 0, false, true);
+        drillT = 0;
+      } else if (wait > 0) {
+        hud.setCollect(`Lode resealing · ready in about ${Math.ceil(wait / 60)} min`, 0, false, true);
+        drillT = 0;
+      } else {
+        const secs = seamNear ? 3 : LODE_SECONDS;
+        if (live && s.collect) {
+          drillT += dt;
+          sub.drilling = true;
+          const bx = seamNear ? sub.bowX() + sub.face * 30 : lode!.x + (sub.bowX() - lode!.x) * 0.35;
+          const by = seamNear ? sub.y + 5 : lodeY(lode!) - 26;
+          gearFx.drillSparks(bx, by);
+          motion?.disturb({ x: bx, y: by, vx: sub.face * 60, vy: -40, radius: 60, strength: 0.4 });
+          if (Math.random() < dt * 8) sound.drill();
+          shake = Math.min(1, Math.max(shake, 0.06));
+        } else drillT = Math.max(0, drillT - dt * 1.5);
+        hud.setCollect(seamNear ? 'Drill the soft seam' : `Drill the ${lode!.where} lode`, Math.min(1, drillT / secs));
+        if (drillT >= secs) {
+          drillT = 0;
+          if (seamNear) {
+            seam.open = true;
+            save.seamOpen = true;
+            scenery.setSeam(true);
+            drone.cheer();
+            hud.toast('The drill breaks through! Behind the seam, a sealed grotto: glowing blooms that never saw a lamp, vent ore, and an Echo whorl.', 'big');
+            persist();
+          } else if (lode) drillLode(lode);
         }
-      } else if (near) hud.setBanner('A soft rock seam: hold Collect to drill it.');
-      else drillT = Math.max(0, drillT - dt);
-    }
+      }
+    } else if (!sub.drilling) drillT = Math.max(0, drillT - dt);
+    lodeArt.update(save, time);
     gearFx.update(dt, time, marks, tractorBeam, zoom);
     if (S) sub.setLook(!!S.plating, !!save.sanctum.contact);
     flareBtn.hidden = !hasGear(save, 'flare') || aboard;
@@ -4748,7 +4864,7 @@ async function boot(): Promise<void> {
       else if (e.type === 'jump') sound.step(true);
       else if (e.type === 'land') sound.step(false, e.hard);
     }
-    hud.setCollect(frozen ? null : interior.label, frozen ? 0 : interior.progress);
+    hud.setCollect(frozen ? null : interior.label, frozen ? 0 : interior.progress, interior.label === 'Fire the grapple', interior.labelInfo);
     hud.setBanner(frozen ? '' : interior.banner);
     watch.draw(performance.now(), save.oxygen, maxO2, 0, 0, true, { kg: bagWeight(save.bag), ...bagLimits(save) }, save.suit);
     hud.setSuit(save.suit, true);
@@ -4892,6 +5008,11 @@ async function boot(): Promise<void> {
       camCX = diver.x;
       camCY = diver.y;
     },
+    // Phase 13: for playthrough scripts (read-only helpers) and the control helper.
+    groundY,
+    seedBase: (s: SaveData) => seedBenchSave(s),
+    helper: controlHelper,
+    hud,
   };
 }
 

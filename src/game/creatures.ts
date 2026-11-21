@@ -650,3 +650,21 @@ export function newCreature(save: SaveData, species: SpeciesId, stage: 'egg' | '
   save.creatures.push(c);
   return c;
 }
+
+// ---- Phase 13: names, so kept creatures are individuals rather than keys ----
+const NAMES = [
+  'Pip', 'Wren', 'Juno', 'Fennel', 'Cobble', 'Tansy', 'Brine', 'Sable', 'Nori', 'Bramble', 'Pebble', 'Lark',
+  'Quill', 'Rook', 'Sorrel', 'Umber', 'Vesper', 'Willow', 'Briar', 'Clove', 'Dune', 'Ember', 'Flint', 'Gale',
+  'Hazel', 'Jasper', 'Kip', 'Marrow', 'Nettle', 'Opal', 'Perch', 'Rill', 'Shoal', 'Thistle', 'Wick', 'Yarrow',
+  'Tumble', 'Scallop', 'Drift', 'Mote', 'Bodkin', 'Cinder', 'Fathom', 'Glim', 'Hob', 'Inky', 'Lantern', 'Murk',
+];
+/**
+ * A stable name from the creature's id (and species), so nothing new is
+ * saved and every save already has names. The same creature keeps its name
+ * through the jar, the Hatchery and the Revival pool (they keep the id).
+ */
+export function creatureName(c: { id: number; species: SpeciesId }): string {
+  let h = (c.id * 2654435761 + SPECIES_ORDER.indexOf(c.species) * 40503) >>> 0;
+  h ^= h >>> 15;
+  return NAMES[h % NAMES.length];
+}

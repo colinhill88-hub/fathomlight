@@ -65,6 +65,11 @@ export class Hud {
   private tagPool: { el: HTMLElement; name: HTMLElement; text: HTMLElement; key: string }[] = [];
   private chipEls = new Map<MaterialId, { el: HTMLElement; count: HTMLElement; stored: HTMLElement }>();
   private bannerText = '';
+  /** Phase 13: the actions on offer this frame, read by the control helper. */
+  collectOffer: { label: string; tap: boolean } | null = null;
+  scanOffer: string | null = null;
+  boardOffer: string | null = null;
+  collectInfo: string | null = null;
 
   constructor(private readonly getSave: () => SaveData) {
     for (const id of MATERIAL_ORDER) {
@@ -367,12 +372,16 @@ export class Hud {
     this.scanBtn.style.setProperty('--p', String(progress));
     const e = id ? entry(id) : null;
     const label = e ? `Unknown ${e.category.toLowerCase()}` : '';
+    this.scanOffer = e ? e.category.toLowerCase() : null;
     if (this.scanLabel.textContent !== label) this.scanLabel.textContent = label;
     this.scanLabel.classList.toggle('show', !!e);
   }
 
   /** The Collect button: shown only with a material in reach. */
-  setCollect(label: string | null, progress: number, tap = false): void {
+  setCollect(label: string | null, progress: number, tap = false, info = false): void {
+    // Phase 13: an explanation (a refusal, or what something needs) is not an action for the control helper.
+    this.collectOffer = label && !info ? { label, tap } : null;
+    this.collectInfo = info ? label : null;
     this.collectLabel.classList.toggle('tap', tap);
     this.collectBtn.classList.toggle('ready', !!label);
     this.collectBtn.style.setProperty('--p', String(progress));
@@ -523,6 +532,7 @@ export class Hud {
 
   /** The Board / Exit button (touch), with its label. */
   setBoard(label: string | null): void {
+    this.boardOffer = label;
     const btn = document.getElementById('btn-sub')!;
     btn.classList.toggle('ready', !!label);
     const span = btn.querySelector('span')!;

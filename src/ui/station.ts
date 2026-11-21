@@ -1,4 +1,5 @@
 import { BaseLayout, isDone, pieceCode, Placed } from '../game/base';
+import { isKey } from '../controls/bindings';
 import { MATERIAL_ORDER, MaterialId, SaveData } from '../game/state';
 import { FINDS, GEAR, GEAR_ORDER, gearBlocker, jobOf, jobRunning, jobSecondsLeft, KIT_GEAR, OTHER_BLUEPRINTS, PIECE_BLUEPRINTS, RESEARCH, RESEARCH_ORDER, researchBlocker } from '../game/gear';
 import { payCost } from '../game/creatures';
@@ -61,7 +62,7 @@ export class StationMode {
     window.addEventListener('keydown', (e) => {
       if (e.repeat) return;
       const k = e.key.toLowerCase();
-      if (k === 'k') this.toggle();
+      if (isKey('lab', k)) this.toggle();
       else if (!this.active) return;
       else if (k === 'escape') this.close();
       else return;

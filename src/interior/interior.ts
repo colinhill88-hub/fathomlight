@@ -196,6 +196,8 @@ export class Interior {
   label: string | null = null;
   progress = 0;
   banner = '';
+  /** Phase 13: `label` only explains (nothing happens on Collect). */
+  labelInfo = false;
   lampOn = true;
   private lampGain = 1;
 
@@ -1249,6 +1251,7 @@ export class Interior {
     w.working += ((holding && !leaving ? 1 : 0) - w.working) * Math.min(1, dt * 10);
     w.breakerPull = holding && act?.breaker ? this.progress : 0;
     this.label = act ? act.label : info || null;
+    this.labelInfo = !act && !!info;
 
     // ---- Movement ----
     if (!this.grapple) w.hangTo = null;
@@ -1925,6 +1928,16 @@ export class Interior {
   }
 
   /** For tests and the sound: where the walker is. */
+  /** Phase 13 (control helper): hanging on the grapple line. */
+  get swinging(): boolean {
+    return !!this.grapple && this.grapple.phase === 'swing';
+  }
+  /** Phase 13 (control helper): a ladder at the walker's feet or body. */
+  get nearLadder(): boolean {
+    const w = this.walker;
+    const tx = Math.floor(w.x / T);
+    return this.ladder(tx, Math.floor((w.y - 10) / T)) || this.ladder(tx, Math.floor((w.y - 50) / T)) || this.ladder(tx, Math.floor((w.y + 10) / T));
+  }
   get pos(): { x: number; y: number; onGround: boolean; climbing: boolean } {
     return { x: this.walker.x, y: this.walker.y, onGround: this.walker.onGround, climbing: this.climbing };
   }

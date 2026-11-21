@@ -288,6 +288,18 @@ export const SCAN_ENTRIES: ScanEntry[] = [
     text: 'A pressure sphere in a steel frame, FULMAR DP-2, crumpled in on one side where its hull gave way. Its stress recorder may say why: the start of a design for a stronger hull.',
   },
   {
+    id: 'seam',
+    name: 'Soft rock seam',
+    category: 'Place',
+    text: 'A band of pale, flaky stone across the wall under the trench rim, softer than the basalt around it. The scanner reads a hollow behind it. A diver\'s hands only scrape it, but a powered drill could bore a way through.',
+  },
+  {
+    id: 'lode',
+    name: 'Mineral lode',
+    category: 'Place',
+    text: 'A knuckle of hard ore standing out of the seabed, glinting with quartz and metal. Far too hard for gloves or the cutter torch. A drill nose on KS-1 would bore the cuttings loose, and the rock seals over again in time. Lodes lie along the kelp forest floor, the wreck shelf and the trench.',
+  },
+  {
     id: 'vents',
     name: 'The vent field',
     category: 'Place',

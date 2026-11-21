@@ -1,4 +1,5 @@
 import { BaseLayout, pieceCode } from '../game/base';
+import { isKey } from '../controls/bindings';
 import {
   CLEAN_AMOUNT,
   comfortTarget,
@@ -15,6 +16,7 @@ import {
   tankNumber,
   tankCapacity,
   breedNote,
+  creatureName,
 } from '../game/creatures';
 import { genText, isRare, traitsOf, traitText } from '../game/traits';
 import { CreatureData, MATERIALS, SaveData } from '../game/state';
@@ -118,12 +120,12 @@ export class CareMode {
     window.addEventListener('keydown', (e) => {
       if (e.repeat) return;
       const k = e.key.toLowerCase();
-      if (k === 't') this.toggle();
+      if (isKey('tend', k)) this.toggle();
       else if (!this.active) return;
       else if (k === 'escape') this.close();
       else if (k === 'tab' && !this.deps.livingBases) this.cycle();
-      else if (k === 'f') this.feed();
-      else if (k === 'c') this.clean();
+      else if (isKey('feed', k)) this.feed();
+      else if (isKey('clean', k)) this.clean();
       else return;
       e.preventDefault();
     });
@@ -259,7 +261,7 @@ export class CareMode {
     save.creatures = save.creatures.filter((x) => x.id !== c.id);
     save.jar = { species: c.species, stage: c.stage, keep: c };
     const ability = c.stage === 'grown' ? creatureMilestone(save, c.species) : '';
-    this.deps.toast(`${SPECIES[c.species].name} moved into the specimen jar. ${ability || 'Put it in another tank from inside the base.'}`, 'big');
+    this.deps.toast(`${creatureName(c)} the ${SPECIES[c.species].name.toLowerCase()} moved into the specimen jar. ${ability || 'Put it in another tank from inside the base.'}`, 'big');
     this.afterRemove();
   }
 
@@ -274,7 +276,7 @@ export class CareMode {
     this.releaseArmed = 0;
     this.deps.save.creatures = this.deps.save.creatures.filter((x) => x.id !== c.id);
     this.deps.released(c);
-    this.deps.toast(`Released. The ${SPECIES[c.species].name.toLowerCase()} heads home to ${SPECIES[c.species].home}.`, 'big');
+    this.deps.toast(`Released. ${creatureName(c)} the ${SPECIES[c.species].name.toLowerCase()} heads home to ${SPECIES[c.species].home}.`, 'big');
     this.afterRemove();
   }
 
@@ -313,8 +315,8 @@ export class CareMode {
       .map(
         (c) =>
           `<button type="button" data-act="pick" data-id="${c.id}" class="tab${c.id === this.selected ? ' on' : ''}${c.sickness > 0.02 ? ' sick' : ''}">${
-            c.stage === 'egg' ? `${SPECIES[c.species].name} eggs` : SPECIES[c.species].name
-          }${c.stage === 'young' ? ' <small>young</small>' : ''}</button>`,
+            c.stage === 'egg' ? `${SPECIES[c.species].name} eggs` : `${creatureName(c)} <small>${SPECIES[c.species].name.toLowerCase()}${c.stage === 'young' ? ', young' : ''}</small>`
+          }</button>`,
       )
       .join('');
     const c = list.find((x) => x.id === this.selected);
@@ -364,7 +366,7 @@ export class CareMode {
         <button type="button" class="x" data-act="close" aria-label="Close">✕</button></div>
       ${overview}
       ${list.length ? `<div class="tabs">${tabs}</div>` : ''}
-      ${c ? `<h3>${c.stage === 'egg' ? SPECIES[c.species].eggName.replace(/^./, (m) => m.toUpperCase()) : SPECIES[c.species].name}</h3><p class="traits${isRare(traitsOf(c)) ? ' rare' : ''}">${traitText(c.species, traitsOf(c))} <small>· ${genText(traitsOf(c))}</small></p>` : ''}
+      ${c ? `<h3>${c.stage === 'egg' ? SPECIES[c.species].eggName.replace(/^./, (m) => m.toUpperCase()) : `${creatureName(c)} <small>· ${SPECIES[c.species].name}</small>`}</h3><p class="traits${isRare(traitsOf(c)) ? ' rare' : ''}">${traitText(c.species, traitsOf(c))} <small>· ${genText(traitsOf(c))}</small></p>` : ''}
       ${body}
       <div class="plants"><span>${grand ? 'Planter 1:' : 'Plant:'}</span>${plants}</div>
       <div class="acts">
