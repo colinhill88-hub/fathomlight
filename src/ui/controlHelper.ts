@@ -167,7 +167,7 @@ export class ControlHelper {
   private busy = 0;
   private onPref = new Set<(p: HelperPref) => void>();
 
-  /** Phase 15c: called when a new world offer appears on the bar (the soft ping). */
+  /** Phase 15c: called when a new world offer appears on the bar. Nothing is hooked up since Colin turned the ping off. */
   onOffer: (() => void) | null = null;
   private pingAt = -99;
 

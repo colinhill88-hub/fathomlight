@@ -4567,7 +4567,9 @@ async function boot(): Promise<void> {
   /** After milestone 12: everything the new suit attachments and sub modules do each frame. */
   // ---- Phase 13: the contextual control helper ----
   const controlHelper = new ControlHelper();
-  controlHelper.onOffer = () => sound.offerPing();
+  // Phase 16 (Colin, after round 3): the offer ping is off. It dinged every time a new action appeared,
+  // which in a busy base or a copper field was every second or two. The bar's sonar ripple still shows
+  // new offers. To bring the sound back, set: controlHelper.onOffer = () => sound.offerPing();
   let bootsNear = false;
   function helperMode(): HelperMode {
     if (menus.paused || blackout > 0 || boarding || hud.reading || zoneMap.open || contact.active || padNav.active) return 'none';

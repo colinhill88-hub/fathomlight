@@ -972,7 +972,10 @@ export class SoundDirector {
     audio.bell({ t: t + 0.42, freq: 659 * up, gain: 0.024, decay: 1.2, ratio: 2, index: 0.3, send: 0.6, pan: dir * 0.3 });
   }
 
-  /** Phase 15c: a new action on the control bar: a very soft sonar ping on the music's root and fifth. */
+  /**
+   * Phase 15c: a new action on the control bar: a very soft sonar ping on the music's root and fifth.
+   * Not played (Colin, after Phase 16 round 3: too frequent, annoying); kept in case it returns as a rarer cue.
+   */
   offerPing(): void {
     if (!audio.running) return;
     const t = audio.now;
