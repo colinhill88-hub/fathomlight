@@ -569,6 +569,8 @@ async function boot(): Promise<void> {
       const e = SCAN_ENTRIES.find((x) => x.id === id);
       if (e) hud.showReading(e.name, e.text, 'Kept in your scanner log.');
     }),
+    kitLook: () => kitLook(),
+    jar: () => save.jar,
     onOpenChange: (open) => {
       document.body.classList.toggle('kit-open', open);
       audio.setPaused(open);
@@ -1232,6 +1234,7 @@ async function boot(): Promise<void> {
       boots: hasGear(save, 'boots'),
       cowl: hasGear(save, 'cowl'),
       dash: hasGear(save, 'dash'),
+      dart: hasGear(save, 'dart'),
     };
   }
   let noThrusterAt = -99;

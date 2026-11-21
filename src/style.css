@@ -4174,6 +4174,36 @@ body.stationing #kit-btn {
   height: auto;
   max-height: 300px;
 }
+/* Phase 17a: the live Kestrel rig (its own small canvas; kitPortrait.ts sizes it to the box). */
+.fk-rig-box {
+  width: 100%;
+  min-height: 120px;
+}
+.fk-rig {
+  display: block;
+  margin: 0 auto;
+  max-height: 300px;
+  touch-action: pan-y;
+}
+/* A card that lights a part of Kestrel: a button that looks like the other cards. */
+button.fk-slot {
+  width: 100%;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  min-height: 44px;
+}
+button.fk-slot.lit {
+  border-color: #f2d488;
+  background: rgba(201, 162, 74, 0.2);
+  box-shadow: 0 0 0 1px rgba(242, 212, 136, 0.45), 0 0 14px rgba(242, 212, 136, 0.25);
+}
+button.fk-slot.unknown.lit {
+  border-color: rgba(200, 230, 225, 0.5);
+  background: rgba(20, 34, 40, 0.8);
+  box-shadow: 0 0 0 1px rgba(200, 230, 225, 0.25);
+}
 .fk-portrait figcaption {
   font-size: 12px;
   color: var(--ui-dim);
@@ -4317,7 +4347,8 @@ body.stationing #kit-btn {
     grid-template-columns: 150px 1fr;
     gap: 10px;
   }
-  .fk-portrait svg {
+  .fk-portrait svg,
+  .fk-rig {
     max-height: 200px;
   }
   .fk-head {

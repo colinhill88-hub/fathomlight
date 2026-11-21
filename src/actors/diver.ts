@@ -49,10 +49,12 @@ export interface KitLook {
   boots?: boolean;
   cowl?: boolean;
   dash?: boolean;
+  /** Phase 17: the stun-dart launcher, clipped to the far forearm. */
+  dart?: boolean;
 }
 export const FULL_KIT: KitLook = { tanks: 2, spear: true, jar: true, thruster: 1, psuit: 0, resonator: false };
 export function kitKey(k: KitLook): string {
-  return `${Math.min(4, k.tanks)}${+k.spear}${+k.jar}${k.thruster}${k.psuit}${+!!k.resonator}${+!!k.satchel}${+!!k.flare}${+!!k.visor}${+!!k.boots}${+!!k.cowl}${+!!k.dash}`;
+  return `${Math.min(4, k.tanks)}${+k.spear}${+k.jar}${k.thruster}${k.psuit}${+!!k.resonator}${+!!k.satchel}${+!!k.flare}${+!!k.visor}${+!!k.boots}${+!!k.cowl}${+!!k.dash}${+!!k.dart}`;
 }
 /** The Choir's own colours (DESIGN.md: only the Choir and its technology show them). */
 export const CHOIR = [0x5ff0ff, 0xa27cff, 0xff5ad8];
@@ -1029,6 +1031,8 @@ export class Diver {
   private extras = new Graphics();
   private bootBits: Graphics[] = [];
   private flareTube = new Graphics();
+  /** Phase 17: the stun-dart launcher on the far forearm. */
+  private dartPod = new Graphics();
   private plume = new Graphics();
   private visorFog!: Container;
   private visorDrops!: Container;
@@ -1135,6 +1139,16 @@ export class Diver {
       f.rect(10, -8.6, 2.4, 3.8).fill({ color: 0xc8402e });
       f.visible = false;
       this.nearArm.fore.addChild(f);
+    }
+    {
+      // Phase 17: the stun-dart launcher, a short brass-banded barrel on the far forearm with a red-tipped dart.
+      const d = this.dartPod;
+      d.roundRect(0, 3.5, 11, 4.2, 1.8).fill({ color: C.steelDark });
+      d.rect(3, 3.5, 1.6, 4.2).fill({ color: BRASS });
+      d.roundRect(0, 3.5, 11, 1.2, 0.6).fill({ color: C.chromeHi, alpha: 0.5 });
+      d.poly([11, 4.6, 14.5, 5.6, 11, 6.6]).fill({ color: 0xc8402e });
+      d.visible = false;
+      this.farArm.fore.addChild(d);
     }
     // The suit's own graphics, to take the pressure suit's bronze cast.
     const collect = (c: Container) => {
@@ -1243,6 +1257,7 @@ export class Diver {
     // After milestone 12: the attachments.
     for (const b of this.bootBits) b.visible = !!k.boots;
     this.flareTube.visible = !!k.flare;
+    this.dartPod.visible = !!k.dart;
     const x = this.extras.clear();
     if (k.dash && k.thruster >= 1) {
       // TH-3: a third, upturned nozzle on the hip thruster.

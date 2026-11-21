@@ -26,6 +26,8 @@ import { KestrelExpression, kestrelFin, kestrelHand, kestrelLimb, kestrelTorso }
  */
 
 export type WalkPose = 'stand' | 'walk' | 'jump' | 'fall' | 'hang' | 'climb';
+/** Phase 17: the parts of Kestrel's kit the Field kit portrait can light up. */
+export type KitPart = 'suit' | 'tanks' | 'harpoon' | 'thruster' | 'light' | 'boots' | 'visor' | 'cowl' | 'flare' | 'dart' | 'jar' | 'resonator';
 
 const rand = mulberry32(0x3a1c);
 const FAR_TINT = 0x9a9a9a;
@@ -295,7 +297,7 @@ function buildTorso(texture?: Texture) {
  * one by one): a pony bottle at first, then one to four tanks, the newest
  * furthest out. Origin where the pack meets the back.
  */
-function drawPack(g: Graphics, kit: KitLook): void {
+function drawPack(g: Graphics, kit: KitLook, hoop: Graphics): void {
   const n = Math.min(4, kit.tanks);
   const tank = (tx: number, y0: number, y1: number, shade: number) => {
     const h = y1 - y0;
@@ -317,11 +319,11 @@ function drawPack(g: Graphics, kit: KitLook): void {
     g.rect(-9.5, -12, 8.5, 2.4).fill({ color: C.visor, alpha: 0.8 });
     g.rect(-7.3, -24, 4, 4.5).fill({ color: C.steelLight });
     g.rect(-8.6, -26, 6.8, 2.4).fill({ color: C.chromeDark });
-    if (kit.resonator) drawResonatorHoop(g, -6, -36, 6.5, 1);
+    if (kit.resonator) drawResonatorHoop(hoop, -6, -36, 6.5, 1);
     return;
   }
   // Milestone 11: the resonator's hoop stands above the tanks.
-  if (kit.resonator) drawResonatorHoop(g, -13, -33, 6.5, 1);
+  if (kit.resonator) drawResonatorHoop(hoop, -13, -33, 6.5, 1);
   if (n >= 4) tank(-21.5, -19, 17, C.steelDark);
   else if (n === 3) tank(-21.5, -9, 15, C.steelDark);
   if (n >= 2) tank(-16, -19, 17, C.steelDark);
@@ -446,6 +448,8 @@ export class Walker {
   private pack = new Container();
   private packG = new Graphics();
   private packSpear = new Graphics();
+  /** The resonator's hoop above the tanks (its own piece, for the Field kit's highlight). */
+  private hoopG = new Graphics();
   private thrusterG = new Graphics();
   private psuitG = new Graphics();
   private psuitBits: Graphics[] = [];
@@ -480,6 +484,30 @@ export class Walker {
   private bracer = new Graphics();
   /** 0..1: the resonator is singing (set by the game). */
   singing = 0;
+  /**
+   * Phase 17: the attachments on foot, as on the swimming diver (mag-boots,
+   * flare tube, dart launcher, satchel, Echo visor band, heat cowl, the TH-3
+   * nozzle), each its own piece so the Field kit portrait can light one up.
+   */
+  private bootGs: Graphics[] = [];
+  private flareG = new Graphics();
+  private dartG = new Graphics();
+  private satchelG = new Graphics();
+  private dashG = new Graphics();
+  private visorG = new Graphics();
+  private cowlG = new Graphics();
+  /** Phase 17: counts footfalls while walking (the boots' stomp and silt puff follow it). */
+  footfalls = 0;
+  /** Phase 17: where the last footfall landed (world x, the walker's own units). */
+  lastStepX = 0;
+  /** Phase 17: 0..1, how heavy the steps are (clamped mag-boots: deeper knees, a stomp, a forward lean). */
+  heavy = 0;
+  /**
+   * Phase 17: the floor's height at a world x (the walker's units), for
+   * walking on slopes outside: planted feet sit on the ground under them,
+   * not on a flat line through the body. Null indoors (flat decks).
+   */
+  floorAt: ((wx: number) => number) | null = null;
 
   // ---- Animation state (plain numbers and springs; nothing is made per frame) ----
   private time = 0;
@@ -591,7 +619,7 @@ export class Walker {
     this.torso.addChild(this.psuitG, this.ps2G, this.thrusterG);
     drawWalkerPs2(this.ps2G);
     this.ps2G.visible = false;
-    this.pack.addChild(this.packSpear, this.packG);
+    this.pack.addChild(this.packSpear, this.packG, this.hoopG);
     drawWalkerPsuit(this.psuitG);
     this.psuitG.visible = false;
     for (const leg of [this.nearLeg, this.farLeg]) {
@@ -634,6 +662,7 @@ export class Walker {
       collect(fit);
     }
     this.tinted.push({ g: procedural, base: procedural.tint });
+    this.buildAttachments(hel);
     this.applyKit();
     this.rig.addChild(
       this.farArm.upper,
@@ -655,13 +684,98 @@ export class Walker {
     batchAll(this.view);
   }
 
+  /** Phase 17: draw the suit attachments once (shown by `applyKit` when the kit has them). */
+  private buildAttachments(hel: Container): void {
+    // Mag-boots: a chrome-dark shell over each boot, a magnet plate under the sole with a lime strip, a cuff at the ankle.
+    for (const leg of [this.nearLeg, this.farLeg]) {
+      const g = new Graphics();
+      g.roundRect(-6.6, -7.6, 16.8, 9.4, 3.2).fill({ color: C.chromeDark });
+      g.roundRect(-5.6, -7, 14.5, 2.2, 1.1).fill({ color: C.chromeHi, alpha: 0.55 });
+      g.circle(-3.2, -2.6, 0.9).fill({ color: C.steelLight });
+      g.circle(6.4, -2.4, 0.9).fill({ color: C.steelLight });
+      g.roundRect(-7, 1.6, 17.6, 3.6, 1.2).fill({ color: C.steelDark });
+      g.rect(-5.2, 2.9, 13.6, 1.1).fill({ color: C.visor, alpha: 0.95 });
+      if (leg === this.farLeg) g.tint = FAR_TINT;
+      g.visible = false;
+      leg.foot.addChildAt(g, 1);
+      const cuff = new Graphics();
+      cuff.roundRect(SHIN - 9.5, -6.6, 7.5, 13.2, 2.2).fill({ color: C.chromeDark });
+      cuff.rect(SHIN - 9.5, -6.6, 1.4, 13.2).fill({ color: C.chromeHi, alpha: 0.55 });
+      if (leg === this.farLeg) cuff.tint = FAR_TINT;
+      cuff.visible = false;
+      leg.shin.addChild(cuff);
+      this.bootGs.push(g, cuff);
+    }
+    // The flare tube on the near forearm, its red cap at the wrist.
+    const f = this.flareG;
+    f.roundRect(0.2, -8, 9, 4, 1.8).fill({ color: C.chromeDark });
+    f.roundRect(0.2, -8, 9, 1.2, 0.6).fill({ color: C.chromeHi, alpha: 0.6 });
+    f.rect(8.6, -7.7, 2.2, 3.4).fill({ color: 0xc8402e });
+    f.visible = false;
+    this.nearArm.fore.addChild(f);
+    // The stun-dart launcher on the far forearm: a brass-banded barrel and a red-tipped dart.
+    const d = this.dartG;
+    d.roundRect(0, 3.6, 9.5, 3.6, 1.6).fill({ color: C.steelDark });
+    d.rect(2.6, 3.6, 1.4, 3.6).fill({ color: BRASS });
+    d.poly([9.5, 4.4, 12.6, 5.4, 9.5, 6.4]).fill({ color: 0xc8402e });
+    d.tint = FAR_TINT;
+    d.visible = false;
+    this.farArm.fore.addChild(d);
+    // The specimen satchel: a padded pouch at the front of the belt with a lime-lit lid.
+    const sc = this.satchelG;
+    sc.roundRect(6.5, -4.5, 7.5, 10, 2.4).fill({ color: 0x4a545a });
+    sc.roundRect(6.5, -4.5, 7.5, 3.2, 1.4).fill({ color: C.chromeDark });
+    sc.rect(8.9, -0.6, 2.8, 3.6).fill({ color: C.visor, alpha: 0.8 });
+    sc.visible = false;
+    // TH-3: a third, upturned nozzle on the hip thruster.
+    const x = this.dashG;
+    x.roundRect(-26.5, -15.5, 6, 4.6, 1.5).fill({ color: C.chromeDark });
+    x.circle(-26.5, -13.2, 2).fill({ color: C.visor, alpha: 0.95 });
+    x.poly([-20.5, -14.8, -15, -18, -13.6, -16.6, -19, -12.6]).fill({ color: C.visor });
+    x.visible = false;
+    this.torso.addChild(sc, x);
+    // The Echo visor band across the glass and the heat cowl round the helmet's base, in the helmet's own space.
+    const v = this.visorG;
+    v.moveTo(69.5, -13).quadraticCurveTo(84.5, -17, 94, 0).stroke({ color: C.visor, width: 2.3, alpha: 0.85 });
+    v.circle(94, 0, 1.6).fill({ color: 0xf0ffc0 });
+    v.visible = false;
+    const cw = this.cowlG;
+    cw.poly([26, 1, 52.5, -3, 56.5, 8.5, 30, 15.5]).fill({ color: C.chromeDark, alpha: 0.92 });
+    cw.poly([26, 1, 52.5, -3, 53.4, 0, 27, 4]).fill({ color: C.chromeHi, alpha: 0.6 });
+    cw.moveTo(48.5, 13).quadraticCurveTo(69.5, 23.5, 90.5, 13).stroke({ color: C.chromeHi, width: 3 });
+    cw.moveTo(48.5, 13).quadraticCurveTo(69.5, 23.5, 90.5, 13).stroke({ color: C.chromeDark, width: 1, alpha: 0.8 });
+    cw.visible = false;
+    hel.addChild(cw, v);
+  }
+
+  /**
+   * Phase 17: the pieces that make up one part of the kit, for the Field kit
+   * portrait to light up (or show as a dark silhouette while it isn't found).
+   */
+  partNodes(part: KitPart): Container[] {
+    switch (part) {
+      case 'suit': return [this.torso, this.nearLeg.thigh, this.farLeg.thigh, this.nearArm.upper, this.farArm.upper, this.helmet];
+      case 'tanks': return [this.packG];
+      case 'harpoon': return [this.packSpear];
+      case 'thruster': return [this.thrusterG, this.dashG];
+      case 'light': return [this.lampC];
+      case 'boots': return [...this.bootGs];
+      case 'visor': return [this.visorG];
+      case 'cowl': return [this.cowlG];
+      case 'flare': return [this.flareG];
+      case 'dart': return [this.dartG];
+      case 'jar': return [this.beltJar.view, this.satchelG];
+      case 'resonator': return [this.hoopG, this.bracer];
+    }
+  }
+
   /** Redraw the kit when it changed (before milestone 11 it is found piece by piece). */
   private applyKit(): void {
     const key = kitKey(this.kit);
     if (key === this.kitShown) return;
     this.kitShown = key;
     const k = this.kit;
-    drawPack(this.packG.clear(), k);
+    drawPack(this.packG.clear(), k, this.hoopG.clear());
     if (this.compact) {
       this.packG.moveTo(-18, -9).quadraticCurveTo(-24, 5, -17, 16).lineTo(-8, 15)
         .quadraticCurveTo(-3, 3, -10, -10).closePath().fill(0x30474a);
@@ -673,6 +787,13 @@ export class Walker {
     drawWalkerThruster(this.thrusterG.clear(), k.thruster);
     this.nozzleDot.visible = k.thruster > 0;
     this.bracer.visible = this.resonDot.visible = !!k.resonator;
+    for (const b of this.bootGs) b.visible = !!k.boots;
+    this.flareG.visible = !!k.flare;
+    this.dartG.visible = !!k.dart;
+    this.satchelG.visible = !!k.satchel;
+    this.dashG.visible = !!k.dash && k.thruster >= 1;
+    this.visorG.visible = !!k.visor;
+    this.cowlG.visible = !!k.cowl;
     this.psuitG.visible = k.psuit > 0;
     for (const b of this.psuitBits) b.visible = k.psuit > 0;
     this.ps2G.visible = k.psuit === 2;
@@ -1015,7 +1136,7 @@ export class Walker {
       const D = (60 + 0.33 * jog + 0.45 * (speed - jog)) * (0.62 + 0.38 * this.gaitRamp);
       const beta = 0.64 - 0.3 * run - 0.1 * spr;
       this.phase = (this.phase + (speed * dt) / D) % 1;
-      const lift = 4 + 6 * run + (3 * jog) / 270 + 8 * spr;
+      const lift = 4 + 6 * run + (3 * jog) / 270 + 8 * spr + 3.5 * this.heavy;
       for (let i = 0; i < 2; i++) {
         const f = this.feet[i];
         const psi = (this.phase + i * 0.5) % 1;
@@ -1025,6 +1146,14 @@ export class Walker {
           f.planted = true;
           f.wx = this.x + f.ax * sxw;
           s = -1;
+          // Phase 17: a footfall. In clamped mag-boots it lands like a stomp: the knees give and the tanks bounce.
+          this.footfalls++;
+          this.lastStepX = f.wx;
+          if (this.heavy > 0) {
+            this.hipDrop.v += 55 * this.heavy;
+            this.packS.v += 30 * this.heavy;
+            for (const a of this.arms) a.jolt.v -= 1.5 * this.heavy;
+          }
         }
         // A planted foot left too far behind (slowing hard) lifts early.
         const behind = f.planted && (f.wx - this.x) * face < -REACH * 0.72;
@@ -1051,6 +1180,7 @@ export class Walker {
           const wx = f.liftX + (land - f.liftX) * (1 - Math.pow(1 - s, 1.7));
           f.tx = (wx - this.x) / sxw;
           f.ty = -ANKLE_H + (f.liftY + ANKLE_H) * (1 - smoothstep(s * 1.6)) - lift * Math.sin(Math.PI * Math.min(1, s * 1.12));
+          f.ty += this.floorOff(wx);
           f.troll = 0.55 * (1 - s) * (1 - s) - 0.2 * smoothstep((s - 0.55) / 0.45);
           f.reachW = Math.max(smoothstep((s - 0.5) / 0.5), 1 - smoothstep(s / 0.25));
         }
@@ -1060,7 +1190,7 @@ export class Walker {
       const c = Math.cos(Math.PI * 4 * (this.phase - beta / 2));
       // A heavy suit: the knees stay a little softer walking.
       hipY += (1.5 + run + 0.4 * spr) * this.walkAmt + c * (-(1 - run) * (1 + (1.6 * jog) / 270) + run * 3 + spr * 1.5) * this.walkAmt;
-      lean = 0.05 + (0.11 * (jog / 270) + 0.2 * spr) * this.walkAmt;
+      lean = 0.05 + (0.11 * (jog / 270) + 0.2 * spr) * this.walkAmt + 0.07 * this.heavy * this.walkAmt;
       look = 0.035 - 0.03 * spr;
     } else {
       // Standing: settle each foot under the hip with a small step when it is out of place.
@@ -1101,6 +1231,7 @@ export class Walker {
           const wx = f.stepFrom + (f.stepTo - f.stepFrom) * smoothstep(s);
           f.tx = (wx - this.x) / sxw;
           f.ty = -ANKLE_H - f.stepH0 * (1 - smoothstep(s)) - (2.5 + Math.abs(f.stepTo - f.stepFrom) * 0.06) * Math.sin(Math.PI * s);
+          f.ty += this.floorOff(wx);
           f.troll = -0.12 * Math.sin(Math.PI * s);
           f.reachW = Math.max(smoothstep((s - 0.5) / 0.5), 1 - smoothstep(s / 0.25));
           if (f.stepT >= 1) {
@@ -1176,6 +1307,12 @@ export class Walker {
       f.ty = -BALL * s - ANKLE_H * c;
     }
     f.troll = roll;
+    if (this.floorAt && this.mode === 'ground') f.ty += this.floorOff(this.x + lx * this.sxw);
+  }
+
+  /** Phase 17: how far the floor under a world x is below the body's own floor line (0 without `floorAt`). */
+  private floorOff(wx: number): number {
+    return this.floorAt ? clamp(this.floorAt(wx) - this.y, -14, 14) : 0;
   }
 
   private startGait(run: number): void {
