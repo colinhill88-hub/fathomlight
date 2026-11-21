@@ -14,7 +14,7 @@ The inspiration is childhood bathtub play with toy divers and dome-windowed subm
 
 Five pillars decide every design question:
 
-1. **Wonder first, danger with depth.** The shallows are cozy and safe. Predators, darkness, currents and crush depth arrive as the player goes deeper.
+1. **Wonder first, danger with depth.** The shallows are cozy and safe. Predators, darkness, currents and crush depth arrive as the player goes deeper. **Combat lives inside the wrecks (Colin, Nov 21, 2026, after Phase 16):** on foot, in the dry interiors of wrecks and dungeons, Kestrel fights machines and rust-born things that infest them. The open water stays combat-free (swimming has no combat), the shallows stay cozy and the sanctum stays awe, not combat. Colin may revisit this after playing it.
 2. **Gear opens the world.** Progress comes from items and upgrades that unlock places the player could already see, as in Zelda. There are no experience points or levels.
 3. **Every base piece has a job.** Pieces snap together and each one adds a capability the player needs.
 4. **Creatures need care.** Collected animals must be fed, housed well and kept in clean water, and caring for them pays off.
@@ -72,6 +72,7 @@ There is no need to support older or low-end devices. If an effect has to be cut
 - **The explorer walks and jumps** indoors: gravity, platforms, one-way gratings, hazards. **The grapple is a hookshot** to anchor rings on higher ledges. The helmet's face plate lifts with a short animation in dry air.
 - **The Corvina** was the first (her insides as a multi-deck dungeon). **The base is walkable** (parts 1 and 2 built: rooms from the layout, ceiling conveyors and pipes with moving items, the moon pool as a second entry, lifts for tall shafts, whorls fitted from inside) (Colin's choice: everything indoors, machines included), with larger, more detailed pieces whose layout must make sense to walk through. Save compatibility does not matter for that rework: Colin will playtest from scratch.
 - **Logs and documents** open in a reading panel that stays until closed, and stay in the scanner log.
+- **Combat on foot (Colin, Nov 21, 2026; planned as Phase 19, see the [roadmap](docs/ROADMAP.md)).** Parts of the wrecks are infested by small mechanical robots and drones and by creatures made of rust and wreckage. They are never the sea's wildlife: the game is about caring for creatures, so Kestrel never fights animals. Fights are about reading moves and timing: each enemy telegraphs its attacks, and Kestrel answers with a shot, a block or brace, a duck or a dodge behind cover, as in good 2D side-scrollers (Ori is the reference for *feel* only). Kestrel earns a weapon that mounts visibly on the suit and changes the silhouette, like the tanks, pressure suits and grapple, growing from the harpoon's design. Losing is gentle: a blackout, then back at the wreck's entrance or the last safe platform, with nothing lost. Touch gets one extra button: Shoot.
 
 ## Game systems
 
@@ -163,6 +164,8 @@ Each item is built in the Workshop from a blueprint found at a major site, and e
 | Tow line | Crossing strong currents |
 | Pressure suit, in tiers | Each deeper zone |
 | Sonar pulse | Hidden passages; calms hostile creatures |
+| Mag-boots (Phase 17 plan) | A clamped-on walking mode along the seabed: heavy footsteps, immune to bottom currents, slower than swimming. Mainly for the Wreck Shelf race; more boot sections may come later |
+| Wreck weapon (Phase 19 plan) | Fighting the machines and rust-things that infest wreck interiors |
 | Sub depth plating and grabber arm | Crush depths and heavy objects |
 | Sub drill nose (Phase 13 status) | The soft trench seam's grotto, and five resealing mineral lodes (optional mining) |
 | Alien resonator | Doors in the ancient structures |
@@ -189,6 +192,8 @@ The beings communicate in patterns of light. Raising glowing creatures is how th
 
 Names are final: the game is Fathomlight, the crew's station is Outpost Kestrel and the beings are the Choir.
 
+**Linnea, the axolotl guide (Colin and his daughter, Nov 21, 2026; planned as Phase 18).** A friendly axolotl waits at key places and gives gentle hints about where to go next, in the role the owl plays in Ocarina of Time, but never naggy: she only speaks when Kestrel swims up to her. She is soft coral and peach with warm, frilly gills (never hot pink, and no Choir cyan, violet or magenta). She is drawn in code in the same painterly, high-fidelity style as the Phase 10 creatures and Kestrel, with personality: she blinks, her gills flutter, she bobs when she talks. The name Linnea is final (chosen with Colin's daughter).
+
 ## Current progression and discovery
 
 The [progression audit](docs/phase-12-progression-audit.md) maps the full route and lists equipment, gates and creature abilities. Explore for evidence, equipment and specimens, then use Kestrel's base to give those discoveries a purpose. Read the existing scanner log for connections between sites and capabilities. Keep hints close to the relevant object and let them build from visible marks to a practical clue as the player examines or revisits a site.
@@ -204,14 +209,14 @@ Phase 14 makes progress feel earned. Pickups, finds and upgrades now land with a
 - **Audio** gets a full audit so every action has anticipation, contact and payoff.
 - **Further ideas to design together:**
   - songs Kestrel learns from the Choir and plays on the resonator, like an ocarina;
-  - a non-combat climax at each major site;
+  - a climax at each major site (combat-free when it is in open water; Colin now allows combat inside wrecks, see the first pillar);
   - abilities that chain into each other, as in Ori;
   - a goal board at the base;
   - maps of major sites that fill in as you explore.
 
 Phase 12 gives the Wreck Shelf strongbox paired claw scratches, a scan and a creature interaction. A grown tinker crab works the lock and returns to the jar. The mandatory trench cleft has grazing marks and a separate mature cinder-snail interaction. Its PS-2 drawings and signal spool are the deep progression payoff. Good habitat setup should let the player prepare for those trips. A solitary juvenile with its preferred plant now consumes food and fouls water more slowly. Players can replace lost founders without a Revival pool. Population growth beyond the founding pair still comes from breeding happy adults with a powered Hatchery.
 
-The Wreck Shelf race teaches the grapple's anchor route and ends with the flow vane calming the upper crossing. KS-1 keeps that lasting route. Mag-boots give Kestrel a separate low-speed stance near the seabed. Hold Down to resist currents and edge sideways to line up an interaction. Releasing Down restores free swimming. Deep operation of KS-1 and stepping outside remain separate decisions, with the hatch warning before a voluntary over-depth exit.
+The Wreck Shelf race teaches the grapple's anchor route and ends with the flow vane calming the upper crossing. KS-1 keeps that lasting route. Mag-boots give Kestrel a separate low-speed stance near the seabed. Hold Down to resist currents and edge sideways to line up an interaction. Releasing Down restores free swimming. **Planned change (Colin, Nov 21, 2026; Phase 17):** the boots become a toggle, like Ocarina's iron boots. Press the Boots button once to clamp on: Kestrel drops to the seabed in a walking pose and stomps along with heavy footsteps, can make a short heavy hop, and is not pushed by currents. Walking off a ledge sinks Kestrel slowly with the boots still on. Press again to let go and swim. Walking is slower than swimming, so it's a choice, mainly for the race. Deep operation of KS-1 and stepping outside remain separate decisions, with the hatch warning before a voluntary over-depth exit.
 
 ## Original milestones
 

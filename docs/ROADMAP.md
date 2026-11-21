@@ -4,9 +4,16 @@ Nov 21, 2026 · planned with Colin after Phase 14 (reward moments, PR #36)
 
 This is the agreed plan for work that is **not built yet**. Nothing here is implemented unless [Progress](../PROGRESS.md) says so. Read the [development handoff](AI_DEVELOPMENT_HANDOFF.md) before starting any of it, whichever AI tool you are. When a phase ships, move its entry into PROGRESS.md and mark it done here. Do not delete it.
 
-The order below is Colin's agreed phasing. Phases 15 and 16 are ready to build. Later items need a design pass with Colin before code. Ask him the open questions listed with each item.
+The order below is Colin's agreed phasing. Phases 15 and 16 are built. **Phases 17, 18 and 19 are agreed and ready to build** (planned with Colin on Nov 21, 2026, after Phase 16), each with a session prompt in `docs/prompts/`. Later items need a design pass with Colin before code. Ask him the open questions listed with each item.
 
 ## Colin's decisions (Nov 21, 2026)
+
+**After Phase 16 (planning the next phases):**
+- **Mag-boots become a toggle walking mode** (Phase 17), like Ocarina of Time's iron boots. One press clamps on, another lets go. Kestrel walks in a walking pose with heavy footsteps, can hop, isn't pushed by currents, and sinks slowly with the boots on when walking off a ledge. Slower than swimming. Mainly for the Wreck Shelf race; other boot sections may come later.
+- **The Field kit portrait reuses the real Kestrel assets** (Phase 17), and hovering over an attachment highlights it on the body.
+- **Linnea, a friendly axolotl guide** (Phase 18; the idea and the name come from Colin's daughter). Gentle hints, only when Kestrel swims up to her. Soft coral with warm frilly gills, not hot pink. Painterly, high-fidelity, drawn in code like the other creatures, with personality. First found at the first gear gate.
+- **Combat, on foot, inside wrecks only** (Phase 19). A change from the original vision that Colin wants: the game feels a little too cozy without it. Enemies are small mechanical robots, drones and creatures of rust and wreckage that infest parts of the wrecks, never wildlife. Reading moves, timing, blocking and ducking behind cover (Ori is the reference for feel). A weapon that mounts on the suit and changes the silhouette. Losing means a gentle blackout and a restart at the wreck's entrance or the last safe platform. Touch gets one more button, Shoot. Not while swimming. Colin may change his mind after playing it.
+- **One session per phase** (Colin saves usage that way). Phases 17's two parts share a session because both are Kestrel-rig work.
 
 - **No offer ping (after Phase 16 round 3).** The soft ding when a new action appeared on the control bar played every time you passed something you could use (every room in a busy base, every copper nugget), and Colin found it annoying. It is off. The bar's sonar ripple still marks new offers. Don't bring back a sound for routine offers without asking him.
 
@@ -34,7 +41,7 @@ The order below is Colin's agreed phasing. Phases 15 and 16 are ready to build. 
 - With two jars held, release the most recently caught first. Say which one in the prompt.
 - Check: release, then catching the right species, works end to end with real input. The wild cap counts correctly after a release. Releasing a named creature without the second press does nothing. `node scripts/test-progression.mjs` gets a check for the quota refund.
 
-### 15b. The Field kit screen (press I): **done** (see PROGRESS.md). Not done yet: per-zone breakdowns in the Collection tab (it shows game-wide totals) and reuse of the Kestrel rig for the portrait (it is a separate SVG drawing).
+### 15b. The Field kit screen (press I): **done** (see PROGRESS.md). Not done yet: per-zone breakdowns in the Collection tab (it shows game-wide totals) and reuse of the Kestrel rig for the portrait (it is a separate SVG drawing; **planned as Phase 17a**).
 
 **Idea (Colin):** a screen showing the character with every attachment and everything unlocked, as a reminder. It grew into an Ocarina of Time-style pause sub-screen.
 
@@ -91,6 +98,56 @@ The order below is Colin's agreed phasing. Phases 15 and 16 are ready to build. 
 - **Spatial sound.** Pan and distance for sounds placed in the world (creatures, machines, the drone), and a duller, roomier sound inside hulls.
 - **Work in rounds with Colin listening.** Each round: change a group of sounds, record a short before/after capture or describe exactly where to stand in the game to hear it, then ask for feedback.
 
+## Phase 17: Kestrel's kit (the Field kit portrait, and walking mag-boots). Not built.
+
+**Session prompt:** [`docs/prompts/phase-17-kit-portrait-and-boots.md`](prompts/phase-17-kit-portrait-and-boots.md). Both parts are work on Kestrel's rig and poses, so they share one session.
+
+### 17a. The Field kit portrait uses the real Kestrel
+
+**Problem (Colin):** the Kit tab's portrait looks boxy and code-drawn, not like the character.
+
+- Replace the SVG portrait in `src/ui/fieldkit.ts` with the real Kestrel rig (`src/actors/diver.ts`, and the walker in `src/actors/walker.ts` if a standing pose reads better), rendered live inside the panel and wearing exactly what the save has.
+- **Highlight on hover:** hovering over an attachment card (PC), tapping it (touch) or focusing it with the gamepad (`padnav.ts`) makes that part of the body glow or pulse: tanks, thrusters, light, boots, visor, cowl, harpoon, dart, flare tube, jar and satchel, the suit tier, the resonator. Gear not found yet stays a dark silhouette marked "???".
+- Keep it working in iPhone landscape and keep the world paused while the Field kit is open.
+- Open choice for the session (default if Colin doesn't say): a calm floating swim pose, slowly turning a little.
+
+### 17b. Mag-boots: a walking mode
+
+**Problem (Colin):** the boots don't really lock onto the ocean floor. Today you hold Down near the seabed to brace (`bootsOnFloor` and `bracing` in `main.ts`; the control helper shows "brace"). There is no Boots button.
+
+- **A new Boots action** in `src/controls/bindings.ts` (keyboard key, a free pad button, a touch button that shows once the boots are owned). Press once to clamp on, press again to let go. The control helper advertises it.
+- **Clamped:** Kestrel sinks to the seabed and stands in a walking pose (reuse the walker's walk cycle where possible, adapted to slow, heavy, underwater steps). Left and right walk along the bottom, following slopes. Walking is slower than swimming.
+- **Heavy footsteps:** a deep, clanking stomp with a puff of silt each step, placed on the sfx bus (so it is muffled underwater like everything else). Reuse the Phase 16 footstep and sample machinery; a CC0 file may be added under the usual rules.
+- **Hop:** Jump makes a short, heavy hop.
+- **Currents don't move Kestrel** while clamped (the race, the vents).
+- **Ledges:** walking off an edge sinks slowly with the boots still on (Ocarina's iron boots), landing with a heavy thud.
+- **Letting go:** press Boots again (and perhaps boost; the session decides and says so). Swimming resumes at once.
+- The diver's world position must stay stable when switching rigs. Air still runs as normal. No save field needed beyond what exists (the toggle doesn't need saving; start unclamped).
+- Check with real input in the race and on slopes, with keyboard, pad and touch. Update the progression audit if the race route changes.
+
+## Phase 18: Linnea, the axolotl guide. Not built.
+
+**Session prompt:** [`docs/prompts/phase-18-linnea.md`](prompts/phase-18-linnea.md).
+
+- **Who:** Linnea, a friendly axolotl (Colin's daughter's idea and name). Soft coral and peach with warm, frilly gills, not hot pink; never Choir cyan, violet or magenta. Drawn in code in the painterly, high-fidelity style of the Phase 10 creatures and Kestrel, with personality: blinking, gill flutter, a little bob when she talks, a curious tilt as Kestrel approaches.
+- **Where:** first at **the first gear gate**, the dark east cliff in Sunlit Shallows that needs the dive light (Colin described "the first block in your path where you need a piece of equipment, the brighter lamp"; he also mentioned the first winch that lets the sub through, the Kelp Forest boom, which can be a later spot). Then at other key places: each new zone's entrance and outside the major sites. She moves on as the story moves (she isn't in every spot at once).
+- **How she helps:** only when Kestrel swims up to her (a Talk action offered by the control helper). She never calls out or follows you. One or two gentle lines, hinting rather than ordering ("I heard something clicking in the kelp..."). The hint is chosen from where the player really is in the progression (the [progression audit](phase-12-progression-audit.md) lists the gates and order). A soft chirp when she speaks.
+- **Save:** optional new fields only (for example which of her spots you've met), with safe defaults.
+- Not decided yet (the session asks Colin, or picks a sensible default and says so): the full list of her spots and the hint wording for each stage.
+
+## Phase 19: combat inside the wrecks. Not built; the design is agreed in outline.
+
+**Session prompt:** [`docs/prompts/phase-19-wreck-combat.md`](prompts/phase-19-wreck-combat.md). Probably more than one session: the first builds the weapon, two or three enemy types and one infested section of a wreck to play, then Colin plays it before more is built.
+
+- **Where:** on foot in dry wreck interiors (`src/interior/`), starting with one section of the Corvina or the Fulmar. Not while swimming; the shallows and the sanctum stay combat-free.
+- **Enemies:** small mechanical robots, drones and creatures made of rust and wreckage that infest parts of the wrecks, with a story reason (for example the wrecks' old automated systems, still running, or salvage machines gone wrong). Never the sea's wildlife. Each type has its own moves and telegraphs them clearly. First ideas to offer Colin: a skittering rust crawler that lunges, a hovering weld drone that charges up a beam, a heavy shielded sentinel that is only open after it attacks.
+- **Fighting:** reading moves and timing. Shoot, plus a way to defend: a block or brace, ducking, and cover (crates and bulkheads). Ori is the reference for feel only; nothing is copied.
+- **The weapon:** new gear that mounts visibly on the suit (shoulder or forearm) and changes Kestrel's silhouette, growing from the harpoon's design (DESIGN.md's Crest diver notes). Earned through the usual blueprint and Workshop path, with a major `grant()` reward. Its effects use the base kit palette (lime, gold, red), never Choir colours.
+- **Controls:** a Shoot action in `bindings.ts` (keyboard, pad, and one touch button shown once the weapon is owned), plus whatever the defence needs.
+- **Losing:** not punishing. Kestrel blacks out and wakes at the wreck's entrance or the last safe platform, keeping everything.
+- **Sound:** every enemy move gets an audible telegraph (danger first in the mix, per Phase 16).
+- **Open questions for Colin, early in the session:** what the weapon is and is called; how Kestrel's health works indoors (reuse suit integrity or something new); whether cleared rooms stay cleared or refill when you come back; how many infested sections, and in which wrecks.
+
 ## Later: needs a design pass with Colin first
 
 These came from comparing Fathomlight with Ocarina of Time, Ori and the Will of the Wisps, Hearthstone and Satisfactory. Colin likes all of them. Design each with him before building.
@@ -102,7 +159,7 @@ These came from comparing Fathomlight with Ocarina of Time, Ori and the Will of 
    - wake a dormant structure.
 
    Open questions: how many songs, how they're input on touch, keyboard and pad, and which existing gates they replace or add to. This is the biggest idea on the list and the strongest fit with the story.
-2. **A climax at each major site (Zelda's bosses, Ori's escape sequences), without combat.** Each major site currently ends with a blueprint in a room. Possible set pieces:
+2. **A climax at each major site (Zelda's bosses, Ori's escape sequences), without combat.** (Update after Phase 16: Colin now allows combat inside wrecks, Phase 19, so a wreck's climax could be a fight; open-water climaxes stay combat-free.) Each major site currently ends with a blueprint in a room. Possible set pieces:
    - the Corvina flooding while you climb out;
    - the trench stalker hunting you while you find the way;
    - a collapsing vent field.

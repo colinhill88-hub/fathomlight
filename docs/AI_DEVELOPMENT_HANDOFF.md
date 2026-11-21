@@ -14,7 +14,7 @@ Read [Design](../DESIGN.md) for the creative constraints, [Progress](../PROGRESS
 
 Fathomlight is a single-player 2D underwater exploration, base-building and creature-care game. Kestrel is the compact salvage diver. The opening is small and approachable. The route expands from Sunlit Shallows and the basin through the Kelp Forest, Wreck Shelf and trench to the Choir. The player should make connections through observed behavior, scans, tool use and revisits. Keep calm spaces, hazards, and deliberate moments of discovery. Use the existing log and contextual actions for guidance.
 
-The repository default (live) branch is `claude/underwater-game-m0-0qqajg`. Phases 12, 13 (PR #35), 14 (reward moments, PR #36) and 15 (jar release, Field kit, sonar control bar, PR #38) are all merged into it. The next work is Phase 16 in the [roadmap](ROADMAP.md). Merging to the live branch starts the [GitHub Pages workflow](../.github/workflows/deploy.yml). Publish or merge only when Colin requests it.
+The repository default (live) branch is `claude/underwater-game-m0-0qqajg`. Phases 12, 13 (PR #35), 14 (reward moments, PR #36) and 15 (jar release, Field kit, sonar control bar, PR #38) are all merged into it. Phase 16 (audio) is merged too (PRs #40–#43). The next work is Phases 17–19 in the [roadmap](ROADMAP.md), each with a ready session prompt in `docs/prompts/`. Merging to the live branch starts the [GitHub Pages workflow](../.github/workflows/deploy.yml). Publish or merge only when Colin requests it.
 
 ## Source map
 
@@ -75,9 +75,11 @@ Start new work from the latest merged default. Keep real player profiles separat
 
 See the [roadmap](ROADMAP.md) for the full plan. In short:
 
-1. **Phase 15** is merged (PR #38). **Phase 16 rounds 1 and 2** are merged (PRs #40, #41). **Round 3** (the rest of the sound-file shortlist, creature calls, KS-1 heard from outside) is on a review branch waiting for Colin's ears; see the [audit](phase-16-audio-audit.md).
-2. **Phase 16 round 4:** tune from Colin's listening notes (none were given for rounds 1–3 yet); per-zone footstep surfaces in the base.
-3. **Then design with Colin:** songs Kestrel plays on the resonator, a climax at each major site, movement flow, a goal board, and maps of major sites.
+1. **Phase 16** (audio, rounds 1–3, and the offer ping turned off) is merged (PRs #40–#43). Colin says the audio is in good shape; leftovers (per-zone base footsteps, tuning by ear) wait for his notes.
+2. **Phase 17: Kestrel's kit:** the Field kit portrait uses the real Kestrel rig with hover highlights, and the mag-boots become a toggle walking mode. Prompt: [`prompts/phase-17-kit-portrait-and-boots.md`](prompts/phase-17-kit-portrait-and-boots.md).
+3. **Phase 18: Linnea,** a friendly axolotl guide with gentle hints. Prompt: [`prompts/phase-18-linnea.md`](prompts/phase-18-linnea.md).
+4. **Phase 19: combat inside the wrecks** (on foot only; a deliberate change to the vision, see DESIGN.md's first pillar). Prompt: [`prompts/phase-19-wreck-combat.md`](prompts/phase-19-wreck-combat.md).
+5. **Then design with Colin:** songs Kestrel plays on the resonator, a climax at each major site, movement flow, a goal board, and maps of major sites.
 
 Validation that is still open:
 
