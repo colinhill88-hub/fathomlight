@@ -1,6 +1,6 @@
 # Phase 13 gameplay audit
 
-Phase 13 follows the Phase 12 progression pass, which merged as `c06d46d` on the default branch `claude/underwater-game-m0-0qqajg`. It reviews the game for play rather than graphics. The phase adds a contextual control helper, gives KS-1's drill nose a lasting job, and names kept creatures. The development branch is `claude/kind-keller-x7l9pw`. It is local and has not been pushed, merged or deployed.
+Phase 13 follows the Phase 12 progression pass, which merged as `c06d46d` on the default branch `claude/underwater-game-m0-0qqajg`. It reviews the game for play rather than graphics. The phase adds a contextual control helper, gives KS-1's drill nose a lasting job, and names kept creatures. The development branch is `claude/kind-keller-x7l9pw`. It merged into the default branch as PR #35 (`d9f4728`).
 
 This document separates what was **verified** (in the browser with real input, or by the regression script) from what was **code-derived** (read from source but not played) and from what is only **proposed**.
 

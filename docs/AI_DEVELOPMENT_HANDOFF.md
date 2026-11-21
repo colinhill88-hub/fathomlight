@@ -1,12 +1,12 @@
 # Fathomlight development handoff
 
-Read [Design](../DESIGN.md) for the creative constraints, [Progress](../PROGRESS.md) for the shipped history, the [Phase 12 audit](phase-12-progression-audit.md) for route dependencies and spoilers, and the [Phase 13 audit](phase-13-gameplay-audit.md) for the control helper, the drill's exact status and playtest coverage. Treat source, tests, and the live branch as the evidence for current behavior. Old milestone prompts in `docs/prompts/` explain historical choices.
+Read [Design](../DESIGN.md) for the creative constraints, [Progress](../PROGRESS.md) for the shipped history, the [Phase 12 audit](phase-12-progression-audit.md) for route dependencies and spoilers, and the [Phase 13 audit](phase-13-gameplay-audit.md) for the control helper, the drill's exact status and playtest coverage, and the [Phase 14 notes](phase-14-reward-moments.md) for reward moments. Treat source, tests, and the live branch as the evidence for current behavior. Old milestone prompts in `docs/prompts/` explain historical choices.
 
 ## The game and current branch
 
 Fathomlight is a single-player 2D underwater exploration, base-building and creature-care game. Kestrel is the compact salvage diver. The opening is small and approachable. The route expands from Sunlit Shallows and the basin through the Kelp Forest, Wreck Shelf and trench to the Choir. The player should make connections through observed behavior, scans, tool use and revisits. Keep calm spaces, hazards, and deliberate moments of discovery. Use the existing log and contextual actions for guidance.
 
-The repository default is `claude/underwater-game-m0-0qqajg`, and Phase 12 is merged into it (`c06d46d`). Phase 13 is local on `claude/kind-keller-x7l9pw`, based on `c06d46d`, and has not been pushed. Merging to the live branch starts the [GitHub Pages workflow](../.github/workflows/deploy.yml). Publish or merge only when Colin requests it.
+The repository default is `claude/underwater-game-m0-0qqajg`, and Phase 12 is merged into it (`c06d46d`). Phase 13 merged as PR #35 (`d9f4728`). Phase 14 (reward moments) is on `claude/zen-allen-qvxwtz`, based on `d9f4728`, and is up for review as a pull request. Merging to the live branch starts the [GitHub Pages workflow](../.github/workflows/deploy.yml). Publish or merge only when Colin requests it.
 
 ## Source map
 
@@ -47,5 +47,6 @@ Start new work from the latest merged default. Keep real player profiles separat
 
 1. Run an uninterrupted new-save progression playthrough on real hardware (Phase 13 covered the opening with real input and the rest by fixtures), especially early material economy, base construction and crafting, both environmental puzzles, Fulmar, and the Signal array to first contact.
 2. Try the boots with a controller and touch in the race and the vents. Check whether the hold-to-brace reads before considering additional optional routes.
-3. Add a remapping screen on `bindings.ts`; tune drill-lode yields from a real economy run.
-4. Validate the legacy recovery routes and long-running breeding economy with sparse habitats and a low-power base. The desktop wrapper remains deferred.
+3. Tune the Phase 14 reward moments by ear on the iPhone and with a controller (pad buttons do not yet dismiss a major card).
+4. Add a remapping screen on `bindings.ts`; tune drill-lode yields from a real economy run.
+5. Validate the legacy recovery routes and long-running breeding economy with sparse habitats and a low-power base. The desktop wrapper remains deferred.
