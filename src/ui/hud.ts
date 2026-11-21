@@ -101,6 +101,11 @@ export class Hud {
     this.refreshInventory();
   }
 
+  /** Phase 14: the inventory chip for a material, for the pickup flare. */
+  chip(id: MaterialId): HTMLElement | null {
+    return this.chipEls.get(id)?.el ?? null;
+  }
+
   refreshInventory(bump?: MaterialId): void {
     const { bag, stored } = this.getSave();
     for (const id of MATERIAL_ORDER) {

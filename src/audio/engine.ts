@@ -380,6 +380,12 @@ export class AudioEngine {
     set(this.buses.ui, s.effects, 2.2);
   }
 
+  /** Phase 14: until this audio time, the music sits low under a reward fanfare. */
+  private stingUntil = 0;
+  duckForSting(seconds: number): void {
+    if (this.ctx) this.stingUntil = Math.max(this.stingUntil, this.ctx.currentTime + seconds);
+  }
+
   /** Milestone 12: the pause menu softens everything and dips the music. */
   setPaused(on: boolean): void {
     if (this.paused === on) return;
@@ -399,7 +405,9 @@ export class AudioEngine {
     const t = this.ctx.currentTime;
     this.water.frequency.setTargetAtTime(o.muffle, t, 0.25);
     this.space.gain.setTargetAtTime(o.space, t, 0.6);
-    this.duck.gain.setTargetAtTime(o.duck * (this.paused ? 0.45 : 1), t, 0.5);
+    // Phase 14: a reward moment dips the soundtrack so its fanfare stands out.
+    const sting = t < this.stingUntil ? 0.22 : 1;
+    this.duck.gain.setTargetAtTime(o.duck * (this.paused ? 0.45 : 1) * sting, t, sting < 1 ? 0.12 : 0.8);
     if (Math.abs(o.blackout - this.blackout) > 0.01) {
       this.blackout = o.blackout;
       this.applyFader(0.3);

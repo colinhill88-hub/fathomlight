@@ -39,6 +39,8 @@ export interface DockDeps {
   save: SaveData;
   layout: BaseLayout;
   toast(text: string, kind?: 'item' | 'scan' | 'big' | 'warn'): void;
+  /** Phase 14: a reward moment for a KS-1 upgrade ('plating' for depth plating). The first fit of each module only. */
+  reward?(what: SubModule | 'plating'): void;
   refreshInventory(): void;
   persist(): void;
   droneReady(): boolean;
@@ -178,6 +180,7 @@ export class DockMode {
     s.modules.push(m);
     this.deps.subChanged();
     this.deps.refreshInventory();
+    this.deps.reward?.(m);
     this.deps.toast(`${MODULES[m].name} fitted to KS-1`, 'big');
     this.deps.persist();
     this.render(true);
@@ -192,6 +195,7 @@ export class DockMode {
     s.plating = true;
     this.deps.subChanged();
     this.deps.refreshInventory();
+    this.deps.reward?.('plating');
     this.deps.toast(`Depth plating DP-S bolted on: KS-1 is rated to ${CRUSH.plated} m now (it was ${CRUSH.sub} m).`, 'big');
     this.deps.persist();
     this.render(true);

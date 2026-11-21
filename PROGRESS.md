@@ -18,6 +18,16 @@ Play link: https://colinhill88-hub.github.io/fathomlight/ (live; first successfu
 | Phase 11D | PR #31, `c07277f` | Indoor zoom and camera handoff, live surrounding ocean, per-module pressure hulls, connector seals and separate scaffolds. Layout collision stays on the existing map. |
 | Fulmar accessibility | PR #32, `78c8bb3` | Three-tile crew-deck foothold creates two normal jumps to the comms spool. |
 
+### Phase 14: reward moments
+
+Colin wanted every reward to feel like a reward: a card that shimmers and smashes down, and a dungeon chest where the hero lifts the item overhead to a short jingle. Rewards now come in three tiers, all drawn and synthesised in code. See the [Phase 14 notes](docs/phase-14-reward-moments.md).
+
+- **Minor (pickups):** the inventory chip flares and sparks. A bright ting climbs a step of the scale with each pickup in quick succession.
+- **Notable (finds, decodes, a first base piece, creatures caught, grown or hatched, whorls, spools, routes opened):** an emblem smashes down under the notices with a shockwave, a ribbon and one line, plus a slam-and-answer sting.
+- **Major (new gear, suits, air tanks, belt kit, KD-1, KS-1 and its first module fits, depth plating, signal fragments, the big puzzle payoffs):** slow motion and a darkened screen. The emblem rises off Kestrel on light rays while a riser swells, then slams to the centre with a flash, a shake, shockwaves and flares. A fanfare plays over a held chord while the music dips. A tap or key closes it after 1.7 s. Ordinary notices wait until it closes.
+- Choir rewards keep the Choir's colours and glassier bells. Creature rewards use a warm palette. `prefers-reduced-motion` drops the shake and slow motion.
+- **Validated:** typecheck, build and the progression checks. Browser captures of every phase at desktop and phone-landscape sizes. A real Workshop build (MB-1 on a fixture base) showed the card and held its notice until a tap. The output meter showed the stings well above the ambient bed. **Still needs Colin's ears and hands:** the mix on the iPhone speaker and headphones, and how the slow motion feels in play.
+
 ### Phase 13 gameplay pass (local)
 
 - **Contextual control helper.** A keycap bar along the bottom edge shows the bindings the game actually uses, by situation: swimming, KS-1, on foot, ladder, grapple swing and build mode. It leads with what the world offers on Collect, Scan or Board. Settings let the player choose contextual hints (the default), always show, or hide. Gamepad users get pad glyphs; touch keeps its own buttons. See `src/ui/controlHelper.ts`.

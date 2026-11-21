@@ -3809,3 +3809,233 @@ body.ctl-helper-on #collect-label,
 body.ctl-helper-on #scan-label {
   display: none;
 }
+
+/* ---- Phase 14: reward moments (src/ui/reward.ts) ---- */
+#reward-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  pointer-events: none;
+}
+#reward-layer.catch {
+  pointer-events: auto;
+}
+.reward-fx {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.reward-vignette {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at 50% 42%, rgba(2, 10, 16, 0.15) 0%, rgba(2, 8, 14, 0.62) 55%, rgba(0, 4, 8, 0.86) 100%);
+  opacity: 0;
+  transition: opacity 0.35s ease;
+}
+.reward-vignette.on {
+  opacity: 1;
+}
+.reward-flash {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 50% 40%, rgba(255, 250, 225, 0.85), rgba(255, 240, 200, 0.25) 45%, transparent 75%);
+  opacity: 0;
+}
+.reward-flash.go {
+  animation: reward-flash 0.5s ease-out;
+}
+@keyframes reward-flash {
+  0% { opacity: 0.95; }
+  100% { opacity: 0; }
+}
+
+.reward-emblem {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 132px;
+  height: 132px;
+  will-change: transform, opacity;
+  opacity: 0;
+}
+.reward-emblem.notable {
+  width: 84px;
+  height: 84px;
+}
+.reward-emblem-glow {
+  position: absolute;
+  inset: -30%;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 220, 130, 0.55), rgba(255, 210, 120, 0) 65%);
+  animation: reward-pulse 1.6s ease-in-out infinite;
+}
+.reward-emblem.choir .reward-emblem-glow {
+  background: radial-gradient(circle, rgba(111, 243, 255, 0.5), rgba(208, 124, 255, 0.18) 45%, rgba(208, 124, 255, 0) 70%);
+}
+.reward-emblem.life .reward-emblem-glow {
+  background: radial-gradient(circle, rgba(255, 220, 140, 0.5), rgba(168, 240, 122, 0.15) 45%, transparent 70%);
+}
+.reward-emblem-face {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  overflow: hidden;
+  background: radial-gradient(circle at 38% 30%, #3d474c, #182024 70%);
+  border: 3px solid #c9a24a;
+  box-shadow: 0 0 0 2px rgba(20, 26, 30, 0.9), 0 0 0 5px rgba(201, 211, 216, 0.55), 0 0 26px rgba(255, 214, 120, 0.55), inset 0 -6px 14px rgba(0, 0, 0, 0.5);
+}
+.reward-emblem.choir .reward-emblem-face {
+  border-color: #6ff3ff;
+  background: radial-gradient(circle at 40% 32%, #2a2448, #0c0a1a 72%);
+  box-shadow: 0 0 0 2px rgba(10, 8, 24, 0.9), 0 0 0 5px rgba(208, 124, 255, 0.55), 0 0 30px rgba(111, 243, 255, 0.6), inset 0 -6px 14px rgba(0, 0, 0, 0.5);
+}
+.reward-emblem-face svg {
+  position: absolute;
+  inset: 14%;
+  width: 72%;
+  height: 72%;
+  filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.6));
+}
+/* The shimmer: a band of light sweeping across the face, like a card catching the light. */
+.reward-shine {
+  position: absolute;
+  inset: -40%;
+  background: linear-gradient(115deg, transparent 38%, rgba(255, 255, 240, 0.0) 42%, rgba(255, 255, 240, 0.65) 50%, rgba(255, 255, 240, 0) 58%, transparent 62%);
+  transform: translateX(-70%);
+  animation: reward-shine 1.9s ease-in-out 0.15s infinite;
+  mix-blend-mode: screen;
+}
+.reward-emblem.slam .reward-shine {
+  animation-delay: 0s;
+}
+@keyframes reward-shine {
+  0% { transform: translateX(-70%); }
+  55%, 100% { transform: translateX(70%); }
+}
+@keyframes reward-pulse {
+  0%, 100% { transform: scale(0.92); opacity: 0.75; }
+  50% { transform: scale(1.08); opacity: 1; }
+}
+
+.reward-card {
+  position: absolute;
+  left: 50%;
+  top: calc(var(--card-y) + 82px);
+  transform: translate(-50%, 10px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  max-width: min(560px, 86vw);
+  text-align: center;
+  opacity: 0;
+  color: #fff3d0;
+  text-shadow: 0 2px 6px rgba(0, 0, 0, 0.85);
+  transition: opacity 0.3s ease, transform 0.45s cubic-bezier(0.2, 1.6, 0.4, 1);
+}
+.reward-card.notable {
+  top: calc(var(--card-y) + 52px);
+}
+/* A soft dark plate behind the words, so they read over bright shallows. */
+.reward-card::before {
+  content: '';
+  position: absolute;
+  inset: -26px -70px;
+  z-index: -1;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgba(3, 14, 20, 0.6), rgba(3, 14, 20, 0.38) 45%, rgba(3, 14, 20, 0.12) 75%, rgba(3, 14, 20, 0));
+}
+.reward-card.in {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+.reward-card.out {
+  opacity: 0;
+  transform: translate(-50%, -14px);
+  transition: opacity 0.35s ease, transform 0.35s ease;
+}
+.reward-ribbon {
+  padding: 3px 18px;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: #1d1608;
+  text-shadow: none;
+  background: linear-gradient(90deg, transparent, #c9a24a 14%, #f2d488 50%, #c9a24a 86%, transparent);
+  clip-path: polygon(0 0, 100% 0, 96% 50%, 100% 100%, 0 100%, 4% 50%);
+  transform: scaleX(0);
+  transition: transform 0.35s cubic-bezier(0.2, 1.4, 0.4, 1) 0.05s;
+}
+.reward-card.choir .reward-ribbon {
+  background: linear-gradient(90deg, transparent, #6ff3ff 14%, #e9fdff 50%, #d07cff 86%, transparent);
+}
+.reward-card.life .reward-ribbon {
+  background: linear-gradient(90deg, transparent, #c9a24a 14%, #fff0b8 50%, #a8d06a 86%, transparent);
+}
+.reward-card.in .reward-ribbon {
+  transform: scaleX(1);
+}
+.reward-title {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  font-size: 30px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  line-height: 1.1;
+}
+.reward-card.notable .reward-title {
+  font-size: 19px;
+}
+.reward-code {
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 0.55em;
+  font-weight: 700;
+  padding: 2px 6px;
+  border: 1px solid rgba(201, 162, 74, 0.8);
+  border-radius: 3px;
+  color: #f2d488;
+}
+.reward-code:empty {
+  display: none;
+}
+.reward-line {
+  font-size: 15px;
+  font-weight: 600;
+  color: #e4efec;
+  opacity: 0;
+  transition: opacity 0.4s ease 0.35s;
+}
+.reward-card.notable .reward-line {
+  font-size: 13px;
+}
+.reward-card.in .reward-line {
+  opacity: 0.95;
+}
+.reward-line:empty {
+  display: none;
+}
+
+/* A pickup: the inventory chip flares and glints. */
+.chip.reward-glint {
+  animation: reward-glint 0.55s ease-out;
+}
+.chip.bump.reward-glint {
+  animation: bump 0.45s ease-out, reward-glint 0.55s ease-out;
+}
+@keyframes reward-glint {
+  0% { box-shadow: 0 0 0 0 rgba(255, 220, 130, 0.9); filter: brightness(1.8); }
+  100% { box-shadow: 0 0 0 10px rgba(255, 220, 130, 0); filter: none; }
+}
+
+@media (max-height: 500px) {
+  .reward-emblem { width: 100px; height: 100px; }
+  .reward-emblem.notable { width: 64px; height: 64px; }
+  .reward-card { top: calc(var(--card-y) + 62px); }
+  .reward-card.notable { top: calc(var(--card-y) + 40px); }
+  .reward-title { font-size: 24px; }
+  .reward-card.notable .reward-title { font-size: 16px; }
+  .reward-line { font-size: 13px; }
+}
