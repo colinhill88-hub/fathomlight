@@ -22,7 +22,17 @@ Play link: https://colinhill88-hub.github.io/fathomlight/ (live; first successfu
 | Phase 16 (round 1) | review branch, not merged | The satchel's second jar slot works indoors; gathering, tools, docking and welds get anticipation, contact and release; round-robin variety; danger first in the mix; phone-speaker harmonics; an indoor room echo and hull filter; footsteps. |
 | Phase 14 | PR #36, `03b4c8f` | Reward moments: minor, notable and major tiers with drawn emblems, particles, slow motion and synthesised stings and fanfares. |
 
-### Phase 16: the satchel jar fix and the audio audit, round 1 (review branch)
+### Phase 16, round 2: the first recorded sounds (review branch)
+
+- **16 CC0 sound files** from Kenney's "Impact Sounds" pack (84 KB in total, mono MP3), logged in `public/audio/CREDITS.md`. The pack's own licence file says CC0. They're layered under the coded sounds, rotate without repeats and vary in pitch:
+  - stone and gravel for copper and ore coming loose, the copper strokes and the drill breaking through;
+  - metal for scrap and brass coming free;
+  - light glass for quartz snapping off;
+  - hard-floor footsteps in the base and the wrecks.
+  If a file fails to load, the coded sound plays alone.
+- **Validated:** typecheck, build and the progression checks. In `vite preview` all 16 files loaded and every cue played without clipping (the copper release was trimmed after measuring 0.52, louder than intended). **Needs Colin's ears:** gathering copper, scrap, quartz, ore and brass, drilling a lode, and walking in the base.
+
+### Phase 16: the satchel jar fix and the audio audit, round 1 (merged, PR #40)
 
 - **Satchel bug fixed.** With the specimen satchel, the base now fills both slots. "To jar" at a Habitat console or the Hatchery, and the Revival pool, fill whichever slot is free. Depositing a creature into a tank moves the satchel's creature up into the jar at once, so the next deposit is offered straight away, indoors or out. The buttons read **Jar full** (disabled, with a tooltip) only when both slots are full, or when the one jar is full and there is no satchel. One rule does it all: `jarRoom()`, `putInJar()` and `takeFromJar()` in `src/game/creatures.ts`. A blackout now also empties the satchel's slot the same way as the jar's (named creatures go back to their tank or the Hatchery, wild ones swim home); before, it only handled the first slot.
 - **Creature names fixed.** About half of all kept creatures showed the name "undefined" (a sign error in `creatureName()`, from Phase 13). They now get a real name; every name that already worked is unchanged. The progression checks now test 400 ids for each species.
