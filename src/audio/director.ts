@@ -1017,6 +1017,50 @@ export class SoundDirector {
     audio.hiss({ t, dur: 0.15, gain: 0.08, freq: 3000, to: 1200, q: 1.5 });
     if (hit) for (let i = 0; i < 6; i++) audio.hiss({ t: t + 0.18 + i * 0.03, dur: 0.02, gain: 0.07, freq: 4000 + Math.random() * 2000, q: 4 });
   }
+  /**
+   * Phase 17b: one heavy step in clamped mag-boots. A deep, clanking stomp:
+   * a low body thump, a recorded metal impact and footstep slowed right down,
+   * and a soft hiss of silt kicked up. All on the sfx bus, so the underwater
+   * muffle, the sliders and the phone mix apply. `weight` 0..1.
+   */
+  magStep(weight = 1): void {
+    if (!audio.running) return;
+    const t = audio.now;
+    const v = rr('magstep', 4);
+    const up = [1, semi(-1), semi(1.5), semi(-2)][v] * jit(0.03);
+    const g = (0.7 + 0.3 * weight) * jit(0.12);
+    audio.thump({ t, freq: 62 * up, gain: 0.11 * g, dur: 0.22, send: 0.3 });
+    audio.thump({ t: t + 0.01, freq: 140 * up, gain: 0.035 * g, dur: 0.08, send: 0.2 });
+    if (!this.sam('metal', { t, gain: 0.05 * g, rate: 0.5 * up, send: 0.35 })) audio.metal({ t, freq: 170 * up, gain: 0.035 * g, decay: 0.35, send: 0.35 });
+    this.sam('step', { t: t + 0.005, gain: 0.05 * g, rate: 0.55 * up, send: 0.25 });
+    audio.hiss({ t: t + 0.02, dur: 0.25, attack: 0.02, gain: 0.03 * g, type: 'lowpass', freq: 900 * up, to: 300, brown: true });
+    if (v === 2) this.sam('sand', { t: t + 0.05, gain: 0.02 * g, rate: 0.7, send: 0.2 });
+  }
+  /** Phase 17b: the boots landing after a hop or a slow sink off a ledge. `k` 0..1: how hard. */
+  magLand(k: number): void {
+    if (!audio.running) return;
+    const t = audio.now;
+    const g = 0.45 + 0.55 * k;
+    audio.thump({ t, freq: 48, gain: 0.16 * g, dur: 0.4, send: 0.45 });
+    audio.thump({ t: t + 0.015, freq: 110, gain: 0.05 * g, dur: 0.12, send: 0.3 });
+    if (!this.sam('metal', { t, gain: 0.07 * g, rate: 0.42, send: 0.45 })) audio.metal({ t, freq: 120, gain: 0.05 * g, decay: 0.6, send: 0.45 });
+    audio.hiss({ t: t + 0.02, dur: 0.5, attack: 0.03, gain: 0.05 * g, type: 'lowpass', freq: 800, to: 220, brown: true });
+    if (k > 0.4) this.sam('sand', { t: t + 0.08, gain: 0.03 * g, rate: 0.6, send: 0.25 });
+  }
+  /** Phase 17b: the boots' magnets clamping on (a clunk and a rising hum) or letting go (a release and a falling hum). */
+  magClamp(on: boolean): void {
+    if (!audio.running) return;
+    const t = audio.now;
+    if (on) {
+      audio.tone({ t, freq: 90, to: 140, dur: 0.25, attack: 0.03, gain: 0.04, type: 'triangle', lp: 600, send: 0.2 });
+      audio.metal({ t: t + 0.05, freq: 210, gain: 0.04, decay: 0.3, send: 0.3 });
+      audio.thump({ t: t + 0.05, freq: 90, gain: 0.07, dur: 0.12 });
+    } else {
+      audio.tone({ t, freq: 140, to: 80, dur: 0.22, attack: 0.02, gain: 0.035, type: 'triangle', lp: 600, send: 0.2 });
+      audio.metal({ t, freq: 320, gain: 0.025, decay: 0.15, send: 0.2 });
+      audio.bubbles({ t: t + 0.04, n: 5, spread: 0.3, gain: 0.025 });
+    }
+  }
   /** The TH-3 dash: a hard burst of the thruster. */
   dash(): void {
     if (!audio.running) return;

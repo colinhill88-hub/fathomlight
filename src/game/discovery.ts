@@ -65,7 +65,7 @@ export function discoveryNotes(save: SaveData): string[] {
   }
   if (save.vane) notes.push('Wreck Shelf · Flow vane raised. KS-1 can cross above the deep race. The lower anchors still mark a route for a diver.');
   else if (save.scans.includes('race')) notes.push('Wreck Shelf · Follow the anchor rings with a grapple to reach the flow-vane winch on the far side.');
-  if (save.gear.includes('boots')) notes.push('Mag-boots · Hold Down near the seabed to brace in currents, including lift from vents. Move sideways to edge along the bottom. Release Down to swim freely.');
+  if (save.gear.includes('boots')) notes.push('Mag-boots · Press Boots (N, the d-pad\'s up, or the Boots button) to clamp them on: you drop to the seabed and walk it, and currents and vent lift can\'t move you. Jump hops. Walk off an edge and you sink slowly. Press Boots again to swim.');
   // Phase 13: the drill nose, from its first clue to its lasting job.
   const drillFitted = !!save.sub?.modules.includes('drill');
   const lodesSeen = save.scans.includes('lode');

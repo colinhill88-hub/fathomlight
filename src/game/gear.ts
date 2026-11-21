@@ -197,7 +197,7 @@ export const RESEARCH: Record<BlueprintId, ResearchDef> = {
   boots: {
     id: 'boots',
     name: 'Mag-boots blueprint',
-    text: 'From your scans of the race current and its anchor rings: soles that grip rock. Hold Down near the bottom to brace against currents or edge sideways while planted.',
+    text: 'From your scans of the race current and its anchor rings: magnetic soles that clamp to rock and steel. Clamp them on to walk the seabed where currents would sweep a swimmer away.',
     finds: [],
     scans: ['race', 'ring'],
     seconds: 60,
@@ -439,7 +439,7 @@ export const GEAR: Record<GearId, GearDef> = {
     id: 'boots',
     name: 'Mag-boots',
     code: 'MB-1',
-    job: 'Reduces drift near the seabed. Hold Down near solid ground to brace, then move sideways to edge along the bottom. Useful in the deep race, against vent updrafts and for stopping precisely at salvage.',
+    job: 'Clamp them on (the Boots button) and you sink to the seabed and walk it: heavy, slow, and no current or vent updraft can move you. Jump hops; press Boots again to swim. Walk the floor of the deep race, or stand firm at salvage.',
     blueprint: 'boots',
     cost: { brass: 3, plate: 2, copper: 2 },
     seconds: 55,

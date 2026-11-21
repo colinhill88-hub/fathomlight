@@ -21,7 +21,7 @@ import { binding, bindingsVersion, keyName, padName, type Action } from '../cont
  */
 
 export type HelperPref = 'contextual' | 'always' | 'hidden';
-export type HelperMode = 'swim' | 'sub' | 'foot' | 'climb' | 'swing' | 'build' | 'none';
+export type HelperMode = 'swim' | 'sub' | 'foot' | 'climb' | 'swing' | 'build' | 'boots' | 'none';
 export type Device = 'touch' | 'keyboard' | 'mouse' | 'gamepad';
 
 export interface HelperContext {
@@ -47,8 +47,14 @@ export interface HelperContext {
   sonar: boolean;
   /** KS-1 floodlights fitted (aboard), otherwise the diver's lamp. */
   lights: boolean;
-  /** Mag-boots on, close to the seabed. */
+  /** Mag-boots on, close to the seabed. (Phase 17b: no longer offered; the Boots toggle replaced hold-to-brace.) */
   brace: boolean;
+  /**
+   * Phase 17b: the mag-boots toggle. 'offer' when they are owned and the seabed
+   * or a current is close (clamping on is offered as a world action), 'own' when
+   * owned (a standing row while swimming), null otherwise. While clamped the mode is 'boots'.
+   */
+  boots?: 'offer' | 'own' | null;
   /** On foot: a ladder within reach. */
   ladder: boolean;
   /** Zoom works here (open water or the base on foot). */
@@ -84,7 +90,7 @@ export function helperRows(c: HelperContext): HelperRow[] {
   if (c.dock) add({ id: 'dock', keys: ['dock'], label: 'Dock panel', context: true });
   if (c.lab) add({ id: 'lab', keys: ['lab'], label: 'Open the station', context: true });
   if (c.build) add({ id: 'build', keys: ['build'], label: 'Build', context: true });
-  if (c.brace) add({ id: 'brace', keys: ['down'], label: 'Brace mag-boots', hold: true, context: true });
+  if (c.boots === 'offer' && c.mode === 'swim') add({ id: 'boots', keys: ['boots'], label: 'Clamp mag-boots', context: true });
 
   switch (c.mode) {
     case 'swim':
@@ -95,6 +101,19 @@ export function helperRows(c: HelperContext): HelperRow[] {
       if (c.flare) add({ id: 'flare', keys: ['flare'], label: 'Flare' });
       if (c.dart) add({ id: 'dart', keys: ['dart'], label: 'Stun dart' });
       if (c.haul) add({ id: 'haul', keys: ['haul'], label: 'Send KD-1 home' });
+      if (c.release) add({ id: 'release:' + c.release, keys: ['release'], label: `Release ${c.release}` });
+      if (c.boots === 'own') add({ id: 'boots', keys: ['boots'], label: 'Mag-boots' });
+      add({ id: 'kit', keys: ['kit'], label: 'Field kit' });
+      break;
+    case 'boots':
+      // Phase 17b: walking the seabed in clamped mag-boots.
+      add({ id: 'unclamp', keys: ['boots'], label: 'Let go (swim)', context: true });
+      add({ id: 'walk', keys: ['moveX'], label: 'Walk' });
+      add({ id: 'hop', keys: ['jump'], label: 'Hop' });
+      if (!c.scan) add({ id: 'scan', keys: ['scan'], label: c.sonar ? 'Scan · sonar pulse' : 'Scan', hold: false });
+      add({ id: 'lamp', keys: ['lamp'], label: 'Lamp' });
+      if (c.flare) add({ id: 'flare', keys: ['flare'], label: 'Flare' });
+      if (c.dart) add({ id: 'dart', keys: ['dart'], label: 'Stun dart' });
       if (c.release) add({ id: 'release:' + c.release, keys: ['release'], label: `Release ${c.release}` });
       add({ id: 'kit', keys: ['kit'], label: 'Field kit' });
       break;

@@ -2,6 +2,8 @@ import { Container, Graphics, Point, Sprite, Text, type Texture } from 'pixi.js'
 import { isSolid } from '../world/terrain';
 import { mulberry32 } from '../rng';
 import { BREATH_OUT, Glance, Spring, approach, batchAll, breathShape } from './animkit';
+import type { Walker } from './walker';
+import { MAG, floorBetween, magClamp, magStep, type MagBody, type MagResult } from '../game/magboots';
 import { KestrelExpression, kestrelFin, kestrelHand, kestrelHelmet, kestrelLimb, kestrelTorso } from './kestrelArt';
 import { KestrelSwimMotion, type KestrelAction } from './kestrelMotion';
 
@@ -1069,6 +1071,17 @@ export class Diver {
   /** Reused for lampPose so the per-frame lamp query makes no garbage. */
   private readonly lampOut: LampPose = { x: 0, y: 0, dirX: 1, dirY: 0 };
 
+  // ---- Phase 17b: clamped mag-boots. The on-foot rig stands in for the swimming body. ----
+  /** The mag-boots are clamped on: Kestrel walks the seabed (main.ts toggles it with the Boots action). */
+  clamped = false;
+  private walkRig: Walker | null = null;
+  private walkHost = new Container();
+  private readonly mag: MagBody = { x: 0, y: 0, vx: 0, vy: 0, onFloor: false };
+  private walkBreath = 1.5;
+  private readonly walkPt = { x: 0, y: 0 };
+  /** Walker units to world units: the standing rig at the swimmer's size. */
+  static readonly WALK_K = 0.9;
+
   private static readonly SCALE = 0.86;
   private static readonly RADIUS = 26;
   private static readonly SPEED = 230;
@@ -1307,7 +1320,12 @@ export class Diver {
     if (!on) return;
     const n = Math.min(4, this.kit.tanks);
     const top = n >= 3 ? -49 : n === 2 ? -38 : -27;
-    const [x, y] = this.toWorld(RESON_BACK.x * 0.88, Math.min(top, -27) + RESON_BACK.dy);
+    let [x, y] = this.toWorld(RESON_BACK.x * 0.88, Math.min(top, -27) + RESON_BACK.dy);
+    if (this.clamped && this.walkRig) {
+      const p = this.walkWorld(this.walkRig.resonPoint());
+      x = p.x;
+      y = p.y;
+    }
     const c = choirColour(this.time * (0.5 + this.singing * 2));
     const s = this.singing;
     const pulse = 0.5 + 0.5 * Math.sin(this.time * (2 + s * 9));
@@ -1324,8 +1342,140 @@ export class Diver {
     return { x: this.resonDot.x, y: this.resonDot.y };
   }
 
+  /**
+   * Phase 17b: give the diver its on-foot rig (made in main.ts with the same
+   * look flags), drawn instead of the swimming body while the boots are clamped.
+   */
+  attachWalker(w: Walker): void {
+    this.walkRig = w;
+    w.visor = w.visorTarget = 0;
+    const K = Diver.WALK_K;
+    // Planted boots sit on the seabed under each foot, so slopes read.
+    w.floorAt = (wx) => {
+      const x = wx * K;
+      const sole = this.y + MAG.foot;
+      const f = floorBetween(x, sole - 18, sole + 18, isSolid);
+      return (f ?? sole) / K;
+    };
+    this.walkHost.scale.set(K);
+    this.walkHost.visible = false;
+    this.walkHost.addChild(w.view);
+    this.view.addChild(this.walkHost);
+  }
+
+  /** Clamp the boots on (Kestrel drops to the seabed) or let go (swimming at once). The position never moves. */
+  setClamped(on: boolean): void {
+    if (on === this.clamped || (on && !this.walkRig)) return;
+    this.clamped = on;
+    if (on) {
+      const m = this.mag;
+      m.x = this.x;
+      m.y = this.y;
+      m.vx = this.vx;
+      m.vy = this.vy;
+      magClamp(m, isSolid);
+      this.vx = m.vx;
+      this.vy = m.vy;
+      this.surfaced = false;
+      this.boostTime = 0;
+      this.cancelSurfaceReaction();
+      const w = this.walkRig!;
+      const K = Diver.WALK_K;
+      w.x = this.x / K;
+      w.y = (this.y + MAG.foot) / K;
+      w.vx = this.vx / K;
+      w.vy = this.vy / K;
+      w.face = this.face;
+      w.onGround = m.onFloor;
+      w.pose = m.onFloor ? 'stand' : 'fall';
+      w.arrive();
+      this.body.visible = false;
+      this.walkHost.visible = true;
+    } else {
+      this.body.visible = true;
+      this.walkHost.visible = false;
+      this.resonDot.visible = this.resonGlow.visible = false;
+      // Swimming picks up from the walk: the facing and speed carry over.
+      this.faceS.set(this.face);
+    }
+  }
+
+  /** Is the clamped diver standing on the bottom (not mid-hop or sinking off a ledge)? */
+  get onFloor(): boolean {
+    return this.clamped && this.mag.onFloor;
+  }
+
+  /**
+   * Phase 17b: one frame walking in clamped boots (instead of `update`).
+   * Returns what happened (a landing, a hop) and whether a boot came down.
+   */
+  walkFrame(dt: number, moveX: number, hop: boolean, toggleLamp: boolean): MagResult & { step: boolean; stepX: number; stepY: number } {
+    const w = this.walkRig!;
+    const K = Diver.WALK_K;
+    this.time += dt;
+    if (toggleLamp) this.lampOn = !this.lampOn;
+    this.lampLevel += ((this.lampOn ? 1 : 0) - this.lampLevel) * Math.min(1, dt * 10);
+    this.splash = 0;
+    this.exhale = false;
+    this.surfaced = false;
+    const m = this.mag;
+    m.x = this.x;
+    m.y = this.y;
+    // A heavy dive bag makes the walk a little slower still.
+    const r = magStep(m, moveX * (1 - 0.15 * Math.min(1.6, this.load)), hop, dt, isSolid);
+    this.x = m.x;
+    this.y = m.y;
+    this.vx = m.vx;
+    this.vy = m.vy;
+    if (moveX > 0.15) this.face = 1;
+    else if (moveX < -0.15) this.face = -1;
+    this.faceS.set(this.face);
+    this.speedNorm = Math.min(1.6, Math.hypot(this.vx, this.vy) / Diver.SPEED);
+    // A calm breath out every few seconds, quicker while walking.
+    this.walkBreath -= dt;
+    if (this.walkBreath <= 0) {
+      this.walkBreath = 3.6 - 0.8 * Math.min(1, Math.abs(this.vx) / MAG.walk);
+      this.bubblesDue += 4;
+    }
+    w.x = this.x / K;
+    w.y = (this.y + MAG.foot) / K;
+    w.vx = this.vx / K;
+    w.vy = this.vy / K;
+    w.face = this.face;
+    w.onGround = m.onFloor;
+    w.pose = m.onFloor ? (Math.abs(this.vx) > 8 ? 'walk' : 'stand') : this.vy < 0 ? 'jump' : 'fall';
+    w.heavy = 1;
+    w.kit = this.kit;
+    w.jar = this.jar;
+    w.load = this.load;
+    w.lampOn = this.lampOn;
+    w.singing = this.singing;
+    w.working = this.working ? 1 : 0;
+    const before = w.footfalls;
+    w.animate(dt);
+    this.view.position.set(this.x, this.y);
+    this.view.scale.set(1, 1);
+    this.walkHost.position.set(-this.x, -this.y);
+    this.strokeWake.x = this.x;
+    this.strokeWake.y = this.y + MAG.foot;
+    this.strokeWake.strength = 0.25 * Math.min(1, Math.abs(this.vx) / MAG.walk);
+    this.placeResonator();
+    return { ...r, step: w.footfalls !== before && m.onFloor, stepX: w.lastStepX * K, stepY: this.y + MAG.foot };
+  }
+
+  /** A walker point (its own units, from the rig) in the world. */
+  private walkWorld(p: { x: number; y: number }): { x: number; y: number } {
+    this.walkPt.x = p.x * Diver.WALK_K;
+    this.walkPt.y = p.y * Diver.WALK_K;
+    return this.walkPt;
+  }
+
   /** The middle of the helmet, in world space (for breath vapour and the surface splash). */
   helmetPoint(): [number, number] {
+    if (this.clamped && this.walkRig) {
+      const p = this.walkWorld(this.walkRig.head());
+      return [p.x, p.y];
+    }
     return this.toWorld(58, -5);
   }
 
@@ -1352,6 +1502,15 @@ export class Diver {
    * every call (copy the numbers if you need to keep them).
    */
   lampPose(): LampPose {
+    if (this.clamped && this.walkRig) {
+      const p = this.walkWorld(this.walkRig.lampPoint());
+      const o = this.lampOut;
+      o.x = p.x;
+      o.y = p.y;
+      o.dirX = this.face * 0.99;
+      o.dirY = 0.14;
+      return o;
+    }
     const [x, y] = this.toWorld(Diver.LAMP.x, Diver.LAMP.y);
     const r = this.body.rotation;
     const dyl = 0.1; // aim slightly downwards
@@ -1376,6 +1535,10 @@ export class Diver {
   }
 
   bubblePoint(): [number, number] {
+    if (this.clamped && this.walkRig) {
+      const p = this.walkWorld(this.walkRig.head());
+      return [p.x + this.face * 6, p.y - 2];
+    }
     return this.toWorld(Diver.BUBBLE.x, Diver.BUBBLE.y);
   }
 

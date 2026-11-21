@@ -889,8 +889,18 @@ export class Walker {
   // ---------------------------------------------------------------------------
 
   animate(dtIn: number): void {
-    // Springs are stable to about 1/20 s; a long hitch just slows the animation.
-    const dt = Math.min(dtIn, 0.05);
+    // A long hitch just slows the animation (at most 1/20 s per frame), and the stiffest
+    // springs (the turn, at 17 rad/s) run in steps of at most 1/60 s, where they stay stable
+    // (Phase 17b: a slow frame turning round could make the mirror spring blow up).
+    let left = Math.min(dtIn, 0.05);
+    while (left > 1e-6) {
+      const h = Math.min(left, 1 / 60);
+      this.animateStep(h);
+      left -= h;
+    }
+  }
+
+  private animateStep(dt: number): void {
     if (dt <= 0) return;
     if (!this.started) this.arrive();
     this.time += dt;

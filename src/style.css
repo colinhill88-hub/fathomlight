@@ -4068,6 +4068,49 @@ body.touch #btn-release:not([hidden]) {
   color: #1d1a12;
 }
 
+/* Phase 17b: the touch buttons added after the first set sit inside #controls (pointer-events: none),
+   so they must take touches themselves. Before this, Flare, Dart, Send and Release let taps fall through. */
+#btn-flare,
+#btn-dart,
+#btn-haul,
+#btn-release,
+#btn-boots {
+  pointer-events: auto;
+  touch-action: none;
+}
+
+/* ---- Phase 17b: the mag-boots toggle (touch button, once the boots are owned). Lit while clamped. ---- */
+#btn-boots {
+  position: absolute;
+  right: calc(var(--safe-right) + 154px);
+  bottom: calc(var(--safe-bottom) + 196px);
+  min-width: 46px;
+  height: 46px;
+  padding: 0 10px;
+  border-radius: 23px;
+  border: 1px solid var(--ui-line);
+  background: var(--ui-bg);
+  color: #e8f4f2;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 600;
+}
+body.touch #btn-boots:not([hidden]) {
+  display: flex;
+}
+#btn-boots.on {
+  border-color: #c6f03a;
+  color: #c6f03a;
+  box-shadow: 0 0 10px rgba(198, 240, 58, 0.35);
+}
+#btn-boots.pressed {
+  background: var(--ui-accent);
+  color: #1d1a12;
+}
+
 /* ---- Phase 15: the Field kit (src/ui/fieldkit.ts) ---- */
 body.building #kit-btn,
 body.caring #kit-btn,
