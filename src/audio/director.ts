@@ -63,6 +63,8 @@ export interface AudioFrame {
   indoors?: 'base' | 'wreck' | null;
   /** Phase 16: on foot: walking speed (px/s) and whether the boots are on the floor. */
   walk?: { speed: number; ground: boolean };
+  /** Phase 16 round 3: creatures out in the world near the listener (not eggs), for their soft calls. */
+  critters?: { species: string; x: number; y: number; young: boolean }[];
 }
 
 const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
@@ -118,6 +120,8 @@ export class SoundDirector {
     /** Phase 16: the drill nose (motor and rock grind) and KD-1's little propeller. */
     drill: { gain: GainNode; motor: OscillatorNode; grind: BiquadFilterNode; grindG: GainNode };
     whir: { gain: GainNode; osc: OscillatorNode; pan: StereoPannerNode | null };
+    /** Round 3: KS-1 idling, heard from outside (placed where the sub is). */
+    idle: { gain: GainNode; pan: StereoPannerNode | null };
   } | null = null;
   /** Phase 16: the work under way last frame (to hear its release), and clocks for small repeating cues. */
   private lastWork: WorkKind | null = null;
@@ -125,6 +129,8 @@ export class SoundDirector {
   private drillGrit = 0;
   private stepClock = 0;
   private dronePrev: { x: number; y: number } | null = null;
+  /** Round 3: seconds until a nearby creature next calls. */
+  private callClock = 3;
 
   constructor() {
     audio.onReady(() => this.build());
@@ -300,7 +306,48 @@ export class SoundDirector {
       audio.route(whirPan, 'sfx', 0.2);
     } else audio.route(whirG, 'sfx', 0.2);
 
+    // Round 3: KS-1 idling, heard from outside: a low electric hum with a pump that breathes slowly,
+    // and a faint higher whine so it still reads on a phone speaker. Panned and faded by distance.
+    const idleG = ctx.createGain();
+    idleG.gain.value = 0;
+    const idleF = ctx.createBiquadFilter();
+    idleF.type = 'lowpass';
+    idleF.frequency.value = 700;
+    const idlePump = ctx.createGain();
+    idlePump.gain.value = 0.75;
+    const pumpLfo = ctx.createOscillator();
+    pumpLfo.frequency.value = 0.9;
+    const pumpAmt = ctx.createGain();
+    pumpAmt.gain.value = 0.25;
+    pumpLfo.connect(pumpAmt);
+    pumpAmt.connect(idlePump.gain);
+    pumpLfo.start();
+    for (const [f, type, g] of [
+      [48, 'sawtooth', 0.5],
+      [144, 'triangle', 0.35],
+      [233, 'triangle', 0.25],
+      [961, 'sine', 0.04],
+    ] as [number, OscillatorType, number][]) {
+      const o = ctx.createOscillator();
+      o.type = type;
+      o.frequency.value = f;
+      o.detune.value = Math.random() * 8 - 4;
+      const og = ctx.createGain();
+      og.gain.value = g;
+      o.connect(og);
+      og.connect(idleF);
+      o.start();
+    }
+    idleF.connect(idlePump);
+    idlePump.connect(idleG);
+    const idlePan = ctx.createStereoPanner ? ctx.createStereoPanner() : null;
+    if (idlePan) {
+      idleG.connect(idlePan);
+      audio.route(idlePan, 'sfx', 0.25);
+    } else audio.route(idleG, 'sfx', 0.25);
+
     this.loops = {
+      idle: { gain: idleG, pan: idlePan },
       drill: { gain: drillG, motor, grind, grindG },
       whir: { gain: whirG, osc: whirO, pan: whirPan },
       rumble,
@@ -365,7 +412,7 @@ export class SoundDirector {
     if (p.sub && f.sub && p.sub.docked !== f.sub.docked && f.aboard) this.clamps(f.sub.docked);
     if (p.boosting === false && f.boosting && !f.aboard && !f.surfaced) {
       audio.hiss({ dur: 0.5, gain: 0.08, freq: 300, to: 900, q: 0.8, brown: true });
-      audio.bubbles({ n: 8, spread: 0.4, gain: 0.03, low: 300, high: 900 });
+      if (!this.sam('bubble', { gain: 0.035, rate: 0.8 })) audio.bubbles({ n: 8, spread: 0.4, gain: 0.03, low: 300, high: 900 });
     }
     if (p.blackout !== undefined && p.blackout <= 0.02 && f.blackout > 0.02) this.heartbeat();
     if (p.blackout !== undefined && p.blackout > 0.3 && f.blackout <= 0.3 && f.blackout < (p.blackout ?? 0)) {
@@ -408,8 +455,12 @@ export class SoundDirector {
           this.breathClock = period * 0.4;
         } else {
           // Breathing out: a rush of bubbles from the regulator.
-          audio.hiss({ dur: 1.0, attack: 0.1, gain: level * 0.8, freq: 380, q: 0.9, brown: true, send: 0.05 });
-          audio.bubbles({ t: t + 0.1, n: 10 + Math.round(8 * f.lowAir), spread: 1.1, gain: level * 0.7, low: 260, high: 1000 });
+          // Round 3: a recorded regulator exhale carries the bubbles; the synthesised rush stays under it,
+          // and the synthesised bubbles take over if the file is not loaded.
+          audio.hiss({ dur: 1.0, attack: 0.1, gain: level * 0.5, freq: 380, q: 0.9, brown: true, send: 0.05 });
+          if (!this.sam('exhale', { t: t + 0.05, gain: level * 1.1, rate: 1 - 0.08 * f.lowAir, send: 0.05 }))
+            audio.bubbles({ t: t + 0.1, n: 10 + Math.round(8 * f.lowAir), spread: 1.1, gain: level * 0.7, low: 260, high: 1000 });
+          else if (f.lowAir > 0) audio.bubbles({ t: t + 0.1, n: Math.round(8 * f.lowAir), spread: 1.1, gain: level * 0.5, low: 260, high: 1000 });
           this.breathPhase = 'in';
           this.breathClock = period * 0.6;
         }
@@ -472,6 +523,8 @@ export class SoundDirector {
         const v = rr('drill', 4);
         audio.hiss({ dur: 0.018 + 0.01 * v, gain: (0.05 + 0.04 * dk) * jit(0.2), freq: (1600 + 500 * v) * jit(0.1), q: 2.5, send: 0.2 });
         if (v === 0) audio.metal({ freq: 150 * jit(0.15), gain: 0.03, decay: 0.2, send: 0.25 });
+        // Round 3: loosened grit pouring off the nose now and then (a recorded trickle, slowed).
+        else if (v === 2 && Math.random() < 0.5) this.sam('sand', { gain: 0.025 + 0.025 * dk, rate: 0.6 + 0.2 * dk, send: 0.25 });
       }
     } else D.gain.gain.setTargetAtTime(0, t, 0.12);
 
@@ -547,6 +600,26 @@ export class SoundDirector {
       mo.wash.gain.setTargetAtTime(0, t, 0.4);
       mo.whine.gain.setTargetAtTime(0, t, 0.3);
     }
+    // Round 3: KS-1 heard from outside: idling where it is parked, louder as you swim up to it.
+    const I = L.idle;
+    if (S && S.built && !f.aboard && !indoors && !out) {
+      const pl = this.place(S.x, S.y, f, 700);
+      I.gain.gain.setTargetAtTime(0.06 * pl.g, t, 0.4);
+      if (I.pan) I.pan.pan.setTargetAtTime(pl.pan, t, 0.3);
+    } else I.gain.gain.setTargetAtTime(0, t, 0.3);
+
+    // ---- Round 3: soft creature calls, placed where each creature is ----
+    this.callClock -= dt;
+    if (this.callClock <= 0) {
+      this.callClock = 4 + Math.random() * 6;
+      const near = (f.critters ?? []).filter((c) => this.place(c.x, c.y, f, 900).g > 0.02);
+      if (near.length && !out && !indoors && !f.panel) {
+        const c = near[Math.floor(Math.random() * near.length)];
+        const pl = this.place(c.x, c.y, f, 900);
+        this.creatureCall(c.species, c.young, pl.g, pl.pan);
+      }
+    }
+
     if (p.sub && S && !p.sub.thrust && S.thrust && f.aboard) {
       audio.hiss({ dur: 0.8, gain: 0.12, freq: 260, to: 700, q: 0.7, brown: true, send: 0.2 });
       audio.bubbles({ n: 14, spread: 0.6, gain: 0.035, low: 250, high: 800 });
@@ -591,7 +664,9 @@ export class SoundDirector {
       case 'copper': // Dig out: the trowel thuds into gravel, stones scatter, sand trickles as it loosens.
         audio.thump({ freq: 150 * up, gain: 0.09 * amp, dur: 0.16, pan });
         if (!this.sam('mining', { t, gain: 0.045 * amp, rate: 1.15 * up, pan })) this.gravel(t + 0.015, 3 + v, 0.05 * amp, up, pan);
-        if (strain) audio.hiss({ t: t + 0.08, dur: 0.35, attack: 0.05, gain: 0.025 * amp, type: 'lowpass', freq: 1400 * up, pan, brown: true });
+        // Round 3: near the end, sand trickles out from around the nugget (a recorded trickle, every other stroke).
+        if (strain && (v % 2 === 1 || !this.sam('sand', { t: t + 0.08, gain: 0.03 * amp, rate: 0.75 * up, pan })))
+          audio.hiss({ t: t + 0.08, dur: 0.35, attack: 0.05, gain: 0.025 * amp, type: 'lowpass', freq: 1400 * up, pan, brown: true });
         return 0.42 * pace;
       case 'ore': // Chip off vent ore: dull cracks into warm crust, warm water hissing out of the cracks.
         audio.thump({ freq: 110 * up, gain: 0.07 * amp, dur: 0.14, pan });
@@ -692,9 +767,14 @@ export class SoundDirector {
         audio.thump({ t: t + 0.02, freq: 80, gain: 0.11, dur: 0.6, pan, send: 0.4 });
         audio.hiss({ t: t + 0.05, dur: 0.9, attack: 0.04, gain: 0.045, type: 'lowpass', freq: 900, to: 250, pan, brown: true });
         audio.bubbles({ t: t + 0.05, n: 18, spread: 0.8, gain: 0.04, low: 300, high: 1400, pan });
+        // Round 3: the last stalks of the wall snap (recorded, slowed: big, tough kelp) and a burst of bubbles.
+        this.sam('kelp', { t: t + 0.01, gain: 0.05, rate: 0.5, pan, send: 0.4 });
+        this.sam('kelp', { t: t + 0.16, gain: 0.03, rate: 0.6, pan: pan * 0.5, send: 0.4 });
+        this.sam('bubble', { t: t + 0.1, gain: 0.04, rate: 0.7, pan });
         break;
       case 'bracket': // A bracket lit: the moss comes free with a soft rip and a puff.
-        audio.hiss({ t, dur: 0.12, gain: 0.06, freq: 900, to: 2600, q: 1.2, pan });
+        this.sam('rip', { t, gain: 0.05, rate: 0.75, pan });
+        audio.hiss({ t, dur: 0.12, gain: 0.045, freq: 900, to: 2600, q: 1.2, pan });
         audio.bubbles({ t: t + 0.04, n: 6, spread: 0.3, gain: 0.03, pan });
         break;
       case 'recorder': // The last latch springs.
@@ -702,7 +782,7 @@ export class SoundDirector {
         audio.thump({ t: t + 0.03, freq: 240, gain: 0.05, dur: 0.08, pan });
         break;
       case 'creature': // In: the lid snaps shut over a swirl of bubbles.
-        audio.bubbles({ t, n: 8, spread: 0.35, gain: 0.03, low: 500, high: 1400, pan });
+        if (!this.sam('bubble', { t, gain: 0.035, rate: 1.15, pan })) audio.bubbles({ t, n: 8, spread: 0.35, gain: 0.03, low: 500, high: 1400, pan });
         audio.tone({ t: t + 0.18, freq: 1500, to: 1100, dur: 0.03, gain: 0.03, type: 'triangle', pan });
         break;
       default:
@@ -724,6 +804,7 @@ export class SoundDirector {
       case 'copper': // Pops out of the gravel: a crunch, stones skittering, the nugget's dull ring.
         audio.thump({ t, freq: 140 * up, gain: 0.12, dur: 0.2 });
         if (!this.sam('mining', { t, gain: 0.065, rate: 0.85 * up })) this.gravel(t, 7, 0.07, up, 0);
+        this.sam('sand', { t: t + 0.06, gain: 0.015, rate: 0.85 * up });
         audio.metal({ t: t + 0.05, freq: 620 * up, gain: 0.025, decay: 0.35, send: 0.3 });
         break;
       case 'scrap': // Tears free: a short screech, a clank and the rattle of loose bits.
@@ -744,12 +825,16 @@ export class SoundDirector {
         break;
       case 'moss':
       case 'bloom': // Peels away with a soft rip and a puff of spores.
-        audio.hiss({ t, dur: 0.13, gain: 0.06, freq: 900 * up, to: 2400 * up, q: 1.2 });
+        // Round 3: a recorded rip, pitched down and muffled by the water, over the synthesised tear.
+        this.sam('rip', { t, gain: 0.05, rate: 0.8 * up });
+        audio.hiss({ t, dur: 0.13, gain: 0.04, freq: 900 * up, to: 2400 * up, q: 1.2 });
         audio.hiss({ t: t + 0.08, dur: 0.3, attack: 0.05, gain: 0.025, type: 'lowpass', freq: 1500 });
         if (kind === 'bloom') audio.bell({ t: t + 0.06, freq: 1568 * up, gain: 0.018, decay: 1.1, ratio: 3.01, index: 0.3, send: 0.6 });
         break;
       case 'fibre': // The stalk parts: a crisp snap and a swish as it drifts.
-        audio.hiss({ t, dur: 0.025, gain: 0.1, freq: 3000 * up, q: 1.5 });
+        // Round 3: a recorded snap (pitched down a little: kelp is thicker than celery).
+        this.sam('kelp', { t, gain: 0.06, rate: 0.75 * up });
+        audio.hiss({ t, dur: 0.025, gain: 0.07, freq: 3000 * up, q: 1.5 });
         audio.tone({ t, freq: 240 * up, to: 140, dur: 0.06, gain: 0.04, type: 'triangle', lp: 900 });
         audio.hiss({ t: t + 0.05, dur: 0.3, attack: 0.04, gain: 0.03, freq: 1300, to: 700, q: 1 });
         break;
@@ -780,6 +865,7 @@ export class SoundDirector {
     audio.hiss({ t, dur: 0.06, gain: 0.09, freq: 1400, q: 1, brown: true });
     if (!this.sam('mining', { t, gain: 0.08, rate: 0.6, send: 0.35 })) this.gravel(t + 0.03, 12, 0.06, 0.8, 0);
     this.sam('mining', { t: t + 0.18, gain: 0.06, rate: 0.5, send: 0.4 });
+    this.sam('sand', { t: t + 0.3, gain: 0.05, rate: 0.55, send: 0.4 });
     audio.hiss({ t: t + 0.08, dur: 1.1, attack: 0.05, gain: 0.035, type: 'lowpass', freq: 600, to: 200, brown: true, send: 0.4 });
     audio.bubbles({ t: t + 0.1, n: 14, spread: 0.8, gain: 0.035, low: 250, high: 1000 });
   }
@@ -806,7 +892,9 @@ export class SoundDirector {
     const t = audio.now;
     audio.thump({ t, freq: 120 * up, gain: 0.042 * g, dur: 0.09, send: 0.15 });
     audio.hiss({ t, dur: 0.03, gain: 0.025 * g, freq: 2200 * up, q: 1.2 });
-    this.sam('step', { t, gain: (surface === 'deck' ? 0.045 : 0.035) * g, rate: (surface === 'deck' ? 0.9 : 0.75) * up, send: 0.2 });
+    // Round 3: wet metal steps (recorded) in the wrecks; hard-floor steps on the base's decks.
+    if (surface === 'deck' || !this.sam('wetstep', { t, gain: 0.05 * g, rate: 0.9 * up, send: 0.2 }))
+      this.sam('step', { t, gain: (surface === 'deck' ? 0.045 : 0.035) * g, rate: (surface === 'deck' ? 0.9 : 0.75) * up, send: 0.2 });
     if (surface === 'deck') {
       // A grating rings a little.
       if (v % 2 === 0) audio.metal({ t: t + 0.004, freq: 420 * up, gain: 0.012 * g, decay: 0.18 });
@@ -814,6 +902,40 @@ export class SoundDirector {
       // Wet, loose: a splash underfoot and the odd rattle of a plate.
       audio.hiss({ t: t + 0.01, dur: 0.12, gain: 0.025 * g, type: 'lowpass', freq: 1800 * up, to: 600 });
       if (v === 1) audio.metal({ t: t + 0.03, freq: 260 * up, gain: 0.02 * g, decay: 0.3 });
+    }
+  }
+
+  /**
+   * Round 3: a soft call from a creature out in the world, placed by distance and pan.
+   * Synthesised and quiet (ambience level, under every interaction); young ones are
+   * higher and lighter. Each species has its own little voice, varied each time.
+   */
+  private creatureCall(species: string, young: boolean, g: number, pan: number): void {
+    const t = audio.now;
+    const up = (young ? semi(5) : 1) * jit(0.04);
+    const a = g * (young ? 0.7 : 1);
+    switch (species) {
+      case 'puffcap': // Two soft, rounded boops, like blowing a bubble.
+        for (let i = 0; i < 2; i++) audio.tone({ t: t + i * 0.16 * jit(0.1), freq: 520 * up, to: 760 * up, dur: 0.09, gain: 0.03 * a, type: 'sine', pan, send: 0.5 });
+        break;
+      case 'ray': // A low, gliding hum as its wings beat.
+        audio.tone({ t, freq: 190 * up, to: 150 * up, dur: 0.7, attack: 0.2, gain: 0.03 * a, type: 'triangle', lp: 700, pan, send: 0.6 });
+        audio.tone({ t: t + 0.05, freq: 380 * up, to: 300 * up, dur: 0.55, attack: 0.2, gain: 0.01 * a, type: 'sine', pan, send: 0.6 });
+        break;
+      case 'crab': // Dry claw clicks.
+        for (let i = 0; i < 3 + rr('call:crab', 3); i++) audio.hiss({ t: t + i * 0.06 * jit(0.25), dur: 0.01, gain: 0.05 * a, freq: 3200 * up * jit(0.1), q: 5, pan, send: 0.3 });
+        break;
+      case 'shrimp': // A snap and a tiny chirp.
+        audio.hiss({ t, dur: 0.008, gain: 0.07 * a, type: 'highpass', freq: 3000 * up, pan, send: 0.3 });
+        audio.tone({ t: t + 0.05, freq: 2400 * up, to: 3100 * up, dur: 0.05, gain: 0.012 * a, type: 'sine', pan, send: 0.4 });
+        break;
+      case 'snail': // A slow, wet glug.
+        audio.tone({ t, freq: 260 * up, to: 180 * up, dur: 0.22, gain: 0.025 * a, type: 'sine', lp: 900, pan, send: 0.5 });
+        audio.bubbles({ t: t + 0.12, n: 2, spread: 0.2, gain: 0.015 * a, low: 300, high: 700, pan });
+        break;
+      default: // Glowfin and anything else: a soft, rising two-note chirp.
+        audio.bell({ t, freq: 880 * up, gain: 0.015 * a, decay: 0.5, ratio: 2, index: 0.3, pan, send: 0.6 });
+        audio.bell({ t: t + 0.12, freq: 1175 * up, gain: 0.012 * a, decay: 0.6, ratio: 2, index: 0.3, pan, send: 0.6 });
     }
   }
 
@@ -844,6 +966,8 @@ export class SoundDirector {
     audio.tone({ t: t + 0.14, freq: 420 * up, to: 160, dur: 0.09, gain: 0.07, type: 'sine', lp: 1400 });
     audio.hiss({ t: t + 0.15, dur: 0.4, gain: 0.05, type: 'lowpass', freq: 1400, to: 500 });
     for (let i = 0; i < 3; i++) audio.bubbles({ t: t + 0.16 + i * 0.15, n: 5, spread: 0.25, gain: 0.032 - i * 0.006, low: 400, high: 1500, pan: dir * (i * 0.3) });
+    // Round 3: a recorded gush of bubbles under the synthesised ones, off to the side it swims.
+    this.sam('bubble', { t: t + 0.15, gain: 0.04, rate: 1.05, pan: dir * 0.35 });
     audio.bell({ t: t + 0.24, freq: 880 * up, gain: 0.028, decay: 0.9, ratio: 2, index: 0.3, send: 0.5 });
     audio.bell({ t: t + 0.42, freq: 659 * up, gain: 0.024, decay: 1.2, ratio: 2, index: 0.3, send: 0.6, pan: dir * 0.3 });
   }
@@ -965,6 +1089,10 @@ export class SoundDirector {
     const k = Math.min(1, severity);
     audio.metal({ freq: 55 + Math.random() * 30, gain: 0.08 + 0.12 * k, decay: 1.6, send: 0.5 });
     audio.thump({ freq: 40, gain: 0.12 + 0.15 * k, dur: 0.6, send: 0.4 });
+    // Round 3: a recorded metal creak (heard on a phone speaker, unlike the deep body), and when it's
+    // bad, a long groan of the hull under pressure.
+    this.sam('creak', { gain: 0.05 + 0.05 * k, rate: 0.75 - 0.15 * k, send: 0.4 });
+    if (k > 0.5) this.sam('groan', { t: audio.now + 0.1, gain: 0.04 * k, rate: 0.6, send: 0.5 });
     if (k > 0.5) audio.tone({ freq: 880, dur: 0.12, gain: 0.03, type: 'triangle', lp: 2400, bus: 'ui' });
   }
 
@@ -1053,7 +1181,7 @@ export class SoundDirector {
     audio.metal({ t: t + 0.2, freq: 150 * up, gain: 0.06, decay: 0.8 });
     if (docked) audio.metal({ t: t + 0.46, freq: 165 * up, gain: 0.055, decay: 0.8 });
     audio.hiss({ t: t + 0.5, dur: 0.8, gain: 0.05, freq: 1600, to: 600, q: 0.8 });
-    if (docked) audio.bubbles({ t: t + 0.55, n: 10, spread: 0.6, gain: 0.03, low: 300, high: 900 });
+    if (docked && !this.sam('bubble', { t: t + 0.55, gain: 0.02, rate: 0.75 })) audio.bubbles({ t: t + 0.55, n: 10, spread: 0.6, gain: 0.03, low: 300, high: 900 });
   }
 
   private splash(strength: number, up: boolean): void {
@@ -1061,7 +1189,11 @@ export class SoundDirector {
     const bus: BusName = up ? 'ui' : 'sfx';
     audio.hiss({ dur: 0.35 + 0.4 * strength, gain: 0.08 + 0.12 * strength, type: 'lowpass', freq: up ? 3500 : 1200, to: 400, bus, send: 0.15 });
     audio.hiss({ dur: 0.15, gain: 0.05 * strength, type: 'highpass', freq: 3000, bus, send: 0.1 });
-    if (!up) audio.bubbles({ n: 14, spread: 0.7, gain: 0.04, low: 300, high: 1200 });
+    if (!up) {
+      // Round 3: a recorded dip under the surface and a recorded burst of bubbles, over the synthesised wash.
+      this.sam('dive', { gain: 0.04 + 0.05 * strength, rate: 0.85, send: 0.15 });
+      if (!this.sam('bubble', { t: audio.now + 0.12, gain: 0.04, rate: 0.85 })) audio.bubbles({ n: 14, spread: 0.7, gain: 0.04, low: 300, high: 1200 });
+    }
   }
 
   private heartbeat(): void {

@@ -149,9 +149,84 @@ On the phone speaker especially: are the heartbeat (black out once), sub dents a
 
 16 one-shots from Kenney's CC0 Impact Sounds (stone and gravel, metal, light glass, hard-floor footsteps) now layer under copper, ore, scrap, brass and quartz coming loose, the copper strokes, the drill breaking through and footsteps. Measured peaks: copper release 0.52 before trimming, bite 0.75 for reference; nothing clipped. The network now allows kenney.nl, freesound.org, cdn.freesound.org and opengameart.org.
 
-## Round 3 (after Colin listens)
+## Round 3 plan (status)
 
-- Tune levels from Colin's notes.
-- Fetch the shortlisted CC0 files once the network allows, and layer them under the synthesised gathering releases, footsteps and bubbles.
-- Creature voices in the world (soft calls placed by position) and the sub heard from outside when you swim near it.
-- Per-zone footstep surfaces in the base (grating, plate, wet moon pool deck).
+- Tune levels from Colin's notes. **Not done:** no listening notes were given yet, so no existing level was changed by ear.
+- Fetch the shortlisted CC0 files once the network allows, and layer them under the synthesised gathering releases, footsteps and bubbles. **Done** (below).
+- Creature voices in the world (soft calls placed by position) and the sub heard from outside when you swim near it. **Done** (below).
+- Per-zone footstep surfaces in the base (grating, plate, wet moon pool deck). **Not done**; moved to round 4.
+
+## Round 3: the rest of the shortlist (built, review branch)
+
+30 CC0 files from Freesound, each checked on its own page (licence "Creative Commons 0"), fetched as Freesound's public preview MP3s (same licence as the original), then trimmed, faded, levelled and converted to mono 64 kbps MP3. Every file is in `public/audio/CREDITS.md`. They add **289 KB**; all 46 audio files together are **373 KB**. Each plays through `sam()` on the normal buses (so the volume sliders, mute, the underwater muffle, the hull filter and the phone mix all apply) and layers under the synthesised sound, which plays alone if a file fails to load.
+
+| Group (files) | Source | Where it plays |
+| --- | --- | --- |
+| `bubble` (3) | ristooooo1, "Bubbles 001" | The jar release, boosting, catching a creature, docking's seal, diving in, half the bubble trickles in the shallows ambience. |
+| `exhale` (3) | Yuval, "Scuba diver bubbles" | Every breath out underwater (the synthesised rush stays under it; extra synthesised bubbles join as air runs low). |
+| `dive` (2) | adviseme333, "Dipping below water" 1 and 2 | Diving under the surface. |
+| `sea` (1, a 10 s loop) | Tim_Verberne, "Underwater Ambience" | Under the synthesised water bed in every zone; quieter with the head out, dull through a hull. |
+| `kelp` (4) | mrmccormack and ericnorcross81, celery snaps | A kelp stalk parting (fibre); slowed down, the kelp wall giving way to the cutter. |
+| `rip` (3) | reg7783 and fotoshop, cloth rips | Moss and bloom peeling off; a moss bracket lit. |
+| `groan` (3) | hinchinbrook, LoafDV, NachtmahrTV | Slowed right down: wrecks settling on the Wreck Shelf, a quarter of the trench's pressure groans, severe crush-depth creaks. |
+| `creak` (3) | kyles, Crinkem, ingudios | Every crush-depth creak (mid-range, so it is heard on a phone speaker), half the shelf's clanks. |
+| `sand` (3) | Wagna, Dalibor | Sand trickling as copper loosens (every other stroke near the end, and softly under the release), grit off the drill nose, the rockfall after the drill breaks through. |
+| `wetstep` (5) | Kodack, "Wet Metal Footsteps" | Walking in the wrecks (the base keeps round 2's hard-floor steps). |
+
+**Extras (round 3):**
+
+- **Creature calls**, synthesised and placed by distance and pan: every 4–10 s one creature within about 900 px calls softly. Puffcaps boop, rays hum as they glide, tinker crabs click, lantern shrimp snap and chirp, cinder snails glug, glowfins chirp. Young ones are higher and lighter. Not indoors, not with a panel open. `creatureCall()` in director.ts; main.ts passes `critters` from `wildlife.voices()`.
+- **KS-1 heard from outside:** while you swim near the parked sub, a low electric idle with a slowly breathing pump and a faint higher whine (so it reads on a phone speaker), panned to where the sub is and fading out by about 700 px. `loops.idle` in director.ts.
+
+**Not changed:** the Phase 14 stings, the music, the danger cues' synthesised parts and every existing level that Colin's notes would govern (there were none).
+
+### Measured (headless browser, desktop mix, Kestrel a few metres under in the shallows)
+
+The browser cannot hear: these numbers only show that each sound plays and nothing clips. A meter on the audio thread after the limiter read the loudest sample over 1.8 s per cue. The ambient bed (with breathing) alone already peaks around 0.2, so quiet cues barely move the number. "Without" plays the same cues with every recorded file switched off (round 1's synthesised sound).
+
+| Cue | With the files | Without |
+| --- | --- | --- |
+| ambient bed + sea loop + breathing (8 s) | 0.202 | 0.233 |
+| fibre release (kelp snap) + ting | 0.214 | 0.198 |
+| moss release (rip) | 0.195 | 0.212 |
+| bloom release (rip) | 0.251 | 0.229 |
+| copper release (+ sand) + ting | 0.462 | 0.384 |
+| jar release (bubbles) | 0.217 | 0.285 |
+| creature caught (bubbles) | 0.181 | 0.230 |
+| cutter breaks through (kelp, bubbles) | 0.421 | 0.362 |
+| bracket lit (rip) | 0.229 | 0.208 |
+| diving in (dive, bubbles) | 0.277 | 0.282 |
+| drill breaks through (+ sand) | 0.437 | 0.395 |
+| crush creak mild (creak) | 0.712 | 0.730 |
+| crush creak severe (creak + groan) | 0.884 | 0.895 |
+| wreck footsteps x4 (wetstep) | 0.279 | 0.195 |
+| docking clamps (bubbles) | 0.488 | 0.424 |
+| creature call puffcap | 0.230 | 0.251 |
+| creature call ray | 0.294 | 0.237 |
+| creature call crab | 0.318 | 0.241 |
+| creature call shrimp | 0.241 | 0.216 |
+| creature call snail | 0.262 | 0.221 |
+| creature call glowfin | 0.270 | 0.197 |
+| danger: bite | 0.700 | 0.873 |
+| danger: lurker warning | 0.311 | 0.331 |
+| pile-up: bite, breach, drill, dent, creak, release, major reward | 0.930 | 0.992 |
+
+The same synthesised cues vary from run to run by up to about 0.2 (the bite read 0.70 and 0.87 in the two passes, and it uses no files), so only large differences mean anything. Nothing reached 1.0; the limiter held a synthesised-only pile-up at 0.99. Peaks are not loudness: the lurker's dry rattle reads lower than a copper release on the meter but is far more piercing to the ear, as in round 1.
+
+KS-1 from outside (a fixture: a built sub placed in the save 250 px to Kestrel's right): idle gain 0.020, panned 0.36 right; 1500 px away: 0. Creature calls, with Kestrel hovering by the puffcaps over the drop-off: a puffcap call fired with distance gain 0.58 and pan 0.31 (game time in the headless browser runs at about a fifth of real time, so only one call came in the window).
+
+All 46 files loaded (`__fathom.audio.samples.size` = 46). Every group played through the real code paths (a counter on `audio.sample`). No console errors. After the first measurement, the copper sand trickle, the cutter's kelp snaps, the docking bubbles and the dive splash were turned down, because they had pushed those cues above where they sat before.
+
+## Listening guide (round 3)
+
+Same three setups: PC headphones, iPhone speaker (Settings, "Mix: phone speaker"), iPhone headphones. Tell me "keep", "too loud", "too quiet", "too much" or "not right" for each.
+
+1. **Breathing and the sea** (Sunlit Shallows, anywhere a few metres down). Hover still for 30 s. Each breath out should be a real regulator rush of bubbles, never twice the same; under everything, a slow, living underwater texture. Surface: the texture drops away. Go into the base: the sea should be dull through the hull.
+2. **Diving in.** Float at the surface, then dive: a real dip under the water and a burst of bubbles.
+3. **Bubbles.** Boost (a gush), catch a creature (bubbles as the lid shuts), press J to release it (a gush off to the side it swims), dock KS-1 at the Moon pool (a soft bubble seal). In the shallows, listen for occasional bubble trickles off to one side.
+4. **Kelp and moss.** Collect kelp fibre (a crisp snap as the stalk parts). Peel moss or bloom (a soft rip). In the Kelp Forest, light a moss bracket (rip) and cut the kelp wall (big, slow snaps as it gives).
+5. **Copper and the drill.** Dig copper: near the end, sand trickles out; a little more as it pops free. Drill a lode in KS-1: grit pours off now and then, and a rockfall trickle after it breaks.
+6. **The Wreck Shelf.** Hover for a minute: huge, slow hull groans and plate creaks far off. Walk inside the Corvina or Fulmar: wet metal footsteps.
+7. **Crush depth.** Go below your suit's rating briefly: each creak now has a real metal creak (it should be clear even on the phone speaker), and a long groan when it's bad. Don't stay down.
+8. **Creatures.** Hover near puffcaps (over the drop-off), dapple rays (seagrass meadow), tinker crabs and lantern shrimp (Kelp Forest floor), cinder snails (trench vents). Every few seconds one calls softly, from where it is. Should they be quieter, louder, rarer?
+9. **KS-1 from outside.** Climb out of the sub and swim around it: a low idle hum with a slow pump, louder as you get close and coming from its side.

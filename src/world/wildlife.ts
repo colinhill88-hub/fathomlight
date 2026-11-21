@@ -141,6 +141,14 @@ export class Wildlife {
     this.glow.addChild(this.eyeHalo);
   }
 
+  /** Phase 16 round 3: creatures out in the world near (x, y) (not eggs), for their soft calls. */
+  voices(x: number, y: number, r: number): { species: SpeciesId; x: number; y: number; young: boolean }[] {
+    const out: { species: SpeciesId; x: number; y: number; young: boolean }[] = [];
+    for (const w of this.all)
+      if (w.present && w.stage !== 'egg' && Math.abs(w.x - x) < r && Math.abs(w.y - y) < r) out.push({ species: w.species, x: w.x, y: w.y, young: w.stage === 'young' });
+    return out;
+  }
+
   /** After milestone 12: young creatures and eggs you could collect, for the Echo visor. */
   youngSpots(): { x: number; y: number }[] {
     return this.all.filter((w) => w.collectible && w.present).map((w) => ({ x: w.x, y: w.y }));

@@ -1,6 +1,6 @@
 # Fathomlight progress
 
-The live branch includes the Fulmar foothold, Codex Phases 1–11D the Phase 12 gameplay pass (PR #33/#34) and the Phase 13 control helper, drill lodes and named creatures (PR #35, `d9f4728`); see the [Phase 13 audit](docs/phase-13-gameplay-audit.md). **Phase 14** reward moments merged as PR #36 (`03b4c8f`). **Phase 15** (jar release, the Field kit, the sonar control bar) merged as PR #38 (`faa9e26`). **Phase 16** (the satchel jar fix and round 1 of the audio audit) is on review branch `claude/phase-16-audio-satchel-8u7yhp`, waiting for Colin's ears; see the [Phase 16 audit](docs/phase-16-audio-audit.md) and the [Phase 14 notes](docs/phase-14-reward-moments.md). The agreed plan for Phase 15 onward, including ideas not built yet, is in the [roadmap](docs/ROADMAP.md). See the [development handoff](docs/AI_DEVELOPMENT_HANDOFF.md) for the current source map and the [progression audit](docs/phase-12-progression-audit.md) for the route from a new save to first contact.
+The live branch includes the Fulmar foothold, Codex Phases 1–11D the Phase 12 gameplay pass (PR #33/#34) and the Phase 13 control helper, drill lodes and named creatures (PR #35, `d9f4728`); see the [Phase 13 audit](docs/phase-13-gameplay-audit.md). **Phase 14** reward moments merged as PR #36 (`03b4c8f`). **Phase 15** (jar release, the Field kit, the sonar control bar) merged as PR #38 (`faa9e26`). **Phase 16** rounds 1 and 2 (the satchel jar fix, the audio audit, the first Kenney sound files) merged as PRs #40 and #41. **Round 3** (30 more CC0 sound files, creature calls, KS-1 heard from outside) is on review branch `claude/phase-16-round-3-audio-esmprt`, waiting for Colin's ears; see the [Phase 16 audit](docs/phase-16-audio-audit.md) and the [Phase 14 notes](docs/phase-14-reward-moments.md). The agreed plan for Phase 15 onward, including ideas not built yet, is in the [roadmap](docs/ROADMAP.md). See the [development handoff](docs/AI_DEVELOPMENT_HANDOFF.md) for the current source map and the [progression audit](docs/phase-12-progression-audit.md) for the route from a new save to first contact.
 
 Play link: https://colinhill88-hub.github.io/fathomlight/ (live; first successful deploy 2026-11-14)
 
@@ -19,10 +19,25 @@ Play link: https://colinhill88-hub.github.io/fathomlight/ (live; first successfu
 | Fulmar accessibility | PR #32, `78c8bb3` | Three-tile crew-deck foothold creates two normal jumps to the comms spool. |
 | Phase 13 | PR #35, `d9f4728` | Contextual control helper on one binding table, five resealing drill lodes for KS-1, and named kept creatures. |
 | Phase 15 | PR #38, `faa9e26` | Jar release with confirmation for named creatures, the Field kit on I, and the sonar-style control bar with an offer ping. |
-| Phase 16 (round 1) | review branch, not merged | The satchel's second jar slot works indoors; gathering, tools, docking and welds get anticipation, contact and release; round-robin variety; danger first in the mix; phone-speaker harmonics; an indoor room echo and hull filter; footsteps. |
+| Phase 16 (rounds 1–2) | PRs #40, #41 | The satchel's second jar slot works indoors; gathering, tools, docking and welds get anticipation, contact and release; round-robin variety; danger first in the mix; phone-speaker harmonics; an indoor room echo and hull filter; footsteps. |
+| Phase 16 (round 3) | review branch, not merged | 30 CC0 Freesound files (bubbles, breath out, diving in, an underwater loop, kelp snaps, moss rips, wreck groans and creaks, sand, wet footsteps), soft creature calls placed in the world, KS-1's idle heard from outside. |
 | Phase 14 | PR #36, `03b4c8f` | Reward moments: minor, notable and major tiers with drawn emblems, particles, slow motion and synthesised stings and fanfares. |
 
-### Phase 16, round 2: the first recorded sounds (review branch)
+### Phase 16, round 3: the rest of the sound shortlist (review branch)
+
+- **No tuning from notes this round:** Colin's listening notes hadn't been filled in yet, so no existing level was changed by ear.
+- **30 CC0 sound files from Freesound** (289 KB; all 46 audio files now total 373 KB, mono MP3 at 64 kbps). Each file's own Freesound page says "Creative Commons 0"; Freesound's public preview MP3s were used (same licence). Every file is logged in `public/audio/CREDITS.md`. They layer under the coded sounds, rotate without repeats, vary in pitch and fall back to the coded sound if a file fails to load:
+  - bubbles (the jar release, boosting, catching, docking, diving in, the shallows ambience), the regulator's breath out (every breath underwater), a dip under the surface (diving in);
+  - a 10 s underwater ambience loop under the coded water bed (seamless, muffled with depth, dull through a hull);
+  - kelp snaps (fibre, the kelp wall giving way), moss rips (moss, bloom, brackets);
+  - slowed wreck groans and metal creaks (the Wreck Shelf, the trench, crush-depth creaks, which now carry on a phone speaker);
+  - a sand trickle (copper loosening, the drill's grit, the rockfall after a break-through), wet metal footsteps in the wrecks.
+- **Soft creature calls,** coded and placed by position: puffcaps boop, rays hum, crabs click, shrimp snap and chirp, snails glug, glowfins chirp; young ones higher. One every 4–10 s from a creature within about 900 px.
+- **KS-1 heard from outside:** a low idle hum with a slow pump near the parked sub, panned to its side, gone by about 700 px.
+- **Validated:** `npm ci`, typecheck, build and the progression checks. In `vite preview`: all 46 files load, every new group plays through the real game code, a meter after the limiter showed no clipping (worst pile-up 0.93 with the files, 0.99 synthesised-only, both held by the limiter), and there were no console errors. Kestrel was swum under with the real Down key; KS-1's hum was checked with a fixture sub placed in the save. Numbers and a listening guide are in the [audit](docs/phase-16-audio-audit.md).
+- **Needs Colin's ears:** everything in the round 3 listening guide, on PC and the iPhone speaker and headphones. The headless browser cannot hear.
+
+### Phase 16, round 2: the first recorded sounds (merged, PR #41)
 
 - **16 CC0 sound files** from Kenney's "Impact Sounds" pack (84 KB in total, mono MP3), logged in `public/audio/CREDITS.md`. The pack's own licence file says CC0. They're layered under the coded sounds, rotate without repeats and vary in pitch:
   - stone and gravel for copper and ore coming loose, the copper strokes and the drill breaking through;

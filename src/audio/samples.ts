@@ -25,6 +25,26 @@ export const SAMPLE_GROUPS: Record<string, number> = {
   metal: 3, // metal impacts: scrap and brass coming free
   glass: 3, // light glass taps: quartz snapping off
   step: 5, // footsteps on hard floors: the base's steel decks
+  // Round 3 (Freesound, CC0):
+  bubble: 3, // short bubble bursts: the jar release, boosting, catching, the shallows
+  exhale: 3, // a scuba regulator breathing out: Kestrel's breath out
+  dive: 2, // dipping under the surface: diving in
+  sea: 1, // a 10 s underwater ambience loop (see SAMPLE_LOOPS)
+  kelp: 4, // crisp vegetable snaps: a kelp stalk parting, the kelp wall giving way
+  rip: 3, // cloth rips: moss and bloom peeling off, a bracket's moss coming free
+  groan: 3, // long metal groans: wrecks settling on the shelf, the trench, crush depth
+  creak: 3, // short metal creaks: crush-depth creaks, the shelf's clanks
+  sand: 3, // sand and gravel trickling: copper loosening, the drill, rockfall
+  wetstep: 5, // footsteps on wet metal: walking in the wrecks
+};
+
+/**
+ * Round 3: looping files, with the loop points (seconds). The file carries a
+ * quarter second of extra, matching sound at each end, so a decoder that adds
+ * a little silence at the start (MP3 padding) never puts a gap in the loop.
+ */
+export const SAMPLE_LOOPS: Record<string, [number, number]> = {
+  'sea-1': [0.25, 10.25],
 };
 
 export const SAMPLE_FILES: Record<string, string> = Object.fromEntries(

@@ -655,6 +655,36 @@ export class AudioEngine {
     return true;
   }
 
+  /**
+   * Round 3: start a decoded file looping between `loop` points (seconds), silent,
+   * through a bus. Returns its gain (the caller fades it) and a panner when the
+   * browser has one, or null when the file is not loaded yet (call again later).
+   */
+  sampleLoop(name: string, o: { bus: BusName; send?: number; loop?: [number, number] }): { gain: GainNode; pan: StereoPannerNode | null } | null {
+    const buf = this.samples.get(name);
+    if (!this.ctx || !buf) return null;
+    const ctx = this.ctx;
+    const src = ctx.createBufferSource();
+    src.buffer = buf;
+    src.loop = true;
+    if (o.loop && o.loop[1] < buf.duration) {
+      src.loopStart = o.loop[0];
+      src.loopEnd = o.loop[1];
+    }
+    const g = ctx.createGain();
+    g.gain.value = 0;
+    src.connect(g);
+    const pan = ctx.createStereoPanner ? ctx.createStereoPanner() : null;
+    if (pan) {
+      g.connect(pan);
+      this.route(pan, o.bus, o.send ?? 0.15);
+    } else this.route(g, o.bus, o.send ?? 0.15);
+    // Start somewhere inside the loop so two players never line up.
+    const [a, b] = o.loop ?? [0, buf.duration];
+    src.start(ctx.currentTime, a + Math.random() * (b - a));
+    return { gain: g, pan };
+  }
+
   /** Phase 16: fetch and decode bundled sound files (URLs relative to the page) once the context exists. */
   loadSamples(files: Record<string, string>): void {
     this.onReady(() => {
