@@ -1,6 +1,6 @@
 # Session B prompt: Phases 22 and 23 (rare creatures and the Choir)
 
-Paste everything below the line into a new session connected to the Fathomlight repository. Run it after Session A (Phases 20 and 21) is merged.
+Paste everything below the line into a new session connected to the Fathomlight repository. Run it after Session A (Phases 20 and 21, PR #50) is merged.
 
 ---
 
@@ -9,6 +9,22 @@ Read `AGENTS.md` first, then the files it lists: `docs/AI_DEVELOPMENT_HANDOFF.md
 This session is **Session B: Phases 22 and 23**. It covers more ways for creatures to be rare, two new species, Choir-touched creatures, and tying the collection into the Choir ending. It builds on Session A's collection book, hatching moment and care odds.
 
 **I have already answered every design question.** They're in `docs/ROADMAP.md` under "Colin's decisions (Nov 22, 2026)", with the plan under Phases 22 and 23. Don't ask them again. Only ask me about something genuinely new; otherwise pick a sensible default and tell me what you chose. **Do show me the two new species' look and names before building around them:** names and look are mine to approve.
+
+## What Session A built for you (PR #50)
+
+- **The collection book** is a Field kit tab (`bookTab` in `src/ui/fieldkit.ts`, rules in `src/game/collection.ts`).
+  - Its pages are colour × glow pattern grids keyed `species:colour:pattern`.
+  - New traits (size, shape, heirloom) and new species need a place in the book. Extend the page, or add a section, rather than starting again.
+- **The hatching moment:** `hatchMoment()` in `src/main.ts` and `kindNews` / `hatchTier` in `collection.ts`. Tiered rarity should feed these, so an heirloom or Choir-touched baby gets the biggest moment.
+- **The care bonus:**
+  - it is `carePower()` (×1 to ×2) in `src/game/creatures.ts`, passed to `inherit(a, b, rand, care)` in `src/game/traits.ts`;
+  - the planner's odds come from `eggOdds()`.
+
+  New traits should take the same `care` factor, and the planner (the Hatchery's Planner tab, `src/ui/hatch.ts`) should show their odds.
+- **Creature cards** (`src/ui/creatureCard.ts`) and **portraits** (`src/ui/creatureSnap.ts`, the real rigs drawn into pictures) should show new traits too.
+- **Linnea's requests** (`makeRequest` in `collection.ts`) can start asking for the new traits and species.
+- **Restocking** (`restock` / `Wildlife.applyRestock`) carries colour and pattern; carry new traits through it if they would show in the wild.
+- **Still open from Session A:** the painted tank art. It has its own prompt (`docs/prompts/tank-art.md`, for an image tool) and isn't part of this session.
 
 ## What to build
 

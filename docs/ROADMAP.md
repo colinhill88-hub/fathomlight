@@ -248,7 +248,7 @@ The open questions below were answered at the start of the session (see "Colin's
 - **The display aquarium is a refit** of an extended Grand tank (DR-1 kit), not a new base piece, so it uses the Grand tank's room.
 - **The reserve is part of the Hatchery** (opens once one is built, holds 30).
 - **Hand-feeding is free** (a treat, about once a minute per creature); it builds a bond that fades over about half an hour.
-- **Not done:** generated painted backdrops for the tank interiors (the session had no image generator; the new tank art is drawn in code). It can move to Session B or a later art pass.
+- **Not done:** generated painted backdrops for the tank interiors (the session had no image generator; the new tank art is drawn in code). Its image prompts are in [`art/tank-image-prompts.md`](art/tank-image-prompts.md), with a paste-ready session prompt in [`prompts/tank-art.md`](prompts/tank-art.md) (Colin plans to use Codex). It is separate from Session B and can run before or after it.
 
 The original brief follows.
 
