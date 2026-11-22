@@ -253,16 +253,20 @@ export function takeFromJar(save: SaveData): JarData | null {
   return j;
 }
 
-/** Creatures per tank (eggs count too). */
-export const TANK_CAPACITY = 4;
-/** Milestone 7 part 2: the Grand tank holds eight. */
-export const GTANK_CAPACITY = 8;
+/**
+ * Creatures per tank (eggs count too). Colin (after Session B): creatures are drawn much
+ * smaller in the tanks now, so tanks hold three times as many (a small tank 4 → 12, a
+ * Grand tank 8 → 24; extended 18 and 36; the display aquarium 60).
+ */
+export const TANK_CAPACITY = 12;
+/** Milestone 7 part 2: the Grand tank. */
+export const GTANK_CAPACITY = 24;
 /**
  * Phase 21, room for more creatures (Colin, Nov 22, 2026): a TX-1 extension kit from the
  * Workshop takes a small tank from 4 to 6 and a Grand tank from 8 to 12; a display refit
  * (DR-1) then makes a Grand tank the display aquarium, for 20. Index = TankData.level.
  */
-export const TANK_LEVELS: Record<'tank' | 'gtank', number[]> = { tank: [TANK_CAPACITY, 6], gtank: [GTANK_CAPACITY, 12, 20] };
+export const TANK_LEVELS: Record<'tank' | 'gtank', number[]> = { tank: [TANK_CAPACITY, 18], gtank: [GTANK_CAPACITY, 36, 60] };
 /** A tank's level: 0 as built, 1 extended, 2 the display aquarium (Grand tanks only). */
 export function tankLevel(save: SaveData | undefined, id: number): number {
   return Math.max(0, Math.floor(save?.tankData[String(id)]?.level ?? 0));
@@ -316,12 +320,16 @@ export const TANKS_PER_FILTER = 2;
 export const FEED_COST: MaterialId = 'fibre';
 
 // Rates, per second of play. Single numbers, easy to tune after Colin plays.
-/** Full to empty in 15 minutes. */
-export const HUNGER_RATE = 1 / 900;
+/** Full to empty in about 21 minutes (Colin, after Session B: smaller creatures eat less; was 15, and young now take 12 minutes to grow). */
+export const HUNGER_RATE = 1 / 1300;
 /** How much one feed adds. */
 export const FEED_AMOUNT = 0.6;
-/** Each creature dirties its tank this fast: one alone takes 20 minutes, four take 5. */
-export const DIRT_RATE = 1 / 1200;
+/**
+ * Each creature dirties its tank this fast: one alone takes an hour. (Colin, after Session B:
+ * creatures are smaller and tanks hold three times as many, so each dirties a third as much;
+ * a full tank fouls about as fast as a full tank did before.)
+ */
+export const DIRT_RATE = 1 / 3600;
 /** A filter pump cleans at this rate (much faster than four creatures dirty it). */
 export const FILTER_RATE = 1 / 150;
 /** One Clean tank scrub. */
@@ -345,8 +353,8 @@ function needsMet(save: SaveData, c: CreatureData): boolean {
   const w = tankDataFor(save, c.tank).water;
   return c.fed >= HAPPY_AT && w >= HAPPY_AT && c.comfort >= COMFORT_HAPPY;
 }
-/** Young to grown, with needs met (8 minutes). */
-export const GROW_SECONDS = 480;
+/** Young to grown, with needs met (12 minutes; Colin, after Session B: was 8). */
+export const GROW_SECONDS = 720;
 /** Egg to young, in any tank (90 seconds). */
 export const HATCH_SECONDS = 90;
 /** A grown, happy creature makes one material this often (4 minutes), before bonuses. */
@@ -356,6 +364,8 @@ export const MAKE_SECONDS = 240;
  * base has. Each happy tank-mate adds this much (a shoal works together)...
  */
 export const SHOAL_BONUS = 0.15;
+/** The shoal bonus stops growing at seven happy tank-mates (a full Grand tank's worth before tanks grew). */
+export const SHOAL_MAX = 1.05;
 /** ...and each other thriving tank in the base adds this much (a healthy reef), */
 export const REEF_BONUS = 0.1;
 /** up to this. A tank thrives with at least two grown, happy creatures. */
@@ -385,7 +395,7 @@ export function makeRate(
 ): { perMin: number; shoal: number; reef: number; whorl: number; clean: number; radiant: number } {
   const happyMates = creaturesIn(save, c.tank).filter((m) => m.id !== c.id && isHappy(save, m));
   const mates = happyMates.length;
-  const shoal = SHOAL_BONUS * mates;
+  const shoal = Math.min(SHOAL_MAX, SHOAL_BONUS * mates);
   // Milestone 7: lantern shrimp clean their tank-mates of other species.
   const clean = c.species === 'shrimp' ? 0 : CLEAN_BONUS * happyMates.filter((m) => m.species === 'shrimp').length;
   const reef = Math.min(REEF_MAX, REEF_BONUS * (thriving.size - (thriving.has(c.tank) ? 1 : 0)));
@@ -553,7 +563,7 @@ export type CareEvent =
   | { type: 'dormant'; c: CreatureData }
   | { type: 'made'; c: CreatureData; kind: MaterialId; stored: boolean }
   | { type: 'laid'; c: CreatureData; parents: [CreatureData, CreatureData] }
-  | { type: 'nursery-hatched'; c: CreatureData };
+  | { type: 'nursery-hatched'; c: CreatureData; home?: number | 'reserve' | null };
 
 /**
  * Run the needs forward by dt seconds of play.
@@ -651,11 +661,60 @@ export function tickCare(save: SaveData, layout: BaseLayout, dt: number): CareEv
 // ---- Milestone 9: breeding (Colin's choices) ----
 /**
  * A happy, grown pair of one species in a tank lays an egg about this often
- * (6 minutes of play), while the base has a powered Hatchery with room.
+ * (10 minutes of play; Colin, after Session B: was 6), while the base has a powered
+ * Creature room with room. A crowded tank breeds more slowly (`crowding`).
  */
-export const BREED_SECONDS = 360;
-/** Eggs and young one Hatchery holds. */
+export const BREED_SECONDS = 600;
+/** Eggs (and young waiting for a home) one Creature room holds. */
 export const HATCH_CAP = 4;
+
+/**
+ * Colin (after Session B): a crowded tank breeds more slowly. Up to half full, full speed;
+ * then slower and slower, down to a quarter of the speed when the tank is full.
+ */
+export function crowding(count: number, capacity: number): number {
+  const fill = capacity > 0 ? count / capacity : 1;
+  if (fill <= 0.5) return 1;
+  return Math.max(0.25, 1 - ((fill - 0.5) / 0.5) * 0.75);
+}
+
+/**
+ * Colin (after Session B): young settle into a home by themselves when they hatch. The best
+ * tank with room: the one its parents live in, then a tank with its favourite plant and its
+ * own kind; never a tank with a creature it clashes with, or one too full for a puffcap.
+ * If no tank suits, it rests in the reserve; if that is full or not built, it waits in the
+ * Creature room as before. Returns where it went (null: it waits).
+ */
+export function settleYoung(save: SaveData, layout: BaseLayout, c: CreatureData): number | 'reserve' | null {
+  const sp = SPECIES[c.species];
+  let best: { id: number; score: number } | null = null;
+  for (const t of tanks(layout)) {
+    const here = creaturesIn(save, t.id);
+    const cap = tankCapacity(layout, t.id, save);
+    if (here.length >= cap) continue;
+    if (here.some((m) => sp.dislikes.includes(m.species) || SPECIES[m.species].dislikes.includes(c.species))) continue;
+    if (sp.company === 'space' && here.length + 1 > driftRoom(cap)) continue;
+    let score = 0;
+    if (c.from === t.id) score += 4;
+    if (tankDataFor(save, t.id).plant === sp.plant) score += 2;
+    if (here.some((m) => m.species === c.species)) score += 1;
+    score -= (here.length / cap) * 0.5;
+    if (!best || score > best.score) best = { id: t.id, score };
+  }
+  if (best) {
+    save.nursery = save.nursery.filter((x) => x.id !== c.id);
+    c.tank = best.id;
+    save.creatures.push(c);
+    return best.id;
+  }
+  if (reserveOpen(layout) && (save.reserve?.length ?? 0) < RESERVE_CAP) {
+    save.nursery = save.nursery.filter((x) => x.id !== c.id);
+    c.tank = -2;
+    (save.reserve ??= []).push(c);
+    return 'reserve';
+  }
+  return null;
+}
 
 /** Finished, powered Hatcheries. */
 export function hatcheries(layout: BaseLayout): Placed[] {
@@ -686,12 +745,13 @@ export function breedNote(save: SaveData, layout: BaseLayout, c: CreatureData): 
   if (!isHappy(save, c)) return { text: `Too unsettled to breed`, good: false };
   const pairs = pairsIn(save, c.tank, c.species);
   if (!pairs) return { text: `Another happy grown ${name} here would make a breeding pair`, good: false };
-  if (!layout.pieces.some((p) => p.kind === 'hatch' && isDone(p))) return { text: `A breeding pair: build a Hatchery so they can lay eggs`, good: false };
-  if (!hatcheries(layout).length) return { text: `A breeding pair, but the Hatchery has no power`, good: false };
+  if (!layout.pieces.some((p) => p.kind === 'hatch' && isDone(p))) return { text: `A breeding pair: build a Creature room so they can lay eggs`, good: false };
+  if (!hatcheries(layout).length) return { text: `A breeding pair, but the Creature room has no power`, good: false };
   const prog = tankDataFor(save, c.tank).breed?.[c.species] ?? 0;
-  if (nurseryRoom(save, layout) <= 0) return { text: `A breeding pair: the Hatchery is full. Place its young in tanks to make room`, good: false };
-  const min = Math.max(1, Math.ceil(((1 - prog) * BREED_SECONDS) / pairs / 60));
-  return { text: `A breeding pair: next egg to the Hatchery in about ${min} min`, good: true };
+  if (nurseryRoom(save, layout) <= 0) return { text: `A breeding pair: the Creature room is full. Make room in a tank or the reserve`, good: false };
+  const crowd = crowding(creaturesIn(save, c.tank).length, tankCapacity(layout, c.tank, save));
+  const min = Math.max(1, Math.ceil(((1 - prog) * BREED_SECONDS) / pairs / crowd / 60));
+  return { text: `A breeding pair: next egg in about ${min} min${crowd < 1 ? ' (slower: the tank is crowded)' : ''}`, good: crowd >= 0.5 };
 }
 
 function tickBreeding(save: SaveData, layout: BaseLayout, dt: number, ev: CareEvent[]): void {
@@ -726,7 +786,9 @@ function tickBreeding(save: SaveData, layout: BaseLayout, dt: number, ev: CareEv
         c.stage = 'young';
         c.growth = 0;
         c.fed = 1;
-        ev.push({ type: 'nursery-hatched', c });
+        // Colin (after Session B): it swims home by itself (unless that is switched off).
+        const home = save.autoSettle === false ? null : settleYoung(save, layout, c);
+        ev.push({ type: 'nursery-hatched', c, home });
       }
     }
   if (!hatch.length) return;
@@ -740,7 +802,8 @@ function tickBreeding(save: SaveData, layout: BaseLayout, dt: number, ev: CareEv
         continue;
       }
       td.breed ??= {};
-      const prog = Math.min(1, (td.breed[sp] ?? 0) + (pairs * dt) / BREED_SECONDS);
+      const crowd = crowding(creaturesIn(save, t.id).length, tankCapacity(layout, t.id, save));
+      const prog = Math.min(1, (td.breed[sp] ?? 0) + (pairs * dt * crowd) / BREED_SECONDS);
       td.breed[sp] = prog;
       if (prog < 1 || nurseryRoom(save, layout) <= 0) continue;
       td.breed[sp] = 0;
@@ -763,6 +826,7 @@ function tickBreeding(save: SaveData, layout: BaseLayout, dt: number, ev: CareEv
         // Phase 21: a content, well-kept pair is up to twice as likely to give something rare.
         traits: inherit(ensureTraits(pa), ensureTraits(pb), Math.random, carePower(save, pa, pb), { contact: !!save.sanctum?.contact }),
         parents: [creatureName(pa), creatureName(pb)],
+        from: t.id,
       };
       save.nursery.push(egg);
       ev.push({ type: 'laid', c: egg, parents: [pa, pb] });
@@ -933,7 +997,7 @@ export function moveCreature(save: SaveData, layout: BaseLayout, id: number, to:
   if (!c) return 'It is not in a tank or the reserve';
   if (to === 'reserve') {
     if (inRes) return 'Already resting in the reserve';
-    if (!reserveOpen(layout)) return 'The reserve is part of the Hatchery: build one first';
+    if (!reserveOpen(layout)) return 'The reserve is part of the Creature room: build one first';
     if ((save.reserve ?? []).length >= RESERVE_CAP) return `The reserve is full (${RESERVE_CAP})`;
     save.creatures = save.creatures.filter((x) => x.id !== id);
     c.tank = -2;
@@ -978,4 +1042,24 @@ export function careForAll(save: SaveData, layout: BaseLayout): { fed: number; c
     fed++;
   }
   return { fed, cleaned, short };
+}
+
+/**
+ * Colin (after Session B), the Creature room: feed one tank from its console (1 kelp fibre,
+ * as at a Habitat console). Null when done, or why not.
+ */
+export function feedTank(save: SaveData, tankId: number): string | null {
+  const eaters = creaturesIn(save, tankId).filter((c) => c.stage !== 'egg');
+  if (!eaters.length) return 'Nobody in this tank eats yet';
+  if (!eaters.some((c) => c.fed < 0.95)) return 'They have all eaten';
+  if (!payCost(save, { fibre: 1 })) return 'Feeding takes 1 kelp fibre';
+  for (const c of eaters) c.fed = Math.min(1, c.fed + FEED_AMOUNT);
+  return null;
+}
+/** ...and scrub one tank's water. Null when done, or why not. */
+export function cleanTank(save: SaveData, tankId: number): string | null {
+  const td = tankDataFor(save, tankId);
+  if (td.water >= 0.99) return 'The water is already clean';
+  td.water = Math.min(1, td.water + CLEAN_AMOUNT);
+  return null;
 }

@@ -323,8 +323,8 @@ export const PIECES: Record<PieceKind, PieceDef> = {
   // Milestone 9: breeding (Colin's choices: pairs breed in their tank, the Hatchery incubates).
   hatch: {
     kind: 'hatch',
-    name: 'Hatchery',
-    job: 'Happy grown pairs in the base\'s tanks lay eggs now and then: the Hatchery collects them and keeps them warm (4 at a time). Choose a tank for each young one that hatches. Colour and glow pattern pass from parent to young.',
+    name: 'Creature room',
+    job: 'The heart of your creature care. Happy grown pairs in the base\'s tanks lay eggs here, where cradles keep them warm (4 at a time); the young swim to a tank that suits them by themselves. Its console shows every tank in the base: who lives where, how content they are, and what they need, and lets you move, feed and clean from one place.',
     cost: { resin: 4, quartz: 3, moss: 2, copper: 2 },
     blueprint: 'hatch',
     ports: { pipeIn: 1 },

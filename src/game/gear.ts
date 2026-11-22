@@ -182,7 +182,7 @@ export const RESEARCH: Record<BlueprintId, ResearchDef> = {
   // ---- After milestone 12: the Hatchery's notes, suit attachments and sub modules ----
   hatch: {
     id: 'hatch',
-    name: 'Hatchery HX-1 blueprint',
+    name: 'Creature room HX-1 blueprint',
     text: 'Reads the Kestrel nursery log from the kelp caves: warm cradles that take the eggs a happy pair lays, and keep the young until they have a tank. Unlocks a build card.',
     finds: ['nurserylog'],
     scans: [],

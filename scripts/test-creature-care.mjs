@@ -93,7 +93,7 @@ export async function runCreatureCareChecks(server) {
     assert.ok(c.bond < before, 'A bond fades slowly');
     // Breeding stores the parents' names on the egg.
     save.creatures = save.creatures.filter((x) => x.tank === 1);
-    for (let i = 0; i < 400 && !save.nursery.length; i++) {
+    for (let i = 0; i < 700 && !save.nursery.length; i++) {
       save.tankData[1].water = 1;
       for (const x of [g, h]) x.fed = 1;
       care.tickCare(save, layout, 1);
@@ -122,23 +122,23 @@ export async function runCreatureCareChecks(server) {
   // ---- Capacity: upgrades, the display aquarium, the reserve, moving, care for all ----
   {
     const { save, layout } = base();
-    assert.equal(care.tankCapacity(layout, 1, save), 4);
-    assert.equal(care.tankCapacity(layout, 2, save), 8);
+    assert.equal(care.tankCapacity(layout, 1, save), 12);
+    assert.equal(care.tankCapacity(layout, 2, save), 24);
     assert.match(care.upgradeTank(save, layout, 1), /TX-1/, 'Upgrading needs a kit');
     save.tankKits = 2;
     assert.equal(care.upgradeTank(save, layout, 1), null);
-    assert.equal(care.tankCapacity(layout, 1, save), 6, 'Small tank 4 → 6');
+    assert.equal(care.tankCapacity(layout, 1, save), 18, 'Small tank 12 → 18');
     assert.match(care.upgradeTank(save, layout, 1), /Grand/, 'A small tank only grows once');
     assert.equal(care.upgradeTank(save, layout, 2), null);
-    assert.equal(care.tankCapacity(layout, 2, save), 12, 'Grand tank 8 → 12');
+    assert.equal(care.tankCapacity(layout, 2, save), 36, 'Grand tank 24 → 36');
     assert.match(care.upgradeTank(save, layout, 2), /DR-1/, 'The display refit needs its own kit');
     save.displayKits = 1;
     assert.equal(care.upgradeTank(save, layout, 2), null);
-    assert.equal(care.tankCapacity(layout, 2, save), 20, 'The display aquarium holds 20');
+    assert.equal(care.tankCapacity(layout, 2, save), 60, 'The display aquarium holds 60');
     assert.ok(care.isDisplay(save, layout, 2));
     assert.equal(care.decorSlots(save, layout, 2), 6);
-    assert.equal(care.driftRoom(care.tankCapacity(layout, 2, save)), 10, 'Puffcaps get room to drift in the display aquarium');
-    assert.equal(care.tankCapacity(layout, 1), 4, 'Without the save (old callers) a tank reads as built');
+    assert.equal(care.driftRoom(care.tankCapacity(layout, 2, save)), 30, 'Puffcaps get room to drift in the display aquarium');
+    assert.equal(care.tankCapacity(layout, 1), 12, 'Without the save (old callers) a tank reads as built');
     // The reserve: rest, no care, and back again.
     const r = care.newCreature(save, 'ray', 'grown', 1);
     r.fed = 0.2;
@@ -153,14 +153,13 @@ export async function runCreatureCareChecks(server) {
     assert.ok(r.fed >= 0.75, 'It comes back fed');
     assert.equal(save.reserve.length, 0);
     // Moving into a full tank is refused and changes nothing.
-    for (let i = 0; i < 5; i++) care.newCreature(save, 'glowfin', 'young', 1);
-    assert.equal(care.creaturesIn(save, 1).length, 5);
-    care.newCreature(save, 'glowfin', 'young', 1);
+    while (care.creaturesIn(save, 1).length < care.tankCapacity(layout, 1, save)) care.newCreature(save, 'glowfin', 'young', 1);
+    assert.equal(care.creaturesIn(save, 1).length, 18);
     assert.match(care.moveCreature(save, layout, r.id, 1), /full/);
     assert.equal(r.tank, 2);
     // No Hatchery, no reserve.
     const bare = new BaseLayout([{ id: 1, kind: 'tank', gx: 0, gy: 0, rot: 0 }]);
-    assert.match(care.moveCreature(save, bare, r.id, 'reserve'), /Hatchery/);
+    assert.match(care.moveCreature(save, bare, r.id, 'reserve'), /Creature room/);
     // Reserve creatures still count toward the wild's founding pair.
     save.wildCaught.snail = 2;
     save.reserve = [{ ...r, id: 900, species: 'snail', tank: -2 }, { ...r, id: 901, species: 'snail', tank: -2 }];

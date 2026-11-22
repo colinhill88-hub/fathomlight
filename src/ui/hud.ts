@@ -224,7 +224,7 @@ export class Hud {
       ['sorter', 'Sorting pod'],
       ['recomp', 'Recompression room'],
       ['crane', 'Salvage crane'],
-      ['hatch', 'Hatchery'],
+      ['hatch', 'Creature room'],
       ['farm', 'Kelp farm'],
       ['revive', 'Revival pool'],
       ['shaft', 'Riser shaft'],

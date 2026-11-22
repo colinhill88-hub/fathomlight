@@ -5055,3 +5055,26 @@ body.on-foot #btn-dart {
 #care-panel .plan .big small { font-weight: 400; opacity: 0.8; margin-left: 6px; }
 #care-panel .note.good { color: #c6f56a; }
 #care-panel .note.dim { opacity: 0.55; }
+
+/* Colin (after Session B): the Creature room's Tanks tab, every tank in the base at once. */
+#care-panel .tall { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 4px; }
+#care-panel .tall button { min-height: 36px; padding: 4px 10px; border-radius: 10px; border: 1px solid var(--ui-line); background: rgba(255, 255, 255, 0.07); color: var(--ui-text); font: inherit; font-size: 12px; font-weight: 700; }
+#care-panel .tall button.on { border-color: #c6f56a; color: #e8ffc8; }
+#care-panel .tall button small { display: block; font-weight: 500; opacity: 0.75; font-size: 10.5px; }
+#care-panel .tblock { margin: 8px 0; padding: 8px 10px; border-radius: 10px; background: rgba(255, 255, 255, 0.05); border: 1px solid var(--ui-line); }
+#care-panel .thead { display: flex; align-items: center; gap: 6px; }
+#care-panel .thead b { font-size: 14px; letter-spacing: 0.04em; }
+#care-panel .thead span { flex: 1; opacity: 0.75; }
+#care-panel .thead button, #care-panel .tsel button, #care-panel .tsel select { min-height: 32px; padding: 3px 10px; border-radius: 9px; border: 1px solid var(--ui-line); background: rgba(255, 255, 255, 0.07); color: var(--ui-text); font: inherit; font-size: 12px; font-weight: 600; }
+#care-panel .thead button:disabled { opacity: 0.35; }
+#care-panel .tnote { margin: 4px 0 6px; font-size: 11.5px; opacity: 0.85; }
+#care-panel .tnote em.bad { font-style: normal; color: #ffb27a; font-weight: 700; }
+#care-panel .tchips { display: grid; grid-template-columns: repeat(auto-fill, minmax(62px, 1fr)); gap: 4px; }
+#care-panel .tchip { display: flex; flex-direction: column; align-items: center; padding: 2px 2px 3px; min-height: 58px; border-radius: 8px; border: 1px solid transparent; background: rgba(0, 0, 0, 0.18); color: var(--ui-text); font: inherit; cursor: pointer; overflow: hidden; }
+#care-panel .tchip img.snap { width: 46px; height: 34px; object-fit: contain; }
+#care-panel .tchip span { font-size: 10.5px; font-weight: 700; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#care-panel .tchip small { font-size: 9.5px; opacity: 0.75; }
+#care-panel .tchip.low small { color: #ffb27a; opacity: 1; }
+#care-panel .tchip.on { border-color: #ffe6a8; background: rgba(201, 162, 74, 0.2); }
+#care-panel .tsel { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 6px; }
+#care-panel .tsel small { flex-basis: 100%; opacity: 0.75; }

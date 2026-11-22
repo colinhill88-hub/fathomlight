@@ -135,6 +135,13 @@ export interface TankLifeOptions {
   livingBases?: boolean;
 }
 
+/**
+ * How big creatures are drawn in the tanks. Colin (after Session B): much smaller than
+ * before (0.85, now about 59% of that), so the occasional giant really looks big and the
+ * tanks, which now hold three times as many, don't look crowded.
+ */
+export const TANK_SIZE = 0.5;
+
 export class TankLife {
   readonly view = new Container();
   readonly emissive = new Container();
@@ -550,7 +557,7 @@ export class TankLife {
     if (!on) return;
     const fitPuffcap = this.opts.livingCreatures && c.species === 'puffcap' && c.stage !== 'egg';
     const maxHeight = c.stage === 'grown' ? 137 : 62;
-    const size = fitPuffcap ? Math.min(0.85 * this.k, (b.h - 14) / maxHeight) : 0.85 * this.k;
+    const size = fitPuffcap ? Math.min(TANK_SIZE * this.k, (b.h - 14) / maxHeight) : TANK_SIZE * this.k;
     const current = v.water?.flow(s.x, s.y, time, v.filtered) ?? 0;
     s.critter.update(dt, time, s.x, s.y, s.vx, s.vy, { vigour: vig, sick, size, current, feeding: s.feeding });
     if (fitPuffcap) s.critter.fitInHabitat(b, 5);

@@ -1019,7 +1019,7 @@ async function boot(): Promise<void> {
     nurserylog: {
       research: 'hatch',
       label: 'Take the Kestrel nursery log',
-      toast: 'The Kestrel nursery log! A Lab can decode it into the Hatchery HX-1: warm cradles that take the eggs a happy pair lays. The wild only spares two of each kind, so breeding is how a base grows.',
+      toast: 'The Kestrel nursery log! A Lab can decode it into the Creature room HX-1: warm cradles that take the eggs a happy pair lays. The wild only spares two of each kind, so breeding is how a base grows.',
       y: 0,
     },
     cache: {
@@ -2021,26 +2021,36 @@ async function boot(): Promise<void> {
       const name = SPECIES[ev.c.species].name;
       // Phase 13: kept creatures are named (hatching eggs are still a clutch).
       const who = ev.c.stage === 'egg' ? `The ${name.toLowerCase()}` : `${creatureName(ev.c)} the ${name.toLowerCase()}`;
-      const where = ev.c.tank < 0 ? "the Hatchery" : `tank ${tankNumber(layout, ev.c.tank)}`;
+      const where = ev.c.tank < 0 ? "the Creature room" : `tank ${tankNumber(layout, ev.c.tank)}`;
       // Milestone 9: breeding.
       if (ev.type === 'laid') {
         const tp = layout.pieces.find((q) => q.id === ev.parents[0].tank);
         grant(notable('egg', 'New egg', `A ${name.toLowerCase()} egg`, traitText(ev.c.species, ev.c.traits!), 'life'));
-        hud.toast(`A ${name.toLowerCase()} pair in ${tp ? pieceCode(layout, tp) : 'a tank'} laid an egg: it is in the Hatchery (${traitText(ev.c.species, ev.c.traits!)}).`, 'big');
+        hud.toast(`A ${name.toLowerCase()} pair in ${tp ? pieceCode(layout, tp) : 'a tank'} laid an egg: it is in the Creature room (${traitText(ev.c.species, ev.c.traits!)}).`, 'big');
         if (!save.tips.includes('laid')) {
           save.tips.push('laid');
-          setTimeout(() => hud.toast('Eggs hatch in the Hatchery. Then stand at its console inside the base and choose a tank for each young one.', 'big'), 2600);
+          setTimeout(() => hud.toast('Eggs hatch in the Creature room, and the young swim to a tank that suits them by themselves. Its console shows every tank in the base.', 'big'), 2600);
         }
         persist();
         continue;
       }
       if (ev.type === 'nursery-hatched') {
         // Phase 20: the hatching moment, scaled by rarity (it names the baby too).
-        hatchMoment(ev.c, 'in the Hatchery');
-        hud.toast(`A ${name.toLowerCase()} hatched in the Hatchery: ${traitText(ev.c.species, ev.c.traits!)}. Choose a tank for it at the Hatchery console.`);
+        // Colin (after Session B): the young swim home by themselves (to a tank, or the reserve).
+        const home = ev.home;
+        const homeText = home === 'reserve' ? 'the reserve' : typeof home === 'number' ? (() => { const tp = layout.pieces.find((q) => q.id === home); return tp ? pieceCode(layout, tp) : 'a tank'; })() : null;
+        hatchMoment(ev.c, homeText ? `and swam to ${homeText}` : 'in the Creature room');
+        hud.toast(homeText
+          ? `A ${name.toLowerCase()} hatched (${traitText(ev.c.species, ev.c.traits!)}) and swam to ${homeText} by itself.`
+          : `A ${name.toLowerCase()} hatched in the Creature room: ${traitText(ev.c.species, ev.c.traits!)}. No tank suits it yet: choose one at the Creature room console.`);
+        if (homeText) {
+          persist();
+          baseHooks?.syncTanks();
+          continue;
+        }
         if (!save.tips.includes('younghunger')) {
           save.tips.push('younghunger');
-          setTimeout(() => hud.toast('Young in the Hatchery get hungry while they wait: run a feed pipe from an auto feeder into it, or feed them by hand at its console.', 'big'), 5000);
+          setTimeout(() => hud.toast('Young in the Creature room get hungry while they wait: run a feed pipe from an auto feeder into it, or feed them by hand at its console.', 'big'), 5000);
         }
         baseHooks?.syncTanks();
         persist();
@@ -3064,7 +3074,7 @@ async function boot(): Promise<void> {
             // Milestone 9: one from the Hatchery or the Revival pool (no tank yet) goes back to the Hatchery.
             k.tank = -1;
             save.nursery.push(k);
-            jarMsg = ` The crew put the ${SPECIES[j.species].name.toLowerCase()} from your jar in the Hatchery.`;
+            jarMsg = ` The crew put the ${SPECIES[j.species].name.toLowerCase()} from your jar in the Creature room.`;
           } else {
             wildlife.release(j.species, j.stage, save);
             jarMsg = ` The specimen jar came open; the ${SPECIES[j.species].name.toLowerCase()} swam home.`;
@@ -3140,7 +3150,7 @@ async function boot(): Promise<void> {
       const left = WILD_CAP - (save.wildCaught[ev.species] ?? 0);
       if (left <= 0 && !save.tips.includes(`wildcap-${ev.species}`)) {
         save.tips.push(`wildcap-${ev.species}`);
-        setTimeout(() => hud.toast(`That's the last ${SPECIES[ev.species].name.toLowerCase()} the wild will spare. For more, keep a pair happy and grown in one tank, with a Hatchery at the base: they breed.`, 'big'), 4500);
+        setTimeout(() => hud.toast(`That's the last ${SPECIES[ev.species].name.toLowerCase()} the wild will spare. For more, keep a pair happy and grown in one tank, with a Creature room at the base: they breed.`, 'big'), 4500);
       }
       drone.cheer();
       const sp = SPECIES[ev.species];
@@ -3167,7 +3177,7 @@ async function boot(): Promise<void> {
           : !save.scans.includes(SPECIES[wildTarget.species].scan)
             ? `Scan the ${SPECIES[wildTarget.species].name.toLowerCase()} first, to learn how to keep it`
             : !wildAllowed(save, wildTarget.species)
-              ? `You already keep a founding group of ${SPECIES[wildTarget.species].name.toLowerCase()}s. To raise more, keep a happy grown pair in one tank with a powered Hatchery.`
+              ? `You already keep a founding group of ${SPECIES[wildTarget.species].name.toLowerCase()}s. To raise more, keep a happy grown pair in one tank with a powered Creature room.`
               : 'The specimen jar is full. Put its creature in a tank first.',
         'warn',
       );
@@ -4537,7 +4547,7 @@ async function boot(): Promise<void> {
       exitHeart({ x: SANCTUM.gate.x - 150, y: SANCTUM.gate.y + 20 });
       hud.showReading(
         "The Choir's gifts",
-        "You come to yourself floating in the antechamber, the resonator still warm on your back. Where the water was empty, a ring of light now stands: a Choir gate. It carries you home to the Kestrel, and its twin by the buoy brings you back here.\n\nAnd in your mind, clear as a drawing, the shape of a Choir lantern: a seed of its light that powers the base anywhere on the site, no current needed. Its build card is in build mode now.\n\nSomething else stays with you, too. The Choir has heard your creatures now. Every so often, very rarely, an egg in your Hatchery may carry a little of its light.\n\nThe game goes on. There is a whole ocean of creatures still to raise, and the plinth in the heart will sing with you again whenever you come back.",
+        "You come to yourself floating in the antechamber, the resonator still warm on your back. Where the water was empty, a ring of light now stands: a Choir gate. It carries you home to the Kestrel, and its twin by the buoy brings you back here.\n\nAnd in your mind, clear as a drawing, the shape of a Choir lantern: a seed of its light that powers the base anywhere on the site, no current needed. Its build card is in build mode now.\n\nSomething else stays with you, too. The Choir has heard your creatures now. Every so often, very rarely, an egg in your Creature room may carry a little of its light.\n\nThe game goes on. There is a whole ocean of creatures still to raise, and the plinth in the heart will sing with you again whenever you come back.",
         'First contact is in your scanner log.',
       );
       persist();
@@ -4713,7 +4723,7 @@ async function boot(): Promise<void> {
         m.grow === 'fibre'
           ? 'The farm grows kelp fibre: into its tray, for a conveyor (to an auto feeder or storage), or take it by hand.'
           : m.grow === 'resin'
-            ? 'The farm grows bladder kelp and taps its resin: one every 4 minutes into its tray, for a conveyor to storage. Grand tanks, Hatcheries and sorting pods are built from it.'
+            ? 'The farm grows bladder kelp and taps its resin: one every 4 minutes into its tray, for a conveyor to storage. Grand tanks, Creature rooms and sorting pods are built from it.'
             : `The farm grows ${PLANTS[m.grow].name.toLowerCase()} cuttings (${save.cuttings[m.grow] ?? 0} ready). Planting it in a tank uses a cutting instead of materials.`,
       );
       persist();
@@ -5594,7 +5604,7 @@ async function boot(): Promise<void> {
     // Phases 20-21: the hatching moment and creature cards (for checks).
     hatchMoment: (id: number) => {
       const c = [...save.creatures, ...save.nursery].find((q) => q.id === id);
-      if (c) hatchMoment(c, 'in the Hatchery');
+      if (c) hatchMoment(c, 'in the Creature room');
     },
     creatureCard,
     hatchReveal,

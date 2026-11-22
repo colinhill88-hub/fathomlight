@@ -166,6 +166,8 @@ export interface CreatureData {
   make: number;
   /** Milestone 9: colour, glow pattern and radiance (src/game/traits.ts). Missing on old saves: fixed by its id. */
   traits?: Traits;
+  /** Colin (after Session B): the tank an egg was laid in, so its young can swim home there. */
+  from?: number;
   /** Phase 20: a name the player chose (or kept) at hatching. Missing: the name derived from its id (creatureName). */
   name?: string;
   /** Phase 20: its parents' names, set when the egg is laid. */
@@ -489,6 +491,8 @@ export interface SaveData {
    * keyed "species:form" (src/game/collection.ts). Optional; filled from the creatures kept.
    */
   bookForms?: Record<string, BookEntry>;
+  /** Colin (after Session B): young settle into tanks by themselves when they hatch. Missing: on. */
+  autoSettle?: boolean;
   tankKits?: number;
   displayKits?: number;
   playSeconds: number;
@@ -665,6 +669,7 @@ export function loadSave(spawnX: number, spawnY: number): { data: SaveData; load
       requests: d.requests && Array.isArray(d.requests.active) ? { active: d.requests.active, done: Number(d.requests.done) || 0, nextId: Number(d.requests.nextId) || 1 } : undefined,
       restocked: d.restocked && typeof d.restocked === 'object' ? d.restocked : undefined,
       bookForms: d.bookForms && typeof d.bookForms === 'object' ? d.bookForms : undefined,
+      autoSettle: typeof d.autoSettle === 'boolean' ? d.autoSettle : undefined,
       tankKits: typeof d.tankKits === 'number' ? d.tankKits : undefined,
       displayKits: typeof d.displayKits === 'number' ? d.displayKits : undefined,
       relays: Array.isArray(d.relays) ? d.relays.filter((r: { x?: unknown; y?: unknown }) => typeof r?.x === 'number' && typeof r?.y === 'number') : [],
