@@ -355,3 +355,8 @@ export function restockedLook(save: SaveData, species: SpeciesId, i: number): Tr
   const pick = list[(i / 2) % list.length];
   return pick ? { ...pick, gen: 1 } : null;
 }
+
+/** "a moss ray" / "an amber shrimp". */
+export function an(phrase: string): string {
+  return `${/^[aeiou]/i.test(phrase) ? 'an' : 'a'} ${phrase}`;
+}

@@ -107,6 +107,15 @@ export async function runCreatureCareChecks(server) {
     const c = { id: 9, species: 'ray' };
     assert.equal(care.creatureName(c), care.suggestedName(c), 'No chosen name: the suggestion');
     assert.equal(care.creatureName({ ...c, name: 'Biscuit' }), 'Biscuit', 'A chosen name wins');
+    // Suggestions vary (the old hash gave ids 1-4 the same name), and old creatures keep theirs.
+    const names = new Set([1, 2, 3, 4, 5, 6, 7, 8].map((id) => care.suggestedName({ id, species: 'glowfin' })));
+    assert.ok(names.size >= 6, `Suggested names vary (${[...names]})`);
+    const olds = state.freshSave(0, 0);
+    const kept = care.newCreature(olds, 'glowfin', 'grown', 1);
+    const before = care.legacyName(kept);
+    assert.equal(care.keepOldNames(olds), true);
+    assert.equal(care.creatureName(kept), before, 'A creature kept before the change keeps its old name');
+    assert.equal(care.keepOldNames(olds), false, 'Runs once per save');
     assert.equal(care.cleanName('  <b>Sir   Flaps-a-lot the Third</b> '), 'bSir Flaps-a-lot', 'Names are tidied and kept short');
   }
 

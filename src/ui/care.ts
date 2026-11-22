@@ -19,7 +19,22 @@ import {
   creatureName,
   jarRoom,
   putInJar,
+  careForAll,
+  contentment,
+  decorSlots,
+  handFeed,
+  handFeedWait,
+  isDisplay,
+  moveCreature,
+  nextUpgrade,
+  reserveOpen,
+  RESERVE_CAP,
+  tanks,
+  upgradeTank,
+  worstNeed,
 } from '../game/creatures';
+import { DECOR, DECOR_ORDER, placeDecor, removeDecor } from '../game/collection';
+import type { DecorId } from '../game/state';
 import { genText, isRare, traitsOf, traitText } from '../game/traits';
 import { CreatureData, MATERIALS, SaveData } from '../game/state';
 import { creatureMilestone } from '../game/discovery';
@@ -68,7 +83,16 @@ export interface CareDeps {
   /** A creature was let go into the wild. */
   released(c: CreatureData): void;
   highlight(id: number | null): void;
+  /** Phase 20: open a creature's card. */
+  openCard(c: CreatureData): void;
+  /** Phase 21: a hand feed (bubbles and a nibble at the glass), and a tank upgraded or redecorated. */
+  handFedFx(tankId: number, id: number): void;
+  tankChanged(): void;
 }
+
+/** Phase 21: the Habitat console's list filter. */
+type Filter = 'all' | 'rare' | 'care' | string;
+type Sort = 'name' | 'species' | 'content' | 'rare';
 
 /** "Makes 0.36 kelp fibre/min (+30% shoal, +10% reef, ×2 whorl)". */
 function makeLine(save: SaveData, layout: BaseLayout, c: CreatureData): string {
@@ -93,6 +117,10 @@ export class CareMode {
   private cleanAt = 0;
   private lastHtml = '';
   private clock = 0;
+  /** Phase 21: when the pointer last moved over the panel (the live refresh waits, so a tap never lands on a replaced button). */
+  private touchedAt = 0;
+  private filter: Filter = 'all';
+  private sort: Sort = 'species';
 
   constructor(private readonly deps: CareDeps) {
     if (deps.livingBases) {
@@ -101,6 +129,7 @@ export class CareMode {
     }
     this.btn.addEventListener('click', () => this.toggle());
     this.panel.addEventListener('pointerdown', (e) => e.stopPropagation());
+    for (const ev of ['pointermove', 'pointerdown'] as const) this.panel.addEventListener(ev, () => (this.touchedAt = performance.now()));
     this.panel.addEventListener('click', (e) => {
       const el = (e.target as HTMLElement).closest('[data-act]') as HTMLElement | null;
       if (!el) return;
@@ -118,9 +147,31 @@ export class CareMode {
       }
       else if (act === 'release') this.release();
       else if (act === 'close') this.close();
+      else if (act === 'hand') this.feedByHand();
+      else if (act === 'card') {
+        const c = this.here().find((x) => x.id === this.selected);
+        if (c) this.deps.openCard(c);
+      } else if (act === 'care-all') this.careAll();
+      else if (act === 'upgrade') this.upgrade();
+      else if (act === 'decor') this.decorate(el.dataset.id as DecorId);
+      else if (act === 'undecor') this.undecorate(Number(el.dataset.id));
+      else if (act === 'filter') {
+        this.filter = el.dataset.id ?? 'all';
+        this.render(true);
+      }
+    });
+    this.panel.addEventListener('change', (e) => {
+      if (!this.active) return;
+      const el = e.target as HTMLSelectElement;
+      if (el.dataset.act === 'move' && el.value) this.move(el.value === 'reserve' ? 'reserve' : Number(el.value));
+      else if (el.dataset.act === 'sort') {
+        this.sort = el.value as Sort;
+        this.render(true);
+      }
     });
     window.addEventListener('keydown', (e) => {
-      if (e.repeat) return;
+      if (e.repeat || (e.target as HTMLElement)?.closest?.('input, select')) return;
+      if (document.getElementById('creature-card')?.hidden === false) return;
       const k = e.key.toLowerCase();
       if (isKey('tend', k)) this.toggle();
       else if (!this.active) return;
@@ -128,6 +179,8 @@ export class CareMode {
       else if (k === 'tab' && !this.deps.livingBases) this.cycle();
       else if (isKey('feed', k)) this.feed();
       else if (isKey('clean', k)) this.clean();
+      else if (isKey('handFeed', k)) this.feedByHand();
+      else if (isKey('careAll', k)) this.careAll();
       else return;
       e.preventDefault();
     });
@@ -248,6 +301,143 @@ export class CareMode {
     this.render(true);
   }
 
+  /** Phase 21: a treat from Kestrel's hand at the glass (free; once a minute per creature). It builds a bond. */
+  private feedByHand(): void {
+    const c = this.here().find((x) => x.id === this.selected);
+    if (!c) return;
+    const why = handFeed(this.deps.save, c);
+    if (why) return this.deps.toast(why, 'warn');
+    this.deps.handFedFx(this.tankId!, c.id);
+    const b = c.bond ?? 0;
+    this.deps.toast(b >= 0.5 ? `${creatureName(c)} takes the treat from your glove and nuzzles it` : `${creatureName(c)} darts in for the treat`);
+    this.deps.persist();
+    this.render(true);
+  }
+
+  /** Phase 21: feed and scrub every tank at once (1 kelp fibre per hungry tank). */
+  private careAll(): void {
+    const { save, layout } = this.deps;
+    const r = careForAll(save, layout);
+    for (const t of tanks(layout)) {
+      this.deps.fedFx(t.id);
+    }
+    this.deps.refreshInventory();
+    if (!r.fed && !r.cleaned) this.deps.toast(r.short ? 'Not enough kelp fibre to feed anyone' : 'Every tank is fed and clean already', r.short ? 'warn' : 'item');
+    else this.deps.toast(`Cared for all: fed ${r.fed} tank${r.fed === 1 ? '' : 's'}, scrubbed ${r.cleaned}${r.short ? `. ${r.short} still hungry: no kelp fibre left` : ''}`, r.short ? 'warn' : 'item');
+    this.deps.persist();
+    this.render(true);
+  }
+
+  private move(to: number | 'reserve'): void {
+    const { save, layout } = this.deps;
+    const c = this.here().find((x) => x.id === this.selected);
+    if (!c) return;
+    const why = moveCreature(save, layout, c.id, to);
+    if (why) {
+      this.deps.toast(why, 'warn');
+      this.render(true);
+      return;
+    }
+    const p = layout.pieces.find((q) => q.id === to);
+    this.deps.toast(`${creatureName(c)} ${to === 'reserve' ? 'rests in the reserve' : `moves to ${p ? pieceCode(layout, p) : 'another tank'}`}`);
+    this.afterRemove();
+  }
+
+  private upgrade(): void {
+    const { save, layout } = this.deps;
+    if (this.tankId === null) return;
+    const why = upgradeTank(save, layout, this.tankId);
+    if (why) return this.deps.toast(why, 'warn');
+    const cap = tankCapacity(layout, this.tankId, save);
+    this.deps.toast(isDisplay(save, layout, this.tankId) ? `The display aquarium is ready: ${cap} creatures and six decorations` : `Tank extended: it holds ${cap} now`, 'big');
+    this.deps.tankChanged();
+    this.deps.persist();
+    this.render(true);
+  }
+
+  private decorate(d: DecorId): void {
+    const { save, layout } = this.deps;
+    if (this.tankId === null) return;
+    const why = placeDecor(save, this.tankId, d, decorSlots(save, layout, this.tankId));
+    if (why) return this.deps.toast(why, 'warn');
+    this.deps.toast(`${DECOR[d].name} placed. Creatures love something to explore.`);
+    this.deps.tankChanged();
+    this.deps.persist();
+    this.render(true);
+  }
+
+  private undecorate(i: number): void {
+    if (this.tankId === null || !removeDecor(this.deps.save, this.tankId, i)) return;
+    this.deps.tankChanged();
+    this.deps.persist();
+    this.render(true);
+  }
+
+  /** The creatures shown as tabs: filtered and sorted (Phase 21, for big tanks). */
+  private shown(list: CreatureData[]): CreatureData[] {
+    const { save } = this.deps;
+    const rare = (c: CreatureData) => isRare(traitsOf(c)) || traitsOf(c).pattern >= 2;
+    const needs = (c: CreatureData) => c.stage !== 'egg' && (c.sickness > 0 || worstNeed(save, c).value < 0.5);
+    let out = list.filter((c) =>
+      this.filter === 'all' ? true : this.filter === 'rare' ? rare(c) : this.filter === 'care' ? needs(c) : c.species === this.filter,
+    );
+    const key: Record<Sort, (c: CreatureData) => string | number> = {
+      name: (c) => creatureName(c).toLowerCase(),
+      species: (c) => `${c.species}:${creatureName(c).toLowerCase()}`,
+      content: (c) => contentment(save, c).value,
+      rare: (c) => -(Number(!!traitsOf(c).radiant) * 2 + Number(rare(c))),
+    };
+    const k = key[this.sort];
+    return [...out].sort((a, b) => (k(a) < k(b) ? -1 : k(a) > k(b) ? 1 : 0));
+  }
+
+  /** Phase 21: the selected creature's quick actions: hand-feed, card, move. */
+  private creatureActs(c: CreatureData): string {
+    const { save, layout } = this.deps;
+    const wait = handFeedWait(save, c);
+    const hand = c.stage === 'egg' ? '' : `<button type="button" data-act="hand" ${wait ? `disabled title="Still nibbling the last treat"` : 'title="A free treat from your glove: it gets to know Kestrel"'}>${wait ? `Treat in ${wait} s` : 'Hand-feed'}</button>`;
+    const opts = tanks(layout)
+      .filter((t) => t.id !== this.tankId)
+      .map((t) => {
+        const n = creaturesIn(save, t.id).length;
+        const cap = tankCapacity(layout, t.id, save);
+        return `<option value="${t.id}" ${n >= cap ? 'disabled' : ''}>${pieceCode(layout, t)} (${n}/${cap})</option>`;
+      })
+      .join('');
+    const res = reserveOpen(layout) ? `<option value="reserve" ${(save.reserve?.length ?? 0) >= RESERVE_CAP ? 'disabled' : ''}>Reserve (${save.reserve?.length ?? 0}/${RESERVE_CAP})</option>` : '';
+    const move = opts || res ? `<select data-act="move" aria-label="Move to"><option value="">Move to…</option>${opts}${res}</select>` : '';
+    return `<div class="quick">${hand}<button type="button" data-act="card">Card</button>${move}</div>`;
+  }
+
+  /** Phase 21: decorations in this tank (tap one to take it out) and ones to place. */
+  private decorRow(): string {
+    const { save, layout } = this.deps;
+    if (this.tankId === null) return '';
+    const placed = save.tankData[String(this.tankId)]?.decor ?? [];
+    const slots = decorSlots(save, layout, this.tankId);
+    const owned = DECOR_ORDER.filter((d) => (save.decor?.[d] ?? 0) > 0);
+    if (!placed.length && !owned.length) return '';
+    const full = placed.length >= slots;
+    return `<div class="decor"><span>Decor ${placed.length}/${slots}:</span>${placed
+      .map((d, i) => `<button type="button" class="on" data-act="undecor" data-id="${i}" title="Take it out">${DECOR[d].name}<small>take out</small></button>`)
+      .join('')}${owned
+      .map((d) => `<button type="button" data-act="decor" data-id="${d}" ${full ? 'disabled' : ''} title="${DECOR[d].line}">${DECOR[d].name}<small>${full ? 'no room' : `place (${save.decor![d]})`}</small></button>`)
+      .join('')}</div>`;
+  }
+
+  /** Phase 21: the tank's upgrade button (a Workshop kit), when there is one to fit. */
+  private upgradeButton(): string {
+    const { save, layout } = this.deps;
+    if (this.tankId === null) return '';
+    const up = nextUpgrade(save, layout, this.tankId);
+    if ('blocked' in up) return '';
+    const have = (up.kit === 'tankkit' ? save.tankKits : save.displayKits) ?? 0;
+    const known = save.blueprints.includes(up.kit === 'tankkit' ? 'tankkit' : 'display');
+    if (!known && !have) return '';
+    const code = up.kit === 'tankkit' ? 'TX-1' : 'DR-1';
+    return `<button type="button" data-act="upgrade" ${have ? `title="Fit a ${code} kit: room for ${up.to}"` : `disabled title="Build a ${code} kit in the Workshop"`}>${up.kit === 'tankkit' ? 'Extend' : 'Make display aquarium'} <small>${have ? `${code} → ${up.to}` : `needs ${code}`}</small></button>`;
+  }
+
   private takeOut(): void {
     const { save } = this.deps;
     const c = this.here().find((x) => x.id === this.selected);
@@ -322,7 +512,22 @@ export class CareMode {
     const pct = (v: number) => `${Math.round(v * 100)}%`;
     const bar = (label: string, v: number, cls: string) =>
       `<div class="need"><div class="row"><span>${label}</span><span>${pct(v)}</span></div><div class="track"><i class="${cls}${v < 0.25 ? ' low' : ''}" style="width:${pct(v)}"></i></div></div>`;
-    const tabs = list
+    // Phase 21: sort and filter once a tank is busy.
+    const species = [...new Set(list.map((x) => x.species))];
+    const many = list.length >= 4;
+    const visible = many ? this.shown(list) : list;
+    if (many && this.filter !== 'all' && !visible.some((x) => x.id === this.selected) && visible[0]) {
+      this.selected = visible[0].id;
+      this.deps.highlight(this.selected);
+    }
+    const chips = many
+      ? `<div class="filters"><span>Show:</span>${[['all', 'All'], ['rare', 'Rare'], ['care', 'Needs care'], ...(species.length > 1 ? species.map((sp) => [sp, SPECIES[sp].name]) : [])]
+          .map(([id, label]) => `<button type="button" data-act="filter" data-id="${id}" class="${this.filter === id ? 'on' : ''}">${label}</button>`)
+          .join('')}<select data-act="sort" aria-label="Sort by">${(['species', 'name', 'content', 'rare'] as Sort[])
+          .map((k) => `<option value="${k}" ${this.sort === k ? 'selected' : ''}>${{ species: 'By species', name: 'By name', content: 'Least content first', rare: 'Rarest first' }[k]}</option>`)
+          .join('')}</select></div>`
+      : '';
+    const tabs = visible
       .map(
         (c) =>
           `<button type="button" data-act="pick" data-id="${c.id}" class="tab${c.id === this.selected ? ' on' : ''}${c.sickness > 0.02 ? ' sick' : ''}">${
@@ -335,10 +540,13 @@ export class CareMode {
     if (!c) {
       body = `<p class="status">${livingBases ? 'This habitat is empty. Bring a young creature or an egg clutch from the reef to start a colony.' : 'This tank is empty. Collect a young creature or an egg clutch out on the reef with Collect, then stop by this tank and tap Collect to put it in.'}</p>`;
     } else if (c.stage === 'egg') {
-      body = `<p class="status">${statusLine(save, c)}</p><p class="note">Eggs only need time. The fry will need feeding once they hatch.</p>`;
+      body = `<p class="status">${statusLine(save, c)}</p><p class="note">Eggs only need time. The fry will need feeding once they hatch.</p>${this.creatureActs(c)}`;
     } else {
       const ct = comfortTarget(save, layout, c);
+      const happy = contentment(save, c);
       body = `<p class="status${c.sickness > 0.02 ? ' sick' : ''}">${statusLine(save, c)}</p>
+        <div class="need content-bar"><div class="row"><span>${happy.label}${(c.bond ?? 0) >= 0.5 ? ' · knows Kestrel' : ''}</span><span>${pct(happy.value)}</span></div><div class="track"><i class="content${happy.value >= 0.85 ? ' hi' : ''}${happy.value < 0.25 ? ' low' : ''}" style="width:${pct(happy.value)}"></i></div></div>
+        ${this.creatureActs(c)}
         ${bar('Fed', c.fed, 'fed')}
         ${bar('Comfort', c.comfort, 'comfort')}
         ${livingBases ? '' : bar('Water quality', td.water, 'water')}
@@ -363,27 +571,33 @@ export class CareMode {
     const grand = layout.pieces.find((q) => q.id === this.tankId)?.kind === 'gtank';
     const plants = grand ? `${planter(1)}</div><div class="plants"><span>Planter 2:</span>${planter(2)}` : planter(1);
     const armed = Date.now() - this.releaseArmed < 3000;
-    const capacity = tankCapacity(layout, this.tankId);
+    const capacity = tankCapacity(layout, this.tankId, save);
     const feed = '<button type="button" class="big" data-act="feed">Feed kelp flakes <small>1 fibre</small></button>';
     const clean = '<button type="button" data-act="clean">Clean tank</button>';
+    // Phase 21: routine feeding and cleaning of every tank in one press, once there are several.
+    const all = tanks(layout).length > 1 ? '<button type="button" data-act="care-all" title="Feed every hungry tank (1 kelp fibre each) and scrub every tank">Care for all</button>' : '';
+    const upgrade = this.upgradeButton();
     const overview = livingBases ? `<section class="habitat-care" aria-label="Habitat care">
       ${bar('Water quality', td.water, 'water')}
       ${filtered ? '<p class="note">Filter pump running</p>' : ''}
-      <div class="acts">${feed}${clean}${save.jar ? `<button type="button" data-act="deposit" ${list.length >= capacity ? `disabled title="This habitat holds ${capacity}: make room or use another"` : 'title="Move the jar\'s creature into this habitat"'}>${list.length >= capacity ? 'Habitat full' : 'Move specimen from jar'}</button>` : ''}</div>
+      <div class="acts">${feed}${clean}${all}${upgrade}${save.jar ? `<button type="button" data-act="deposit" ${list.length >= capacity ? `disabled title="This habitat holds ${capacity}: make room or use another"` : 'title="Move the jar\'s creature into this habitat"'}>${list.length >= capacity ? 'Habitat full' : 'Move specimen from jar'}</button>` : ''}</div>
       <ul class="notes">${trayLine(save, td, true)}</ul>
     </section>` : '';
     const html = `
-      <div class="care-head"><b>${livingBases ? `Habitat Console · ${this.code()}` : this.code()}</b><span>${list.length}/${capacity} · ${powered ? 'powered' : 'no power'}</span>
+      <div class="care-head"><b>${livingBases ? `Habitat Console · ${this.code()}` : this.code()}${this.tankId !== null && isDisplay(save, layout, this.tankId) ? ' · Display aquarium' : ''}</b><span>${list.length}/${capacity} · ${powered ? 'powered' : 'no power'}</span>
         <button type="button" class="x" data-act="close" aria-label="Close">✕</button></div>
       ${overview}
-      ${list.length ? `<div class="tabs">${tabs}</div>` : ''}
+      ${chips}
+      ${list.length ? (visible.length ? `<div class="tabs">${tabs}</div>` : '<p class="note">None in this tank match. Tap All to see everyone.</p>') : ''}
       ${c ? `<h3>${c.stage === 'egg' ? SPECIES[c.species].eggName.replace(/^./, (m) => m.toUpperCase()) : `${creatureName(c)} <small>· ${SPECIES[c.species].name}</small>`}</h3><p class="traits${isRare(traitsOf(c)) ? ' rare' : ''}">${traitText(c.species, traitsOf(c))} <small>· ${genText(traitsOf(c))}</small></p>` : ''}
       ${body}
       <div class="plants"><span>${grand ? 'Planter 1:' : 'Plant:'}</span>${plants}</div>
+      ${this.decorRow()}
       <div class="acts">
-        ${livingBases ? '' : feed + clean}
+        ${livingBases ? '' : feed + clean + all + upgrade}
         ${c ? `${this.jarButton()}<button type="button" data-act="release" class="${armed ? 'armed' : ''}">${armed ? 'Tap again' : 'Release'}</button>` : ''}
       </div>`;
+    if (!force && performance.now() - this.touchedAt < 1500) return;
     if (force || html !== this.lastHtml) {
       const active = document.activeElement;
       const previous = livingBases && active instanceof HTMLButtonElement && this.panel.contains(active) ? active.dataset : null;

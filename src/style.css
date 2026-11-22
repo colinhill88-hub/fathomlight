@@ -4940,3 +4940,77 @@ body.on-foot #btn-dart {
   .hr-stage { width: 96px; height: 72px; }
   .hr-egg { width: 50px; margin-left: -25px; }
 }
+
+/* ---- Phase 21: the Habitat console's and Hatchery's new pieces ---- */
+#care-panel .track i.content { background: #e2c46a; }
+#care-panel .track i.content.hi { background: linear-gradient(90deg, #e2c46a, #c6f56a); }
+#care-panel .content-bar .row span:first-child { font-weight: 700; color: #ffe6a8; }
+#care-panel .quick, #care-panel .filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px;
+  margin: 6px 0;
+  font-size: 12px;
+}
+#care-panel .quick button, #care-panel .filters button, #care-panel select, #care-panel .decor button {
+  min-height: 36px;
+  padding: 0 11px;
+  border-radius: 18px;
+  border: 1px solid var(--ui-line);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--ui-text);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+}
+#care-panel select { padding: 0 8px; max-width: 100%; }
+#care-panel select option { color: #102028; }
+#care-panel .filters button.on { border-color: #c9a24a; background: rgba(201, 162, 74, 0.22); color: #ffe6a8; }
+#care-panel .quick button:disabled, #care-panel .decor button:disabled { opacity: 0.45; }
+#care-panel .decor { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; margin: 0 0 10px; font-size: 12px; }
+#care-panel .decor button { display: flex; flex-direction: column; align-items: flex-start; border-radius: 10px; min-height: 40px; padding: 3px 9px; }
+#care-panel .decor button small { font-weight: 400; opacity: 0.65; }
+#care-panel .decor button.on { border-color: #c9a24a; background: rgba(201, 162, 74, 0.16); }
+#care-panel .h-tabs { margin-bottom: 8px; }
+#care-panel .nest .egg img.mini, #care-panel .pp img.mini {
+  float: left;
+  width: 64px;
+  height: 48px;
+  margin: 0 8px 2px 0;
+  object-fit: contain;
+  border-radius: 8px;
+  background: radial-gradient(ellipse at 50% 60%, rgba(90, 150, 150, 0.45), rgba(6, 18, 24, 0.4));
+}
+#care-panel .nest .egg.gift { border-color: #c9a24a; box-shadow: inset 0 0 12px rgba(255, 210, 110, 0.18); }
+#care-panel .nest .egg .row select { flex: 1; min-width: 120px; }
+#care-panel .pick { display: grid; gap: 5px; margin: 6px 0; }
+#care-panel .pp {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  min-height: 52px;
+  padding: 2px 8px 2px 2px;
+  border-radius: 12px;
+  border: 1px solid var(--ui-line);
+  background: rgba(255, 255, 255, 0.04);
+  text-align: left;
+}
+#care-panel .pp img.mini { margin-bottom: 0; }
+#care-panel .pp span { display: flex; flex-direction: column; font-size: 12px; }
+#care-panel .pp small { opacity: 0.7; }
+#care-panel .pp.on { border-color: #c9a24a; background: rgba(201, 162, 74, 0.2); }
+#care-panel .plan { margin-top: 6px; }
+#care-panel .care-bonus { margin: 4px 0 8px; padding: 6px 8px; border-radius: 8px; background: rgba(255, 255, 255, 0.05); font-size: 12px; }
+#care-panel .care-bonus.ok { border-left: 3px solid #e2c46a; }
+#care-panel .care-bonus.good { border-left: 3px solid #c6f56a; color: #e4f6c4; }
+#care-panel .odds { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+#care-panel .odds h4 { margin: 0 0 3px; font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; opacity: 0.75; }
+#care-panel .odds ul, #care-panel .odds-sum { list-style: none; margin: 0; padding: 0; font-size: 12px; }
+#care-panel .odds li, #care-panel .odds-sum li { display: flex; justify-content: space-between; gap: 6px; padding: 2px 0; border-bottom: 1px solid rgba(255, 255, 255, 0.06); }
+#care-panel .odds li.rare span, #care-panel .odds-sum li.rare span { color: #f2d488; }
+#care-panel .odds-sum { margin-top: 6px; }
+#care-panel .plan .big { width: 100%; min-height: 44px; margin-top: 8px; border-radius: 22px; border: 1px solid #c9a24a; background: rgba(201, 162, 74, 0.25); color: #ffe6a8; font-weight: 800; }
+#care-panel .plan .big small { font-weight: 400; opacity: 0.8; margin-left: 6px; }
+#care-panel .note.good { color: #c6f56a; }
+#care-panel .note.dim { opacity: 0.55; }

@@ -142,8 +142,8 @@ import { Critter } from './actors/critters';
 import { CareMode } from './ui/care';
 import { CreatureCard } from './ui/creatureCard';
 import { HatchReveal } from './ui/hatchReveal';
-import { book, claimBookRewards, hatchTier, kindName, record, restock, sweepBook } from './game/collection';
-import { creatureName, creaturesIn, releaseFromJar as releaseJar, jarRoom, newCreature, putInJar, takeFromJar, payCost, PLANT_ORDER, PLANTS, SPECIES, SPECIES_ORDER, tankCapacity, tankNumber, tickCare, wildAllowed, WILD_CAP } from './game/creatures';
+import { an, book, claimBookRewards, matchesRequest, hatchTier, kindName, record, requestText, restock, rewardText, showToLinnea, sweepBook, topUpRequests } from './game/collection';
+import { keepOldNames, creatureName, creaturesIn, releaseFromJar as releaseJar, jarRoom, newCreature, putInJar, takeFromJar, payCost, PLANT_ORDER, PLANTS, SPECIES, SPECIES_ORDER, tankCapacity, tankNumber, tickCare, wildAllowed, WILD_CAP } from './game/creatures';
 import { creatureMilestone, creatureSiteHint, fieldResearch, type CreatureSite } from './game/discovery';
 import { HatchPanel } from './ui/hatch';
 import { traitsOf, traitText, wildTraits } from './game/traits';
@@ -350,7 +350,25 @@ async function boot(): Promise<void> {
       const plan = linneaPlan(save);
       const hello = linneaGreeting(save);
       markLinneaMet(save, plan.spot);
-      line = linneaSay.start(hello ? [hello, ...plan.lines] : plan.lines);
+      // Phase 21: her creature requests. Showing her a creature she asked for (in the jar) comes first;
+      // then any new request. Requests have no time limit, and you keep the creature.
+      const shown = showToLinnea(save);
+      let lines = hello ? [hello, ...plan.lines] : plan.lines;
+      if (shown) {
+        const what = requestText(shown.req);
+        lines = [`Oh! Is that ${shown.who}? ${an(what).replace(/^a/, 'A')}... it's even lovelier than I imagined!`, `Thank you for showing me. Here, take ${rewardText(shown.req.reward)}.`];
+        grant((shown.req.reward.kind === 'display' ? major : notable)(shown.req.reward.kind === 'egg' ? 'egg' : 'piece', 'Linnea is delighted', `Request: ${what}`, shown.line, 'life'));
+        hud.toast(`Linnea's request done: ${shown.line}.`, 'big');
+      }
+      const fresh = topUpRequests(save);
+      if (fresh.length) {
+        const ask = fresh.map((q) => requestText(q));
+        lines = [...lines, `I've been dreaming of ${an(ask[0])}${ask[1] ? `, and ${an(ask[1])}` : ''}. If you ever raise one, would you bring it to show me?`];
+        hud.toast(`Linnea would love to see: ${ask.join('; ')}. Bring one in the jar to show her. Her wishes are in the Field kit's Book.`, 'big');
+      } else if (!shown && save.requests?.active.length && Math.random() < 0.35) {
+        lines = [...lines, `I still dream about ${an(requestText(save.requests.active[0]))}...`];
+      }
+      line = linneaSay.start(lines);
       persist();
     }
     const words = line.split(/\s+/).length;
@@ -622,6 +640,8 @@ async function boot(): Promise<void> {
   let bookClock = 0;
   // Phase 20: the collection book starts from what is already kept (silently, for older saves).
   book(save);
+  // Phase 20: names suggested at hatching are better mixed now; creatures already kept keep theirs.
+  keepOldNames(save);
   wildlife.applyRestock(save);
   /** Phase 21: a bred creature let go restocks the reef with its looks. */
   function noteRestock(species: SpeciesId, t: CreatureData['traits']): void {
@@ -791,6 +811,16 @@ async function boot(): Promise<void> {
       tankLife.highlight = id;
       if (baseHooks) baseHooks.tankLife.highlight = id;
     },
+    openCard: (c) => creatureCard.show(c),
+    handFedFx: (id, cid) => {
+      tankLife.handFeed(id, cid);
+      baseHooks?.tankLife.handFeed(id, cid);
+      sound.toast('item');
+    },
+    tankChanged: () => {
+      tankLife.sync(save, layout);
+      baseHooks?.syncTanks();
+    },
   });
   // Milestone 9: the Hatchery's panel (it shares the care panel's frame).
   const hatchPanel = new HatchPanel({
@@ -798,6 +828,7 @@ async function boot(): Promise<void> {
     layout,
     toast: (t, k) => hud.toast(t, k),
     persist: () => persist(),
+    openCard: (c) => creatureCard.show(c),
     changed: () => {
       tankLife.sync(save, layout);
       baseHooks?.syncTanks();
@@ -3742,7 +3773,9 @@ async function boot(): Promise<void> {
         baseAct = { label: `Take ${trayN} from tank ${tankNumber(layout, id)}'s tray`, run: () => takeTray(id) };
       } else if (linnea.present && Math.hypot(linnea.x - (aboard ? sub.x : diver.x), linnea.y - (aboard ? sub.y : diver.y)) < LINNEA_TALK_RANGE + (aboard ? 60 : 0)) {
         // Phase 18: Linnea only speaks when Kestrel comes up to her and asks.
-        baseAct = { label: linneaSay.hasMore ? 'Listen to Linnea' : 'Talk to Linnea', run: talkToLinnea };
+        // Phase 21: carrying a creature she asked for, the offer says so.
+        const wish = !linneaSay.hasMore && [save.jar, save.jar2].some((j) => j && j.stage !== 'egg' && save.requests?.active.some((q) => matchesRequest(q, j.species, j.keep ? traitsOf(j.keep) : j.traits ?? { colour: -1, pattern: -1 })));
+        baseAct = { label: linneaSay.hasMore ? 'Listen to Linnea' : wish ? 'Show Linnea your creature' : 'Talk to Linnea', run: talkToLinnea };
       } else if (pod?.by) {
         baseAct = {
           label: pod.powered ? `Unload ${carried} item${carried === 1 ? '' : 's'} into storage` : pod.frame ? 'Storage pod: still a frame' : 'Storage pod: no power',
@@ -3981,6 +4014,9 @@ async function boot(): Promise<void> {
     }
     for (const sc of schools) sc.update(dt, time, diver.x, diver.y, camX, camX + viewW, motion);
     for (const sc of basinSchools) sc.update(dt, time, diver.x, diver.y, camX, camX + viewW, motion);
+    // Phase 21: creatures that know Kestrel swim to the glass when he is near (outside, or walking the base).
+    tankLife.kestrel = interior.active ? null : { x: diver.x, y: diver.y };
+    if (baseHooks) baseHooks.tankLife.kestrel = interior.active && inside === 'base' ? { x: interior.walker.x, y: interior.walker.y } : null;
     tankLife.update(dt, time, save, camX, camX + viewW);
     // While tending a tank, the diver and drone fade so they don't hide it.
     const fade = (care.active ? 0.12 : dockUI.active || station.active ? 0.3 : 1) * (boarding ? boardFade : 1);
@@ -5510,6 +5546,7 @@ async function boot(): Promise<void> {
     },
     creatureCard,
     hatchReveal,
+    hatchPanel,
     // Phase 17b: the boots' silt puffs and the swim wake (for checks).
     siltPuffs,
     wake,

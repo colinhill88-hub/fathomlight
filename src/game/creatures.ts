@@ -778,8 +778,12 @@ export function creatureName(c: { id: number; species: SpeciesId; name?: string 
   if (c.name && c.name.trim()) return c.name.trim();
   return suggestedName(c);
 }
-/** Phase 20: the name the game suggests at hatching (the one every creature had before names could be chosen). */
-export function suggestedName(c: { id: number; species: SpeciesId }): string {
+/**
+ * The name every creature had before Phase 20 (Phase 13). Its hash only ever reached a
+ * few names per species (ids 1 to 4 were all "Murk"), so Phase 20 suggests better-mixed
+ * names; creatures that already had one keep it (see keepOldNames).
+ */
+export function legacyName(c: { id: number; species: SpeciesId }): string {
   let h = (c.id * 2654435761 + SPECIES_ORDER.indexOf(c.species) * 40503) >>> 0;
   h ^= h >>> 15;
   // Phase 16 fix: `^=` makes h a signed number, so about half of all ids gave a negative
@@ -787,7 +791,24 @@ export function suggestedName(c: { id: number; species: SpeciesId }): string {
   const i = h % NAMES.length;
   return NAMES[i < 0 ? i + NAMES.length : i];
 }
-
+/** Phase 20: the name the game suggests at hatching (well mixed, so neighbours rarely share one). */
+export function suggestedName(c: { id: number; species: SpeciesId }): string {
+  let h = Math.imul(c.id + 1, 0x9e3779b1) ^ Math.imul(SPECIES_ORDER.indexOf(c.species) + 7, 0x85ebca6b);
+  h ^= h >>> 16;
+  h = Math.imul(h, 0x7feb352d);
+  h ^= h >>> 15;
+  return NAMES[(h >>> 0) % NAMES.length];
+}
+/**
+ * Phase 20, once per save: every creature already kept keeps the name it had (written into
+ * `name`), so the better name suggestions never rename anyone. Returns true if it ran.
+ */
+export function keepOldNames(save: SaveData): boolean {
+  if (save.tips.includes('names:v2')) return false;
+  for (const c of allKept(save)) if (!c.name && c.stage !== 'egg') c.name = legacyName(c);
+  save.tips.push('names:v2');
+  return true;
+}
 /** Phase 20: a name a player typed, tidied (trimmed, one line, at most 16 characters). Empty: keep the suggestion. */
 export function cleanName(raw: string): string {
   return raw.replace(/[\u0000-\u001f<>&"]/g, '').replace(/\s+/g, ' ').trim().slice(0, 16);
