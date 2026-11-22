@@ -4,6 +4,14 @@ The live branch includes the Fulmar foothold, Codex Phases 1–11D the Phase 12 
 
 Play link: https://colinhill88-hub.github.io/fathomlight/ (live; first successful deploy 2026-11-14)
 
+### Before Phases 20–23: puffcaps get room in bigger tanks (Nov 22, 2026)
+
+Colin noticed nobody could raise many puffcaps: one was only content with at most one tank-mate, whatever the tank's size.
+- **The change:** it is now content while its tank is no more than half full (`driftRoom` in `src/game/creatures.ts`). A small tank still allows 2, a Grand tank now 4, and larger or upgraded tanks will allow more automatically.
+- **The care panel** says how many fit when it's crowded ("at most 4 in this tank").
+- **Checked:** Node checks for small and Grand tanks, and the existing progression checks still pass.
+- **Also:** documentation and code comments now use he/him for Kestrel (Colin: Kestrel is a boy).
+
 ## Codex phases and current state
 
 | Work | Merged history | Implemented state |
@@ -48,8 +56,8 @@ Full notes: [phase-19-wreck-combat.md](docs/phase-19-wreck-combat.md).
   - **Rust tick:** crouches, shakes and flares its eye, then lunges. Jump it or brace; it lands on its back.
   - **Weld drone:** a sighting line follows Kestrel, then goes solid and blinks with two beeps when locked, then it fires a bolt. Duck or take cover. It is armoured except while charging (a rivet interrupts it) and while its vents glow open cooling down.
   - **Hull keeper:** raises its hammer arm and slams a shockwave along the floor (jump it), or rears back venting steam and charges (brace, and it is stopped dead). After either, its shield droops and its core blazes: the only time rivets hurt it.
-- **Kestrel:** the driver is strapped to her near forearm, on the swimmer too: a housing with red straps, a brass-banded drum, a barrel and a lime sight lamp. Holding **Down** braces: a low crouch with the forearm raised and the guard plate folded out. She can turn round while braced but not walk. A **perfect brace** (raised just as a hit lands) knocks the attacker back and sends a drone's bolt home. Rivets aim softly at the nearest machine ahead. The arm points along each shot with a kick of recoil.
-- **Losing:** the screen fades. Kestrel wakes by the last safe lamp lit this visit (or the door) with her suit patched to 60% and everything kept. The rooms from that lamp on refill. Out of a fight the suit seals itself after 4 quiet seconds.
+- **Kestrel:** the driver is strapped to his near forearm, on the swimmer too: a housing with red straps, a brass-banded drum, a barrel and a lime sight lamp. Holding **Down** braces: a low crouch with the forearm raised and the guard plate folded out. He can turn round while braced but not walk. A **perfect brace** (raised just as a hit lands) knocks the attacker back and sends a drone's bolt home. Rivets aim softly at the nearest machine ahead. The arm points along each shot with a kick of recoil.
+- **Losing:** the screen fades. Kestrel wakes by the last safe lamp lit this visit (or the door) with his suit patched to 60% and everything kept. The rooms from that lamp on refill. Out of a fight the suit seals itself after 4 quiet seconds.
 - **Controls:** Shoot is **X**, **RT** on a gamepad, or the **Shoot** button on touch. The button only appears in the engine room once the driver is built, in Scan's place; Flare and Dart buttons hide on foot. Brace is holding **Down**. The control bar shows Shoot and Brace there.
 - **Switch and tuning:** `?combat=off` keeps the door welded. Every number lives in `src/game/combat.ts`.
 - **Sound:** a synthesised warning for every attack, placed towards the machine, never muffled, dipping the soundtrack. There are also separate sounds for rivets, pings off armour, hits, blocks, the perfect brace, machines falling apart, the keeper's power-down, Kestrel's suit being hit and a lamp lighting. No sound files were added.
@@ -119,16 +127,16 @@ There were no console errors. Screenshots were checked at the cliff (in and out 
 ### Phase 17: Kestrel's kit (merged, PR #45)
 
 **17a. The Field kit portrait is the real Kestrel.**
-- The Kit tab draws Kestrel's own on-foot rig (`src/actors/walker.ts`) live in a small canvas of its own (`src/ui/kitPortrait.ts`), wearing exactly what the save has. She stands, breathes, glances and turns round slowly now and then. The old boxy SVG drawing is gone.
-- Every card for something she wears is a button. **Hover** it (PC), **tap** it (touch: it stays lit until you tap it again or another card), or **move the gamepad's highlight** onto it, and that part glows with a slow warm pulse and a halo: suit, air tanks, lamp, thruster (TH-3's third nozzle too), jar and satchel, grapple harpoon, mag-boots, Echo visor, heat cowl, flare tube, stun-dart launcher, resonator. The caption under her names it.
-- Gear not found yet shows on her as a **dark silhouette marked "???"**, without its name. (An unfound resonator keeps its crystal dark, so the Choir's colours aren't given away.)
+- The Kit tab draws Kestrel's own on-foot rig (`src/actors/walker.ts`) live in a small canvas of its own (`src/ui/kitPortrait.ts`), wearing exactly what the save has. He stands, breathes, glances and turns round slowly now and then. The old boxy SVG drawing is gone.
+- Every card for something he wears is a button. **Hover** it (PC), **tap** it (touch: it stays lit until you tap it again or another card), or **move the gamepad's highlight** onto it, and that part glows with a slow warm pulse and a halo: suit, air tanks, lamp, thruster (TH-3's third nozzle too), jar and satchel, grapple harpoon, mag-boots, Echo visor, heat cowl, flare tube, stun-dart launcher, resonator. The caption under him names it.
+- Gear not found yet shows on him as a **dark silhouette marked "???"**, without its name. (An unfound resonator keeps its crystal dark, so the Choir's colours aren't given away.)
 - The world stays paused (checked: play time does not move while the Field kit is open). Works in iPhone landscape.
-- To make this possible the on-foot rig gained the attachments only the swimmer had (mag-boots, flare tube, satchel, Echo visor band, heat cowl, TH-3 nozzle), and both rigs gained a small **stun-dart launcher** on the far forearm (before, the dart had no visible piece). So Kestrel now wears all her gear indoors too.
+- To make this possible the on-foot rig gained the attachments only the swimmer had (mag-boots, flare tube, satchel, Echo visor band, heat cowl, TH-3 nozzle), and both rigs gained a small **stun-dart launcher** on the far forearm (before, the dart had no visible piece). So Kestrel now wears all his gear indoors too.
 
 **17b. Mag-boots: a walking mode.**
 - **Boots** clamps them on and off: **N** on the keyboard, **d-pad up** on a gamepad, a **Boots** button on touch (it appears once the boots are built and glows lime while clamped). The control bar offers "Clamp mag-boots" near the seabed or in the race, and while clamped shows Let go, Walk, Hop.
-- Clamped: Kestrel switches to her standing rig at the same spot (no jump in position), sinks to the seabed if she's above it, and walks it at 95 (swimming is 230), with a heavier, stompier walk. Currents and vent lift don't move her. **Jump** (Space, A, or the Boost button) is a short heavy hop of about half her height. Walking off a ledge she **sinks slowly** (no faster than 150) and lands with a thud, a puff of silt and a small camera jolt. She follows slopes and climbs small steps (her soles stay within 1–2 units of the ground on the tested slopes) and stops at walls. Air runs as normal; her lamp, scan, flares and darts still work.
-- **Let go:** press Boots again and she swims on at once from the same spot. Boarding KS-1, the grapple, the moon pool, a blackout or going indoors also let go.
+- Clamped: Kestrel switches to his standing rig at the same spot (no jump in position), sinks to the seabed if he's above it, and walks it at 95 (swimming is 230), with a heavier, stompier walk. Currents and vent lift don't move him. **Jump** (Space, A, or the Boost button) is a short heavy hop of about half his height. Walking off a ledge he **sinks slowly** (no faster than 150) and lands with a thud, a puff of silt and a small camera jolt. He follows slopes and climbs small steps (his soles stay within 1–2 units of the ground on the tested slopes) and stops at walls. Air runs as normal; his lamp, scan, flares and darts still work.
+- **Let go:** press Boots again and he swims on at once from the same spot. Boarding KS-1, the grapple, the moon pool, a blackout or going indoors also let go.
 - Each footfall is a deep clanking stomp with a silt puff; landings are a heavier thud. They play through the normal sound system (sfx bus: underwater muffle, sliders, phone mix), layering slowed copies of the already-logged CC0 metal impacts and footsteps under synthesised thumps. **No new sound files**, so `public/audio/CREDITS.md` is unchanged.
 - The old "hold Down to brace" is gone (the toggle replaces it). Gear text, the reward line and the scanner note now describe the toggle.
 - The walking rule is its own Node-tested file (`src/game/magboots.ts`).

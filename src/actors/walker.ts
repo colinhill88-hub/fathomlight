@@ -1793,7 +1793,7 @@ export class Walker {
       a.f = a.sf + a.of.x + a.jolt.x * 1.6;
       arm.upper.rotation = a.u;
       arm.fore.rotation = a.f - a.u;
-      // Phase 19: the guard plate always stands upright in front of her, whatever the forearm's angle.
+      // Phase 19: the guard plate always stands upright in front of him, whatever the forearm's angle.
       if (i === 0) this.guardG.rotation = smoothstep(this.guard) * wrap(Math.PI / 2 - a.f);
       if (arm.hand) {
         const grip = mode === 'climb' || mode === 'hang' || (i === 0 && this.spear === 'hand');

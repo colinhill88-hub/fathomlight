@@ -4,7 +4,7 @@ Paste everything below the line into a new session connected to the Fathomlight 
 
 ---
 
-Read `AGENTS.md` first, then the files it lists: `docs/AI_DEVELOPMENT_HANDOFF.md`, `docs/ROADMAP.md`, `DESIGN.md` and the top of `PROGRESS.md`. Start a branch from the latest default branch (`claude/underwater-game-m0-0qqajg`). Explain things to me in plain language: I'm not a programmer.
+Read `AGENTS.md` first, then the files it lists: `docs/AI_DEVELOPMENT_HANDOFF.md`, `docs/ROADMAP.md`, `DESIGN.md` and the top of `PROGRESS.md`. Start a branch from the latest default branch (`claude/underwater-game-m0-0qqajg`). Explain things to me in plain language: I'm not a programmer. (Kestrel is a boy: he/him.)
 
 This session is **Session B: Phases 22 and 23**. It covers more ways for creatures to be rare, two new species, Choir-touched creatures, and tying the collection into the Choir ending. It builds on Session A's collection book, hatching moment and care odds.
 

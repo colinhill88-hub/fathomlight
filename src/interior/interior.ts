@@ -1152,7 +1152,7 @@ export class Interior {
       this.render(dt);
       return ev;
     }
-    // Phase 19: bracing behind the guard plate holds Kestrel where she stands.
+    // Phase 19: bracing behind the guard plate holds Kestrel where he stands.
     if (this.opts.combat) inp = this.opts.combat.steer(inp, w, dt);
     if (this.ride) {
       this.updateRide(dt, ev);

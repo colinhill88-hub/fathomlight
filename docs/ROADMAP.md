@@ -67,6 +67,16 @@ The order below is Colin's agreed phasing. Phases 15, 16 and 17 are built and me
     - **Choir-touched creatures may carry the Choir's cyan, violet and magenta.** This is the one exception to the colour rule, and only for them.
     - The ending is **richer, same story**: the same ending for everyone, but its colours, sounds and the patterns the Choir sings back grow richer with a varied, rare collection, plus a special line for an outstanding one.
     - A raised creature carried in the jar is an **optional companion** that joins the call and answer with its own moment.
+- **More from Colin before merging the plan (Nov 22, 2026):**
+  - **Puffcaps' room to drift scales with the tank (done in this pull request).**
+    - The problem: a puffcap was only happy with at most one tank-mate, whatever the tank's size, so nobody could raise many of them.
+    - Now a puffcap is content while its tank is no more than half full (`driftRoom` in `src/game/creatures.ts`, Node-tested). A small tank still allows 2, a Grand tank 4, and upgraded tanks and the display aquarium will allow more automatically.
+  - **Living tanks (added to Session A).** With generated art allowed, make the tanks themselves beautiful, building on the work already done on the open water and how it reacts to Kestrel (`src/fx/waterWake.ts`, `src/fx/surface.ts`, `src/world/habitatWater.ts`, `src/world/tanklife.ts`):
+    - **creatures swim naturally,** trailing water behind them: a soft wake and drifting particles stirred by their tails, as Kestrel's swimming does outside;
+    - **surfacing:** when a creature breaks the surface at the top of the tank, ripples spread across it, a few bubbles and a little splash, like Kestrel surfacing;
+    - **richer tank art:** generated painted backdrops, substrate, rocks and plants for the tank interiors (logged in `docs/art/SOURCES.md`), glass reflections and caustic light, and decorations (the Phase 20 and 21 rewards) that look like real aquarium pieces;
+    - **performance:** keep it smooth on the iPhone with several tanks on screen (only tanks in view animate fully).
+  - **Kestrel is a boy (he/him).** Some earlier documentation and code comments called Kestrel "she"; they are corrected in this pull request. Use he/him for Kestrel everywhere. (Linnea is "she"; the Corvina and the Fulmar are "her", as ships traditionally are.)
 - **What's next (Colin, after Phase 19 merged):** make creature care and breeding the heart of the game (Dave the Diver is the inspiration for how satisfying that loop feels), with more rare and unique creatures tied into the Choir encounter. Then premium polish. Combat gets more sections and tuning later, through playtesting. The plan is Phases 20–24 below; each needs a short design check with Colin first (the open questions are listed with each).
 
 ## Phase 15: quality of life and the Field kit (built, PR #38)
@@ -234,7 +244,7 @@ The open questions below were answered at the start of the session (see "Colin's
 **Why:** give breeding a rhythm and a reason, the way Dave the Diver's farm and orders keep you coming back, without copying them.
 
 - **Contentment you can see:** each creature shows how happy it is (fed, clean water, the right plants, tank mates it likes, room to swim), with small behaviours: playful when content, sluggish when not. Content creatures breed better, and **rare results are more likely in a well-kept tank.** That makes care pay off directly, the fourth pillar.
-- **Hand-feeding and interaction:** feed a creature by hand at the glass; creatures you tend often recognise Kestrel and swim to her.
+- **Hand-feeding and interaction:** feed a creature by hand at the glass; creatures you tend often recognise Kestrel and swim to him.
 - **A breeding planner** at the Hatchery: pick two parents and see the odds ("about 1 in 5 for a new pattern; radiant runs in this family").
 - **Requests:** Linnea, the Kestrel radio or a passing research contact asks for a specific creature ("a moss-coloured ray with a ring glow"), each with a reward. A short list refreshes over play time. This gives purpose between story beats.
 - **Restocking the reef:** releasing a bred creature can make its colour or pattern turn up in the wild later, so your work shows in the world.
@@ -307,6 +317,7 @@ The open questions below were answered at the start of the session (see "Colin's
   - Contentment, hand-feeding, the breeding planner, Linnea's requests and restocking the reef.
   - Upgradeable tanks, the creature reserve and the display aquarium.
   - Panels that sort, filter, move and "care for all".
+  - Living tanks: natural swimming with wakes, ripples and bubbles when creatures surface, and richer tank art (generated images allowed). If Session A runs long, this part can move to Session B.
   - Prompt: [`prompts/phases-20-21-creature-care.md`](prompts/phases-20-21-creature-care.md).
 - **Session B: Phases 22 and 23.**
   - Size, shape and heirloom traits and the tiered rarity.

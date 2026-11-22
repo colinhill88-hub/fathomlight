@@ -98,7 +98,7 @@ export class CombatLayer implements InteriorCombat {
     if (want) this.braceAge += dt;
     w.guard += ((want ? 1 : 0) - w.guard) * Math.min(1, dt * (want ? 16 : 9));
     if (!want) return inp;
-    // Braced: planted where she stands; she can still turn to face the other way.
+    // Braced: planted where he stands; he can still turn to face the other way.
     if (Math.abs(inp.moveX) > 0.15) w.face = inp.moveX > 0 ? 1 : -1;
     return { ...inp, moveX: 0, sprint: false };
   }
@@ -110,7 +110,7 @@ export class CombatLayer implements InteriorCombat {
     const hero: Hero = { x: w.x, y: w.y, face: w.face, onGround: w.onGround, braced: this.braced, braceAge: this.braceAge, grace: this.grace };
     const fev: FoeEvent[] = [];
     this.field.step(dt, hero, fev);
-    // The keeper shoved her aside as it walked into her.
+    // The keeper shoved him aside as it walked into him.
     if (hero.x !== w.x && this.interior.standable(hero.x, w.y)) w.x = hero.x;
     for (const e of fev) {
       if (e.type === 'hurt') {
@@ -132,7 +132,7 @@ export class CombatLayer implements InteriorCombat {
         if (e.cue === 'keeperDown') this.hooks.keeperBeaten();
       }
     }
-    // Safe lamps light as she passes.
+    // Safe lamps light as he passes.
     this.layout.lamps.forEach((l, i) => {
       if (!this.lit[i] && Math.abs(w.x - l.x) < 50) {
         this.lit[i] = true;
@@ -144,7 +144,7 @@ export class CombatLayer implements InteriorCombat {
     if (aimingNow) w.aim = this.field.aim;
     w.aiming += ((aimingNow ? 1 : 0) - w.aiming) * Math.min(1, dt * (aimingNow ? 30 : 8));
     if (aimingNow) w.face = Math.cos(this.field.aim) >= 0 ? 1 : -1;
-    // A flicker while she can't be hit.
+    // A flicker while he can't be hit.
     w.view.alpha = this.grace > 0 ? (Math.sin(this.time * 38) > 0 ? 0.45 : 1) : 1;
     // Sparks and scrap.
     const keep: Spark[] = [];

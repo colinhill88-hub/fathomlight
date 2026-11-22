@@ -40,7 +40,7 @@ Rivets **aim softly**: the nearest machine in front, within about 40° of level 
 
 ## Losing
 
-When the suit gives way: the screen fades to dark, and Kestrel wakes beside the **last safe lamp she lit** this visit (or the door). The suit is patched to 60%, and nothing is lost. The machines in that room and the ones ahead of it rebuild; rooms behind stay as they were.
+When the suit gives way: the screen fades to dark, and Kestrel wakes beside the **last safe lamp he lit** this visit (or the door). The suit is patched to 60%, and nothing is lost. The machines in that room and the ones ahead of it rebuild; rooms behind stay as they were.
 
 ## Controls
 

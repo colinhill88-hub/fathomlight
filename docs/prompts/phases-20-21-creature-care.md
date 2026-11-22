@@ -4,7 +4,7 @@ Paste everything below the line into a new session connected to the Fathomlight 
 
 ---
 
-Read `AGENTS.md` first, then the files it lists: `docs/AI_DEVELOPMENT_HANDOFF.md`, `docs/ROADMAP.md`, `DESIGN.md` and the top of `PROGRESS.md`. Start a branch from the latest default branch (`claude/underwater-game-m0-0qqajg`). Explain things to me in plain language: I'm not a programmer.
+Read `AGENTS.md` first, then the files it lists: `docs/AI_DEVELOPMENT_HANDOFF.md`, `docs/ROADMAP.md`, `DESIGN.md` and the top of `PROGRESS.md`. Start a branch from the latest default branch (`claude/underwater-game-m0-0qqajg`). Explain things to me in plain language: I'm not a programmer. (Kestrel is a boy: he/him.)
 
 This session is **Session A: Phases 20 and 21, plus room for more creatures**. The aim is to make creature care and breeding the heart of the game (Dave the Diver is the inspiration for how satisfying that loop feels; for feel only, never copy it).
 
@@ -26,6 +26,13 @@ This session is **Session A: Phases 20 and 21, plus room for more creatures**. T
     - the creature reserve;
     - the display aquarium (about 20).
 11. **Care and Hatchery panels** that sort, filter, move and "care for all".
+12. **Living tanks** (see "More from Colin before merging the plan" in the roadmap):
+    - creatures swim naturally, trailing water behind them;
+    - when one breaks the surface, ripples spread and bubbles rise, like Kestrel surfacing;
+    - richer tank art (generated images allowed), with decorations that look like real aquarium pieces;
+    - smooth on the iPhone.
+
+    Build on `src/world/habitatWater.ts`, `src/world/tanklife.ts`, `src/fx/waterWake.ts` and `src/fx/surface.ts`. If the session runs long, this part can move to Session B; say so.
 
 ## How to work
 
@@ -33,7 +40,8 @@ This session is **Session A: Phases 20 and 21, plus room for more creatures**. T
 - **This is a big session.** Build in this order, and commit and push as you go:
   1. book, hatching and cards;
   2. care, planner and requests;
-  3. capacity and panels.
+  3. capacity and panels;
+  4. living tanks.
 
   If it gets too long, stop at a clean point, open the pull request, and tell me what's left.
 
