@@ -1832,9 +1832,13 @@ async function boot(): Promise<void> {
           setTimeout(() => hud.toast('A Workshop (build card 11) builds gear from blueprints. It takes hull plating from the plate press.', 'big'), 2600);
       } else {
         const g = GEAR[ev.id];
-        grant(gearReward(ev.id));
+        // Phase 21: tank kits are built again and again, so a smaller card.
+        if (ev.id === 'tankkit' || ev.id === 'displaykit') grant({ ...notable('tank', 'Kit built', g.name, 'Fit it at a Habitat console.', 'life'), code: g.code });
+        else grant(gearReward(ev.id));
         hud.toast(
-          ev.id === 'light'
+          ev.id === 'tankkit' || ev.id === 'displaykit'
+            ? `${g.name} ${g.code} built! Stand at a tank's Habitat console and choose Upgrade to fit it.`
+            : ev.id === 'light'
             ? `${g.name} ${g.code} built and clipped to your suit! It replaces the shoulder lamp: much brighter and wider. The dark cave in the east cliff is open to you now.`
             : ev.id === 'psuit'
               ? `${g.name} ${g.code} built! You wear it from now on: rated to 60 m instead of 30. The trench's upper ledges are in reach.`

@@ -224,7 +224,8 @@ export class StationMode {
           const busy = !!j || jobRunning(save, `build:${id}`);
           const block = known ? gearBlocker(save, id) : null;
           const ok = known && !block && haveFor(save, g.cost) && powered && !busy;
-          const kits = KIT_GEAR.includes(id) && save.relayKits ? ` <b>${save.relayKits} carried, ready to plant.</b>` : '';
+          const carried = id === 'relay' ? save.relayKits : id === 'tankkit' ? save.tankKits ?? 0 : id === 'displaykit' ? save.displayKits ?? 0 : 0;
+          const kits = KIT_GEAR.includes(id) && carried ? ` <b>${carried} ${id === 'relay' ? 'carried, ready to plant' : 'ready to fit at a Habitat console'}.</b>` : '';
           return `<div class="mod"><div><b>${known ? `${g.name} ${g.code}` : 'Unknown gear'}</b><small>${known ? (block ? `<b>${block}</b> ` : '') + g.job + kits : 'Decode a blueprint in a Lab to build this.'}</small>${
             known ? `<div class="costs">${costChips(save, g.cost)}<span class="cost">${g.seconds} s</span></div>` : ''
           }</div><button type="button" class="act" data-act="make" data-id="${id}" ${ok ? '' : 'disabled'}>Build</button></div>`;

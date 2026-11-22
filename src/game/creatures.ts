@@ -166,6 +166,8 @@ export function wildAllowed(save: SaveData, sp: SpeciesId): boolean {
   if ((save.wildCaught[sp] ?? 0) < WILD_CAP) return true;
   const founders = save.creatures.filter(c => c.species === sp).length +
     save.nursery.filter(c => c.species === sp).length +
+    // Phase 21: resting in the reserve still counts (it would otherwise be a way round the wild's limit).
+    (save.reserve ?? []).filter(c => c.species === sp).length +
     Number(save.jar?.species === sp) + Number(save.jar2?.species === sp);
   return founders < WILD_CAP;
 }
@@ -225,8 +227,50 @@ export function takeFromJar(save: SaveData): JarData | null {
 export const TANK_CAPACITY = 4;
 /** Milestone 7 part 2: the Grand tank holds eight. */
 export const GTANK_CAPACITY = 8;
-export function tankCapacity(layout: BaseLayout, id: number): number {
-  return layout.pieces.find((p) => p.id === id)?.kind === 'gtank' ? GTANK_CAPACITY : TANK_CAPACITY;
+/**
+ * Phase 21, room for more creatures (Colin, Nov 22, 2026): a TX-1 extension kit from the
+ * Workshop takes a small tank from 4 to 6 and a Grand tank from 8 to 12; a display refit
+ * (DR-1) then makes a Grand tank the display aquarium, for 20. Index = TankData.level.
+ */
+export const TANK_LEVELS: Record<'tank' | 'gtank', number[]> = { tank: [TANK_CAPACITY, 6], gtank: [GTANK_CAPACITY, 12, 20] };
+/** A tank's level: 0 as built, 1 extended, 2 the display aquarium (Grand tanks only). */
+export function tankLevel(save: SaveData | undefined, id: number): number {
+  return Math.max(0, Math.floor(save?.tankData[String(id)]?.level ?? 0));
+}
+/** How many creatures (and eggs) a tank holds. Pass the save so upgrades count. */
+export function tankCapacity(layout: BaseLayout, id: number, save?: SaveData): number {
+  const kind = layout.pieces.find((p) => p.id === id)?.kind === 'gtank' ? 'gtank' : 'tank';
+  const lv = TANK_LEVELS[kind];
+  return lv[Math.min(lv.length - 1, tankLevel(save, id))];
+}
+/** Is this the display aquarium? */
+export function isDisplay(save: SaveData, layout: BaseLayout, id: number): boolean {
+  return layout.pieces.find((p) => p.id === id)?.kind === 'gtank' && tankLevel(save, id) >= 2;
+}
+/** The kit the next upgrade of this tank needs, or why it can't be upgraded. */
+export function nextUpgrade(save: SaveData, layout: BaseLayout, id: number): { kit: 'tankkit' | 'displaykit'; to: number } | { blocked: string } {
+  const grand = layout.pieces.find((p) => p.id === id)?.kind === 'gtank';
+  const lv = tankLevel(save, id);
+  if (lv === 0) return { kit: 'tankkit', to: (grand ? TANK_LEVELS.gtank : TANK_LEVELS.tank)[1] };
+  if (grand && lv === 1) return { kit: 'displaykit', to: TANK_LEVELS.gtank[2] };
+  return { blocked: grand ? 'This is the display aquarium: as big as a tank gets' : 'Extended. Only a Grand tank grows further' };
+}
+/** Fit the next upgrade from a carried kit. Null when done, or why not. */
+export function upgradeTank(save: SaveData, layout: BaseLayout, id: number): string | null {
+  const up = nextUpgrade(save, layout, id);
+  if ('blocked' in up) return up.blocked;
+  const field = up.kit === 'tankkit' ? 'tankKits' : 'displayKits';
+  if ((save[field] ?? 0) <= 0) return up.kit === 'tankkit' ? 'Needs a tank extension kit TX-1 from the Workshop' : 'Needs a display refit kit DR-1 from the Workshop';
+  save[field] = (save[field] ?? 0) - 1;
+  tankDataFor(save, id).level = tankLevel(save, id) + 1;
+  return null;
+}
+/** Decorations a tank has room for: 2 in a small tank, 3 in a Grand tank, one more extended, 6 in the display aquarium. */
+export function decorSlots(save: SaveData, layout: BaseLayout, id: number): number {
+  const grand = layout.pieces.find((p) => p.id === id)?.kind === 'gtank';
+  const lv = tankLevel(save, id);
+  if (grand && lv >= 2) return 6;
+  return (grand ? 3 : 2) + (lv >= 1 ? 1 : 0);
 }
 /**
  * How many creatures a tank can hold while a puffcap still has room to drift
@@ -403,7 +447,7 @@ export function comfortTarget(save: SaveData, layout: BaseLayout, c: CreatureDat
     if (clients) t += 0.2;
     notes.push({ text: clients ? 'Has tank-mates to clean' : 'Idle: likes another species to clean', good: clients > 0 });
   } else {
-    const room = driftRoom(tankCapacity(layout, c.tank));
+    const room = driftRoom(tankCapacity(layout, c.tank, save));
     const roomy = mates.length + 1 <= room;
     if (roomy) t += 0.2;
     notes.push({ text: roomy ? 'Room to drift' : `Crowded: likes space to drift (at most ${room} in this tank)`, good: roomy });
@@ -420,7 +464,7 @@ export function comfortTarget(save: SaveData, layout: BaseLayout, c: CreatureDat
     notes.push({ text: 'Tank has no power: no light or flow', good: false });
   }
   // Crowding starts once a tank is nearly full (3 in a tank, 7 in a Grand tank).
-  const roomy = tankCapacity(layout, c.tank) - 1;
+  const roomy = tankCapacity(layout, c.tank, save) - 1;
   if (all.length > roomy) t -= 0.1 * (all.length - roomy);
   return { target: Math.max(0, Math.min(1, t)), notes };
 }
@@ -544,6 +588,8 @@ export function tickCare(save: SaveData, layout: BaseLayout, dt: number): CareEv
       c.sickness = Math.max(0, c.sickness - dt / 90);
       if (c.sickness === 0) ev.push({ type: 'better', c });
     }
+    // Phase 21: how well it knows Kestrel fades slowly without hand-feeding.
+    if (c.bond) c.bond = Math.max(0, c.bond - BOND_FADE * dt);
     const happy = needsMet(save, c) && c.sickness === 0;
     if (c.stage === 'young' && happy) {
       c.growth += dt / GROW_SECONDS;
@@ -684,7 +730,9 @@ function tickBreeding(save: SaveData, layout: BaseLayout, dt: number, ev: CareEv
         comfort: 0.5,
         sickness: 0,
         make: 0,
-        traits: inherit(ensureTraits(pa), ensureTraits(pb)),
+        // Phase 21: a content, well-kept pair is up to twice as likely to give something rare.
+        traits: inherit(ensureTraits(pa), ensureTraits(pb), Math.random, carePower(save, pa, pb)),
+        parents: [creatureName(pa), creatureName(pb)],
       };
       save.nursery.push(egg);
       ev.push({ type: 'laid', c: egg, parents: [pa, pb] });
@@ -725,11 +773,158 @@ const NAMES = [
  * saved and every save already has names. The same creature keeps its name
  * through the jar, the Hatchery and the Revival pool (they keep the id).
  */
-export function creatureName(c: { id: number; species: SpeciesId }): string {
+export function creatureName(c: { id: number; species: SpeciesId; name?: string }): string {
+  // Phase 20: a name chosen at hatching wins.
+  if (c.name && c.name.trim()) return c.name.trim();
+  return suggestedName(c);
+}
+/** Phase 20: the name the game suggests at hatching (the one every creature had before names could be chosen). */
+export function suggestedName(c: { id: number; species: SpeciesId }): string {
   let h = (c.id * 2654435761 + SPECIES_ORDER.indexOf(c.species) * 40503) >>> 0;
   h ^= h >>> 15;
   // Phase 16 fix: `^=` makes h a signed number, so about half of all ids gave a negative
   // index and the name "undefined". Wrap those round; every name that already worked is unchanged.
   const i = h % NAMES.length;
   return NAMES[i < 0 ? i + NAMES.length : i];
+}
+
+/** Phase 20: a name a player typed, tidied (trimmed, one line, at most 16 characters). Empty: keep the suggestion. */
+export function cleanName(raw: string): string {
+  return raw.replace(/[\u0000-\u001f<>&"]/g, '').replace(/\s+/g, ' ').trim().slice(0, 16);
+}
+
+// ---- Phase 21: contentment, hand-feeding and the care bonus to the odds ----
+/** Bond gained per hand feed, and how fast it fades (full to nothing in 30 minutes of play). */
+export const BOND_PER_FEED = 0.25;
+export const BOND_FADE = 1 / 1800;
+/** Seconds of play between treats for one creature, and what a treat adds to its food. */
+export const HAND_FEED_COOLDOWN = 45;
+export const HAND_FEED_FOOD = 0.2;
+/** It knows Kestrel (and swims to the glass) from this much bond. */
+export const KNOWS_KESTREL = 0.5;
+/** Contentment at or above this is "content" (playful); below UNSETTLED it is sluggish. */
+export const CONTENT_AT = 0.85;
+export const UNSETTLED_AT = 0.5;
+/** The care bonus runs from ×1 for a pair at CARE_LOW contentment to ×2 at CARE_HIGH. */
+export const CARE_LOW = 0.6;
+export const CARE_HIGH = 0.9;
+
+export interface Contentment {
+  value: number;
+  label: 'Content' | 'Settled' | 'Restless' | 'Unhappy';
+  notes: ComfortNote[];
+}
+
+/**
+ * How content a creature is, 0..1 (Phase 21). Most of it is its three needs (fed, comfort,
+ * clean water); the rest is attention: decorations in its tank to explore, and knowing Kestrel
+ * from hand-feeding. A well-kept creature with both reaches 1; one that only just meets its
+ * needs sits near 0.5. Sickness pulls it down. Eggs are always settled.
+ */
+export function contentment(save: SaveData, c: CreatureData): Contentment {
+  if (c.stage === 'egg') return { value: 0.7, label: 'Settled', notes: [] };
+  const water = c.tank >= 0 ? tankDataFor(save, c.tank).water : 1;
+  const needs = (c.fed + c.comfort + water) / 3;
+  const decor = c.tank >= 0 ? Math.min(2, save.tankData[String(c.tank)]?.decor?.length ?? 0) : 0;
+  const bond = Math.min(1, c.bond ?? 0);
+  const value = Math.max(0, Math.min(1, needs * 0.8 + 0.05 * decor + 0.1 * bond - c.sickness * 0.5));
+  const notes: ComfortNote[] = [
+    { text: needs >= 0.9 ? 'Every need well met' : `Needs ${Math.round(needs * 100)}% met`, good: needs >= 0.9 },
+    { text: decor ? `${decor === 2 ? 'Decorations' : 'A decoration'} to explore` : 'Nothing to explore: a decoration would help', good: decor > 0 },
+    { text: bond >= KNOWS_KESTREL ? 'Knows Kestrel and swims to greet him' : bond > 0 ? 'Getting to know Kestrel' : 'Hand-feed it now and then to win its trust', good: bond >= KNOWS_KESTREL },
+  ];
+  const label = value >= CONTENT_AT ? 'Content' : value >= 0.65 ? 'Settled' : value >= UNSETTLED_AT ? 'Restless' : 'Unhappy';
+  return { value, label, notes };
+}
+
+/** How much more likely rare traits are for an egg from this pair: ×1 (neglected) to ×2 (content, well kept). */
+export function carePower(save: SaveData, a: CreatureData, b: CreatureData): number {
+  const q = (contentment(save, a).value + contentment(save, b).value) / 2;
+  return 1 + Math.max(0, Math.min(1, (q - CARE_LOW) / (CARE_HIGH - CARE_LOW)));
+}
+
+/** Hand-feed one creature at the glass. Null when done, or why not. Free: a treat from Kestrel's pocket. */
+export function handFeed(save: SaveData, c: CreatureData): string | null {
+  if (c.stage === 'egg') return 'Eggs do not eat yet';
+  const wait = handFeedWait(save, c);
+  if (wait > 0) return `Still nibbling the last treat (${wait} s)`;
+  c.fed = Math.min(1, c.fed + HAND_FEED_FOOD);
+  c.bond = Math.min(1, (c.bond ?? 0) + BOND_PER_FEED);
+  c.handFedAt = save.playSeconds;
+  return null;
+}
+/** Seconds until it will take another treat (0: now). */
+export function handFeedWait(save: SaveData, c: CreatureData): number {
+  if (c.handFedAt === undefined) return 0;
+  return Math.max(0, Math.ceil(HAND_FEED_COOLDOWN - (save.playSeconds - c.handFedAt)));
+}
+
+// ---- Phase 21: the reserve, moving creatures, and "care for all" ----
+/** Creatures the reserve holds. They rest there with no care needed and aren't on show. */
+export const RESERVE_CAP = 30;
+/** The reserve is the Hatchery's cold holding bay: open once a Hatchery is built. */
+export function reserveOpen(layout: BaseLayout): boolean {
+  return layout.pieces.some((p) => p.kind === 'hatch' && isDone(p));
+}
+/** Every creature you keep, wherever it is (tanks, reserve, Hatchery, rare eggs waiting, the jar). */
+export function allKept(save: SaveData): CreatureData[] {
+  const jar = [save.jar?.keep, save.jar2?.keep].filter((c): c is CreatureData => !!c);
+  return [...save.creatures, ...(save.reserve ?? []), ...save.nursery, ...(save.gifts ?? []), ...jar];
+}
+/**
+ * Move a creature from a tank or the reserve into another tank or the reserve.
+ * Null when done, or why not (nothing changes then).
+ */
+export function moveCreature(save: SaveData, layout: BaseLayout, id: number, to: number | 'reserve'): string | null {
+  const inTank = save.creatures.find((c) => c.id === id);
+  const inRes = (save.reserve ?? []).find((c) => c.id === id);
+  const c = inTank ?? inRes;
+  if (!c) return 'It is not in a tank or the reserve';
+  if (to === 'reserve') {
+    if (inRes) return 'Already resting in the reserve';
+    if (!reserveOpen(layout)) return 'The reserve is part of the Hatchery: build one first';
+    if ((save.reserve ?? []).length >= RESERVE_CAP) return `The reserve is full (${RESERVE_CAP})`;
+    save.creatures = save.creatures.filter((x) => x.id !== id);
+    c.tank = -2;
+    (save.reserve ??= []).push(c);
+    return null;
+  }
+  if (inTank && inTank.tank === to) return 'Already in that tank';
+  if (!tanks(layout).some((t) => t.id === to)) return 'No such tank';
+  if (creaturesIn(save, to).length >= tankCapacity(layout, to, save)) return 'That tank is full';
+  if (inRes) {
+    save.reserve = (save.reserve ?? []).filter((x) => x.id !== id);
+    save.creatures.push(c);
+    // A rested creature settles in again, but isn't hungry or sick from the reserve.
+    c.fed = Math.max(c.fed, 0.75);
+  }
+  c.tank = to;
+  c.comfort = Math.min(c.comfort, 0.5);
+  return null;
+}
+
+/**
+ * "Care for all": feed every tank whose creatures are getting hungry (1 kelp fibre each, as
+ * the Feed button) and scrub every tank's glass. Tanks it can't afford to feed are counted.
+ */
+export function careForAll(save: SaveData, layout: BaseLayout): { fed: number; cleaned: number; short: number } {
+  let fed = 0;
+  let cleaned = 0;
+  let short = 0;
+  for (const t of tanks(layout)) {
+    const eaters = creaturesIn(save, t.id).filter((c) => c.stage !== 'egg');
+    const td = tankDataFor(save, t.id);
+    if (eaters.length && td.water < 0.95) {
+      td.water = Math.min(1, td.water + CLEAN_AMOUNT);
+      cleaned++;
+    }
+    if (!eaters.some((c) => c.fed < 0.8)) continue;
+    if (!payCost(save, { fibre: 1 })) {
+      short++;
+      continue;
+    }
+    for (const c of eaters) c.fed = Math.min(1, c.fed + FEED_AMOUNT);
+    fed++;
+  }
+  return { fed, cleaned, short };
 }

@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { createServer } from 'vite';
+import { runCreatureCareChecks } from './test-creature-care.mjs';
 
 const server = await createServer({ server: { middlewareMode: true, watch: null }, appType: 'custom' });
 
@@ -556,6 +557,9 @@ try {
       assert.ok(g.foes[0].dead, 'Shooting the open core beats the keeper');
     }
   }
+
+  // Phases 20 and 21: the collection book, care, capacity, requests and restocking.
+  await runCreatureCareChecks(server);
 
   console.log('Progression checks passed.');
 } finally {
