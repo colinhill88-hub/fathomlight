@@ -15,6 +15,7 @@ export async function runRarityChecks(server) {
     server.ssrLoadModule('/src/rng.ts'),
   ]);
   const scanner = await server.ssrLoadModule('/src/game/scanner.ts');
+  const songMod = await server.ssrLoadModule('/src/game/choirSong.ts');
   // ---- Phase 22: every species, the two new ones included, is complete ----
   {
     assert.ok(care.SPECIES_ORDER.includes('eel') && care.SPECIES_ORDER.includes('horse'), 'The kiln eel and chime seahorse are keepable species');
@@ -201,5 +202,42 @@ export async function runRarityChecks(server) {
     // Restocking keeps size and the uncommon shape, not the rare shape or heirloom.
     col.restock(save, 'crab', { colour: 1, pattern: 0, gen: 3, size: 'giant', shape: 2, heirloom: true });
     assert.deepEqual(save.restocked.crab[0], { colour: 1, pattern: 0, gen: 1, size: 'giant' });
+  }
+
+  // ---- Phase 23: the Choir's song grows with the collection; the companion is optional ----
+  {
+    const save = state.freshSave(0, 0);
+    let id = 1;
+    const keep = (species, colour, pattern, extra = {}) => {
+      const c = { id: id++, species, tank: 1, stage: 'grown', growth: 1, fed: 1, comfort: 1, sickness: 0, make: 0, traits: { colour, pattern, gen: 2, ...extra } };
+      save.creatures.push(c);
+      return c;
+    };
+    keep('glowfin', 0, 0);
+    keep('puffcap', 1, 1);
+    col.sweepBook(save);
+    const small = songMod.choirSong(save);
+    assert.equal(small.tier, 0, 'A small collection: the ending plays as before');
+    assert.equal(small.words.length, 2);
+    assert.equal(small.outstanding, false);
+    // A big, varied, rare collection.
+    for (const sp of care.SPECIES_ORDER) for (let c = 0; c < 4; c++) for (let p = 0; p < 2; p++) keep(sp, c, p);
+    keep('ray', 3, 2, { radiant: true });
+    keep('crab', 0, 0, { heirloom: true, shape: 2 });
+    col.sweepBook(save);
+    const big = songMod.choirSong(save);
+    assert.equal(big.tier, 3, `A varied, rare collection: the richest song (richness ${big.richness.toFixed(2)})`);
+    assert.equal(big.outstanding, true, 'An outstanding collection gets the special line');
+    assert.equal(big.species, care.SPECIES_ORDER.length);
+    assert.ok(big.words.some((w) => w.legendary && w.species === 'crab'), 'The heirloom line is sung with a shimmer');
+    assert.ok(big.words.length >= 16, 'It sings back every pattern the book holds');
+    // Companion: only a raised creature carried in the jar.
+    assert.equal(songMod.companion(save), null, 'No companion: the ending plays as before');
+    save.jar = { species: 'eel', stage: 'young', traits: { colour: 0, pattern: 0, gen: 1 } };
+    assert.equal(songMod.companion(save), null, 'A wild catch in the jar is not a companion');
+    const pip = save.creatures[0];
+    save.jar = { species: pip.species, stage: 'grown', keep: pip };
+    assert.equal(songMod.companion(save), pip, 'A raised creature in the jar joins the song');
+    assert.match(songMod.companionWord(pip).name, /Glowfin · /);
   }
 }

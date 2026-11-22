@@ -43,3 +43,15 @@ No generated images were added. This session's tool had no image generator, so t
 - creature portraits in the book and on cards, which are the real creature rigs rendered into small pictures (`src/ui/creatureSnap.ts`).
 
 Painted backdrops and substrate for the tank interiors are still welcome later (log them here).
+
+## Phases 22–23 (Session B, Nov 22, 2026)
+
+No generated images were added. This session also had no image generator, so all new creature art is drawn in code on jointed rigs, in the painterly style:
+- the kiln eel and the chime seahorse (`src/actors/deepCreatureRigs.ts`; Colin approved their names and looks from the zoo screenshots);
+- two new shapes for each of the six older species (`glowfinRig.ts`, `dappleRayRig.ts`, `shoreCreatureRigs.ts`), tiny and giant sizes;
+- the heirloom filigree and the Choir-touched bands and halo (`src/actors/critters.ts`, `drawMarks`);
+- the Choir's echo of your collection at contact: circling lights and an outer ring (`src/interior/sanctum.ts`, `drawEcho`).
+
+See every creature in every form at `zoo.html` (on the play link, or with `npm run dev`).
+
+**Image-generation prompts** for painted textures to dress these rigs (and the Session A tank backdrops) are ready in [`prompts/phases-22-23-creatures.md`](prompts/phases-22-23-creatures.md). Generated textures go in `src/art/creatures/` and are logged in the table above.

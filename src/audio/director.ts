@@ -905,6 +905,11 @@ export class SoundDirector {
     }
   }
 
+  /** Phase 23: a companion creature answers the Choir in its own voice (louder, centred). */
+  companionCall(species: string, young: boolean): void {
+    this.creatureCall(species, young, 2.2, 0);
+  }
+
   /**
    * Round 3: a soft call from a creature out in the world, placed by distance and pan.
    * Synthesised and quiet (ambience level, under every interaction); young ones are

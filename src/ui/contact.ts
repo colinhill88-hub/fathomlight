@@ -1,5 +1,6 @@
 import { audio } from '../audio/engine';
 import { ChoirForm } from '../interior/sanctum';
+import { OUTSTANDING_LINE, type ChoirSong, type SongWord } from '../game/choirSong';
 
 /**
  * Milestone 11: first contact, the ending (Colin's choice: call and response,
@@ -16,7 +17,27 @@ import { ChoirForm } from '../interior/sanctum';
  *  4. Credits, then "Keep exploring": the game carries on, with its gifts.
  *
  * Keys 1-4 answer on a PC; on the phone, the four big buttons.
+ *
+ * Phase 23 (Colin: richer, same story): the naming grows with your collection
+ * (src/game/choirSong.ts). It names every pattern your book holds, each in its
+ * creature's colour, shown under the caption; with a richer collection it takes on
+ * your colours (lights circling it, an outer ring), sings in harmony over a held
+ * chord, sparkles for rare kinds and shimmers for heirloom and Choir-touched ones,
+ * and an outstanding collection gets one special line. A raised creature carried in
+ * the jar is an optional companion: after your last phrase the Choir lifts it out in
+ * a bubble of light and sings to it alone, and it answers. Without one, nothing
+ * changes. After first contact the heart's plinth lets you sing with it again (no
+ * gifts, no credits).
  */
+
+/** Phase 23: the companion, as main.ts hands it over. */
+export interface ContactCompanion {
+  name: string;
+  word: SongWord;
+  /** Its own call (the creature sound). */
+  call(): void;
+  choirTouched: boolean;
+}
 
 export interface ContactWord {
   /** e.g. "Glowfin · banded". */
@@ -38,7 +59,7 @@ const LINES = [
   'It has waited a very long time for someone to grow light, not only carry it.',
 ];
 
-type Phase = 'rise' | 'sing' | 'answer' | 'joy' | 'name' | 'credits' | 'done';
+type Phase = 'rise' | 'sing' | 'answer' | 'joy' | 'companion' | 'name' | 'credits' | 'done';
 
 export class Contact {
   active = false;
@@ -56,14 +77,52 @@ export class Contact {
   private onDone: () => void = () => {};
   private words: ContactWord[] = [];
   private nameI = 0;
+  /** Phase 23. */
+  private song: ChoirSong | null = null;
+  private lines: string[] = LINES;
+  private each = 0.55;
+  private nameTime = LINES.length * 5 + 1;
+  private wordEl: HTMLDivElement | null = null;
+  private mate: ContactCompanion | null = null;
+  private mateStep = 0;
+  private replay = false;
+  /** Phase 23: the companion's bubble of light (0..1) and its glow, for main.ts to draw it. */
+  companionK = 0;
+  companionGlow = 0;
+  /** For checks: the lines it will say while naming, and the words. */
+  get debugLines(): string[] {
+    return this.lines;
+  }
+  get debugWords(): number {
+    return this.words.length;
+  }
   private keyFn = (e: KeyboardEvent) => this.onKey(e);
 
   constructor(private readonly choir: ChoirForm) {}
 
-  start(words: ContactWord[], onDone: () => void): void {
+  start(words: ContactWord[], onDone: () => void, opts: { song?: ChoirSong; companion?: ContactCompanion | null; replay?: boolean } = {}): void {
     this.active = true;
     this.words = words;
     this.onDone = onDone;
+    this.song = opts.song ?? null;
+    this.mate = opts.companion ?? null;
+    this.replay = !!opts.replay;
+    this.companionK = this.companionGlow = 0;
+    this.mateStep = 0;
+    const song = this.song;
+    // The lines while it names your creatures: the same story, more of it for a richer collection.
+    this.lines = [LINES[0]];
+    if (song && song.tier >= 1) this.lines.push('As it names them, its light takes on their colours, one by one, until it shines with all of them.');
+    this.lines.push(LINES[1], LINES[2]);
+    if (song?.outstanding) this.lines.push(OUTSTANDING_LINE);
+    const n = Math.max(4, this.words.length);
+    this.each = Math.max(0.32, Math.min(0.55, 11 / n));
+    this.nameTime = Math.max(this.lines.length * 5 + 1, n * this.each + 3);
+    this.choir.echo = song ? [...new Set(song.words.map((w) => w.colour))] : [];
+    this.choir.rich = 0;
+    this.choir.flash = -1;
+    this.choir.flashK = 0;
+    this.choir.bubble = 0;
     this.phase = 'rise';
     this.t = 0;
     this.round = 0;
@@ -74,8 +133,9 @@ export class Contact {
     this.choir.bloom = 0;
     const el = document.createElement('div');
     el.id = 'contact';
-    el.innerHTML = `<div class="contact-caption"></div><div class="contact-pads"></div>`;
+    el.innerHTML = `<div class="contact-caption"></div><div class="contact-word"></div><div class="contact-pads"></div>`;
     this.caption = el.querySelector('.contact-caption')!;
+    this.wordEl = el.querySelector('.contact-word');
     const padRow = el.querySelector('.contact-pads')!;
     const fallback = ['ring', 'ribbon', 'spiral', 'star'];
     this.pads = [0, 1, 2, 3].map((i) => {
@@ -97,7 +157,7 @@ export class Contact {
     document.body.appendChild(el);
     this.el = el;
     window.addEventListener('keydown', this.keyFn);
-    this.say('Light gathers in the well below the plinth, and rises.');
+    this.say(this.replay ? 'You sing the first notes, and light gathers in the well again, and rises.' : 'Light gathers in the well below the plinth, and rises.');
     this.setPads(false);
   }
 
@@ -184,6 +244,7 @@ export class Contact {
     this.t += dt;
     this.singing = Math.max(0, this.singing - dt * 2);
     this.choir.noteK = Math.max(0, this.choir.noteK - dt * 1.4);
+    this.choir.flashK = Math.max(0, this.choir.flashK - dt * 1.8);
     const step = 0.95 * this.slow;
     switch (this.phase) {
       case 'rise':
@@ -218,11 +279,13 @@ export class Contact {
           this.round++;
           this.slow = 1;
           if (this.round >= PHRASES.length) {
-            this.phase = 'name';
-            this.t = 0;
-            this.nameI = 0;
-            this.say(LINES[0]);
             for (const p of this.pads) p.classList.add('gone');
+            if (this.mate) {
+              this.phase = 'companion';
+              this.t = 0;
+              this.mateStep = 0;
+              this.say(`In the jar at your belt, ${this.mate.name} stirs. A bubble of the Choir's light lifts it out, water and all, and carries it up beside you.`);
+            } else this.startNaming();
           } else {
             this.phase = 'sing';
             this.t = -0.4;
@@ -231,18 +294,93 @@ export class Contact {
           }
         }
         break;
+      case 'companion': {
+        // Phase 23: the companion's moment. It rises in its bubble, the Choir sings it its own
+        // pattern three times, and it answers glow for glow; then it is set back in the jar.
+        const m = this.mate!;
+        this.companionK = this.t < 9.5 ? Math.min(1, this.t / 1.6) : Math.max(0, 1 - (this.t - 9.5) / 1.4);
+        this.choir.bubble = this.companionK;
+        this.companionGlow = Math.max(0, this.companionGlow - dt * 1.2);
+        const note = (m.word.pattern + m.word.species.length) % 4;
+        const beats = [2.4, 3.3, 4.2];
+        if (this.mateStep < 3 && this.t >= beats[this.mateStep]) {
+          this.play(note, 0.6, 0.06);
+          this.choir.flash = m.word.colour;
+          this.choir.flashK = 1;
+          this.mateStep++;
+          if (this.mateStep === 1) this.say(`The Choir turns to ${m.name} and sings to it alone: ${m.word.name.split(' · ')[1]}, its own pattern, three times.`);
+        }
+        if (this.mateStep === 3 && this.t >= 5.2) {
+          this.mateStep = 4;
+          m.call();
+          this.companionGlow = 1;
+          // It answers: its note, a little higher, and a soft bell.
+          audio.tone({ freq: NOTE_HZ[note] * 2, dur: 1.2, attack: 0.02, gain: 0.04, type: 'sine', bus: 'music', send: 0.9 });
+          this.say(m.choirTouched
+            ? `${m.name} answers, and the Choir's own light in it flares to meet the Choir's: it knows its own. For a moment the two shine as one.`
+            : m.word.legendary
+              ? `${m.name} answers, glow for glow, and its old line's gold shines in the Choir's light. The rings slow, as if to listen.`
+              : `And ${m.name} answers, glow for glow. The rings ripple with something like delight.`);
+        }
+        if (this.mateStep === 4 && this.t >= 7.4) {
+          this.mateStep = 5;
+          this.companionGlow = 1;
+          audio.tone({ freq: NOTE_HZ[note] * 2, dur: 1, attack: 0.02, gain: 0.035, type: 'sine', bus: 'music', send: 0.9 });
+        }
+        if (this.mateStep === 5 && this.t >= 9.5) {
+          this.mateStep = 6;
+          this.say(`The bubble sets ${m.name} gently back in your jar.`);
+        }
+        if (this.t > 11.4) {
+          this.companionK = 0;
+          this.choir.bubble = 0;
+          this.startNaming();
+        }
+        break;
+      }
       case 'name': {
-        // It names each of your creatures' patterns in turn, quickly, then opens out.
-        const each = 0.55;
+        // It names each of your creatures' patterns in turn, each in its colour, then opens out.
         const n = Math.max(4, this.words.length);
-        if (this.t >= this.nameI * each && this.nameI < n) {
-          this.play(this.nameI % 4, 0.5, 0.05);
+        const song = this.song;
+        if (this.t >= this.nameI * this.each && this.nameI < n) {
+          const w = song?.words[this.nameI];
+          const note = w ? (w.pattern + w.species.length) % 4 : this.nameI % 4;
+          this.play(note, 0.5, 0.05);
+          if (w) {
+            this.choir.flash = w.colour;
+            this.choir.flashK = 1;
+            if (this.wordEl) {
+              this.wordEl.textContent = w.name;
+              this.wordEl.style.setProperty('--wc', `#${w.colour.toString(16).padStart(6, '0')}`);
+              this.wordEl.classList.remove('show');
+              void this.wordEl.offsetWidth;
+              this.wordEl.classList.add('show');
+            }
+            const tier = song!.tier;
+            // A richer collection: harmony, sparkles for rare kinds, a shimmer for the rarest.
+            if (tier >= 1) audio.tone({ freq: NOTE_HZ[note] * 1.5, dur: 0.7, attack: 0.03, gain: 0.02, type: 'sine', bus: 'music', send: 0.9 });
+            if (tier >= 2 && w.rare) audio.bell({ freq: NOTE_HZ[note] * 4, gain: 0.012, decay: 0.8, ratio: 2, index: 0.3, bus: 'music', send: 0.8 });
+            if (tier >= 1 && w.legendary)
+              for (let s = 0; s < 3; s++) audio.tone({ t: audio.now + 0.08 * s, freq: NOTE_HZ[(note + s) % 4] * 4, dur: 0.5, attack: 0.01, gain: 0.01, type: 'sine', bus: 'music', send: 1 });
+          }
           this.nameI++;
         }
         this.choir.bloom = Math.min(1, this.choir.bloom + dt * 0.08);
-        const li = Math.min(LINES.length - 1, Math.floor(this.t / 5));
-        if (this.caption.textContent !== LINES[li]) this.say(LINES[li]);
-        if (this.t > LINES.length * 5 + 1) this.rollCredits();
+        if (song) this.choir.rich = Math.min(song.richness, this.choir.rich + dt * 0.12);
+        const li = Math.min(this.lines.length - 1, Math.floor(this.t / 5));
+        if (this.caption.textContent !== this.lines[li]) {
+          this.say(this.lines[li]);
+          if (this.lines[li] === OUTSTANDING_LINE) {
+            // Every colour at once: a held chord of all four notes.
+            for (let i = 0; i < 4; i++) audio.tone({ freq: NOTE_HZ[i], dur: 4.5, attack: 0.6, gain: 0.025, type: 'sine', bus: 'music', send: 1 });
+            this.choir.flashK = 0;
+          }
+        }
+        if (this.t > this.nameTime) {
+          this.wordEl?.classList.remove('show');
+          if (this.replay) this.finish();
+          else this.rollCredits();
+        }
         break;
       }
       case 'credits':
@@ -251,6 +389,18 @@ export class Contact {
       case 'done':
         break;
     }
+  }
+
+  private startNaming(): void {
+    this.phase = 'name';
+    this.t = 0;
+    this.nameI = 0;
+    this.say(this.lines[0]);
+    // A held chord under the naming, for a richer collection.
+    const song = this.song;
+    if (song && song.tier >= 2)
+      for (const [i, f] of [NOTE_HZ[0] / 2, NOTE_HZ[2] / 2, NOTE_HZ[3] / 2].entries())
+        audio.tone({ t: audio.now + i * 0.3, freq: f, dur: this.nameTime, attack: 2.5, gain: song.tier >= 3 ? 0.018 : 0.012, type: 'sine', bus: 'music', send: 1 });
   }
 
   private rollCredits(): void {
@@ -289,6 +439,10 @@ export class Contact {
     this.choir.rise = 0;
     this.choir.bloom = 0;
     this.choir.note = -1;
+    this.choir.rich = 0;
+    this.choir.flash = -1;
+    this.choir.bubble = 0;
+    this.companionK = 0;
     this.onDone();
   }
 

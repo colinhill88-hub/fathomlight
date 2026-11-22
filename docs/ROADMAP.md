@@ -4,7 +4,7 @@ Nov 21, 2026 · planned with Colin after Phase 14 (reward moments, PR #36)
 
 This is the agreed plan for work that is **not built yet**. Nothing here is implemented unless [Progress](../PROGRESS.md) says so. Read the [development handoff](AI_DEVELOPMENT_HANDOFF.md) before starting any of it, whichever AI tool you are. When a phase ships, move its entry into PROGRESS.md and mark it done here. Do not delete it.
 
-The order below is Colin's agreed phasing. **Phases 20 and 21 (Session A) are built** on a branch with a pull request (Nov 22, 2026). Phases 15, 16 and 17 are built and merged. **Phase 18 is built** (on a branch with a pull request for Colin). **Phase 19 is agreed and ready to build** (planned with Colin on Nov 21, 2026, after Phase 16), each with a session prompt in `docs/prompts/`. Later items need a design pass with Colin before code. Ask him the open questions listed with each item.
+The order below is Colin's agreed phasing. **Phases 20 and 21 (Session A) are built and merged** (PR #50). **Phases 22 and 23 (Session B) are built** on a branch with a pull request (Nov 22, 2026). Phases 15, 16 and 17 are built and merged. **Phase 18 is built** (on a branch with a pull request for Colin). **Phase 19 is agreed and ready to build** (planned with Colin on Nov 21, 2026, after Phase 16), each with a session prompt in `docs/prompts/`. Later items need a design pass with Colin before code. Ask him the open questions listed with each item.
 
 ## Colin's decisions (Nov 21, 2026)
 
@@ -38,7 +38,7 @@ The order below is Colin's agreed phasing. **Phases 20 and 21 (Session A) are bu
 - **Art may use generated images (Colin, after Phase 19).** The early rule that every piece of art is drawn by code is lifted. Colin worked with other AI tools to generate painted images for the zone backdrops, the reef and kelp, the creatures' look and Kestrel. He considers that one of the biggest improvements to the game so far. New art may be drawn by code or generated, whichever looks best. Conditions:
   - **Original only:** no imitating or recreating another game's, film's or artist's characters, creatures, logos or distinctive look. Reference games are for feel, as before.
   - **One style:** match the painterly, high-fidelity look the game already has, and its lighting pipeline (images sit in the lit, emissive and glow layers like the existing plates).
-  - **Colour rule unchanged:** cyan, violet and magenta stay the Choir's (but see the open question in Phase 23 about Choir-touched creatures).
+  - **Colour rule unchanged:** cyan, violet and magenta stay the Choir's (Choir-touched creatures are the one exception; see Phase 23).
   - **Ledger:** log every generated image in `docs/art/SOURCES.md` with the file, what it is, the tool used, the date and the prompt (or a summary of it). The licence of the tool must allow selling the game (Colin may sell it on Steam). If unsure, ask Colin before using it.
   - **Phone-friendly:** keep files small (prefer `.webp`, sized to how big they are on screen), and keep a procedural fallback wherever the code already has one (`?art=procedural`).
   - **Animated things:** creatures and characters still need to move naturally. Painted textures can dress a jointed code rig (as Kestrel's face and suit materials do), rather than replacing animation with stiff sprites.
@@ -77,6 +77,7 @@ The order below is Colin's agreed phasing. **Phases 20 and 21 (Session A) are bu
     - **richer tank art:** generated painted backdrops, substrate, rocks and plants for the tank interiors (logged in `docs/art/SOURCES.md`), glass reflections and caustic light, and decorations (the Phase 20 and 21 rewards) that look like real aquarium pieces;
     - **performance:** keep it smooth on the iPhone with several tanks on screen (only tanks in view animate fully).
   - **Kestrel is a boy (he/him).** Some earlier documentation and code comments called Kestrel "she"; they are corrected in this pull request. Use he/him for Kestrel everywhere. (Linnea is "she"; the Corvina and the Fulmar are "her", as ships traditionally are.)
+- **Session B (Colin, Nov 22, 2026, during the session):** he approved the two new species from zoo screenshots: the **kiln eel** (trench) and the **chime seahorse** (the sanctum's edge), names and looks as drawn.
 - **What's next (Colin, after Phase 19 merged):** make creature care and breeding the heart of the game (Dave the Diver is the inspiration for how satisfying that loop feels), with more rare and unique creatures tied into the Choir encounter. Then premium polish. Combat gets more sections and tuning later, through playtesting. The plan is Phases 20–24 below; each needs a short design check with Colin first (the open questions are listed with each).
 
 ## Phase 15: quality of life and the Field kit (built, PR #38)
@@ -265,7 +266,17 @@ The original brief follows.
   - how strongly care should change the odds;
   - whether requests have time limits (suggested: none, to stay cozy).
 
-## Phase 22: more ways to be rare. Not built (Session B). Design answered: see "Colin's decisions (Nov 22, 2026)".
+## Phase 22: more ways to be rare. **Built in Session B** (pull request; see PROGRESS.md). Design answered: see "Colin's decisions (Nov 22, 2026)".
+
+**Done:** size (tiny, giant), two new fin or shell shapes per species, heirloom lines (from the 4th generation), tiered rarity (uncommon 1 in 8, rare 1 in 25, heirloom 1 in 100, Choir-touched 1 in 150; great care doubles each), the book's rare forms row, planner odds, and two new species with their own rare forms: the kiln eel (trench floor) and the chime seahorse (the sanctum's antechamber). Choices the session made (Colin can change them):
+- tiny and giant are looks only (no change to what a creature makes);
+- the uncommon shape and sizes also turn up in the wild; the rare shape, heirlooms and the Choir's light only from breeding;
+- every size and shape of a species gives a tank decoration;
+- the kiln eel makes brass and the chime seahorse grows glowing blooms;
+- no creature is "bred only" as a whole species (both new species have wild founders).
+- **Not done:** painted textures for the creature rigs (no image generator in this session; prompts are ready in `docs/art/prompts/phases-22-23-creatures.md`).
+
+The original brief follows.
 
 **Why:** Colin wants more rare and unique creatures possible. Today rarity is colour, pattern and radiance.
 
@@ -281,7 +292,15 @@ The original brief follows.
   - whether to add species (how many, and where);
   - how rare "rare" should feel (one in ten hatchings, one in fifty).
 
-## Phase 23: creatures and the Choir. Not built (Session B). Design answered: see "Colin's decisions (Nov 22, 2026)".
+## Phase 23: creatures and the Choir. **Built in Session B** (pull request; see PROGRESS.md). Design answered: see "Colin's decisions (Nov 22, 2026)".
+
+**Done:** Choir-touched creatures (after contact, 1 in 150, in the Choir's cyan, violet and magenta), the Choir singing back every pattern in your book in your creatures' colours, four tiers of richness (colours, circling lights, harmony, a held chord, sparkles and shimmers) and a special line for an outstanding collection, and the optional jar companion with its own moment. Choices the session made (Colin can change them):
+- after first contact the plinth in the heart lets you **sing with the Choir again** (no gifts, no credits), so a later collection, Choir-touched creatures and a companion can still be heard;
+- only a creature raised at the base can be a companion (not a fresh wild catch);
+- the outstanding line needs 6+ species, 30+ kinds and an heirloom or Choir-touched one (or 10+ rare kinds).
+- **Not done:** "the Choir's requests after the ending" (legendary lines it asks to see). It was an idea in the brief, not one of Colin's decisions; it could follow Linnea's requests later.
+
+The original brief follows.
 
 **Why:** tie the creature collection into the story's climax, so the ending is personal to each player.
 
@@ -330,7 +349,7 @@ The original brief follows.
   - Panels that sort, filter, move and "care for all".
   - Living tanks: natural swimming with wakes, ripples and bubbles when creatures surface, and richer tank art (generated images allowed). If Session A runs long, this part can move to Session B.
   - Prompt: [`prompts/phases-20-21-creature-care.md`](prompts/phases-20-21-creature-care.md).
-- **Session B: Phases 22 and 23.**
+- **Session B: Phases 22 and 23. Built (pull request, Nov 22, 2026).**
   - Size, shape and heirloom traits and the tiered rarity.
   - The two new species.
   - Choir-touched creatures.

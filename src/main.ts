@@ -164,12 +164,12 @@ import { KEEPER_BEATEN, WAKE_SUIT, afterHit, combatOn, engineDoorOpen, mendSuit 
 import { BaseCtx, BaseHooks, OCEAN_POOL_DEPTH, baseSignature, buildBaseLevel } from './interior/baselevel';
 import { SCAN_ENTRIES } from './game/scanner';
 import { CHOIR_AT, ChoirForm, HEART_MAP, heartOptions } from './interior/sanctum';
-import { Contact, type ContactWord } from './ui/contact';
+import { Contact, type ContactCompanion, type ContactWord } from './ui/contact';
+import { choirSong, companion, companionWord, type ChoirSong } from './game/choirSong';
 import { markSeen, ZoneMap } from './ui/zonemap';
 import { PadNav } from './ui/padnav';
 import { Menus } from './ui/menu';
 import { GearFx } from './world/gearfx';
-import { PATTERNS } from './game/traits';
 import { initSoundUI } from './ui/sound';
 import { Rewards, type RewardSpec } from './ui/reward';
 import { FieldKit } from './ui/fieldkit';
@@ -4457,8 +4457,9 @@ async function boot(): Promise<void> {
   // ---- Milestone 11: the heart of the sanctum, on foot, and first contact ----
   function enterHeart(): void {
     // Contact left unfinished (the game closed mid-song): the plinth waits again.
-    if (!save.sanctum.contact) save.sanctum.taken = save.sanctum.taken.filter((t) => t !== '9');
-    interior.enter(HEART_MAP, { breakers: [], taken: save.sanctum.taken }, null, heartOptions(choir),
+    // Phase 23: after contact it waits too, to sing with the Choir again (no gifts, no credits).
+    save.sanctum.taken = save.sanctum.taken.filter((t) => t !== '9');
+    interior.enter(HEART_MAP, { breakers: [], taken: save.sanctum.taken }, null, heartOptions(choir, save.sanctum.contact),
       oceanCapture?.source({ x: SANCTUM.hall.x - 670, y: SANCTUM.hall.y - 420, sx: 0.63, sy: 1.22 }));
     inside = 'sanctum';
     goOnFoot();
@@ -4487,23 +4488,48 @@ async function boot(): Promise<void> {
     sound.hatchCue(false);
     persist();
   }
-  /** The patterns your grown creatures show (the Choir's words), named for the answer pads. */
-  function contactWords(): ContactWord[] {
-    const seen = new Set<string>();
-    const out: ContactWord[] = [];
-    for (const c of save.creatures) {
-      if (c.stage !== 'grown') continue;
-      const p = c.traits?.pattern ?? 0;
-      const key = `${c.species}:${p}`;
-      if (seen.has(key)) continue;
-      seen.add(key);
-      const sp = c.species.charAt(0).toUpperCase() + c.species.slice(1);
-      out.push({ name: `${sp} · ${PATTERNS[c.species]?.[p] ?? 'glow'}` });
-    }
-    return out;
+  /**
+   * The patterns your creatures taught you (the Choir's words), named for the answer pads.
+   * Phase 23: every pattern your book holds (not only grown ones in the tanks today), from
+   * choirSong, which also sets how rich its answer is.
+   */
+  function contactWords(song: ChoirSong): ContactWord[] {
+    return song.words.map((w) => ({ name: w.name }));
+  }
+  /** Phase 23: the companion's body in the heart (a creature carried in the jar), while contact runs. */
+  let mateCritter: Critter | null = null;
+  function dropMate(): void {
+    if (!mateCritter) return;
+    interior.removeActor(mateCritter.view, mateCritter.emissive, mateCritter.glow);
+    mateCritter.destroy();
+    mateCritter = null;
   }
   function startContact(): void {
-    contact.start(contactWords(), () => {
+    sweepBook(save);
+    const song = choirSong(save);
+    const again = save.sanctum.contact;
+    const mate = companion(save);
+    dropMate();
+    let mateInfo: ContactCompanion | null = null;
+    if (mate) {
+      const t = traitsOf(mate);
+      mateCritter = new Critter(mate.species, mate.stage === 'young' ? 'young' : 'grown', mate.id, t, livingCreatures);
+      interior.addActor(mateCritter.view, mateCritter.emissive, mateCritter.glow);
+      mateCritter.setVisible(false);
+      mateInfo = { name: creatureName(mate), word: companionWord(mate), choirTouched: !!t.choir, call: () => sound.companionCall(mate.species, mate.stage === 'young') };
+    }
+    const finishReplay = () => {
+      dropMate();
+      save.sanctum.taken = save.sanctum.taken.filter((t) => t !== '9');
+      hud.toast(song.outstanding ? 'The light settles back into the well. Your whole collection is in its song now.' : 'The light settles back into the well, humming your creatures\' patterns.', 'big');
+      persist();
+    };
+    if (again) {
+      contact.start(contactWords(song), finishReplay, { song, companion: mateInfo, replay: true });
+      return;
+    }
+    contact.start(contactWords(song), () => {
+      dropMate();
       save.sanctum.contact = true;
       if (!save.scans.includes('contact')) save.scans.push('contact');
       if (!save.blueprints.includes('lantern')) save.blueprints.push('lantern');
@@ -4511,11 +4537,11 @@ async function boot(): Promise<void> {
       exitHeart({ x: SANCTUM.gate.x - 150, y: SANCTUM.gate.y + 20 });
       hud.showReading(
         "The Choir's gifts",
-        "You come to yourself floating in the antechamber, the resonator still warm on your back. Where the water was empty, a ring of light now stands: a Choir gate. It carries you home to the Kestrel, and its twin by the buoy brings you back here.\n\nAnd in your mind, clear as a drawing, the shape of a Choir lantern: a seed of its light that powers the base anywhere on the site, no current needed. Its build card is in build mode now.\n\nThe game goes on. There is a whole ocean of creatures still to raise.",
+        "You come to yourself floating in the antechamber, the resonator still warm on your back. Where the water was empty, a ring of light now stands: a Choir gate. It carries you home to the Kestrel, and its twin by the buoy brings you back here.\n\nAnd in your mind, clear as a drawing, the shape of a Choir lantern: a seed of its light that powers the base anywhere on the site, no current needed. Its build card is in build mode now.\n\nSomething else stays with you, too. The Choir has heard your creatures now. Every so often, very rarely, an egg in your Hatchery may carry a little of its light.\n\nThe game goes on. There is a whole ocean of creatures still to raise, and the plinth in the heart will sing with you again whenever you come back.",
         'First contact is in your scanner log.',
       );
       persist();
-    });
+    }, { song, companion: mateInfo });
   }
   /** Step through a Choir gate: home to the Kestrel buoy, or back to the sanctum. */
   function choirGate(home: boolean): void {
@@ -5179,6 +5205,19 @@ async function boot(): Promise<void> {
     hatchPanel.update(dt);
     station.update(dt);
     contact.update(dt);
+    if (mateCritter && inside === 'sanctum') {
+      // Phase 23: the companion floats in its bubble of light beside Kestrel, glowing as it answers.
+      const k = contact.companionK;
+      mateCritter.setVisible(k > 0.02);
+      const toward = Math.sign(CHOIR_AT.x - interior.walker.x) || 1;
+      const mx = interior.walker.x + toward * 46;
+      const my = interior.walker.y - 70 - k * 30 + Math.sin(time * 1.6) * 3;
+      choir.bubbleAt.x = mx;
+      choir.bubbleAt.y = my;
+      const g = contact.companionGlow;
+      mateCritter.update(dt, time, mx, my, toward * (8 + g * 20), 0, { vigour: 0.6 + g * 0.4, sick: 0, size: Math.max(0.05, k) * 1.1, notice: g });
+      mateCritter.glow.alpha = 0.6 + g * 0.8;
+    }
     const frozen = care.active || hatchPanel.active || station.active || contact.active || knockout > 0;
     const poolAt = livingBases && inside === 'base' ? baseHooks?.moonpoolAt(interior.walker.x, interior.walker.y) : undefined;
     // The resonator sings at the song-lock, and while you answer the Choir.
@@ -5532,6 +5571,8 @@ async function boot(): Promise<void> {
     combat: () => combat,
     enterHeart: () => enterHeart(),
     contact,
+    // Phase 23: start the call and answer at once (checks), as the plinth does.
+    startContact: () => startContact(),
     choirGate: (home: boolean) => choirGate(home),
     zoneMap: () => zoneMap.show(save, { x: diver.x, y: diver.y }, () => {}),
     hunters,
