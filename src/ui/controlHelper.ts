@@ -57,6 +57,8 @@ export interface HelperContext {
   boots?: 'offer' | 'own' | null;
   /** On foot: a ladder within reach. */
   ladder: boolean;
+  /** Phase 19: on foot in an infested wreck with the Rivet driver: Shoot and Brace. */
+  combat?: boolean;
   /** Zoom works here (open water or the base on foot). */
   zoom: boolean;
   /** The player is giving movement input. */
@@ -129,6 +131,11 @@ export function helperRows(c: HelperContext): HelperRow[] {
       add({ id: 'jump', keys: ['jump'], label: 'Jump' });
       add({ id: 'sprint', keys: ['sprint'], label: 'Sprint', hold: true });
       if (c.ladder) add({ id: 'ladder', keys: ['moveY'], label: 'Climb', context: true });
+      if (c.combat) {
+        add({ id: 'shoot', keys: ['shoot'], label: 'Shoot' });
+        // The pad braces with the stick held down (no button), so it shows the stick.
+        add({ id: 'brace', keys: [pad ? 'moveY' : 'down'], label: pad ? 'Down: brace · duck' : 'Brace · duck', hold: true });
+      }
       add({ id: 'lamp', keys: ['lamp'], label: 'Lamp' });
       break;
     case 'climb':

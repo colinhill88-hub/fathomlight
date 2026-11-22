@@ -25,6 +25,7 @@ const GEAR_CARD: Partial<Record<GearId, { icon: RewardIcon; ribbon?: string; lin
   dash: { icon: 'thruster', ribbon: 'New ability', line: 'Double-tap Boost to dash.' },
   boots: { icon: 'boots', ribbon: 'New ability', line: 'Clamp on and walk the seabed, out of any current.' },
   dart: { icon: 'gear', line: 'Stun a predator and turn it away.' },
+  rivet: { icon: 'rivet', ribbon: 'New weapon', line: 'Shoot and brace. The engine room door can be forced.' },
   cowl: { icon: 'suit', ribbon: 'Suit upgrade', line: 'Vent heat scalds a fifth as much.' },
 };
 

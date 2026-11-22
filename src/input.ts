@@ -24,6 +24,7 @@
  * drive it (Boost fires the thrusters, Lamp switches its lights).
  *
  * Mag-boots (Phase 17b): N, the d-pad's up or the Boots button clamps them on and off.
+ * Rivet driver (Phase 19): X, RT or the Shoot button fires; hold Down to brace (on foot, in infested wrecks).
  *
  * Build mode (src/ui/build.ts) has its own controls; while it is open this
  * class is `suspended` and reports no swimming input.
@@ -53,6 +54,8 @@ export interface InputState {
   kit: boolean;
   /** Phase 17b: one frame when Boots was pressed (N, d-pad up, the Boots button): clamp the mag-boots on or off. */
   boots: boolean;
+  /** Phase 19: one frame when Shoot was pressed (X, RT, the Shoot button): fire the Rivet driver. */
+  shoot: boolean;
   /** Which kind of control was used last, so on-screen hints can match it. */
   lastDevice: 'touch' | 'keyboard' | 'mouse' | 'gamepad';
 }
@@ -63,7 +66,7 @@ const STICK_RADIUS = 56;
 const DEADZONE = 0.15;
 
 export class Input {
-  readonly state: InputState = { moveX: 0, moveY: 0, boost: false, jumpHeld: false, sprint: false, lamp: false, scan: false, scanTap: false, collect: false, board: false, flare: false, dart: false, haul: false, release: false, kit: false, boots: false, lastDevice: 'keyboard' };
+  readonly state: InputState = { moveX: 0, moveY: 0, boost: false, jumpHeld: false, sprint: false, lamp: false, scan: false, scanTap: false, collect: false, board: false, flare: false, dart: false, haul: false, release: false, kit: false, boots: false, shoot: false, lastDevice: 'keyboard' };
 
   private keys = new Set<string>();
   private boostQueued = false;
@@ -81,6 +84,7 @@ export class Input {
   private releaseQueued = false;
   private kitQueued = false;
   private bootsQueued = false;
+  private shootQueued = false;
 
   // Touch stick.
   private stickId: number | null = null;
@@ -137,6 +141,7 @@ export class Input {
       if (isKey('release', k)) this.releaseQueued = true;
       if (isKey('kit', k)) this.kitQueued = true;
       if (isKey('boots', k)) this.bootsQueued = true;
+      if (isKey('shoot', k)) this.shootQueued = true;
       if (k.startsWith('arrow') || k === ' ') e.preventDefault();
     });
     window.addEventListener('keyup', (e) => this.keys.delete(e.key.toLowerCase()));
@@ -228,6 +233,7 @@ export class Input {
     press('btn-release', () => (this.releaseQueued = true));
     press('kit-btn', () => (this.kitQueued = true));
     press('btn-boots', () => (this.bootsQueued = true));
+    press('btn-shoot', () => (this.shootQueued = true));
     // Scan is held, not tapped.
     const scanEl = document.getElementById('btn-scan')!;
     scanEl.addEventListener('pointerdown', (e) => {
@@ -344,6 +350,7 @@ export class Input {
       if (pressed('release')) this.releaseQueued = true;
       if (pressed('kit')) this.kitQueued = true;
       if (pressed('boots')) this.bootsQueued = true;
+      if (pressed('shoot')) this.shootQueued = true;
       if (pressed('lamp')) this.lampQueued = true;
       if (btn('scan')) scan = true;
       if (pressed('scan')) this.scanTapQueued = true;
@@ -358,7 +365,7 @@ export class Input {
     if (this._suspended) {
       x = y = 0;
       scan = collect = false;
-      this.boostQueued = this.lampQueued = this.scanTapQueued = this.boardQueued = this.flareQueued = this.dartQueued = this.haulQueued = this.releaseQueued = this.bootsQueued = false;
+      this.boostQueued = this.lampQueued = this.scanTapQueued = this.boardQueued = this.flareQueued = this.dartQueued = this.haulQueued = this.releaseQueued = this.bootsQueued = this.shootQueued = false;
     }
     this.state.moveX = x;
     this.state.moveY = y;
@@ -377,6 +384,8 @@ export class Input {
     this.state.release = this.releaseQueued;
     this.state.boots = this.bootsQueued;
     this.bootsQueued = false;
+    this.state.shoot = this.shootQueued;
+    this.shootQueued = false;
     // The Field kit toggles even while panels suspend play (so I closes it again).
     this.state.kit = this.kitQueued;
     this.flareQueued = this.dartQueued = this.haulQueued = this.releaseQueued = this.kitQueued = false;

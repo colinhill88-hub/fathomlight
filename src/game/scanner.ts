@@ -246,6 +246,13 @@ export const SCAN_ENTRIES: ScanEntry[] = [
     text: "The survey ship Corvina came to this shelf to record lights rising from the deep water beyond it: slow, patterned flashes, cyan and violet, that no animal makes. Her crew built a sonar to map where they came from, and a deep suit to follow them down. The last entries end mid-sentence.",
   },
   {
+    // Phase 19: found in the Corvina's engine room, the infested section.
+    id: 'enginelog',
+    name: "The chief engineer's log",
+    category: 'Artefact',
+    text: "\"Day 212. The hull keeper's scrubbers have started on the engine casings. Rewrote its rules twice; it rewrites them back. It thinks rust is the ship and we are the fouling.\n\nDay 214. Welded the door. Told the bosun to leave the driver drawings in his locker, for whoever comes next. Don't fight it in the dark. Watch what it does before it does it.\"",
+  },
+  {
     id: 'hidden',
     name: 'Silt slump',
     category: 'Place',

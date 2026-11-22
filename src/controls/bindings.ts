@@ -31,6 +31,8 @@ export type Action =
   | 'kit'
   // Phase 17b: clamp the mag-boots on and off (walk the seabed).
   | 'boots'
+  // Phase 19: fire the Rivet driver (on foot, in infested wrecks). Bracing is Down, held.
+  | 'shoot'
   | 'build'
   | 'tend'
   | 'dock'
@@ -83,6 +85,9 @@ const DEFAULTS: Record<Action, Binding> = {
   kit: { keys: ['i'], pad: [8] },
   // N (free on the keyboard), the d-pad's up (free on the pad), the Boots button on touch.
   boots: { keys: ['n'], pad: [12] },
+  // Phase 19: the stun dart's own keys (X, RT). The dart only works swimming and the Rivet driver only
+  // on foot, so the two never compete. Plus the Shoot button on touch once the driver is built.
+  shoot: { keys: ['x'], pad: [7] },
   build: { keys: ['b'], pad: [] },
   tend: { keys: ['t'], pad: [] },
   dock: { keys: ['g'], pad: [] },

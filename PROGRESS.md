@@ -1,6 +1,6 @@
 # Fathomlight progress
 
-The live branch includes the Fulmar foothold, Codex Phases 1–11D the Phase 12 gameplay pass (PR #33/#34) and the Phase 13 control helper, drill lodes and named creatures (PR #35, `d9f4728`); see the [Phase 13 audit](docs/phase-13-gameplay-audit.md). **Phase 14** reward moments merged as PR #36 (`03b4c8f`). **Phase 15** (jar release, the Field kit, the sonar control bar) merged as PR #38 (`faa9e26`). **Phase 16** rounds 1 and 2 (the satchel jar fix, the audio audit, the first Kenney sound files) merged as PRs #40 and #41. **Round 3** (30 more CC0 sound files, creature calls, KS-1 heard from outside) merged as PR #42. Colin then had the control bar's offer ping turned off (PR #43). **Phase 17** (the Field kit portrait is the real Kestrel, and walking mag-boots) merged as PR #45. **Phase 18** (Linnea, the axolotl guide) is built on a branch with a pull request, not merged yet; see the [Phase 18 notes](docs/phase-18-linnea.md). **Next:** Phase 19 (combat inside wrecks) is planned in the roadmap, with session prompts in `docs/prompts/`; see the [Phase 16 audit](docs/phase-16-audio-audit.md) and the [Phase 14 notes](docs/phase-14-reward-moments.md). The agreed plan for Phase 15 onward, including ideas not built yet, is in the [roadmap](docs/ROADMAP.md). See the [development handoff](docs/AI_DEVELOPMENT_HANDOFF.md) for the current source map and the [progression audit](docs/phase-12-progression-audit.md) for the route from a new save to first contact.
+The live branch includes the Fulmar foothold, Codex Phases 1–11D the Phase 12 gameplay pass (PR #33/#34) and the Phase 13 control helper, drill lodes and named creatures (PR #35, `d9f4728`); see the [Phase 13 audit](docs/phase-13-gameplay-audit.md). **Phase 14** reward moments merged as PR #36 (`03b4c8f`). **Phase 15** (jar release, the Field kit, the sonar control bar) merged as PR #38 (`faa9e26`). **Phase 16** rounds 1 and 2 (the satchel jar fix, the audio audit, the first Kenney sound files) merged as PRs #40 and #41. **Round 3** (30 more CC0 sound files, creature calls, KS-1 heard from outside) merged as PR #42. Colin then had the control bar's offer ping turned off (PR #43). **Phase 17** (the Field kit portrait is the real Kestrel, and walking mag-boots) merged as PR #45. **Phase 18** (Linnea, the axolotl guide) is built on a branch with a pull request, not merged yet; see the [Phase 18 notes](docs/phase-18-linnea.md). **Phase 19** (combat inside wrecks) has its first infested section built on a pull request for Colin to play: the Corvina's engine room, the Rivet driver RD-1 and three machines; see the [Phase 19 notes](docs/phase-19-wreck-combat.md). More sections wait for his notes; see the [Phase 16 audit](docs/phase-16-audio-audit.md) and the [Phase 14 notes](docs/phase-14-reward-moments.md). The agreed plan for Phase 15 onward, including ideas not built yet, is in the [roadmap](docs/ROADMAP.md). See the [development handoff](docs/AI_DEVELOPMENT_HANDOFF.md) for the current source map and the [progression audit](docs/phase-12-progression-audit.md) for the route from a new save to first contact.
 
 Play link: https://colinhill88-hub.github.io/fathomlight/ (live; first successful deploy 2026-11-14)
 
@@ -21,9 +21,79 @@ Play link: https://colinhill88-hub.github.io/fathomlight/ (live; first successfu
 | Phase 15 | PR #38, `faa9e26` | Jar release with confirmation for named creatures, the Field kit on I, and the sonar-style control bar with an offer ping. |
 | Phase 16 (rounds 1–2) | PRs #40, #41 | The satchel's second jar slot works indoors; gathering, tools, docking and welds get anticipation, contact and release; round-robin variety; danger first in the mix; phone-speaker harmonics; an indoor room echo and hull filter; footsteps. |
 | Phase 16 (round 3) | PR #42 | 30 CC0 Freesound files (bubbles, breath out, diving in, an underwater loop, kelp snaps, moss rips, wreck groans and creaks, sand, wet footsteps), soft creature calls placed in the world, KS-1's idle heard from outside. |
+| Phase 19 (first section) | pull request (not merged) | Combat on foot in the Corvina's new engine room: the Rivet driver RD-1 (blueprint, Workshop, major reward), rust ticks, weld drones and the hull keeper, bracing and ducking, safe lamps and a gentle blackout. |
 | Phase 18 | pull request (not merged) | Linnea, a friendly axolotl drawn in code, waits at one of nine spots and gives gentle hints chosen from the save when Kestrel talks to her. |
 | Phase 17 | PR #45 | The Field kit portrait is the live Kestrel rig with part highlights and ??? silhouettes; mag-boots are a toggle walking mode on the seabed. |
 | Phase 14 | PR #36, `03b4c8f` | Reward moments: minor, notable and major tiers with drawn emblems, particles, slow motion and synthesised stings and fanfares. |
+
+### Phase 19: combat inside the wrecks, first section (pull request, not merged)
+
+Colin chose all four proposals at the start of the session (Nov 22, 2026):
+
+- the weapon is the **Rivet driver RD-1**;
+- health is **suit integrity**;
+- the **hull keeper stays beaten** and the small machines rebuild;
+- the first section is a **new, optional Corvina engine room**.
+
+Full notes: [phase-19-wreck-combat.md](docs/phase-19-wreck-combat.md).
+
+- **The route:** the bosun's locker in the Corvina's hold (west end, past the salvage crate) gives the Rivet driver drawings. A Lab decodes them (80 s). The Workshop builds the driver (3 brass, 4 copper, 2 quartz) with a major reward card and its own emblem. Holding Collect at the welded door beside the locker forces it open. Without the driver, the door says so and points at the locker.
+- **The engine room:** a dark bay of rust with two old engines, a propeller shaft, pipes and the keeper's nest with its red console, all drawn in code. It has three rooms, each starting at a caged safe lamp that lights lime as Kestrel passes:
+  - **room 1:** two rust ticks;
+  - **room 2:** two weld drones and a tick among crates you can hide behind;
+  - **room 3:** the hull keeper.
+
+  Behind the keeper, a shutter lifts once it is beaten. It opens onto the keeper's store: the chief engineer's log (a new scanner log entry) and the keeper's hoard (4 brass, 4 copper, 3 quartz, 2 plating).
+- **The machines,** each telegraphing every attack in pose, glow and sound:
+  - **Rust tick:** crouches, shakes and flares its eye, then lunges. Jump it or brace; it lands on its back.
+  - **Weld drone:** a sighting line follows Kestrel, then goes solid and blinks with two beeps when locked, then it fires a bolt. Duck or take cover. It is armoured except while charging (a rivet interrupts it) and while its vents glow open cooling down.
+  - **Hull keeper:** raises its hammer arm and slams a shockwave along the floor (jump it), or rears back venting steam and charges (brace, and it is stopped dead). After either, its shield droops and its core blazes: the only time rivets hurt it.
+- **Kestrel:** the driver is strapped to her near forearm, on the swimmer too: a housing with red straps, a brass-banded drum, a barrel and a lime sight lamp. Holding **Down** braces: a low crouch with the forearm raised and the guard plate folded out. She can turn round while braced but not walk. A **perfect brace** (raised just as a hit lands) knocks the attacker back and sends a drone's bolt home. Rivets aim softly at the nearest machine ahead. The arm points along each shot with a kick of recoil.
+- **Losing:** the screen fades. Kestrel wakes by the last safe lamp lit this visit (or the door) with her suit patched to 60% and everything kept. The rooms from that lamp on refill. Out of a fight the suit seals itself after 4 quiet seconds.
+- **Controls:** Shoot is **X**, **RT** on a gamepad, or the **Shoot** button on touch. The button only appears in the engine room once the driver is built, in Scan's place; Flare and Dart buttons hide on foot. Brace is holding **Down**. The control bar shows Shoot and Brace there.
+- **Switch and tuning:** `?combat=off` keeps the door welded. Every number lives in `src/game/combat.ts`.
+- **Sound:** a synthesised warning for every attack, placed towards the machine, never muffled, dipping the soundtrack. There are also separate sounds for rivets, pings off armour, hits, blocks, the perfect brace, machines falling apart, the keeper's power-down, Kestrel's suit being hit and a lamp lighting. No sound files were added.
+- **Save:** only the optional `corvina.engine?: { taken }` is new. Old saves load untouched (checked in Node).
+
+**Also (Colin, before merging):** the Corvina's scan point moved. It used to be buried in her hull amidships and was hard to catch from outside. It now sits in open water just off her stern, beside the bollard and the deck hatch (the way in), so it's met on the way inside. Checked in Node (open water, clear of the upwelling, within scan reach of the bollard and hatch) and in `vite preview`: swimming east to the stern with real keys, the scanner offered the wreck and holding E logged it.
+
+**Validated:** `npm ci`, typecheck, build and the progression checks.
+
+The new Node checks cover:
+- blocking, the perfect brace and the unblockable shockwave;
+- suit damage and mending;
+- the engine room map, rooms and spawns;
+- the door and locker in the hold;
+- respawning (the keeper stays beaten) and the wake point;
+- the `?combat=off` switch;
+- the blueprint and gear;
+- old and new saves loading;
+- the Shoot binding and control bar rows;
+- a fight stepped in Node: a tick telegraphs then lunges, a brace turns it, a perfect brace is recognised, ticks climb crates rather than lunging into them, two rivets stop a tick, a drone is armoured except when charging or cooling, ducking after the lock makes its bolt miss, the keeper is shielded except when open, its slam shockwave lands on someone who doesn't jump, and shooting its open core beats it.
+
+In `vite preview` with real input:
+- **Keyboard (a scripted player pressing A/D, Space, S and X):**
+  - real C-holds took the locker and forced the door;
+  - room 1 played with braced lunges and no damage taken;
+  - room 2 had both drones and the tick destroyed, one bolt taken and the suit mending back to 100%;
+  - room 3 had the keeper's slam, charge, open core and defeat, with the store shutter opening and `k` saved.
+
+  The scripted player started rooms 2 and 3 at their safe lamps (a fixture: the save was given the Rivet driver, and Kestrel was placed at the lamp).
+- **Simulated gamepad:** RT fires; the stick held down braces; the bar shows "RT Shoot" and "hold Down: brace · duck".
+- **Touch, iPhone 15 Pro landscape:** the Shoot button shows (Dart and Flare hidden), a tap fires, and dragging the stick down braces.
+
+No console errors in any run.
+
+Fixed during the checks:
+- the guard plate lay flat (it now always stands upright);
+- a tick stuck behind a crate lunged into it forever (it now climbs over, and only lunges along a clear floor).
+
+**Not tested (needs Colin):**
+- every sound (the headless browser can't hear);
+- the feel and difficulty with his own hands on PC, controller and iPhone;
+- a blackout and wake in the browser (the scripted player never lost; the rule is Node-tested);
+- the full route from a fresh save: locker, then Lab, then Workshop, then door (the Lab and Workshop steps were not played; the drawings, blueprint and gear are Node-tested);
+- reading the chief engineer's log and opening the hoard on screen.
 
 ### Phase 18: Linnea, the axolotl guide (pull request, not merged)
 

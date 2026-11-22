@@ -339,6 +339,204 @@ try {
     assert.equal(linneaPlan(bare).spot, 'forest');
   }
 
+  // ---- Phase 19: combat inside the wrecks ----
+  {
+    const combat = await server.ssrLoadModule('/src/game/combat.ts');
+    const foesMod = await server.ssrLoadModule('/src/game/foes.ts');
+    const { ENGINE_MAP, engineLayout } = await server.ssrLoadModule('/src/interior/engineRoom.ts');
+    const { CORVINA_MAP } = await server.ssrLoadModule('/src/interior/corvina.ts');
+    const gearMod = await server.ssrLoadModule('/src/game/gear.ts');
+    const T = 40;
+
+    // The switch: ?combat=off closes the engine room door; on by default.
+    assert.equal(combat.combatOn(''), true);
+    assert.equal(combat.combatOn('?combat=off'), false, 'combat can be switched off from the address');
+    // The door opens with the Rivet driver only.
+    assert.equal(combat.engineDoorOpen({ gear: [] }), false);
+    assert.equal(combat.engineDoorOpen({ gear: ['rivet'] }), true);
+    assert.equal(combat.engineDoorOpen({ gear: ['rivet'] }, false), false, 'switched off, the door stays shut');
+
+    // Blocking: the guard covers the front only; a fresh brace is perfect; the shockwave must be jumped.
+    const hit = (o) => combat.resolveHit({ attack: 'lunge', braced: true, braceAge: 1, face: 1, fromX: 100, x: 0, ...o });
+    assert.equal(hit({}), 'block');
+    assert.equal(hit({ braceAge: 0.1 }), 'perfect');
+    assert.equal(hit({ braced: false }), 'hit');
+    assert.equal(hit({ fromX: -100 }), 'hit', 'The guard does not cover her back');
+    assert.equal(hit({ attack: 'slam', braceAge: 0.05 }), 'hit', 'The keeper\'s shockwave rolls under the guard');
+    assert.equal(combat.afterHit(1, 'bolt', 'block'), 1, 'A blocked hit costs nothing');
+    assert.ok(combat.afterHit(1, 'bolt', 'hit') < 1);
+    assert.equal(combat.afterHit(0.1, 'charge', 'hit'), 0, 'Suit integrity never goes below zero');
+    // The suit seals itself only once the fight has been quiet a while.
+    assert.equal(combat.mendSuit(0.5, 1, 1), 0.5);
+    assert.ok(combat.mendSuit(0.5, combat.SUIT_CALM, 1) > 0.5);
+    assert.equal(combat.mendSuit(0.99, 10, 10), 1);
+
+    // The engine room: equal rows, three safe lamps (three rooms), its machines, a shutter and the way out.
+    assert.ok(ENGINE_MAP.every((r) => r.length === ENGINE_MAP[0].length), 'Engine room rows are all the same width');
+    const lay = engineLayout();
+    assert.equal(lay.lamps.length, 3);
+    assert.deepEqual(lay.lamps.map((l) => l.room), [0, 1, 2]);
+    const kinds = (room) => lay.spawns.filter((sp) => sp.room === room).map((sp) => sp.kind).sort();
+    assert.deepEqual(kinds(0), ['tick', 'tick'], 'Room 1: two rust ticks');
+    assert.deepEqual(kinds(1), ['drone', 'drone', 'tick'], 'Room 2: two weld drones and a tick among the crates');
+    assert.deepEqual(kinds(2), ['keeper'], 'Room 3: the hull keeper');
+    const solid = (x, y) => '#c'.includes(ENGINE_MAP[Math.floor(y / T)]?.[Math.floor(x / T)] ?? '#');
+    for (const sp of lay.spawns) if (sp.kind !== 'drone') assert.ok(solid(sp.x, sp.y + 4) && !solid(sp.x, sp.y - 4), `${sp.id} starts standing on the floor`);
+    assert.ok(solid(lay.door.x, lay.door.y + 4), 'The way out is on the floor');
+    assert.ok(ENGINE_MAP.some((r) => r.includes('Y')) && ENGINE_MAP.some((r) => r.includes('7')) && ENGINE_MAP.some((r) => r.includes('$')));
+
+    // Respawning (Colin's choice): small machines come back each visit; the keeper stays beaten.
+    assert.equal(combat.foesFor(lay.spawns, undefined).length, 6);
+    assert.equal(combat.foesFor(lay.spawns, { taken: ['k'] }).length, 5, 'A beaten keeper stays beaten');
+    assert.ok(combat.foesFor(lay.spawns, { taken: ['k'] }).every((sp) => sp.kind !== 'keeper'));
+    assert.deepEqual(combat.foesFor(lay.spawns, undefined, 2).map((sp) => sp.kind), ['keeper'], 'After a blackout only the rooms from the lamp on refill');
+    assert.deepEqual(combat.wakePoint(lay.door, lay.lamps, 1), lay.lamps[1]);
+    assert.deepEqual(combat.wakePoint(lay.door, [], 0), { ...lay.door, room: 0 }, 'No lamp: wake at the door');
+
+    // The Corvina's hold has the engine room door and the bosun's locker, on the floor and apart from the salvage crate.
+    const at = (ch) => { const ty = CORVINA_MAP.findIndex((r) => r.includes(ch)); return { tx: CORVINA_MAP[ty].indexOf(ch), ty }; };
+    for (const ch of ['E', '6', '$']) {
+      const { tx, ty } = at(ch);
+      assert.equal(CORVINA_MAP[ty + 1][tx], '#', `${ch} stands on the hold floor`);
+    }
+    assert.ok(Math.abs(at('E').tx - at('$').tx) * T > 60 && Math.abs(at('6').tx - at('$').tx) * T > 60, 'Door, locker and crate offers do not overlap');
+    assert.ok(CORVINA_MAP.every((r) => r.length === 100), 'The Corvina keeps its size');
+
+    // The Corvina's scan point is in open water by her way in (Colin, before merging Phase 19).
+    {
+      const sp = { x: terrain.CV_HATCH.x - 120, y: terrain.CV_HATCH.y - 60 };
+      assert.equal(terrain.isSolid(sp.x, sp.y), false, 'The Corvina scan point is in open water');
+      assert.equal(terrain.cvUpwell(sp.x, sp.y), 0, 'It is clear of the upwelling over her deck');
+      assert.ok(Math.hypot(sp.x - terrain.CV_BOLLARD.x, sp.y - terrain.CV_BOLLARD.y) < 230, 'It is in scan reach of the bollard, the way in');
+      assert.ok(Math.hypot(sp.x - terrain.CV_HATCH.x, sp.y - terrain.CV_HATCH.y) < 230, 'and of the deck hatch');
+    }
+    // The weapon comes the usual way: drawings, a Lab, the Workshop.
+    assert.deepEqual(gearMod.RESEARCH.rivet.finds, ['rivetplans']);
+    assert.equal(gearMod.GEAR.rivet.blueprint, 'rivet');
+    assert.equal(gearMod.GEAR.rivet.code, 'RD-1');
+    assert.ok(gearMod.RESEARCH_ORDER.includes('rivet') && gearMod.GEAR_ORDER.includes('rivet'));
+
+    // Saves: an old save has no engine room; a saved one round-trips; junk is dropped.
+    const store = new Map();
+    globalThis.localStorage = { getItem: (k) => store.get(k) ?? null, setItem: (k, v) => store.set(k, v), removeItem: (k) => store.delete(k) };
+    const old = state.freshSave(0, 0);
+    store.set('fathomlight.save.v1', JSON.stringify(old));
+    const l1 = state.loadSave(0, 0);
+    assert.equal(l1.loaded, true);
+    assert.equal(l1.data.corvina.engine, undefined, 'An old save loads with no engine room state');
+    store.set('fathomlight.save.v1', JSON.stringify({ ...old, corvina: { ...old.corvina, engine: { taken: ['k', '7', 5] } } }));
+    assert.deepEqual(state.loadSave(0, 0).data.corvina.engine, { taken: ['k', '7'] }, 'The engine room state is kept (strings only)');
+    delete globalThis.localStorage;
+
+    // Controls: Shoot is X / RT (the stun dart's keys: the dart is swim-only, the driver foot-only), Brace is Down.
+    assert.equal(bindings.isKey('shoot', 'x'), true);
+    assert.deepEqual(bindings.padFor('shoot'), [7]);
+    const foot = ids(ctx({ mode: 'foot', combat: true }));
+    assert.ok(foot.includes('shoot') && foot.includes('brace'), 'On foot in a fight the helper shows Shoot and Brace');
+    assert.ok(!ids(ctx({ mode: 'foot' })).includes('shoot'), 'No Shoot row outside a fight');
+    assert.ok(ids(ctx({ mode: 'foot', combat: true, device: 'gamepad' })).includes('brace'), 'The pad shows bracing on the stick');
+
+    // ---- A fight stepped in Node: a flat floor 20 tiles long at y = 400 ----
+    const world = { tile: T, solid: (x, y) => y >= 400 || x < 0 || x > 2000, clear: () => true };
+    const hero = (o = {}) => ({ x: 300, y: 400, face: 1, onGround: true, braced: false, braceAge: 9, grace: 0, ...o });
+    const run = (field, h, secs, each) => {
+      const out = [];
+      for (let t = 0; t < secs; t += 1 / 60) {
+        const ev = [];
+        each?.(t, field, h);
+        field.step(1 / 60, h, ev);
+        out.push(...ev);
+        for (const e of ev) if (e.type === 'hurt' && e.result === 'hit') h.grace = combat.HURT_GRACE;
+        h.grace = Math.max(0, h.grace - 1 / 60);
+      }
+      return out;
+    };
+    const cues = (evs) => evs.filter((e) => e.type === 'cue').map((e) => e.cue);
+    // A rust tick telegraphs, then lunges and hurts a hero who stands still.
+    {
+      const f = new foesMod.FoeField(world, [0]);
+      f.reset([{ id: 't', kind: 'tick', x: 520, y: 400, room: 0 }]);
+      const evs = run(f, hero(), 4);
+      const c = cues(evs);
+      assert.ok(c.indexOf('tickTell') >= 0 && c.indexOf('tickTell') < c.indexOf('tickLunge'), 'The tick rattles before it lunges');
+      assert.ok(evs.some((e) => e.type === 'hurt' && e.attack === 'lunge' && e.result === 'hit'), 'An unanswered lunge lands');
+    }
+    // Braced in time, the lunge is turned and the tick is flipped; jumping over it, nothing lands.
+    {
+      const f = new foesMod.FoeField(world, [0]);
+      f.reset([{ id: 't', kind: 'tick', x: 520, y: 400, room: 0 }]);
+      const h = hero({ braced: true, braceAge: 0 });
+      let lungeAt = -1;
+      const evs = run(f, h, 3, (t, field) => {
+        if (lungeAt < 0 && field.foes[0].state === 'lunge') lungeAt = t;
+        h.braceAge = lungeAt < 0 ? 0 : t - lungeAt;
+      });
+      assert.ok(!evs.some((e) => e.type === 'hurt' && e.result === 'hit'), 'A raised guard turns the lunge');
+      assert.ok(evs.some((e) => e.type === 'hurt' && e.result === 'perfect'), 'Braced just as it lands: a perfect brace');
+    }
+    // A crate between them: the tick never lunges into it; it climbs over and comes on.
+    {
+      const crate = { tile: T, solid: (x, y) => y >= 400 || x < 0 || x > 2000 || (x >= 400 && x < 440 && y >= 360), clear: (ax, ay, bx, by) => { for (let k = 1; k < 20; k++) { const x = ax + (bx - ax) * k / 20; const y = ay + (by - ay) * k / 20; if (x >= 400 && x < 440 && y >= 360) return false; } return true; } };
+      const f = new foesMod.FoeField(crate, [0]);
+      f.reset([{ id: 't', kind: 'tick', x: 560, y: 400, room: 0 }]);
+      const h = hero({ x: 200, grace: 999 });
+      let over = false;
+      for (let t = 0; t < 6 && !over; t += 1 / 60) { f.step(1 / 60, h, []); if (f.foes[0].x < 400) over = true; }
+      assert.ok(over, 'A tick climbs over a crate between it and Kestrel');
+    }
+    // Rivets: soft aim finds the tick; two hits and it falls apart.
+    {
+      const f = new foesMod.FoeField(world, [0]);
+      f.reset([{ id: 't', kind: 'tick', x: 700, y: 400, room: 5 }]);
+      const evs = run(f, hero(), 1.6, (t, field) => { if (t < 1.2) field.shoot(); });
+      assert.ok(cues(evs).filter((c) => c === 'shot').length >= 2, 'Holding the trigger fires at the driver\'s pace');
+      assert.ok(f.foes[0].dead, 'Two rivets stop a tick');
+      assert.ok(cues(evs).includes('down'));
+    }
+    // The drone is armoured while it hovers, open while it charges and cools, and every shot is announced.
+    {
+      const d = foesMod.makeFoe({ id: 'd', kind: 'drone', x: 600, y: 400, room: 0 });
+      d.state = 'hover';
+      assert.equal(foesMod.vulnerable(d), false);
+      d.state = 'aim';
+      assert.equal(foesMod.vulnerable(d), true, 'A shot while it charges interrupts it');
+      d.state = 'cool';
+      assert.equal(foesMod.vulnerable(d), true);
+      const f = new foesMod.FoeField(world, [0]);
+      f.reset([{ id: 'd', kind: 'drone', x: 650, y: 400, room: 0 }]);
+      const evs = run(f, hero(), 5);
+      const c = cues(evs);
+      assert.ok(c.indexOf('droneAim') >= 0 && c.indexOf('droneAim') < c.indexOf('droneFire'), 'The drone aims (and is heard) before it fires');
+      assert.ok(evs.some((e) => e.type === 'hurt' && e.attack === 'bolt'), 'Its bolt reaches a hero standing in the open');
+      // Braced (crouched) after it locks on: the bolt aimed at her chest flies over.
+      const g = new foesMod.FoeField(world, [0]);
+      g.reset([{ id: 'd', kind: 'drone', x: 650, y: 400, room: 0 }]);
+      const h = hero();
+      const evs2 = run(g, h, 5, (t, field) => { const fo = field.foes[0]; if (fo.state === 'aim' && fo.t > combat.DRONE.track) { h.braced = true; h.braceAge = 2; } if (fo.state === 'cool' && !field.shots.length) h.braced = false; });
+      assert.ok(!evs2.some((e) => e.type === 'hurt' && e.attack === 'bolt' && e.result === 'hit'), 'Ducking after the lock makes the bolt miss');
+    }
+    // The keeper: rivets only spark off its shield until an attack leaves its core open.
+    {
+      const k = foesMod.makeFoe({ id: 'h', kind: 'keeper', x: 600, y: 400, room: 0 });
+      for (const st of ['idle', 'walk', 'windSlam', 'windCharge', 'charge']) { k.state = st; assert.equal(foesMod.vulnerable(k), false, `keeper shielded while ${st}`); }
+      for (const st of ['stuck', 'stagger']) { k.state = st; assert.equal(foesMod.vulnerable(k), true, `keeper open while ${st}`); }
+      const f = new foesMod.FoeField(world, [0]);
+      f.reset([{ id: 'h', kind: 'keeper', x: 420, y: 400, room: 0 }]);
+      const h = hero({ x: 300 });
+      const evs = run(f, h, 6);
+      const c = cues(evs);
+      assert.ok(c.indexOf('keeperWindSlam') >= 0 && c.indexOf('keeperWindSlam') < c.indexOf('keeperSlam'), 'The keeper winds up before it slams');
+      assert.ok(evs.some((e) => e.type === 'hurt' && e.attack === 'slam'), 'Its shockwave reaches a hero who does not jump');
+      assert.ok(c.includes('keeperOpen'), 'After the slam its core opens');
+      // Beating it: shoot only while it's open.
+      const g = new foesMod.FoeField(world, [0]);
+      g.reset([{ id: 'h', kind: 'keeper', x: 460, y: 400, room: 0 }]);
+      const hh = hero({ x: 300, grace: 999 });
+      run(g, hh, 40, (t, field) => { if (foesMod.vulnerable(field.foes[0])) field.shoot(); });
+      assert.ok(g.foes[0].dead, 'Shooting the open core beats the keeper');
+    }
+  }
+
   console.log('Progression checks passed.');
 } finally {
   await server.close();

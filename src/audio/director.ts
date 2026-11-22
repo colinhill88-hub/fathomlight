@@ -1240,6 +1240,147 @@ export class SoundDirector {
     }
   }
 
+  /**
+   * Phase 19: the fight in the wreck. Every machine's attack is heard before
+   * it lands: each tell starts with the attack's wind-up and is placed toward
+   * the machine (`dx`, units from Kestrel). Tells and hits go on the ui bus
+   * (danger comes first: never muffled) and dip the soundtrack, as the
+   * lurker's warning does (Phase 16). Kestrel's own rivets stay on sfx, so
+   * the room's echo carries them.
+   */
+  foe(cue: string, dx = 0): void {
+    if (!audio.running) return;
+    const t = audio.now;
+    const pan = Math.max(-0.85, Math.min(0.85, dx / 520));
+    const far = Math.max(0.45, 1 - Math.abs(dx) / 1400);
+    const up = jit(0.03);
+    switch (cue) {
+      // ---- Rust tick: a rattle climbing in pitch through the crouch, then a scraping lunge ----
+      case 'tickTell': {
+        for (let i = 0; i < 9; i++) {
+          const k = i / 8;
+          audio.hiss({ t: t + k * 0.5, dur: 0.016, gain: (0.06 + 0.06 * k) * far, freq: (1500 + 1600 * k) * up, q: 7, bus: 'ui', pan, send: 0.2 });
+        }
+        audio.tone({ t, freq: 90 * up, to: 170 * up, dur: 0.1, attack: 0.5, gain: 0.07 * far, type: 'sawtooth', lp: 700, bus: 'ui', pan, send: 0.2 });
+        audio.duckForSting(0.9);
+        break;
+      }
+      case 'tickLunge':
+        audio.hiss({ t, dur: 0.3, gain: 0.08 * far, freq: 2600 * up, to: 900, q: 1.4, bus: 'ui', pan, send: 0.2 });
+        audio.metal({ t, freq: 620 * up, gain: 0.03 * far, decay: 0.15, bus: 'ui', pan });
+        break;
+      case 'tickLand':
+        for (let i = 0; i < 3; i++) audio.metal({ t: t + i * 0.04, freq: (380 + Math.random() * 260) * up, gain: 0.025 * far, decay: 0.12, pan });
+        break;
+      // ---- Weld drone: a whine that rises with the torch, two lock beeps, the zap ----
+      case 'droneAim':
+        audio.tone({ t, freq: 520 * up, to: 1650 * up, dur: 0.12, attack: 1.05, gain: 0.05 * far, type: 'sawtooth', lp: 2600, bus: 'ui', pan, send: 0.2 });
+        audio.tone({ t, freq: 1040 * up, to: 3300 * up, dur: 0.1, attack: 1.05, gain: 0.015 * far, type: 'sine', bus: 'ui', pan });
+        for (const k of [0.75, 0.95]) audio.tone({ t: t + k, freq: 2200, dur: 0.05, attack: 0.004, gain: 0.07 * far, type: 'square', lp: 4000, bus: 'ui', pan });
+        audio.duckForSting(1.4);
+        break;
+      case 'droneFire':
+        audio.hiss({ t, dur: 0.18, gain: 0.14 * far, freq: 3800, to: 900, q: 1.2, bus: 'ui', pan, send: 0.3 });
+        audio.tone({ t, freq: 900, to: 140, dur: 0.22, gain: 0.08 * far, type: 'sawtooth', lp: 2200, bus: 'ui', pan, send: 0.3 });
+        break;
+      case 'droneCool':
+        audio.hiss({ t: t + 0.05, dur: 0.9, attack: 0.05, gain: 0.04 * far, freq: 1800, to: 900, q: 0.8, pan, send: 0.3 });
+        break;
+      // ---- Hull keeper: hydraulics heave the hammer up, or steam roars as it rears to charge ----
+      case 'wake':
+        audio.tone({ t, freq: 38, to: 72, dur: 0.4, attack: 1.2, gain: 0.14, type: 'sawtooth', lp: 260, bus: 'ui', pan, send: 0.4 });
+        audio.metal({ t: t + 0.9, freq: 110, gain: 0.09, decay: 1, bus: 'ui', pan, send: 0.4 });
+        audio.metal({ t: t + 1.3, freq: 96, gain: 0.09, decay: 1.2, bus: 'ui', pan, send: 0.4 });
+        audio.duckForSting(2.2);
+        break;
+      case 'keeperWindSlam':
+        audio.hiss({ t, dur: 0.15, attack: 0.85, gain: 0.1 * far, freq: 700, to: 2600, q: 1.1, bus: 'ui', pan, send: 0.3 });
+        for (let i = 0; i < 5; i++) audio.metal({ t: t + i * 0.17, freq: (160 + i * 30) * up, gain: 0.05 * far, decay: 0.18, bus: 'ui', pan });
+        audio.tone({ t, freq: 55, to: 82, dur: 0.15, attack: 0.85, gain: 0.1 * far, type: 'sawtooth', lp: 300, bus: 'ui', pan, send: 0.3 });
+        audio.duckForSting(1.6);
+        break;
+      case 'keeperSlam':
+        audio.thump({ t, freq: 42, gain: 0.32, dur: 0.7, bus: 'ui', pan, send: 0.5 });
+        audio.metal({ t, freq: 88, gain: 0.14, decay: 1.4, bus: 'ui', pan, send: 0.5 });
+        if (!this.sam('metal', { t, gain: 0.12, rate: 0.4, send: 0.5 })) audio.metal({ t, freq: 140, gain: 0.08, decay: 0.8 });
+        audio.hiss({ t: t + 0.02, dur: 1.2, attack: 0.03, gain: 0.08, type: 'lowpass', freq: 900, to: 160, brown: true, bus: 'ui', pan, send: 0.4 });
+        break;
+      case 'keeperWindCharge':
+        audio.hiss({ t, dur: 0.2, attack: 0.75, gain: 0.13 * far, freq: 2400, to: 4200, q: 0.6, bus: 'ui', pan, send: 0.3 });
+        audio.tone({ t, freq: 46, to: 120, dur: 0.12, attack: 0.8, gain: 0.12 * far, type: 'sawtooth', lp: 420, bus: 'ui', pan, send: 0.3 });
+        audio.duckForSting(1.6);
+        break;
+      case 'keeperCharge':
+        for (let i = 0; i < 6; i++) audio.thump({ t: t + i * 0.19, freq: 58 * up, gain: 0.14 * far, dur: 0.2, bus: 'ui', pan, send: 0.3 });
+        audio.hiss({ t, dur: 1.1, gain: 0.05 * far, type: 'lowpass', freq: 700, brown: true, bus: 'ui', pan });
+        break;
+      case 'keeperWall':
+        audio.thump({ t, freq: 50, gain: 0.3, dur: 0.6, bus: 'ui', pan, send: 0.5 });
+        audio.metal({ t, freq: 120, gain: 0.14, decay: 1.6, bus: 'ui', pan, send: 0.5 });
+        break;
+      case 'keeperOpen':
+        // The opening: steam bleeds off and the core spins up bright (the cue to shoot).
+        audio.hiss({ t, dur: 0.6, gain: 0.06, freq: 3000, to: 1200, q: 0.8, pan, send: 0.3 });
+        audio.tone({ t: t + 0.05, freq: 330, to: 660, dur: 0.3, attack: 0.08, gain: 0.04, type: 'triangle', pan, send: 0.3 });
+        break;
+      case 'keeperDown':
+        audio.tone({ t, freq: 220, to: 30, dur: 1.8, attack: 0.02, gain: 0.12, type: 'sawtooth', lp: 900, bus: 'ui', pan, send: 0.5 });
+        audio.thump({ t: t + 0.5, freq: 40, gain: 0.34, dur: 0.9, bus: 'ui', pan, send: 0.6 });
+        for (let i = 0; i < 10; i++) audio.metal({ t: t + 0.55 + i * 0.07 + Math.random() * 0.05, freq: 150 + Math.random() * 600, gain: 0.05, decay: 0.4, bus: 'ui', pan, send: 0.4 });
+        audio.hiss({ t: t + 0.5, dur: 2.4, attack: 0.05, gain: 0.07, freq: 1600, to: 500, q: 0.6, pan, send: 0.5 });
+        break;
+      // ---- Kestrel's rivets and what they hit ----
+      case 'shot':
+        audio.thump({ t, freq: 150 * up, gain: 0.13, dur: 0.09, send: 0.25 });
+        audio.hiss({ t, dur: 0.07, gain: 0.09, freq: 3600 * up, to: 1800, q: 1.3, send: 0.25 });
+        audio.metal({ t: t + 0.005, freq: 1250 * up, gain: 0.025, decay: 0.12, send: 0.2 });
+        break;
+      case 'rivetWall':
+        audio.metal({ t, freq: (900 + Math.random() * 500) * up, gain: 0.035 * far, decay: 0.18, pan, send: 0.3 });
+        break;
+      case 'ping':
+        audio.metal({ t, freq: (1700 + Math.random() * 400) * up, gain: 0.05 * far, decay: 0.25, pan, send: 0.3 });
+        audio.metal({ t: t + 0.01, freq: 2600 * up, gain: 0.02 * far, decay: 0.15, pan });
+        break;
+      case 'hit':
+        audio.thump({ t, freq: 120 * up, gain: 0.12 * far, dur: 0.12, pan, send: 0.2 });
+        audio.metal({ t, freq: 420 * up, gain: 0.07 * far, decay: 0.3, pan, send: 0.3 });
+        audio.hiss({ t, dur: 0.12, gain: 0.06 * far, freq: 2400, q: 1.5, pan });
+        break;
+      case 'down':
+        audio.thump({ t, freq: 90, gain: 0.12 * far, dur: 0.2, pan, send: 0.3 });
+        for (let i = 0; i < 6; i++) audio.metal({ t: t + i * 0.045 + Math.random() * 0.03, freq: 250 + Math.random() * 700, gain: 0.04 * far, decay: 0.25, pan, send: 0.3 });
+        audio.hiss({ t, dur: 0.5, gain: 0.05 * far, freq: 2800, to: 900, q: 1, pan, send: 0.3 });
+        break;
+      case 'block':
+        audio.metal({ t, freq: 520 * up, gain: 0.1, decay: 0.45, bus: 'ui', send: 0.3 });
+        audio.thump({ t, freq: 110, gain: 0.1, dur: 0.12, bus: 'ui' });
+        break;
+      case 'perfect':
+        // A bright ring off the guard plate: the good timing is heard.
+        audio.metal({ t, freq: 780, gain: 0.12, decay: 0.8, bus: 'ui', send: 0.4 });
+        audio.tone({ t, freq: 1320, to: 1980, dur: 0.35, attack: 0.005, gain: 0.05, type: 'triangle', bus: 'ui', send: 0.4 });
+        audio.thump({ t, freq: 140, gain: 0.1, dur: 0.1, bus: 'ui' });
+        break;
+    }
+  }
+  /** Phase 19: Kestrel takes a hit in a fight: a crunch on the suit and a short hiss (softer than a bite). */
+  suitHit(): void {
+    if (!audio.running) return;
+    const t = audio.now;
+    audio.thump({ t, freq: 100, gain: 0.24, dur: 0.2, bus: 'ui', send: 0.2 });
+    audio.metal({ t: t + 0.02, freq: 300, gain: 0.07, decay: 0.35, bus: 'ui' });
+    audio.hiss({ t: t + 0.05, dur: 0.5, attack: 0.02, gain: 0.06, freq: 3000, to: 1700, q: 1, bus: 'ui', send: 0.1 });
+    audio.duckForSting(0.8);
+  }
+  /** Phase 19: a safe lamp lights as Kestrel passes: a warm click and a soft rising hum. */
+  safeLamp(): void {
+    if (!audio.running) return;
+    const t = audio.now;
+    audio.metal({ t, freq: 880, gain: 0.03, decay: 0.2, bus: 'ui' });
+    audio.tone({ t: t + 0.03, freq: 220, to: 330, dur: 0.6, attack: 0.15, gain: 0.03, type: 'triangle', bus: 'ui', send: 0.3 });
+  }
+
   clamps(docked: boolean): void {
     // Phase 16: the docking shape. A servo whine as the arms swing in (anticipation), the clamps
     // biting one after the other (contact), then the seal: a hiss of the water purging (payoff).

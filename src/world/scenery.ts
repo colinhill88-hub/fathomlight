@@ -2104,7 +2104,9 @@ export class Scenery {
     const hatchOpen = add(new Graphics().roundRect(hx - 36, hy - 4, 72, 8, 3).fill({ color: 0x0a0d0e }));
     hatchOpen.poly([hx + 36, hy - 4, hx + 44, hy - 40, hx + 52, hy - 38, hx + 44, hy]).fill({ color: 0x5a5450 });
     this.cvParts = { hatchClosed, hatchOpen, shown: '' };
-    this.scanPoints.corvina.push({ x: x0 + 400, y: f(x0) - 200 });
+    // Phase 19 (Colin): the scan point sits in open water just off her stern, beside the bollard and the
+    // deck hatch (the way in), so it's met on the way inside. It used to be buried in the hull amidships.
+    this.scanPoints.corvina.push({ x: CV_HATCH.x - 120, y: CV_HATCH.y - 60 });
   }
 
   /** The Corvina's deck hatch: cut open or not. */

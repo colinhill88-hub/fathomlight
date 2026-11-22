@@ -8,6 +8,7 @@ import { InteriorLighting } from './light';
 import { mulberry32, WORLD_SEED } from '../rng';
 import { drawSurveyDecks } from './corvinaArt';
 import { drawFulmarDecks, traceFulmarGlazing } from './fulmarArt';
+import { drawEngineDoor, drawEngineRoom } from './engineArt';
 import { drawNacreVault, traceNacreOpening } from '../world/nacreVault';
 import { drawHabitatFrame } from '../world/habitatFrame';
 import { HousingOcean } from './housingOcean';
@@ -133,7 +134,7 @@ export interface InteriorOptions {
    * lift runs on light), falling into its light pool ('~') only puts you back
    * where you last stood, and doors (by letter) open once a find is taken.
    */
-  style?: 'wreck' | 'fulmar' | 'sanctum';
+  style?: 'wreck' | 'fulmar' | 'sanctum' | 'engine';
   powered?: boolean;
   gates?: Record<string, string>;
   /** Moving art and lights of the level's own (the Choir rising, in the heart). */
@@ -143,6 +144,27 @@ export interface InteriorOptions {
   plainFinds?: boolean;
   /** The Collect label at the way out (S). */
   exitLabel?: string;
+  /** Phase 19: the room light's ambient level (darker or warmer than a powered wreck). */
+  ambient?: [number, number, number];
+  /** Phase 19: extra map letters that are things to use (e.g. 'E', the engine room door); `spotAct` says what. */
+  spots?: string;
+  spotAct?: (ch: string, ev: InteriorEvent[]) => InteriorAct | string | null;
+  /** Phase 19: a fight in this level (src/interior/combatLayer.ts). */
+  combat?: InteriorCombat;
+}
+
+/**
+ * Phase 19: fights on foot inside an infested wreck section. The interior
+ * calls it each frame: `steer` before movement (bracing holds Kestrel
+ * still), `step` after it (machines, rivets, hits), `draw` into the lit
+ * layer behind and in front of Kestrel, the unlit (emissive) layer and the
+ * glow layer, and `lights` for the shader.
+ */
+export interface InteriorCombat {
+  steer(inp: InteriorInput, walker: Walker, dt: number): InteriorInput;
+  step(dt: number, walker: Walker, ev: InteriorEvent[]): void;
+  draw(back: Graphics, front: Graphics, emissive: Graphics, glow: Graphics, time: number): void;
+  lights(): Light[];
 }
 const CORVINA_LABELS: Record<string, string> = {
   '1': 'Take the sonar test logs',
@@ -167,7 +189,9 @@ export type InteriorEvent =
   | { type: 'lift' }
   | { type: 'grapple' }
   | { type: 'land'; hard: boolean }
-  | { type: 'jump' };
+  | { type: 'jump' }
+  /** Phase 19: a door to another level was used (its map letter). */
+  | { type: 'door'; ch: string };
 
 interface Spot {
   ch: string;
@@ -217,6 +241,8 @@ export class Interior {
   private overlay = new Graphics();
   private dynamic = new Graphics();
   private dynEmissive = new Graphics();
+  /** Phase 19: glowing things that move (rivets, bolts, sparks), redrawn each frame. */
+  private dynGlow = new Graphics();
   private static_ = new Graphics();
   private baseScenery = new Container();
   private baseSkin = new Container();
@@ -308,7 +334,7 @@ export class Interior {
     this.baseSkin.addChild(this.static_, this.baseScenery);
     this.litCam.addChild(this.baseSkin, this.baseTrim, this.baseLadders, this.doorG, this.breakerG, this.takenG, this.dynamic, this.actorLit, this.walker.view, this.front);
     this.emissiveCam.addChild(this.emissiveStatic, this.dynEmissive, this.actorEm, this.walker.lens, this.overlay);
-    this.glowCam.addChild(this.glowStatic, this.actorGlow);
+    this.glowCam.addChild(this.glowStatic, this.actorGlow, this.dynGlow);
     this.view.addChild(this.baseExterior, this.lighting.view, this.emissiveCam, this.glowSprite);
     this.view.visible = false;
   }
@@ -365,7 +391,11 @@ export class Interior {
       for (let tx = Math.floor(x0 / T); tx <= Math.floor((x1 - 0.01) / T); tx++) if (this.solidTile(tx, ty)) return true;
     return false;
   }
-  private lineClear(ax: number, ay: number, bx: number, by: number): boolean {
+  /** Phase 19: is this point inside something solid (for rivets and machines)? */
+  solidAt(x: number, y: number): boolean {
+    return this.solidTile(Math.floor(x / T), Math.floor(y / T));
+  }
+  lineClear(ax: number, ay: number, bx: number, by: number): boolean {
     const n = Math.ceil(Math.hypot(bx - ax, by - ay) / 12);
     for (let k = 1; k < n; k++) {
       const x = ax + ((bx - ax) * k) / n;
@@ -426,7 +456,7 @@ export class Interior {
         const y = ty * T + T / 2;
         if (c === 'o') this.anchors.push({ x, y });
         else if (c === 'v') this.vents.push({ x, y: ty * T + T, phase: ((tx * 7) % 10) / 10 * VENT_CYCLE, hitAt: -9 });
-        else if ('SBU'.includes(c) || isFind(c)) this.spots.push({ ch: c, tx, ty, x, y: ty * T + T });
+        else if ('SBU'.includes(c) || isFind(c) || (this.opts.spots?.includes(c) ?? false)) this.spots.push({ ch: c, tx, ty, x, y: ty * T + T });
       }
     const nb = this.spots.filter((s) => s.ch === 'B').length;
     while (this.state.breakers.length < nb) this.state.breakers.push(false);
@@ -586,8 +616,10 @@ export class Interior {
     // Back wall: riveted plates, ribs, pipes and a few portholes onto the black water.
     const steel = this.art?.materials[this.opts.style === 'fulmar' ? 'fulmar' : 'corvina'];
     const listening = this.livingBases && this.opts.style === 'fulmar';
-    const survey = this.livingBases && !listening;
-    if (survey) drawSurveyDecks(g, T, PW, PH);
+    const engine = this.opts.style === 'engine';
+    const survey = this.livingBases && !listening && !engine;
+    if (engine) drawEngineRoom(g, e, gl, T, PW, PH, this.map);
+    else if (survey) drawSurveyDecks(g, T, PW, PH);
     else if (listening) drawFulmarDecks(g, T, PW, PH);
     else this.drawWreckWalls(g, e, steel, PW, PH, rand);
     this.drawFacilityViews(g, listening ? 'fulmar' : 'corvina');
@@ -669,7 +701,7 @@ export class Interior {
         } else if (c === '$') {
           g.roundRect(x + 2, y + 10, T - 4, T - 10, 3).fill({ color: 0x6a4a38 });
           g.rect(x + 2, y + 10, T - 4, 5).fill({ color: 0xa8402e });
-        }
+        } else if (c === 'E') drawEngineDoor(g, e, x, y, T);
       }
     }
     // Ceiling lamps on every deck (they light when the power is back), and dim red emergency lamps.
@@ -1120,6 +1152,8 @@ export class Interior {
       this.render(dt);
       return ev;
     }
+    // Phase 19: bracing behind the guard plate holds Kestrel where she stands.
+    if (this.opts.combat) inp = this.opts.combat.steer(inp, w, dt);
     if (this.ride) {
       this.updateRide(dt, ev);
       this.label = null;
@@ -1205,6 +1239,10 @@ export class Interior {
             },
           };
         }
+      } else if (this.opts.spotAct && this.opts.spots?.includes(s.ch)) {
+        const r = this.opts.spotAct(s.ch, ev);
+        if (typeof r === 'string') info = r;
+        else if (r) act = r;
       } else if (isFind(s.ch) && !this.state.taken.includes(s.ch))
         act = {
           key: 'f' + s.ch,
@@ -1281,6 +1319,9 @@ export class Interior {
       w.vx = w.vy = 0;
       this.dropGrapple();
     }
+
+    // ---- Phase 19: the machines, the rivets and what they hit ----
+    this.opts.combat?.step(dt, w, ev);
 
     // ---- Banners ----
     this.banner = '';
@@ -1858,6 +1899,8 @@ export class Interior {
     if (this.sanctum) this.animateSanctum(d, de);
     else if (this.livingBases && !this.hooks && this.power) this.animateWreckInstruments(de, viewW, viewH);
     if (this.opts.animate) this.opts.animate(d, de, this.time);
+    const dg = this.dynGlow.clear();
+    if (this.opts.combat) this.opts.combat.draw(d, this.front, de, dg, this.time);
     if (this.hooks) {
       de.clear();
       this.hooks.animate(d, de, this.time, { x0: this.cam.x, y0: this.cam.y, x1: this.cam.x + viewW, y1: this.cam.y + viewH });
@@ -1884,7 +1927,7 @@ export class Interior {
     // The nearest lights win (the shader adds up at most MAX_LIGHTS).
     const cx = this.cam.x + viewW / 2;
     const cy = this.cam.y + viewH / 2;
-    const pool = [this.carLight, ...this.lamps.map((l) => l.light), ...(this.hooks ? this.hooks.lights() : this.power ? [] : this.emergency), ...(this.opts.lights ? this.opts.lights() : [])].filter(
+    const pool = [this.carLight, ...this.lamps.map((l) => l.light), ...(this.hooks ? this.hooks.lights() : this.power ? [] : this.emergency), ...(this.opts.lights ? this.opts.lights() : []), ...(this.opts.combat ? this.opts.combat.lights() : [])].filter(
       (l) => l.intensity > 0 && Math.abs(l.x - cx) < viewW / 2 + l.radius && Math.abs(l.y - cy) < viewH / 2 + l.radius,
     );
     pool.sort((a, b) => Math.hypot(a.x - cx, a.y - cy) - Math.hypot(b.x - cx, b.y - cy));
@@ -1900,7 +1943,7 @@ export class Interior {
       viewH,
       cssW: this.cssW,
       cssH: this.cssH,
-      ambient: this.hooks ? [0.3, 0.32, 0.34] : this.sanctum ? [0.26, 0.25, 0.38] : this.power ? [0.46, 0.44, 0.42] : [0.16, 0.17, 0.2],
+      ambient: this.opts.ambient && !this.hooks ? this.opts.ambient : this.hooks ? [0.3, 0.32, 0.34] : this.sanctum ? [0.26, 0.25, 0.38] : this.power ? [0.46, 0.44, 0.42] : [0.16, 0.17, 0.2],
       lights,
       shadowLights: this.look.shadowLights,
       shadowSteps: this.look.shadowSteps,

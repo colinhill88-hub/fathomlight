@@ -53,10 +53,12 @@ export interface KitLook {
   dash?: boolean;
   /** Phase 17: the stun-dart launcher, clipped to the far forearm. */
   dart?: boolean;
+  /** Phase 19: the Rivet driver RD-1, strapped to the near forearm. */
+  rivet?: boolean;
 }
 export const FULL_KIT: KitLook = { tanks: 2, spear: true, jar: true, thruster: 1, psuit: 0, resonator: false };
 export function kitKey(k: KitLook): string {
-  return `${Math.min(4, k.tanks)}${+k.spear}${+k.jar}${k.thruster}${k.psuit}${+!!k.resonator}${+!!k.satchel}${+!!k.flare}${+!!k.visor}${+!!k.boots}${+!!k.cowl}${+!!k.dash}${+!!k.dart}`;
+  return `${Math.min(4, k.tanks)}${+k.spear}${+k.jar}${k.thruster}${k.psuit}${+!!k.resonator}${+!!k.satchel}${+!!k.flare}${+!!k.visor}${+!!k.boots}${+!!k.cowl}${+!!k.dash}${+!!k.dart}${+!!k.rivet}`;
 }
 /** The Choir's own colours (DESIGN.md: only the Choir and its technology show them). */
 export const CHOIR = [0x5ff0ff, 0xa27cff, 0xff5ad8];
@@ -116,6 +118,51 @@ export const PSUIT_TINT = 0xf2dcb4;
 export const PSUIT2_TINT = 0xd2bc98;
 export const BRASS = 0xc9a13a;
 export const BRASS_DARK = 0x7a5e1e;
+
+/**
+ * Phase 19: the Rivet driver RD-1, drawn in a forearm's own space (the
+ * forearm runs along +x from the elbow to the wrist, the top is -y). It grew
+ * from the harpoon: the same white stock and chrome barrel, now a chunky
+ * housing strapped on with two red bands, a rivet drum on top, a short
+ * barrel past the wrist with a brass muzzle ring, and a lime sight lamp.
+ * `k` scales it (the swimmer's forearm is a touch longer).
+ */
+export function drawRivetDriver(g: Graphics, k = 1): Graphics {
+  const s = (n: number) => n * k;
+  g.roundRect(s(-1), s(-11.5), s(19), s(8.5), s(2.6)).fill({ color: 0x2a2f32 });
+  g.roundRect(s(-1), s(-11.5), s(19), s(2.2), s(1.1)).fill({ color: 0x8e979c, alpha: 0.7 });
+  // The white stock the harpoon had, along the back of the housing.
+  g.roundRect(s(-3), s(-9.5), s(7), s(4.5), s(2)).fill({ color: 0xd8dde0 });
+  // Barrel and muzzle ring.
+  g.rect(s(17.5), s(-10), s(9.5), s(4.4)).fill({ color: 0x4d5d77 });
+  g.rect(s(17.5), s(-10), s(9.5), s(1.3)).fill({ color: 0xc8d2d8, alpha: 0.7 });
+  g.rect(s(25.5), s(-10.8), s(2.6), s(6)).fill({ color: BRASS });
+  // The rivet drum on top, brass-banded.
+  g.circle(s(7), s(-13), s(4.6)).fill({ color: 0x3a4044 });
+  g.circle(s(7), s(-13), s(4.6)).stroke({ color: BRASS, width: s(1.4) });
+  g.circle(s(7), s(-13), s(1.6)).fill({ color: 0xa8822e });
+  // Red straps round the forearm, like the gloves and belt.
+  g.rect(s(2.5), s(-4), s(2.4), s(8.5)).fill({ color: 0xa83a2a });
+  g.rect(s(12), s(-4), s(2.4), s(8.5)).fill({ color: 0xa83a2a });
+  // Lime sight lamp at the front of the drum.
+  g.circle(s(14.5), s(-12.6), s(1.5)).fill({ color: 0xc6f03a });
+  return g;
+}
+
+/**
+ * Phase 19: the guard plate: the harpoon's barbs grown into a round plate
+ * that folds out from the driver when Kestrel braces. Drawn centred on its
+ * pivot (scale it down to fold it flat along the housing).
+ */
+export function drawGuardPlate(g: Graphics, k = 1): Graphics {
+  const s = (n: number) => n * k;
+  g.ellipse(0, 0, s(17), s(6)).fill({ color: 0x3a4044 });
+  g.ellipse(0, 0, s(17), s(6)).stroke({ color: 0x8e979c, width: s(1.2) });
+  g.ellipse(s(-1), s(-1.4), s(13), s(2.4)).fill({ color: 0xc8d2d8, alpha: 0.35 });
+  g.moveTo(s(-16), 0).lineTo(s(16), 0).stroke({ color: BRASS, width: s(1.4), alpha: 0.8 });
+  g.circle(0, 0, s(2.4)).fill({ color: BRASS });
+  return g;
+}
 
 /**
  * The air tanks and the harpoon along the diver's back, for this kit.
@@ -1035,6 +1082,8 @@ export class Diver {
   private flareTube = new Graphics();
   /** Phase 17: the stun-dart launcher on the far forearm. */
   private dartPod = new Graphics();
+  /** Phase 19: the Rivet driver on the near forearm. */
+  private rivetPod = new Graphics();
   private plume = new Graphics();
   private visorFog!: Container;
   private visorDrops!: Container;
@@ -1163,6 +1212,12 @@ export class Diver {
       d.visible = false;
       this.farArm.fore.addChild(d);
     }
+    {
+      // Phase 19: the Rivet driver on the near forearm (its guard folded flat while swimming).
+      const r = drawRivetDriver(this.rivetPod, 1.05);
+      r.visible = false;
+      this.nearArm.fore.addChild(r);
+    }
     // The suit's own graphics, to take the pressure suit's bronze cast.
     const collect = (c: Container) => {
       for (const ch of c.children) {
@@ -1271,6 +1326,7 @@ export class Diver {
     for (const b of this.bootBits) b.visible = !!k.boots;
     this.flareTube.visible = !!k.flare;
     this.dartPod.visible = !!k.dart;
+    this.rivetPod.visible = !!k.rivet;
     const x = this.extras.clear();
     if (k.dash && k.thruster >= 1) {
       // TH-3: a third, upturned nozzle on the hip thruster.

@@ -13,6 +13,14 @@ The order below is Colin's agreed phasing. Phases 15, 16 and 17 are built and me
 - **The Field kit portrait reuses the real Kestrel assets** (Phase 17), and hovering over an attachment highlights it on the body.
 - **Linnea, a friendly axolotl guide** (Phase 18; the idea and the name come from Colin's daughter). Gentle hints, only when Kestrel swims up to her. Soft coral with warm frilly gills, not hot pink. Painterly, high-fidelity, drawn in code like the other creatures, with personality. First found at the first gear gate.
 - **Combat, on foot, inside wrecks only** (Phase 19). A change from the original vision that Colin wants: the game feels a little too cozy without it. Enemies are small mechanical robots, drones and creatures of rust and wreckage that infest parts of the wrecks, never wildlife. Reading moves, timing, blocking and ducking behind cover (Ori is the reference for feel). A weapon that mounts on the suit and changes the silhouette. Losing means a gentle blackout and a restart at the wreck's entrance or the last safe platform. Touch gets one more button, Shoot. Not while swimming. Colin may change his mind after playing it.
+- **Phase 19 design (Colin, Nov 22, 2026, at the start of the Phase 19 session):** he accepted every proposal.
+  - **The weapon is the Rivet driver RD-1:** a chunky forearm launcher grown from the harpoon, firing glowing hot rivets, with a guard plate that folds out when Kestrel braces.
+  - **Health is suit integrity:** the ring already on the dive watch. Hits crack it, and it seals itself after a few quiet seconds.
+  - **The hull keeper stays beaten forever (saved).** The small machines rebuild themselves on every visit.
+  - **The first infested section is a new, optional engine room in the Corvina,** behind a welded door in her hold. The weapon drawings are in the bosun's locker beside the door.
+  - **Enemies (proposed and kept):** the rust tick (rattles, then lunges), the weld drone (aims a sighting line, then fires a bolt), the hull keeper (shield; a slam shockwave or a charge, then its core opens).
+  - **Controls (proposed and kept):** Shoot is X / RT / the touch Shoot button. Brace and duck is holding Down. A perfect brace knocks the attacker back.
+  - **Story:** the Corvina's old automatic hull-cleaning machines rebuilt themselves from rust.
 - **One session per phase** (Colin saves usage that way). Phases 17's two parts share a session because both are Kestrel-rig work.
 
 - **No offer ping (after Phase 16 round 3).** The soft ding when a new action appeared on the control bar played every time you passed something you could use (every room in a busy base, every copper nugget), and Colin found it annoying. It is off. The bar's sonar ripple still marks new offers. Don't bring back a sound for routine offers without asking him.
@@ -143,7 +151,16 @@ The original brief follows.
 - **Save:** optional new fields only (for example which of her spots you've met), with safe defaults.
 - Not decided yet (the session asks Colin, or picks a sensible default and says so): the full list of her spots and the hint wording for each stage.
 
-## Phase 19: combat inside the wrecks. Not built; the design is agreed in outline.
+## Phase 19: combat inside the wrecks. First section built (pull request); more sections wait for Colin's notes.
+
+**Built (Nov 22, 2026):** the Corvina's engine room, the Rivet driver RD-1, the rust tick, the weld drone and the hull keeper. Also bracing and ducking, safe lamps, a gentle blackout, warning sounds, and the Shoot action and touch button. See [the Phase 19 notes](phase-19-wreck-combat.md) and PROGRESS.md.
+- **Still to do after Colin plays it:**
+  - tune by feel: damage, timings, the perfect-brace window, the soft aim;
+  - decide how many more sections, and in which wrecks (the Fulmar is next in line);
+  - decide whether the keeper becomes a Corvina climax;
+  - decide whether a gamepad button should also brace.
+
+The open questions below were answered at the start of the session (see "Colin's decisions").
 
 **Session prompt:** [`docs/prompts/phase-19-wreck-combat.md`](prompts/phase-19-wreck-combat.md). Probably more than one session: the first builds the weapon, two or three enemy types and one infested section of a wreck to play, then Colin plays it before more is built.
 

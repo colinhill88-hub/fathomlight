@@ -232,6 +232,7 @@ function wearPart(k: KitLook, part: KitPart): void {
     case 'cowl': k.cowl = true; break;
     case 'flare': k.flare = true; break;
     case 'dart': k.dart = true; break;
+    case 'rivet': k.rivet = true; break;
     case 'jar': k.jar = true; break;
     case 'resonator': k.resonator = true; break;
     case 'tanks': k.tanks = Math.max(1, k.tanks); break;
