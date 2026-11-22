@@ -26,12 +26,23 @@ The order below is Colin's agreed phasing. Phases 15, 16 and 17 are built and me
 - **No offer ping (after Phase 16 round 3).** The soft ding when a new action appeared on the control bar played every time you passed something you could use (every room in a busy base, every copper nugget), and Colin found it annoying. It is off. The bar's sonar ripple still marks new offers. Don't bring back a sound for routine offers without asking him.
 
 - **Releasing a named creature needs confirmation.** A creature taken out of one of your own tanks has a name and may carry bred traits. Releasing it from the jar needs a second press within a few seconds. Use the same pattern as the over-depth hatch warning: the first press arms it and shows a warning; a second press within 4 s confirms. Wild-caught creatures release on one press.
-- **Audio may use recorded sound files.** The rule from milestone 7b that all sound is synthesised in code is lifted for audio only. Art is still drawn in code. Conditions:
+- **Audio may use recorded sound files.** The rule from milestone 7b that all sound is synthesised in code is lifted for audio only. Art is still drawn in code. *(Superseded for art on Nov 22, 2026: see "Art may use generated images" below.)* Conditions:
   - **Licence:** only files that carry no copyright obligation. In practice that means public domain or **CC0**. "Royalty-free" packs with their own licence terms, CC-BY (which requires attribution) and anything "free for non-commercial use" are **not** acceptable without asking Colin first. Colin may sell the game on Steam.
   - **Ledger:** record every file in `public/audio/CREDITS.md` with its source URL, author, licence and date downloaded, plus any edits made (trimmed, pitched, layered).
   - **Bundled:** files ship inside the build, as the Steam plan in DESIGN.md requires. Never stream them from a third-party site at runtime.
   - **Format:** use a format iPhone Safari decodes reliably through the Web Audio API (`.mp3` or `.m4a`/AAC; `.wav` for very short one-shots). Keep files short, mono where stereo adds nothing, and the total small, because the game loads on a phone.
   - **Routing:** play samples through the existing engine buses (`sfx`, `ui`, `ambience`, `music` in `src/audio/engine.ts`) so volume sliders, the underwater muffle, the phone-speaker mix and the mute all still apply. Synthesis stays wherever it already sounds good, including the Phase 14 reward stings, which Colin likes.
+
+## Colin's decisions (Nov 22, 2026)
+
+- **Art may use generated images (Colin, after Phase 19).** The early rule that every piece of art is drawn by code is lifted. Colin worked with other AI tools to generate painted images for the zone backdrops, the reef and kelp, the creatures' look and Kestrel. He considers that one of the biggest improvements to the game so far. New art may be drawn by code or generated, whichever looks best. Conditions:
+  - **Original only:** no imitating or recreating another game's, film's or artist's characters, creatures, logos or distinctive look. Reference games are for feel, as before.
+  - **One style:** match the painterly, high-fidelity look the game already has, and its lighting pipeline (images sit in the lit, emissive and glow layers like the existing plates).
+  - **Colour rule unchanged:** cyan, violet and magenta stay the Choir's (but see the open question in Phase 23 about Choir-touched creatures).
+  - **Ledger:** log every generated image in `docs/art/SOURCES.md` with the file, what it is, the tool used, the date and the prompt (or a summary of it). The licence of the tool must allow selling the game (Colin may sell it on Steam). If unsure, ask Colin before using it.
+  - **Phone-friendly:** keep files small (prefer `.webp`, sized to how big they are on screen), and keep a procedural fallback wherever the code already has one (`?art=procedural`).
+  - **Animated things:** creatures and characters still need to move naturally. Painted textures can dress a jointed code rig (as Kestrel's face and suit materials do), rather than replacing animation with stiff sprites.
+- **What's next (Colin, after Phase 19 merged):** make creature care and breeding the heart of the game (Dave the Diver is the inspiration for how satisfying that loop feels), with more rare and unique creatures tied into the Choir encounter. Then premium polish. Combat gets more sections and tuning later, through playtesting. The plan is Phases 20–24 below; each needs a short design check with Colin first (the open questions are listed with each).
 
 ## Phase 15: quality of life and the Field kit (built, PR #38)
 
@@ -151,7 +162,7 @@ The original brief follows.
 - **Save:** optional new fields only (for example which of her spots you've met), with safe defaults.
 - Not decided yet (the session asks Colin, or picks a sensible default and says so): the full list of her spots and the hint wording for each stage.
 
-## Phase 19: combat inside the wrecks. First section built (pull request); more sections wait for Colin's notes.
+## Phase 19: combat inside the wrecks. First section built and merged (PR #47, with the Corvina scan point moved by her stern); more sections and tuning wait for Colin's playtesting.
 
 **Built (Nov 22, 2026):** the Corvina's engine room, the Rivet driver RD-1, the rust tick, the weld drone and the hull keeper. Also bracing and ducking, safe lamps, a gentle blackout, warning sounds, and the Shoot action and touch button. See [the Phase 19 notes](phase-19-wreck-combat.md) and PROGRESS.md.
 - **Still to do after Colin plays it:**
@@ -172,6 +183,98 @@ The open questions below were answered at the start of the session (see "Colin's
 - **Losing:** not punishing. Kestrel blacks out and wakes at the wreck's entrance or the last safe platform, keeping everything.
 - **Sound:** every enemy move gets an audible telegraph (danger first in the mix, per Phase 16).
 - **Open questions for Colin, early in the session:** what the weapon is and is called; how Kestrel's health works indoors (reuse suit integrity or something new); whether cleared rooms stay cleared or refill when you come back; how many infested sections, and in which wrecks.
+
+## Phase 20: the creature collection book and the hatching moment. Not built; first in line.
+
+**Why:** breeding already has real depth: four colours per species (the fourth only from breeding), three glow patterns (the third only from breeding), and radiant glow that runs in families (`src/game/traits.ts`). But the player rarely sees it. This phase makes rarity visible and every hatching exciting. It is the biggest visible win for the least work.
+
+- **A collection book** (a new tab in the Field kit, or its own screen).
+  - A page per species, with a grid of every colour × pattern, and radiant shown as a gold frame.
+  - Kinds you haven't raised show as dark silhouettes marked "???", like unfound gear in the Kit tab.
+  - Rare ones (the fourth colour, the third pattern, radiant) are marked as rare.
+  - Each kind shows where it came from: wild, bred, and which generation.
+  - Completing a row (every colour of a pattern, say) gives a small reward card.
+- **The hatching moment.**
+  - An egg cracks with a short reveal at the Hatchery: a wobble, light through the shell, the baby tumbling out.
+  - The reveal scales with rarity: an ordinary baby gets a minor sparkle; a first-ever colour or pattern, or a radiant baby, gets a notable or major reward card (Phase 14 tiers) and a new page lighting up in the book.
+  - The player names it then and there (names are derived from ids today; a chosen name would be a new optional save field).
+- **Creature cards.** Tapping a creature in a tank (or in the book) shows a card with its portrait, name, parents, generation, traits and how content it is.
+- **Open questions for Colin:**
+  - a tab in the Field kit, or its own screen at the base;
+  - whether players choose names (or keep the generated ones);
+  - what completing a row or a page gives (materials, a decoration, a rare egg).
+
+## Phase 21: care that pays, a breeding planner, and requests. Not built.
+
+**Why:** give breeding a rhythm and a reason, the way Dave the Diver's farm and orders keep you coming back, without copying them.
+
+- **Contentment you can see:** each creature shows how happy it is (fed, clean water, the right plants, tank mates it likes, room to swim), with small behaviours: playful when content, sluggish when not. Content creatures breed better, and **rare results are more likely in a well-kept tank.** That makes care pay off directly, the fourth pillar.
+- **Hand-feeding and interaction:** feed a creature by hand at the glass; creatures you tend often recognise Kestrel and swim to her.
+- **A breeding planner** at the Hatchery: pick two parents and see the odds ("about 1 in 5 for a new pattern; radiant runs in this family").
+- **Requests:** Linnea, the Kestrel radio or a passing research contact asks for a specific creature ("a moss-coloured ray with a ring glow"), each with a reward. A short list refreshes over play time. This gives purpose between story beats.
+- **Restocking the reef:** releasing a bred creature can make its colour or pattern turn up in the wild later, so your work shows in the world.
+- **Open questions for Colin:**
+  - who gives the requests (Linnea, a radio voice, a new character);
+  - what they reward (materials, rare eggs, decorations, blueprints);
+  - how strongly care should change the odds;
+  - whether requests have time limits (suggested: none, to stay cozy).
+
+## Phase 22: more ways to be rare. Not built.
+
+**Why:** Colin wants more rare and unique creatures possible. Today rarity is colour, pattern and radiance.
+
+- **New inherited traits** so creatures look unique, not just recoloured:
+  - **size:** the occasional tiny or giant one;
+  - **fin or shell shape:** two or three per species;
+  - **markings:** spots, stripes or freckles;
+  - **heirloom lines:** a trait that only appears after several generations of careful breeding (generation 4+), as a long-term goal.
+- **Possibly new species** found deeper or later (the trench, the sanctum's edge), each with its own rare forms, and perhaps a few creatures that can only be bred, never caught.
+- **Art:** with the art rule relaxed (Nov 22, 2026), the creatures can get painted textures and new generated detail on their jointed code rigs, so the rare forms look special.
+- **Open questions for Colin:**
+  - which new traits matter most to him;
+  - whether to add species (how many, and where);
+  - how rare "rare" should feel (one in ten hatchings, one in fifty).
+
+## Phase 23: creatures and the Choir. Not built.
+
+**Why:** tie the creature collection into the story's climax, so the ending is personal to each player.
+
+- **The Choir's song is built from your collection.** At first contact (`src/ui/contact.ts`), the more varied and rare the creatures you've raised, the richer the Choir's answer looks and sounds. It already sings back the patterns of every creature you raised; this deepens that.
+- **A companion in the sanctum:** bring a creature you raised (in the jar) into the heart, and it answers the Choir too.
+- **Choir-touched creatures:** after contact, a creature can very rarely hatch carrying the Choir's light: the rarest thing in the game, and the reason to keep breeding after the credits.
+- **The Choir's requests after the ending:** legendary lines it asks to see, as an endgame.
+- **Open questions for Colin:**
+  - **the colour rule:** may Choir-touched creatures carry cyan, violet or magenta (the one exception, because the Choir touched them), or should they show its light another way (a shimmer, an aura)?
+  - how much the ending should change with the collection (a little colour and sound, or new moments);
+  - whether a companion creature is required, optional, or a bonus.
+
+## Phase 24: premium polish. Not built.
+
+**Why:** the things that make a game feel finished and expensive.
+
+- **First impressions:** a short opening scene (the Kestrel buoy, the first dive), and a proper title screen.
+- **Moving through the world:** zone name cards when entering a new area, smoother transitions between zones and into interiors, and a music layer that rises in fights (Phase 19) and falls away after.
+- **Photo mode:** freeze the game, move the camera, hide the interface, add a frame. This suits a game this good-looking, especially with rare creatures.
+- **Comfort and reach:**
+  - several save slots;
+  - subtitles or captions for important sounds;
+  - a colour-blind option for enemy warnings;
+  - controller rumble in combat;
+  - the key remapping screen (already queued in "Later", item 6).
+- **Already planned in "Later"** (keep them; design with Colin): maps that fill in (5), a goal board (4), songs on the resonator (1), a climax at each major site (2), movement flow (3).
+- **For Steam later:** a desktop build (deferred until now), achievements, cloud saves.
+- **Open questions for Colin:**
+  - what the opening should show;
+  - which comfort features matter most;
+  - when Steam becomes a real target.
+
+## Suggested order (Colin agreed in principle, Nov 22, 2026)
+
+1. Phase 20: the collection book and the hatching moment.
+2. Phase 21: care that pays, the breeding planner, requests.
+3. Phases 22 and 23: new rare traits and Choir-touched creatures, tied into the ending.
+4. Phase 24: premium polish.
+5. Combat (Phase 19) gets more sections and tuning whenever Colin is ready to playtest; it can slot in between any of these.
 
 ## Later: needs a design pass with Colin first
 

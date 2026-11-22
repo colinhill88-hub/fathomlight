@@ -10,7 +10,7 @@ The essentials:
 - Use Node 22.
 - Run `npm ci`, `npm run typecheck`, `npm run build` and `node scripts/test-progression.mjs` before finishing.
 - Browser-test against `vite preview`, not `vite dev`.
-- Art is drawn by code.
+- Art may be drawn by code or made with image generation (Colin, Nov 22, 2026): original work only, in the game's painterly style, logged in `docs/art/SOURCES.md`. See the roadmap's "Colin's decisions".
 - Audio may use public-domain or CC0 files, logged in `public/audio/CREDITS.md`.
 - Never break saves (`fathomlight.save.v1`).
 - Bindings live only in `src/controls/bindings.ts`.

@@ -14,7 +14,7 @@ Read [Design](../DESIGN.md) for the creative constraints, [Progress](../PROGRESS
 
 Fathomlight is a single-player 2D underwater exploration, base-building and creature-care game. Kestrel is the compact salvage diver. The opening is small and approachable. The route expands from Sunlit Shallows and the basin through the Kelp Forest, Wreck Shelf and trench to the Choir. The player should make connections through observed behavior, scans, tool use and revisits. Keep calm spaces, hazards, and deliberate moments of discovery. Use the existing log and contextual actions for guidance.
 
-The repository default (live) branch is `claude/underwater-game-m0-0qqajg`. Phases 12, 13 (PR #35), 14 (reward moments, PR #36) and 15 (jar release, Field kit, sonar control bar, PR #38) are all merged into it. Phase 16 (audio) is merged too (PRs #40–#43). Phase 17 is merged (PR #45). Phase 18 (Linnea) is on a pull request. Phase 19's first infested section (the Corvina's engine room) is built on a pull request for Colin to play; see the [roadmap](ROADMAP.md). Merging to the live branch starts the [GitHub Pages workflow](../.github/workflows/deploy.yml). Publish or merge only when Colin requests it.
+The repository default (live) branch is `claude/underwater-game-m0-0qqajg`. Phases 12, 13 (PR #35), 14 (reward moments, PR #36) and 15 (jar release, Field kit, sonar control bar, PR #38) are all merged into it. Phase 16 (audio) is merged too (PRs #40–#43). Phase 17 is merged (PR #45). Phase 18 (Linnea, PR #46) and Phase 19's first infested section (the Corvina's engine room, PR #47) are merged. The next work is Phase 20 (the creature collection book and the hatching moment), the first of Phases 20–24 on creature care, rarity, the Choir and premium polish in the [roadmap](ROADMAP.md), with a ready session prompt in `docs/prompts/phase-20-collection-and-hatching.md`. Merging to the live branch starts the [GitHub Pages workflow](../.github/workflows/deploy.yml). Publish or merge only when Colin requests it.
 
 ## Source map
 
@@ -62,7 +62,15 @@ Start new work from the latest merged default. Keep real player profiles separat
 ## Rules for every session, whichever tool you are
 
 - **Colin is not a programmer.** Explain choices in plain language. When something in DESIGN.md is unclear or a decision is his (names, costs, feel, which option), ask him before building. Note his answers in the docs, as the roadmap's "Colin's decisions" section does.
-- **Art is drawn by code.** Use no image files unless Colin supplies them. **Audio may now use sound files** (decided Nov 21, 2026), but only public-domain or CC0 files. Bundle them in the build and log each one in `public/audio/CREDITS.md`. The [roadmap](ROADMAP.md) has the full rules.
+- **Art may be drawn by code or made with image generation** (Colin, Nov 22, 2026). Generated images are already a big part of the look: the painterly zone plates in `src/art/painterly-world/` and the reef, kelp, wreck and Kestrel material images in `src/art/`. New generated art must:
+  - be original (no imitating another game's or film's look);
+  - match the existing painterly style;
+  - keep the Choir colour rule;
+  - ship small enough for a phone (prefer `.webp`);
+  - keep a procedural fallback where the code already has one;
+  - be logged in `docs/art/SOURCES.md`.
+
+  The [roadmap](ROADMAP.md) has the full rules. **Audio may now use sound files** (decided Nov 21, 2026), but only public-domain or CC0 files. Bundle them in the build and log each one in `public/audio/CREDITS.md`. The [roadmap](ROADMAP.md) has the full rules.
 - **Originality:** no trademarked names, and no copying of any other game's or film's characters, creatures, vehicles, music or levels. Reference games (Zelda, Ori, Hearthstone, Satisfactory, Subnautica) are inspiration for *feel*, never for content.
 - **Colour rule:** cyan, violet and magenta belong only to the Choir.
 - **Saves:** schema v1 under `fathomlight.save.v1` (see "Behavior and compatibility" above). New fields must be optional with safe defaults. Never break an existing save.
@@ -83,8 +91,16 @@ See the [roadmap](ROADMAP.md) for the full plan. In short:
 1. **Phase 16** (audio, rounds 1–3, and the offer ping turned off) is merged (PRs #40–#43). Colin says the audio is in good shape; leftovers (per-zone base footsteps, tuning by ear) wait for his notes.
 2. **Phase 17: Kestrel's kit** is merged (PR #45): the Field kit portrait is the real Kestrel rig with highlights, and the mag-boots are a toggle walking mode.
 3. **Phase 18: Linnea,** a friendly axolotl guide with gentle hints, is built on a branch with a pull request (waiting for Colin to play and merge). Notes: [`phase-18-linnea.md`](phase-18-linnea.md).
-4. **Phase 19: combat inside the wrecks** (on foot only; a deliberate change to the vision, see DESIGN.md's first pillar). Prompt: [`prompts/phase-19-wreck-combat.md`](prompts/phase-19-wreck-combat.md). The first section (the Corvina's engine room, the Rivet driver, three machines) is built on a pull request; Colin plays it before more sections are built. Notes: [`phase-19-wreck-combat.md`](phase-19-wreck-combat.md).
-5. **Then design with Colin:** songs Kestrel plays on the resonator, a climax at each major site, movement flow, a goal board, and maps of major sites.
+4. **Phases 20–24 (planned Nov 22, 2026):**
+   - **Phase 20:** the creature collection book and the hatching moment (next; prompt ready);
+   - **Phase 21:** care that pays, a breeding planner and requests;
+   - **Phase 22:** more rare traits;
+   - **Phase 23:** creatures and the Choir;
+   - **Phase 24:** premium polish.
+
+   Each starts with a short design check with Colin.
+5. **Phase 19: combat inside the wrecks** (merged) (on foot only; a deliberate change to the vision, see DESIGN.md's first pillar). Prompt: [`prompts/phase-19-wreck-combat.md`](prompts/phase-19-wreck-combat.md). The first section (the Corvina's engine room, the Rivet driver, three machines) is built on a pull request; Colin plays it before more sections are built. Notes: [`phase-19-wreck-combat.md`](phase-19-wreck-combat.md).
+6. **Then design with Colin:** songs Kestrel plays on the resonator, a climax at each major site, movement flow, a goal board, and maps of major sites.
 
 Validation that is still open:
 
