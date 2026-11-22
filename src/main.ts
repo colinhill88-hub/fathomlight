@@ -154,7 +154,10 @@ import { audio } from './audio/engine';
 import { SoundDirector, WorkKind, zoneMix } from './audio/director';
 import { Lurkers } from './actors/lurker';
 import { Interior, InteriorEvent } from './interior/interior';
-import { CORVINA_MAP } from './interior/corvina';
+import { CORVINA_MAP, CORVINA_OPTS } from './interior/corvina';
+import { ENGINE_MAP, ENGINE_OPTS, engineLayout } from './interior/engineRoom';
+import { CombatLayer } from './interior/combatLayer';
+import { KEEPER_BEATEN, WAKE_SUIT, afterHit, combatOn, engineDoorOpen, mendSuit } from './game/combat';
 import { BaseCtx, BaseHooks, OCEAN_POOL_DEPTH, baseSignature, buildBaseLevel } from './interior/baselevel';
 import { SCAN_ENTRIES } from './game/scanner';
 import { CHOIR_AT, ChoirForm, HEART_MAP, heartOptions } from './interior/sanctum';
@@ -588,7 +591,7 @@ async function boot(): Promise<void> {
   hdrRoot.addChild(interior.view);
   worldLayers.push(overlayCam);
   /** Which interior you're on foot in, if any. */
-  let inside: 'corvina' | 'base' | 'fulmar' | 'sanctum' | null = null;
+  let inside: 'corvina' | 'base' | 'fulmar' | 'sanctum' | 'engine' | null = null;
   /** Milestone 11: the Choir in the sanctum's heart, and first contact (the ending). */
   const choir = new ChoirForm(livingCreatures);
   const contact = new Contact(choir);
@@ -1269,6 +1272,7 @@ async function boot(): Promise<void> {
       cowl: hasGear(save, 'cowl'),
       dash: hasGear(save, 'dash'),
       dart: hasGear(save, 'dart'),
+      rivet: hasGear(save, 'rivet'),
     };
   }
   let noThrusterAt = -99;
@@ -1394,8 +1398,8 @@ async function boot(): Promise<void> {
     if (blackout > 0) return; // save once the diver is back at the buoy
     const pool = swimmingPool && moonpoolOf(swimmingPool);
     const outAt = inside === 'base' || peek ? baseOutside() : pool ? { x: diver.x, y: pool.mouth + 11 } : null;
-    save.x = outAt ? outAt.x : inside === 'corvina' ? CV_HATCH.x : inside === 'fulmar' ? FULMAR_HATCH.x : inside === 'sanctum' ? SANCTUM.heart.x : diver.x;
-    save.y = outAt ? outAt.y : inside === 'corvina' ? CV_HATCH.y - 70 : inside === 'fulmar' ? FULMAR_HATCH.y - 70 : inside === 'sanctum' ? SANCTUM.heart.y - 70 : diver.y;
+    save.x = outAt ? outAt.x : inside === 'corvina' || inside === 'engine' ? CV_HATCH.x : inside === 'fulmar' ? FULMAR_HATCH.x : inside === 'sanctum' ? SANCTUM.heart.x : diver.x;
+    save.y = outAt ? outAt.y : inside === 'corvina' || inside === 'engine' ? CV_HATCH.y - 70 : inside === 'fulmar' ? FULMAR_HATCH.y - 70 : inside === 'sanctum' ? SANCTUM.heart.y - 70 : diver.y;
     save.lampOn = diver.lampOn;
     if (save.sub) {
       save.sub.x = sub.x;
@@ -1838,7 +1842,9 @@ async function boot(): Promise<void> {
                 ? `${g.name} ${g.code} built! Rated to 110 m: the trench floor, and the drowned station, are in reach.`
                 : ev.id === 'resonator'
                   ? `${g.name} ${g.code} built! Its hoop rides on your pack and its bracer on your arm, humming in colours nothing on the reef makes. The fourth fragment said: down and east, past the trench floor. Look for a door at the floor's far end.`
-                  : `${g.name} ${g.code} built!`,
+                  : ev.id === 'rivet'
+                    ? `${g.name} ${g.code} built and strapped to your forearm, its guard plate folded along the barrel. It only works on foot. The welded engine room door in the Corvina's hold can be forced now.`
+                    : `${g.name} ${g.code} built!`,
           'big',
         );
       }
@@ -4161,11 +4167,40 @@ async function boot(): Promise<void> {
     for (const l of worldLayers) l.visible = true;
     document.body.classList.remove('on-foot');
   }
-  function enterCorvina(): void {
+  /**
+   * Phase 19: the welded engine room door in the hold (E). With the Rivet
+   * driver built (and combat switched on) Kestrel forces it; without, it
+   * explains itself, pointing at the bosun's locker beside it.
+   */
+  const corvinaOpts = {
+    ...CORVINA_OPTS,
+    spots: 'E',
+    spotAct: (ch: string, ev: InteriorEvent[]) => {
+      if (ch !== 'E') return null;
+      if (!combatOn()) return 'The engine room door is welded shut';
+      if (engineDoorOpen(save))
+        return { key: 'engine', label: save.corvina.engine ? 'Go into the engine room' : 'Force the engine room door', seconds: save.corvina.engine ? 0.6 : 1.4, done: () => ev.push({ type: 'door', ch: 'E' }) };
+      return save.corvina.taken?.includes('6')
+        ? 'Welded shut. Behind it, something scrapes and whirs. Build the Rivet driver first'
+        : 'Welded shut. Behind it, something scrapes and whirs. The locker beside it?';
+    },
+  };
+  /** Where the engine room door is in the Corvina (to come back out by it). */
+  function corvinaSpot(ch: string): { x: number; y: number } {
+    const ty = CORVINA_MAP.findIndex((r) => r.includes(ch));
+    return { x: CORVINA_MAP[ty].indexOf(ch) * 40 + 20, y: ty * 40 + 40 };
+  }
+  function enterCorvina(fromEngine = false): void {
     save.corvina.taken ??= [];
-    interior.enter(CORVINA_MAP, { breakers: save.corvina.breakers, taken: save.corvina.taken }, null, null,
+    interior.enter(CORVINA_MAP, { breakers: save.corvina.breakers, taken: save.corvina.taken }, null, corvinaOpts,
       oceanCapture?.source({ x: CORVINA.x0 - 165, y: CV_HATCH.y - 177, sx: 0.37, sy: 0.42 }));
     inside = 'corvina';
+    if (fromEngine) {
+      const at = corvinaSpot('E');
+      interior.place(at.x, at.y, 1);
+      persist();
+      return;
+    }
     goOnFoot();
     sound.hatchCue(true);
     if (!save.tips.includes('onfoot'))
@@ -4193,6 +4228,81 @@ async function boot(): Promise<void> {
     camCY = diver.y;
     sound.hatchCue(false);
     persist();
+  }
+
+  // ---- Phase 19: the Corvina's engine room, the first infested section ----
+  const engineLay = engineLayout();
+  let combat: CombatLayer | null = null;
+  /** A blackout in the fight: counts up while the screen goes dark and Kestrel wakes by the safe lamp. */
+  let knockout = 0;
+  let knockedWoke = false;
+  function engineHooks(): CombatLayer {
+    return new CombatLayer(interior, engineLay, () => save.corvina.engine, {
+      cue: (c, x) => sound.foe(c, x - interior.walker.x),
+      hurt: (attack, result) => {
+        if (result === 'hit') {
+          save.suit = afterHit(save.suit, attack, result);
+          suitCalm = 0;
+          hud.suitHit();
+          sound.suitHit();
+          if (save.suit <= 0 && knockout === 0) {
+            knockout = 0.0001;
+            knockedWoke = false;
+          }
+        }
+        if (result === 'perfect' && !save.tips.includes('perfectbrace')) {
+          save.tips.push('perfectbrace');
+          hud.toast('A perfect brace! Raise the guard just as a hit lands and it knocks the attacker back (a drone\'s bolt flies home).', 'big');
+        }
+      },
+      lamp: () => {
+        sound.safeLamp();
+        if (!save.tips.includes('safelamp')) {
+          save.tips.push('safelamp');
+          hud.toast('A safe lamp lights as you pass. If your suit gives way in here, you wake beside the last one you lit, with everything you carry.', 'big');
+        }
+      },
+      keeperBeaten: () => {
+        const sec = (save.corvina.engine ??= { taken: [] });
+        if (!sec.taken.includes(KEEPER_BEATEN)) sec.taken.push(KEEPER_BEATEN);
+        grant(major('gear', 'Wreck cleared', 'The hull keeper is down', 'Its store behind the shutter is open.'));
+        setTimeout(() => hud.toast("The hull keeper shudders, its core gutters out, and it folds over its own shield. Somewhere a relay clicks and the store's shutter grinds up. Its small machines will patch themselves together again, but the keeper won't.", 'big'), 2400);
+        persist();
+      },
+    });
+  }
+  function enterEngine(): void {
+    const first = !save.corvina.engine;
+    save.corvina.engine ??= { taken: [] };
+    combat = engineHooks();
+    combat.armed = hasGear(save, 'rivet');
+    interior.enter(ENGINE_MAP, { breakers: [], taken: save.corvina.engine.taken }, null, {
+      ...ENGINE_OPTS,
+      ambient: [0.24, 0.22, 0.2],
+      combat,
+    });
+    inside = 'engine';
+    knockout = 0;
+    sound.hatchCue(true);
+    if (first)
+      setTimeout(() => {
+        hud.toast(
+          input.state.lastDevice === 'touch'
+            ? "The weld gives. Inside: rust, the old engines, and the scrape of small machines. Shoot fires the Rivet driver. Hold the stick down to brace behind its guard. Watch each machine: it shows you what it's about to do."
+            : input.state.lastDevice === 'gamepad'
+              ? "The weld gives. Inside: rust, the old engines, and the scrape of small machines. RT fires the Rivet driver. Hold the stick down to brace behind its guard. Watch each machine: it shows you what it's about to do."
+              : "The weld gives. Inside: rust, the old engines, and the scrape of small machines. X fires the Rivet driver. Hold S to brace behind its guard. Watch each machine: it shows you what it's about to do.",
+          'big',
+        );
+      }, 900);
+    persist();
+  }
+  function exitEngine(): void {
+    combat = null;
+    interior.walker.guard = interior.walker.aiming = 0;
+    interior.walker.view.alpha = 1;
+    enterCorvina(true);
+    sound.hatchCue(false);
   }
 
   // ---- Milestone 10: the Fulmar deep station, on foot ----
@@ -4685,6 +4795,7 @@ async function boot(): Promise<void> {
       brace: false,
       boots: !outside || aboard || !hasGear(save, 'boots') ? null : bootsNear ? 'offer' : 'own',
       ladder: interior.active && interior.nearLadder,
+      combat: inside === 'engine' && hasGear(save, 'rivet'),
       zoom: zoomFree(),
       moving: Math.hypot(s.moveX, s.moveY) > 0.2 || s.boost || s.jumpHeld,
     });
@@ -4887,6 +4998,7 @@ async function boot(): Promise<void> {
     dartBtn.hidden = !hasGear(save, 'dart') || aboard;
   }
   const flareBtn = document.getElementById('btn-flare') as HTMLButtonElement;
+  const shootBtn = document.getElementById('btn-shoot') as HTMLButtonElement;
   const dartBtn = document.getElementById('btn-dart') as HTMLButtonElement;
   const FIND_NOTE = 'Kept in your scanner log.';
   function interiorFrame(dt: number, deltaMS: number): void {
@@ -4899,6 +5011,13 @@ async function boot(): Promise<void> {
     if (inside === 'corvina') interior.syncState(save.corvina.breakers, save.corvina.taken ?? []);
     if (inside === 'fulmar') interior.syncState(save.fulmar.breakers, save.fulmar.taken);
     if (inside === 'sanctum') interior.syncState([], save.sanctum.taken);
+    if (inside === 'engine') interior.syncState([], (save.corvina.engine ??= { taken: [] }).taken);
+    // Phase 19: the fight. Shoot fires the Rivet driver; the Shoot button shows only here, once it's built.
+    if (combat) {
+      combat.armed = hasGear(save, 'rivet');
+      if (s.shoot && !paused && knockout === 0) combat.shoot();
+    }
+    shootBtn.hidden = !(inside === 'engine' && hasGear(save, 'rivet'));
     if (inside === 'base' && baseHooks && baseHooks.level.signature !== baseSignature(layout)) {
       // A piece finished or was taken down while you were inside: rebuild the rooms around you.
       const level = buildBaseLevel(layout, livingBases);
@@ -4940,7 +5059,7 @@ async function boot(): Promise<void> {
     hatchPanel.update(dt);
     station.update(dt);
     contact.update(dt);
-    const frozen = care.active || hatchPanel.active || station.active || contact.active;
+    const frozen = care.active || hatchPanel.active || station.active || contact.active || knockout > 0;
     const poolAt = livingBases && inside === 'base' ? baseHooks?.moonpoolAt(interior.walker.x, interior.walker.y) : undefined;
     // The resonator sings at the song-lock, and while you answer the Choir.
     {
@@ -4970,10 +5089,31 @@ async function boot(): Promise<void> {
       save.oxygen = Math.min(maxO2, save.oxygen + (maxO2 / 3) * dt);
       suitCalm += dt;
       if (inside === 'base') save.suit = Math.min(1, save.suit + dt * 0.25);
+      // Phase 19: in a fight the suit seals itself once the machines have been quiet a few seconds.
+      else if (combat && knockout === 0) save.suit = mendSuit(save.suit, Math.min(suitCalm, combat.field.calm), dt);
       else if (suitCalm > 8) save.suit = Math.min(1, save.suit + dt * 0.012);
       if (inside === 'base') {
         const o = baseOutside();
         simBase(dt, { x: o.x, y: o.y, face: 1, speed: 0, repairing: false, aboard: false });
+      }
+    }
+    // Phase 19: blacking out in the fight. Fade to dark, wake by the last safe lamp with everything, fade back in.
+    if (knockout > 0 && !paused) {
+      knockout += dt;
+      const dark = knockout < 0.9 ? knockout / 0.9 : knockout < 2.4 ? 1 : Math.max(0, 1 - (knockout - 2.4) / 1);
+      if (knockout >= 0.9 && !knockedWoke && combat) {
+        knockedWoke = true;
+        const at = combat.wake();
+        interior.place(at.x, at.y, 1);
+        interior.walker.guard = 0;
+        save.suit = Math.max(save.suit, WAKE_SUIT);
+        suitCalm = 0;
+      }
+      hud.setBlackout(dark, knockedWoke ? 'Your suit gave way and you blacked out. You wake by the safe lamp, with everything you carry.' : '');
+      if (knockout >= 3.4) {
+        knockout = 0;
+        hud.setBlackout(0, '');
+        persist();
       }
     }
     // Waking up in the dome after a blackout: the screen fades back in here.
@@ -4990,8 +5130,27 @@ async function boot(): Promise<void> {
       if (e.type === 'exit') {
         if (inside === 'fulmar') exitFulmar();
         else if (inside === 'sanctum') exitHeart();
+        else if (inside === 'engine') exitEngine();
         else exitCorvina();
         return;
+      } else if (e.type === 'door' && e.ch === 'E' && inside === 'corvina') {
+        enterEngine();
+        return;
+      } else if (e.type === 'find' && inside === 'engine') {
+        if (e.id === '7') {
+          grant(notable('data', 'Log found', 'The chief engineer’s log'));
+          if (!save.scans.includes('enginelog')) save.scans.push('enginelog');
+          hud.showReading("The chief engineer's log", SCAN_ENTRIES.find((x) => x.id === 'enginelog')!.text, FIND_NOTE);
+        } else {
+          grant(notable('piece', 'Salvage', "The keeper's hoard", 'Brass, copper, quartz and hull plating.'));
+          save.bag.brass += 4;
+          save.bag.copper += 4;
+          save.bag.quartz += 3;
+          save.bag.plate += 2;
+          hud.refreshInventory();
+          hud.toast("The keeper's hoard: everything its machines scraped off the ship for years. 4 brass fittings, 4 copper, 3 quartz and 2 hull plating.", 'big');
+        }
+        persist();
       } else if (e.type === 'find' && inside === 'sanctum') {
         if (e.id === '1') {
           grant(notable('fragment', 'Song-lock opened', 'The heart', '', 'choir'));
@@ -5062,7 +5221,9 @@ async function boot(): Promise<void> {
               ? notable('blueprint', 'Drawings found', 'Pressure suit drawings', 'A Lab can decode them.')
               : e.id === '3'
                 ? notable('data', 'Log found', 'The Corvina’s log')
-                : notable('piece', 'Salvage', 'A salvage crate', 'Brass fittings and hull plating.'),
+                : e.id === '6'
+                  ? notable('blueprint', 'Drawings found', 'Rivet driver drawings', 'A Lab can decode them.')
+                  : notable('piece', 'Salvage', 'A salvage crate', 'Brass fittings and hull plating.'),
         );
         if (e.id === '1') {
           if (!save.finds.includes('sonardata') && !save.blueprints.includes('sonar')) save.finds.push('sonardata');
@@ -5074,6 +5235,14 @@ async function boot(): Promise<void> {
           if (!save.scans.includes('cvlog')) save.scans.push('cvlog');
           const entry = SCAN_ENTRIES.find((x) => x.id === 'cvlog')!;
           hud.showReading("The Corvina's log", entry.text, FIND_NOTE);
+        } else if (e.id === '6') {
+          // Phase 19: the Rivet driver drawings, beside the welded engine room door.
+          if (!save.finds.includes('rivetplans') && !save.blueprints.includes('rivet') && !hasGear(save, 'rivet')) save.finds.push('rivetplans');
+          hud.showReading(
+            "The bosun's locker",
+            "Oilcloth drawings stamped HULL KEEPER COUNTERMEASURE: a rivet driver that straps to the forearm, grown from a harpoon's barrel, with a guard plate that folds out to brace behind. Pencilled on the back: \"For when the keeper's machines take a diver for fouling. The engine room door is welded. Don't open it without one of these.\"\n\nA Lab can decode them.",
+            'Taken: decode it in a Lab.',
+          );
         } else {
           save.bag.brass += 3;
           save.bag.plate += 2;
@@ -5235,6 +5404,12 @@ async function boot(): Promise<void> {
     interior,
     enterCorvina: () => enterCorvina(),
     enterFulmar: () => enterFulmar(),
+    // Phase 19: the engine room and its fight (for checks).
+    enterEngine: () => {
+      if (inside !== 'corvina') enterCorvina();
+      enterEngine();
+    },
+    combat: () => combat,
     enterHeart: () => enterHeart(),
     contact,
     choirGate: (home: boolean) => choirGate(home),

@@ -210,6 +210,15 @@ export const RESEARCH: Record<BlueprintId, ResearchDef> = {
     scans: ['lurker', 'wreck'],
     seconds: 60,
   },
+  // Phase 19 (Colin, Nov 22, 2026): the weapon for the infested wrecks.
+  rivet: {
+    id: 'rivet',
+    name: 'Rivet driver blueprint',
+    text: "Reads the drawings from the Corvina's bosun's locker: a forearm rivet driver grown from the harpoon's barrel, with a guard plate that folds out to brace behind. Made by her crew for when the hull keeper's machines mistook a diver for fouling.",
+    finds: ['rivetplans'],
+    scans: [],
+    seconds: 80,
+  },
   dash: {
     id: 'dash',
     name: 'TH-3 dash head blueprint',
@@ -292,7 +301,7 @@ export const RESEARCH: Record<BlueprintId, ResearchDef> = {
   },
 };
 // (Milestone 11: the Choir lantern is given at first contact, never decoded in a Lab, so it isn't in RESEARCH_ORDER.)
-export const RESEARCH_ORDER: BlueprintId[] = ['light', 'satchel', 'gtank', 'sorter', 'relay', 'welder', 'tow', 'flare', 'visor', 'dash', 'cutter', 'hatch', 'recomp', 'crane', 'sonar', 'thermal', 'boots', 'dart', 'booster', 'ballast', 'tractor', 'sdome', 'habitat', 'psuit', 'revive', 'plating', 'psuit2', 'cowl', 'drill', 'signal', 'resonator'];
+export const RESEARCH_ORDER: BlueprintId[] = ['light', 'satchel', 'gtank', 'sorter', 'relay', 'welder', 'tow', 'flare', 'visor', 'dash', 'cutter', 'hatch', 'recomp', 'crane', 'sonar', 'thermal', 'boots', 'dart', 'rivet', 'booster', 'ballast', 'tractor', 'sdome', 'habitat', 'psuit', 'revive', 'plating', 'psuit2', 'cowl', 'drill', 'signal', 'resonator'];
 /** Blueprints that unlock a base piece (build card) instead of Workshop gear. */
 export const PIECE_BLUEPRINTS: Partial<Record<BlueprintId, string>> = { gtank: 'gtank', sorter: 'sorter', recomp: 'recomp', crane: 'crane', revive: 'revive', signal: 'signal', thermal: 'thermal', lantern: 'lantern', hatch: 'hatch' };
 /** Milestone 10: blueprints that are fitted elsewhere (the dock) or built later, not in the Workshop. */
@@ -453,6 +462,15 @@ export const GEAR: Record<GearId, GearDef> = {
     cost: { brass: 3, plate: 2, copper: 2 },
     seconds: 60,
   },
+  rivet: {
+    id: 'rivet',
+    name: 'Rivet driver',
+    code: 'RD-1',
+    job: "Strapped to the forearm: fires glowing hot rivets at the hull keeper's machines in infested wrecks (Shoot: X, RT on a gamepad, or the Shoot button). Hold Down to brace behind its fold-out guard: it blocks attacks from the front, and a brace raised just as a hit lands knocks the attacker back. Works on foot only.",
+    blueprint: 'rivet',
+    cost: { brass: 3, copper: 4, quartz: 2 },
+    seconds: 60,
+  },
   cowl: {
     id: 'cowl',
     name: 'Heat-shield cowl',
@@ -470,7 +488,7 @@ export function gearBlocker(save: SaveData, id: GearId): string | null {
     return `It can only be tuned to the Choir's song once the Signal array has decoded all four fragments (${save.signals.decoded.length} of 4 so far).`;
   return null;
 }
-export const GEAR_ORDER: GearId[] = ['light', 'satchel', 'cutter', 'tow', 'welder', 'relay', 'flare', 'visor', 'dash', 'sonar', 'boots', 'dart', 'psuit', 'psuit2', 'cowl', 'resonator'];
+export const GEAR_ORDER: GearId[] = ['light', 'satchel', 'cutter', 'tow', 'welder', 'relay', 'flare', 'visor', 'dash', 'sonar', 'boots', 'dart', 'rivet', 'psuit', 'psuit2', 'cowl', 'resonator'];
 /** Gear that is a kit you can build again and again (it isn't kept in save.gear). */
 export const KIT_GEAR: GearId[] = ['relay'];
 
@@ -486,6 +504,7 @@ export const FINDS: Record<FindId, { name: string; text: string }> = {
   hulllogs: { name: 'Fulmar probe hull logs', text: "The stress recorder from the crushed deep probe on the trench's first ledge: where its hull buckled, and why." },
   ps2plans: { name: 'PS-2 suit drawings', text: "Drawings from a Fulmar cargo pod in the cleft: her divers' deep suit." },
   resonplans: { name: 'Resonator drawings', text: "The Fulmar crew's drawings for a device that sings the Choir's patterns back." },
+  rivetplans: { name: 'Rivet driver drawings', text: "Oilcloth drawings from the Corvina's bosun's locker: a forearm rivet driver with a fold-out guard." },
   nurserylog: { name: 'Kestrel nursery log', text: 'A waterproof log from a sealed crate behind the kelp wall in the caves: how the first crew bred creatures in warm cradles.' },
 };
 

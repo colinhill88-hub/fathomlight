@@ -1,6 +1,6 @@
 import { Container, Graphics, type Texture } from 'pixi.js';
 import { mulberry32 } from '../rng';
-import { BRASS, BeltJar, C, choirColour, drawResonatorBracer, drawResonatorHoop, FULL_KIT, JarLook, KitLook, PSUIT2_TINT, PSUIT_TINT, accentBand, buildDiveBag, kitKey, mulColour, playerHelmet, playerPart, buildShoulderLamp, chromeBands, coiledHose, etching, rimEdge, rivets, scratches, segment, suitMaterialLayer } from './diver';
+import { BRASS, BeltJar, C, drawGuardPlate, drawRivetDriver, choirColour, drawResonatorBracer, drawResonatorHoop, FULL_KIT, JarLook, KitLook, PSUIT2_TINT, PSUIT_TINT, accentBand, buildDiveBag, kitKey, mulColour, playerHelmet, playerPart, buildShoulderLamp, chromeBands, coiledHose, etching, rimEdge, rivets, scratches, segment, suitMaterialLayer } from './diver';
 import { Glance, Spring, approach, batchAll, breathShape, clamp, smoothstep } from './animkit';
 import { KestrelExpression, kestrelFin, kestrelHand, kestrelLimb, kestrelTorso } from './kestrelArt';
 
@@ -27,7 +27,7 @@ import { KestrelExpression, kestrelFin, kestrelHand, kestrelLimb, kestrelTorso }
 
 export type WalkPose = 'stand' | 'walk' | 'jump' | 'fall' | 'hang' | 'climb';
 /** Phase 17: the parts of Kestrel's kit the Field kit portrait can light up. */
-export type KitPart = 'suit' | 'tanks' | 'harpoon' | 'thruster' | 'light' | 'boots' | 'visor' | 'cowl' | 'flare' | 'dart' | 'jar' | 'resonator';
+export type KitPart = 'suit' | 'tanks' | 'harpoon' | 'thruster' | 'light' | 'boots' | 'visor' | 'cowl' | 'flare' | 'dart' | 'jar' | 'resonator' | 'rivet';
 
 const rand = mulberry32(0x3a1c);
 const FAR_TINT = 0x9a9a9a;
@@ -496,6 +496,19 @@ export class Walker {
   private dashG = new Graphics();
   private visorG = new Graphics();
   private cowlG = new Graphics();
+  /** Phase 19: the Rivet driver on the near forearm, and its guard plate (folded flat until Kestrel braces). */
+  private rivetG = new Graphics();
+  private guardG = new Graphics();
+  /**
+   * Phase 19 (set by the fight each frame): 0..1 braced behind the guard
+   * (a low crouch, the near forearm raised in front with the plate folded
+   * out); `aim` the angle of the last shot in world space and `aiming` 0..1
+   * while the near arm points along it; `kick` a recoil impulse to apply.
+   */
+  guard = 0;
+  aim = 0;
+  aiming = 0;
+  kick = 0;
   /** Phase 17: counts footfalls while walking (the boots' stomp and silt puff follow it). */
   footfalls = 0;
   /** Phase 17: where the last footfall landed (world x, the walker's own units). */
@@ -746,6 +759,14 @@ export class Walker {
     cw.moveTo(48.5, 13).quadraticCurveTo(69.5, 23.5, 90.5, 13).stroke({ color: C.chromeDark, width: 1, alpha: 0.8 });
     cw.visible = false;
     hel.addChild(cw, v);
+    // Phase 19: the Rivet driver, and the guard plate pivoting from the middle of the housing.
+    drawRivetDriver(this.rivetG);
+    this.rivetG.visible = false;
+    drawGuardPlate(this.guardG);
+    this.guardG.position.set(8, -4);
+    this.guardG.rotation = Math.PI / 2;
+    this.guardG.visible = false;
+    this.nearArm.fore.addChild(this.rivetG, this.guardG);
   }
 
   /**
@@ -766,6 +787,7 @@ export class Walker {
       case 'dart': return [this.dartG];
       case 'jar': return [this.beltJar.view, this.satchelG];
       case 'resonator': return [this.hoopG, this.bracer];
+      case 'rivet': return [this.rivetG, this.guardG];
     }
   }
 
@@ -790,6 +812,7 @@ export class Walker {
     for (const b of this.bootGs) b.visible = !!k.boots;
     this.flareG.visible = !!k.flare;
     this.dartG.visible = !!k.dart;
+    this.rivetG.visible = this.guardG.visible = !!k.rivet;
     this.satchelG.visible = !!k.satchel;
     this.dashG.visible = !!k.dash && k.thruster >= 1;
     this.visorG.visible = !!k.visor;
@@ -904,6 +927,16 @@ export class Walker {
     if (dt <= 0) return;
     if (!this.started) this.arrive();
     this.time += dt;
+    // Phase 19: the guard plate folds out as the brace comes up.
+    if (this.guardG.visible) {
+      const k = smoothstep(this.guard);
+      this.guardG.scale.set(0.42 + 0.58 * k, 0.5 + 0.5 * k);
+      this.guardG.position.set(8 + 2 * k, -4 + 5 * k);
+    }
+    if (this.kick > 0) {
+      this.arms[0].jolt.v -= this.kick;
+      this.kick = 0;
+    }
     // Moved by the game (a lift, back from the bilge): stand again where we are.
     if (Math.abs(this.x - this.lastX) > 80 || Math.abs(this.y - this.lastY) > 80) {
       this.lastX = this.x;
@@ -973,6 +1006,12 @@ export class Walker {
         hipXT -= this.pull * 5;
         leanT += this.brace * (0.16 - 0.39 * this.pull);
         lookT -= this.brace * 0.14;
+      }
+      // Phase 19: braced behind the guard plate: a low, forward crouch.
+      if (this.guard > 0.01) {
+        hipY += this.guard * 15;
+        leanT += this.guard * 0.18;
+        lookT -= this.guard * 0.06;
       }
     } else if (mode === 'air') {
       const r = this.air(dt, vxL);
@@ -1664,6 +1703,10 @@ export class Walker {
         if (this.compact && this.brace > 0.08 && !this.gaitOn) {
           ikx = (i === 0 ? 23 : 29) - this.pull * 8;
           iky = (i === 0 ? -72 : -60) + this.pull * 10;
+        } else if (this.guard > 0.05 && this.aiming < 0.5) {
+          // Phase 19: braced. The near forearm comes up in front of the chest, the plate out; the far hand steadies it.
+          ikx = (i === 0 ? 17 : 13) + this.guard * 2;
+          iky = (i === 0 ? -64 : -54) + (1 - this.guard) * 10;
         } else if (this.working > 0 && i === 0 && !this.gaitOn) {
           // Working at something in front: the near hand reaches out and taps at it.
           ikx = 22;
@@ -1709,6 +1752,20 @@ export class Walker {
           const d = Math.hypot(dx, dy) || 1;
           ikx = shx + (dx / d) * 29;
           iky = shy + (dy / d) * 29;
+        }
+      }
+      // Phase 19: shooting. The near arm points the driver along the shot, on the floor or in the air.
+      if (i === 0 && this.aiming > 0.02 && mode !== 'hang' && mode !== 'climb') {
+        const lx = Math.cos(this.aim) * this.face;
+        const ly = Math.sin(this.aim);
+        const ax = shx + lx * 29;
+        const ay = shy + ly * 29;
+        if (Number.isNaN(ikx)) {
+          ikx = ax;
+          iky = ay;
+        } else {
+          ikx += (ax - ikx) * this.aiming;
+          iky += (ay - iky) * this.aiming;
         }
       }
       if (!Number.isNaN(ikx)) {

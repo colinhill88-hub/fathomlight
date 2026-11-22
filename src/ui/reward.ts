@@ -49,7 +49,8 @@ export type RewardIcon =
   | 'jar'
   | 'cutter'
   | 'boots'
-  | 'sonar';
+  | 'sonar'
+  | 'rivet';
 
 export interface RewardSpec {
   tier: 'notable' | 'major';
@@ -89,6 +90,8 @@ const ICONS: Record<RewardIcon, string> = {
   gear: `<circle cx="32" cy="32" r="18" fill="${CH}" stroke="${CR}" stroke-width="3"/><circle cx="32" cy="32" r="12" fill="#1b2328"/><path d="M32 22v10l7 5" stroke="${LIME}" stroke-width="3" stroke-linecap="round" fill="none"/><g fill="${G}"><rect x="30" y="8" width="4" height="7"/><rect x="30" y="49" width="4" height="7"/><rect x="8" y="30" width="7" height="4"/><rect x="49" y="30" width="7" height="4"/></g><circle cx="32" cy="32" r="2.5" fill="${RED}"/>`,
   cutter: `<rect x="8" y="28" width="26" height="10" rx="3" fill="${CH}" stroke="${CR}" stroke-width="2"/><path d="M34 29l8-3v14l-8-3z" fill="${CR}"/><path d="M42 26c12 2 16 5 18 7-2 2-6 5-18 7z" fill="#ffd06a"/><path d="M42 29c7 1 9 3 10 4-1 1-3 3-10 4z" fill="#fff8e0"/><rect x="14" y="38" width="8" height="12" rx="2" fill="${G}"/>`,
   boots: `<path d="M18 10h16v26l14 6c4 2 6 5 6 8v4H14V14z" fill="${CH}" stroke="${CR}" stroke-width="2"/><rect x="12" y="52" width="44" height="6" rx="2" fill="${CR}"/><path d="M16 55h40" stroke="${LIME}" stroke-width="2"/><rect x="20" y="22" width="12" height="4" fill="${G}"/><circle cx="26" cy="16" r="2" fill="${RED}"/>`,
+  // Phase 19: the Rivet driver: a forearm housing, its drum, the barrel and a lime-flashed rivet in flight.
+  rivet: `<rect x="8" y="26" width="30" height="14" rx="4" fill="${CH}" stroke="${CR}" stroke-width="2"/><rect x="38" y="29" width="10" height="8" fill="${CR}"/><rect x="46" y="27.5" width="3" height="11" fill="${G}"/><circle cx="20" cy="22" r="6" fill="${CH}" stroke="${G}" stroke-width="2"/><rect x="12" y="38" width="4" height="10" fill="${RED}"/><rect x="28" y="38" width="4" height="10" fill="${RED}"/><path d="M52 33h8" stroke="${LIME}" stroke-width="3" stroke-linecap="round"/><circle cx="60" cy="33" r="2.4" fill="${G}"/><circle cx="31" cy="22" r="1.8" fill="${LIME}"/>`,
   sonar: `<g fill="none" stroke-linecap="round"><path d="M22 20a16 16 0 0 1 0 24" stroke="${LIME}" stroke-width="3"/><path d="M30 12a26 26 0 0 1 0 40" stroke="${LIME}" stroke-width="3" opacity=".7"/><path d="M38 6a36 36 0 0 1 0 52" stroke="${LIME}" stroke-width="3" opacity=".4"/></g><rect x="6" y="24" width="14" height="16" rx="3" fill="${CH}" stroke="${CR}" stroke-width="2"/><circle cx="13" cy="32" r="3" fill="${RED}"/>`,
 };
 

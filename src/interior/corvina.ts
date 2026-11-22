@@ -13,6 +13,8 @@
  *   D  powered door   U  lift stop (powered: the car carries you between the hold and the upper deck)
  *   L  the lift shaft (the car rides up and down it)   G  the lift's gate at a stop
  *   1  sonar test logs   2  pressure suit drawings   3  the Corvina's log   $  a salvage crate
+ *   E  the welded engine room door (Phase 19: the Rivet driver forces it; the infested engine room is behind)
+ *   6  the bosun's locker beside it (the Rivet driver drawings)
  */
 export const CORVINA_MAP: string[] = [
   '####################################################################################################',
@@ -44,7 +46,7 @@ export const CORVINA_MAP: string[] = [
   '#                         =====                                 ====                           #LLL#',
   '#                                                                                              GLLL#',
   '#                                                                                              GLLL#',
-  '#     $                                                                                   B   UGLLL#',
+  '#   E $  6                                                                                B   UGLLL#',
   '#  ########         #####             ####                #####             #####         ##########',
   '#  ########         #####             ####                #####             #####         ##########',
   '#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#',
@@ -52,3 +54,15 @@ export const CORVINA_MAP: string[] = [
   '####################################################################################################',
   '####################################################################################################',
 ];
+
+/** The Collect labels and the lab's sign (Phase 19 adds the bosun's locker; E is the engine room door). */
+export const CORVINA_OPTS = {
+  labels: {
+    '1': 'Take the sonar test logs',
+    '2': 'Take the pressure suit drawings',
+    '3': "Read the Corvina's log",
+    '6': "Open the bosun's locker",
+    $: 'Open the salvage crate',
+  } as Record<string, string>,
+  sign: { ch: '1', text: 'SURVEY LAB' },
+};

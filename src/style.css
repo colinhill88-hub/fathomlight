@@ -4538,3 +4538,38 @@ button.fk-slot.unknown.lit {
 @keyframes linnea-more {
   50% { opacity: 0.35; }
 }
+
+/* ---- Phase 19: the Shoot button (touch only; on foot in an infested wreck, once the Rivet driver is built).
+   It takes the Scan button's place (Scan is hidden on foot), just above Boost (Jump) for the right thumb. ---- */
+#btn-shoot {
+  position: absolute;
+  right: calc(var(--safe-right) + 30px);
+  bottom: calc(var(--safe-bottom) + 116px);
+  width: 70px;
+  height: 70px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 194, 58, 0.75);
+  background: var(--ui-bg);
+  color: #ffd27a;
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  font-size: 11px;
+  font-weight: 700;
+  pointer-events: auto;
+  touch-action: none;
+}
+body.touch #btn-shoot:not([hidden]) {
+  display: flex;
+}
+#btn-shoot.pressed {
+  background: #ffc23a;
+  color: #1d1a12;
+}
+/* On foot the swimming tools have nothing to do. */
+body.on-foot #btn-flare,
+body.on-foot #btn-dart {
+  display: none !important;
+}

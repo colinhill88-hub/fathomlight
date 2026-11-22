@@ -235,6 +235,7 @@ export class FieldKit {
       gear('cowl', 'suit', 'Vent heat scalds far less', 'cowl'),
       gear('flare', 'light', 'Light dark water ahead', 'flare'),
       gear('dart', 'gear', 'Stun a predator', 'dart'),
+      gear('rivet', 'rivet', 'Shoot and brace in infested wrecks', 'rivet'),
       gear('resonator', 'fragment', "Sings the Choir's song", 'resonator'),
     ];
     if (s.relayKits > 0) diver.push({ icon: 'tank', name: 'Air relay kits', code: 'AR-1', line: `${s.relayKits} ready to plant`, have: true });

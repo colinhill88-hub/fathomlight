@@ -262,11 +262,11 @@ export interface SubData {
 }
 
 /** Milestone 7: gear built in the Workshop (rules in src/game/gear.ts). */
-export type GearId = 'light' | 'cutter' | 'tow' | 'welder' | 'relay' | 'sonar' | 'psuit' | 'psuit2' | 'resonator' | 'dart' | 'flare' | 'boots' | 'satchel' | 'cowl' | 'visor' | 'dash';
+export type GearId = 'light' | 'cutter' | 'tow' | 'welder' | 'relay' | 'sonar' | 'psuit' | 'psuit2' | 'resonator' | 'dart' | 'flare' | 'boots' | 'satchel' | 'cowl' | 'visor' | 'dash' | 'rivet';
 /** Blueprints the Lab decodes. Each one lets the Workshop build something, or unlocks a base piece. */
-export type BlueprintId = 'light' | 'cutter' | 'tow' | 'welder' | 'relay' | 'gtank' | 'sorter' | 'sonar' | 'psuit' | 'recomp' | 'crane' | 'revive' | 'psuit2' | 'plating' | 'signal' | 'resonator' | 'lantern' | 'thermal' | 'hatch' | 'dart' | 'flare' | 'boots' | 'satchel' | 'cowl' | 'visor' | 'dash' | 'booster' | 'sdome' | 'tractor' | 'ballast' | 'habitat' | 'drill';
+export type BlueprintId = 'light' | 'cutter' | 'tow' | 'welder' | 'relay' | 'gtank' | 'sorter' | 'sonar' | 'psuit' | 'recomp' | 'crane' | 'revive' | 'psuit2' | 'plating' | 'signal' | 'resonator' | 'lantern' | 'thermal' | 'hatch' | 'dart' | 'flare' | 'boots' | 'satchel' | 'cowl' | 'visor' | 'dash' | 'booster' | 'sdome' | 'tractor' | 'ballast' | 'habitat' | 'drill' | 'rivet';
 /** Data finds the diver brings back to the Lab (they weigh nothing). */
-export type FindId = 'recorder' | 'relaylog' | 'weldchip' | 'towcoil' | 'cache' | 'sonardata' | 'suitplans' | 'poolplans' | 'hulllogs' | 'ps2plans' | 'resonplans' | 'nurserylog';
+export type FindId = 'recorder' | 'relaylog' | 'weldchip' | 'towcoil' | 'cache' | 'sonardata' | 'suitplans' | 'poolplans' | 'hulllogs' | 'ps2plans' | 'resonplans' | 'nurserylog' | 'rivetplans';
 /** What a Lab or Workshop is busy with. */
 export interface StationJob {
   /** 'research:light' or 'build:light'. */
@@ -395,7 +395,11 @@ export interface SaveData {
   /** Milestone 8: the flow vane past the race is raised (the sub can cross over the top). */
   vane: boolean;
   /** Milestone 8 part 2: the Corvina (deck hatch cut, stern door released, breakers thrown). */
-  corvina: { hatch: boolean; door: boolean; breakers: boolean[]; taken?: string[] };
+  corvina: {
+    hatch: boolean; door: boolean; breakers: boolean[]; taken?: string[];
+    /** Phase 19: the infested engine room (finds by map letter, and 'k' once the hull keeper is beaten). Optional: older saves have none. */
+    engine?: { taken: string[] };
+  };
   /** The hidden passage in the shelf edge (a sonar pulse reveals it) and its locker. */
   hiddenOpen: boolean;
   hiddenLooted: boolean;
@@ -562,6 +566,7 @@ export function loadSave(spawnX: number, spawnY: number): { data: SaveData; load
         door: d.corvina?.door === true,
         breakers: [0, 1].map((i) => Array.isArray(d.corvina?.breakers) && d.corvina.breakers[i] === true),
         taken: Array.isArray(d.corvina?.taken) ? d.corvina.taken : [],
+        ...(Array.isArray(d.corvina?.engine?.taken) ? { engine: { taken: d.corvina.engine.taken.filter((t: unknown) => typeof t === 'string') } } : {}),
       },
       hiddenOpen: d.hiddenOpen === true,
       hiddenLooted: d.hiddenLooted === true,
