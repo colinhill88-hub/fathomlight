@@ -28,6 +28,24 @@ export interface ResearchDef {
 }
 
 export const RESEARCH: Record<BlueprintId, ResearchDef> = {
+  // Phase 21, room for more creatures: bigger tanks from the Workshop.
+  tankkit: {
+    id: 'tankkit',
+    name: 'Tank extension TX-1 blueprint',
+    text: 'From your scans of the shallows creatures: a bolt-on glass extension that takes a creature tank from 4 to 6, or a Grand tank from 8 to 12. The Workshop builds kits; fit one at a Habitat console.',
+    finds: [],
+    scans: ['glowfin', 'puffcap', 'ray'],
+    seconds: 70,
+  },
+  // Linnea's third request gives these plans (never decoded in a Lab, so not in RESEARCH_ORDER).
+  display: {
+    id: 'display',
+    name: 'Display aquarium DR-1 plans',
+    text: "Linnea's plans for a showpiece: an extended Grand tank refitted with a tall curved front, for 20 creatures.",
+    finds: [],
+    scans: [],
+    seconds: 1,
+  },
   light: {
     id: 'light',
     name: 'Dive light blueprint',
@@ -301,7 +319,7 @@ export const RESEARCH: Record<BlueprintId, ResearchDef> = {
   },
 };
 // (Milestone 11: the Choir lantern is given at first contact, never decoded in a Lab, so it isn't in RESEARCH_ORDER.)
-export const RESEARCH_ORDER: BlueprintId[] = ['light', 'satchel', 'gtank', 'sorter', 'relay', 'welder', 'tow', 'flare', 'visor', 'dash', 'cutter', 'hatch', 'recomp', 'crane', 'sonar', 'thermal', 'boots', 'dart', 'rivet', 'booster', 'ballast', 'tractor', 'sdome', 'habitat', 'psuit', 'revive', 'plating', 'psuit2', 'cowl', 'drill', 'signal', 'resonator'];
+export const RESEARCH_ORDER: BlueprintId[] = ['light', 'satchel', 'gtank', 'tankkit', 'sorter', 'relay', 'welder', 'tow', 'flare', 'visor', 'dash', 'cutter', 'hatch', 'recomp', 'crane', 'sonar', 'thermal', 'boots', 'dart', 'rivet', 'booster', 'ballast', 'tractor', 'sdome', 'habitat', 'psuit', 'revive', 'plating', 'psuit2', 'cowl', 'drill', 'signal', 'resonator'];
 /** Blueprints that unlock a base piece (build card) instead of Workshop gear. */
 export const PIECE_BLUEPRINTS: Partial<Record<BlueprintId, string>> = { gtank: 'gtank', sorter: 'sorter', recomp: 'recomp', crane: 'crane', revive: 'revive', signal: 'signal', thermal: 'thermal', lantern: 'lantern', hatch: 'hatch' };
 /** Milestone 10: blueprints that are fitted elsewhere (the dock) or built later, not in the Workshop. */
@@ -326,6 +344,25 @@ export interface GearDef {
 }
 
 export const GEAR: Record<GearId, GearDef> = {
+  // Phase 21: kits, built again and again (counted in save.tankKits / displayKits).
+  tankkit: {
+    id: 'tankkit',
+    name: 'Tank extension kit',
+    code: 'TX-1',
+    job: 'Fit it at a Habitat console: a creature tank holds 6 instead of 4, a Grand tank 12 instead of 8, with room for one more decoration.',
+    blueprint: 'tankkit',
+    cost: { plate: 2, quartz: 3, resin: 1 },
+    seconds: 40,
+  },
+  displaykit: {
+    id: 'displaykit',
+    name: 'Display refit kit',
+    code: 'DR-1',
+    job: 'Fit it to an extended Grand tank at its Habitat console: it becomes the display aquarium, for 20 creatures and six decorations.',
+    blueprint: 'display',
+    cost: { plate: 4, quartz: 6, brass: 3, resin: 2 },
+    seconds: 90,
+  },
   light: {
     id: 'light',
     name: 'Dive light',
@@ -488,9 +525,9 @@ export function gearBlocker(save: SaveData, id: GearId): string | null {
     return `It can only be tuned to the Choir's song once the Signal array has decoded all four fragments (${save.signals.decoded.length} of 4 so far).`;
   return null;
 }
-export const GEAR_ORDER: GearId[] = ['light', 'satchel', 'cutter', 'tow', 'welder', 'relay', 'flare', 'visor', 'dash', 'sonar', 'boots', 'dart', 'rivet', 'psuit', 'psuit2', 'cowl', 'resonator'];
+export const GEAR_ORDER: GearId[] = ['light', 'satchel', 'cutter', 'tow', 'welder', 'relay', 'tankkit', 'displaykit', 'flare', 'visor', 'dash', 'sonar', 'boots', 'dart', 'rivet', 'psuit', 'psuit2', 'cowl', 'resonator'];
 /** Gear that is a kit you can build again and again (it isn't kept in save.gear). */
-export const KIT_GEAR: GearId[] = ['relay'];
+export const KIT_GEAR: GearId[] = ['relay', 'tankkit', 'displaykit'];
 
 export const FINDS: Record<FindId, { name: string; text: string }> = {
   recorder: { name: 'SLED 2 recorder', text: 'A scuffed data cartridge from the survey sled. The Lab can read it.' },
@@ -555,6 +592,8 @@ export function tickStations(save: SaveData, layout: BaseLayout, dt: number): St
       ev.push({ type: 'decoded', id: id as BlueprintId, piece: p });
     } else if (KIT_GEAR.includes(id as GearId)) {
       if (id === 'relay') save.relayKits++;
+      else if (id === 'tankkit') save.tankKits = (save.tankKits ?? 0) + 1;
+      else if (id === 'displaykit') save.displayKits = (save.displayKits ?? 0) + 1;
       ev.push({ type: 'built', id: id as GearId, piece: p });
     } else {
       if (!save.gear.includes(id as GearId)) save.gear.push(id as GearId);

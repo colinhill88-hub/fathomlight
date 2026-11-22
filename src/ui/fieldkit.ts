@@ -11,6 +11,11 @@ import { emblemSvg, type RewardIcon } from './reward';
 import type { JarLook, KitLook } from '../actors/diver';
 import type { KitPart } from '../actors/walker';
 import { KitPortrait } from './kitPortrait';
+import { book, DECOR, DECOR_ORDER, kindKey, kindName, pageOf, requestText, rewardText } from '../game/collection';
+import { allKept, creatureName } from '../game/creatures';
+import { COLOURS, PATTERNS, RARE_COLOUR, WILD_PATTERNS } from '../game/traits';
+import type { CreatureData, SpeciesId } from '../game/state';
+import { snapImg } from './creatureSnap';
 
 /*
  * Phase 15: the Field kit (I, the View button, or the kit button by the log).
@@ -57,11 +62,16 @@ export interface FieldKitDeps {
   /** Phase 17a: what Kestrel wears (the same look the world's rig uses) and the jar's creature. */
   kitLook: () => KitLook;
   jar: () => JarLook | null;
+  /** Phase 20: open a creature's card (above the Field kit). */
+  openCard: (c: CreatureData) => void;
 }
 
 export class FieldKit {
   private el: HTMLDivElement;
-  private tab: 'kit' | 'collection' = 'kit';
+  private tab: 'kit' | 'book' | 'collection' = 'kit';
+  /** Phase 20: the book's open page and chosen cell. */
+  private page: SpeciesId = 'glowfin';
+  private cell: { colour: number; pattern: number } | null = null;
   open = false;
   private portrait = new KitPortrait();
   /** The card under the mouse, and the one tapped or clicked (it stays lit until another is chosen). */
@@ -86,9 +96,20 @@ export class FieldKit {
       }
       const act = b.dataset.act;
       if (act === 'close') this.close();
-      else if (act === 'kit' || act === 'collection') {
+      else if (act === 'kit' || act === 'collection' || act === 'book') {
         this.tab = act;
         this.render();
+      } else if (act === 'bk-page') {
+        this.page = b.dataset.id as SpeciesId;
+        this.cell = null;
+        this.render();
+      } else if (act === 'bk-cell') {
+        const [colour, pattern] = (b.dataset.id ?? '0:0').split(':').map(Number);
+        this.cell = this.cell && this.cell.colour === colour && this.cell.pattern === pattern ? null : { colour, pattern };
+        this.render();
+      } else if (act === 'bk-card') {
+        const c = allKept(this.deps.save()).find((x) => x.id === Number(b.dataset.id));
+        if (c) this.deps.openCard(c);
       } else if (act === 'log') {
         this.close();
         this.deps.openLog();
@@ -113,6 +134,8 @@ export class FieldKit {
     new MutationObserver(() => this.lightUp()).observe(this.el, { subtree: true, attributes: true, attributeFilter: ['class'] });
     window.addEventListener('keydown', (e) => {
       if (!this.open) return;
+      // Phase 20: typing a name on a creature card (above the kit) must not close the kit.
+      if ((e.target as HTMLElement)?.closest?.('input') || document.getElementById('creature-card')?.hidden === false) return;
       const k = e.key.toLowerCase();
       if (k === 'escape' || isKey('kit', k)) {
         e.preventDefault();
@@ -124,6 +147,14 @@ export class FieldKit {
 
   toggle(): void {
     if (this.open) this.close();
+    else this.show();
+  }
+
+  /** Phase 20: open straight at the collection book. */
+  showBook(species?: SpeciesId): void {
+    this.tab = 'book';
+    if (species) this.page = species;
+    if (this.open) this.render();
     else this.show();
   }
 
@@ -175,12 +206,13 @@ export class FieldKit {
 
   private render(): void {
     const s = this.deps.save();
-    const body = this.tab === 'kit' ? this.kitTab(s) : this.collectionTab(s);
+    const body = this.tab === 'kit' ? this.kitTab(s) : this.tab === 'book' ? this.bookTab(s) : this.collectionTab(s);
     this.el.innerHTML = `<div class="fk-card">
       <header class="fk-head">
         <h2>Field kit</h2>
         <div class="tabs" role="tablist">
           <button type="button" role="tab" data-act="kit" class="tab${this.tab === 'kit' ? ' on' : ''}" aria-selected="${this.tab === 'kit'}">Kit</button>
+          <button type="button" role="tab" data-act="book" class="tab${this.tab === 'book' ? ' on' : ''}" aria-selected="${this.tab === 'book'}">Book</button>
           <button type="button" role="tab" data-act="collection" class="tab${this.tab === 'collection' ? ' on' : ''}" aria-selected="${this.tab === 'collection'}">Collection</button>
         </div>
         <button type="button" class="fk-close" data-act="close" aria-label="Close">✕</button>
@@ -269,6 +301,81 @@ export class FieldKit {
         <h3>KD-1 <span>${count(drone)}</span></h3>
         <div class="fk-grid">${drone.map((x) => this.card(x)).join('')}</div>
       </div>
+    </div>`;
+  }
+
+  /**
+   * Phase 20: the collection book. A page per species: its 4 colours across, its 3 glow
+   * patterns down. A kind you have raised shows its portrait (gold-framed once a radiant one
+   * has hatched); one you haven't is a dark shape marked ???. A finished row gives a tank
+   * decoration and a finished page a rare egg. Below: Linnea's open requests, and what the
+   * book has earned so far.
+   */
+  private bookTab(s: SaveData): string {
+    const esc = (t: string) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;');
+    const b = book(s);
+    const known = (sp: SpeciesId) => s.scans.includes(SPECIES[sp].scan) || Object.keys(b).some((k) => k.startsWith(`${sp}:`));
+    if (!known(this.page)) this.page = SPECIES_ORDER.find(known) ?? 'glowfin';
+    const sp = this.page;
+    const pages = SPECIES_ORDER.map((id) => {
+      const pg = pageOf(s, id);
+      const k = known(id);
+      return `<button type="button" class="bk-tab${id === sp ? ' on' : ''}${pg.complete ? ' done' : ''}" data-act="bk-page" data-id="${id}" ${k ? '' : 'disabled'}>${k ? SPECIES[id].name : '???'}<small>${k ? `${pg.filled}/12${pg.complete ? ' ✓' : ''}` : 'not met'}</small></button>`;
+    }).join('');
+    const pg = pageOf(s, sp);
+    const claimed = s.bookClaimed ?? [];
+    const head = `<div class="bk-row bk-colhead"><span></span>${COLOURS[sp]
+      .map((c, i) => `<span class="${i === RARE_COLOUR ? 'rare' : ''}">${c}${i === RARE_COLOUR ? ' <em>rare</em>' : ''}</span>`)
+      .join('')}<span></span></div>`;
+    const rows = PATTERNS[sp]
+      .map((pat, p) => {
+        const cells = COLOURS[sp]
+          .map((_, c) => {
+            const e = pg.cells[p][c];
+            const on = this.cell?.colour === c && this.cell.pattern === p;
+            const look = { colour: c, pattern: p, radiant: !!e?.radiant };
+            return `<button type="button" class="bk-cell${e ? ' have' : ''}${e?.radiant ? ' radiant' : ''}${on ? ' on' : ''}" data-act="bk-cell" data-id="${c}:${p}" aria-label="${e ? esc(kindName(sp, c, p)) : 'Not raised yet'}">${
+              e ? snapImg(sp, look, '', 'grown') : `${snapImg(sp, { colour: 0, pattern: 0 }, 'shadow', 'grown')}<b>???</b>`
+            }${e && e.src === 'bred' ? `<i>gen ${e.gen}</i>` : ''}</button>`;
+          })
+          .join('');
+        const rid = `row:${sp}:${p}`;
+        const done = pg.rows[p];
+        return `<div class="bk-row"><span class="bk-pat${p >= WILD_PATTERNS ? ' rare' : ''}">${pat}${p >= WILD_PATTERNS ? ' <em>bred only</em>' : ''}</span>${cells}<span class="bk-prize${done ? ' won' : ''}" title="${done ? 'Row complete' : 'Raise every colour in this row for a tank decoration'}">${done && claimed.includes(rid) ? '✓' : '◇'}</span></div>`;
+      })
+      .join('');
+    // The chosen cell: what it is, where it came from, and the ones you keep.
+    let detail = `<p class="bk-hint">Tap a kind to see where it came from. ${pg.complete ? 'Page complete!' : `Finish a row for a tank decoration, the page for a rare egg.`}</p>`;
+    if (this.cell) {
+      const { colour, pattern } = this.cell;
+      const e = b[kindKey(sp, colour, pattern)];
+      const mine = allKept(s).filter((c) => c.species === sp && c.stage !== 'egg' && (c.traits?.colour ?? -1) === colour && (c.traits?.pattern ?? -1) === pattern);
+      detail = e
+        ? `<div class="bk-detail"><b>${esc(kindName(sp, colour, pattern))}</b><span>${e.src === 'bred' ? `First bred (generation ${e.gen})` : 'First kept from the wild'}${e.radiant ? ' · a radiant one has hatched' : ''}</span><div class="bk-mine">${
+            mine.length ? mine.map((c) => `<button type="button" data-act="bk-card" data-id="${c.id}">${esc(creatureName(c))}${c.traits?.radiant ? ' ✦' : ''}</button>`).join('') : '<small>None kept right now.</small>'
+          }</div></div>`
+        : `<div class="bk-detail"><b>??? · ${COLOURS[sp][colour].toLowerCase()}, ${PATTERNS[sp][pattern]}</b><span>${
+            colour === RARE_COLOUR || pattern >= WILD_PATTERNS ? 'Never seen in the wild: only breeding brings it out. Content, well-kept parents make it more likely.' : 'Seen in the wild, or bred from parents that carry it.'
+          }</span></div>`;
+    }
+    const reqs = s.requests?.active ?? [];
+    const requests = reqs.length
+      ? `<h3>Linnea would love to see <span>${s.requests?.done ?? 0} shown so far</span></h3><ul class="bk-reqs">${reqs
+          .map((q) => `<li><b>${esc(requestText(q).replace(/^./, (m) => m.toUpperCase()))}</b><small>Bring one to her in the jar · she'll give ${esc(rewardText(q.reward))}</small></li>`)
+          .join('')}</ul>`
+      : '';
+    const decor = DECOR_ORDER.filter((d) => (s.decor?.[d] ?? 0) > 0).map((d) => `${DECOR[d].name}${(s.decor?.[d] ?? 0) > 1 ? ` ×${s.decor![d]}` : ''}`);
+    const gifts = s.gifts?.length ?? 0;
+    const earned = decor.length || gifts ? `<p class="bk-earned">${decor.length ? `To place at a Habitat console: ${esc(decor.join(', '))}. ` : ''}${gifts ? `${gifts} rare egg${gifts > 1 ? 's' : ''} waiting at the Hatchery.` : ''}</p>` : '';
+    return `<div class="fk-book">
+      <nav class="bk-pages">${pages}</nav>
+      <section class="bk-page">
+        <header><b>${SPECIES[sp].name}</b><span>${pg.filled}/12 kinds${pg.radiant ? ` · ${pg.radiant} radiant` : ''}</span></header>
+        <div class="bk-grid">${head}${rows}</div>
+        ${detail}
+        ${requests}
+        ${earned}
+      </section>
     </div>`;
   }
 

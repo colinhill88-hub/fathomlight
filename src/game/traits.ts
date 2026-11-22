@@ -83,16 +83,50 @@ export function traitsOf(c: { id: number; traits?: Traits }): Traits {
   return c.traits ?? wildTraits(mulberry32(c.id * 7919 + 17));
 }
 
-/** An egg's traits from two parents. */
-export function inherit(a: Traits, b: Traits, rand: () => number = Math.random): Traits {
-  const colour = rand() < MUTATION ? Math.floor(rand() * 4) : rand() < 0.5 ? a.colour : b.colour;
+/**
+ * Phase 21: good care makes rare results more likely (Colin: about twice as likely for a
+ * content, well-kept pair as for a neglected one). `care` multiplies the chance of a colour
+ * mutation, a pattern mutation and radiance; 1 is the old odds, CARE_MAX the best.
+ * Radiance never goes above RADIANT_CAP, so even a radiant pair isn't a certainty.
+ */
+export const CARE_MAX = 2;
+export const RADIANT_CAP = 0.9;
+
+/** An egg's traits from two parents (`care` from carePower in src/game/collection.ts; 1 = the old odds). */
+export function inherit(a: Traits, b: Traits, rand: () => number = Math.random, care = 1): Traits {
+  const k = Math.max(1, Math.min(CARE_MAX, care));
+  const colour = rand() < MUTATION * k ? Math.floor(rand() * 4) : rand() < 0.5 ? a.colour : b.colour;
   let pattern = rand() < 0.5 ? a.pattern : b.pattern;
-  if (rand() < PATTERN_MUTATION) {
+  if (rand() < PATTERN_MUTATION * k) {
     const fresh = [0, 1, 2].filter((p) => p !== a.pattern && p !== b.pattern);
     pattern = fresh.length ? fresh[Math.floor(rand() * fresh.length)] : Math.floor(rand() * 3);
   }
-  const radiant = rand() < RADIANT_ODDS[(a.radiant ? 1 : 0) + (b.radiant ? 1 : 0)];
+  const radiant = rand() < radiantChance(a, b, k);
   return { colour, pattern, radiant: radiant || undefined, gen: Math.max(a.gen ?? 1, b.gen ?? 1) + 1 };
+}
+
+/** Chance an egg of these parents is radiant, with care. */
+export function radiantChance(a: Traits, b: Traits, care = 1): number {
+  const k = Math.max(1, Math.min(CARE_MAX, care));
+  return Math.min(RADIANT_CAP, RADIANT_ODDS[(a.radiant ? 1 : 0) + (b.radiant ? 1 : 0)] * k);
+}
+
+/**
+ * Phase 21, the breeding planner: the exact chances of each colour and pattern
+ * (and of radiance) for an egg of these two parents. They follow `inherit` step by step.
+ */
+export function eggOdds(a: Traits, b: Traits, care = 1): { colour: number[]; pattern: number[]; radiant: number } {
+  const k = Math.max(1, Math.min(CARE_MAX, care));
+  const cm = Math.min(1, MUTATION * k);
+  const colour = [0, 1, 2, 3].map((c) => cm / 4 + (1 - cm) * (0.5 * Number(a.colour === c) + 0.5 * Number(b.colour === c)));
+  const pm = Math.min(1, PATTERN_MUTATION * k);
+  const fresh = [0, 1, 2].filter((p) => p !== a.pattern && p !== b.pattern);
+  const pattern = [0, 1, 2].map((p) => {
+    const keep = 0.5 * Number(a.pattern === p) + 0.5 * Number(b.pattern === p);
+    const mut = fresh.length ? (fresh.includes(p) ? 1 / fresh.length : 0) : 1 / 3;
+    return (1 - pm) * keep + pm * mut;
+  });
+  return { colour, pattern, radiant: radiantChance(a, b, k) };
 }
 
 /** "Moonpale, banded glow · radiant". */

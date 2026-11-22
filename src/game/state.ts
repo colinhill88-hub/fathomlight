@@ -166,6 +166,14 @@ export interface CreatureData {
   make: number;
   /** Milestone 9: colour, glow pattern and radiance (src/game/traits.ts). Missing on old saves: fixed by its id. */
   traits?: Traits;
+  /** Phase 20: a name the player chose (or kept) at hatching. Missing: the name derived from its id (creatureName). */
+  name?: string;
+  /** Phase 20: its parents' names, set when the egg is laid. */
+  parents?: [string, string];
+  /** Phase 21: 0..1, how well it knows Kestrel (hand-feeding raises it; it fades slowly). */
+  bond?: number;
+  /** Phase 21: play time of its last hand feed (a treat can be given about once a minute). */
+  handFedAt?: number;
 }
 
 /** What is in the specimen jar the diver carries (one creature or one egg clutch). */
@@ -193,6 +201,35 @@ export interface TankData {
   out?: Partial<Record<MaterialId, number>>;
   /** Milestone 9: 0..1 towards the next egg, per species with a happy grown pair here. */
   breed?: Partial<Record<SpeciesId, number>>;
+  /** Phase 21 (room for more creatures): 1 = extended by a TX-1 kit, 2 = a Grand tank refitted as the display aquarium. Missing: 0. */
+  level?: number;
+  /** Phase 20: aquarium decorations placed in this tank (src/game/collection.ts). */
+  decor?: DecorId[];
+}
+
+/** Phase 20: tank decorations, earned from the collection book and Linnea's requests. */
+export type DecorId = 'arch' | 'amphora' | 'helmet' | 'chest' | 'driftwood' | 'clam' | 'lantern' | 'wheel';
+
+/** Phase 20: one kind (species, colour, pattern) in the collection book. */
+export interface BookEntry {
+  /** Where the first one came from. */
+  src: 'wild' | 'bred';
+  /** Its generation (1 = wild-born). */
+  gen: number;
+  /** A radiant one of this kind has been raised (the gold frame). */
+  radiant?: boolean;
+  /** Play time it was first raised. */
+  t: number;
+}
+
+/** Phase 21: a creature Linnea would love to see (no time limit). */
+export interface CreatureRequest {
+  id: number;
+  species: SpeciesId;
+  colour?: number;
+  pattern?: number;
+  radiant?: boolean;
+  reward: { kind: 'egg'; species: SpeciesId; colour: number; pattern: number; radiant?: boolean } | { kind: 'decor'; decor: DecorId } | { kind: 'display' };
 }
 
 /** A conveyor or feed pipe between two base pieces (milestone 5; rules in src/game/factory.ts). */
@@ -262,9 +299,9 @@ export interface SubData {
 }
 
 /** Milestone 7: gear built in the Workshop (rules in src/game/gear.ts). */
-export type GearId = 'light' | 'cutter' | 'tow' | 'welder' | 'relay' | 'sonar' | 'psuit' | 'psuit2' | 'resonator' | 'dart' | 'flare' | 'boots' | 'satchel' | 'cowl' | 'visor' | 'dash' | 'rivet';
+export type GearId = 'tankkit' | 'displaykit' | 'light' | 'cutter' | 'tow' | 'welder' | 'relay' | 'sonar' | 'psuit' | 'psuit2' | 'resonator' | 'dart' | 'flare' | 'boots' | 'satchel' | 'cowl' | 'visor' | 'dash' | 'rivet';
 /** Blueprints the Lab decodes. Each one lets the Workshop build something, or unlocks a base piece. */
-export type BlueprintId = 'light' | 'cutter' | 'tow' | 'welder' | 'relay' | 'gtank' | 'sorter' | 'sonar' | 'psuit' | 'recomp' | 'crane' | 'revive' | 'psuit2' | 'plating' | 'signal' | 'resonator' | 'lantern' | 'thermal' | 'hatch' | 'dart' | 'flare' | 'boots' | 'satchel' | 'cowl' | 'visor' | 'dash' | 'booster' | 'sdome' | 'tractor' | 'ballast' | 'habitat' | 'drill' | 'rivet';
+export type BlueprintId = 'tankkit' | 'display' | 'light' | 'cutter' | 'tow' | 'welder' | 'relay' | 'gtank' | 'sorter' | 'sonar' | 'psuit' | 'recomp' | 'crane' | 'revive' | 'psuit2' | 'plating' | 'signal' | 'resonator' | 'lantern' | 'thermal' | 'hatch' | 'dart' | 'flare' | 'boots' | 'satchel' | 'cowl' | 'visor' | 'dash' | 'booster' | 'sdome' | 'tractor' | 'ballast' | 'habitat' | 'drill' | 'rivet';
 /** Data finds the diver brings back to the Lab (they weigh nothing). */
 export type FindId = 'recorder' | 'relaylog' | 'weldchip' | 'towcoil' | 'cache' | 'sonardata' | 'suitplans' | 'poolplans' | 'hulllogs' | 'ps2plans' | 'resonplans' | 'nurserylog' | 'rivetplans';
 /** What a Lab or Workshop is busy with. */
@@ -428,6 +465,27 @@ export interface SaveData {
   mapSeen: string;
   /** One-time tips already shown. */
   tips: string[];
+  /**
+   * Phases 20-21 (creature care at the heart of the game). All optional, so older saves load
+   * as they are; src/game/collection.ts fills the book from the creatures already kept.
+   *  - book: every kind raised, by "species:colour:pattern".
+   *  - bookClaimed: rows and pages whose reward has been given.
+   *  - decor: decorations owned and not yet placed in a tank.
+   *  - gifts: rare eggs from rewards, waiting at the Hatchery.
+   *  - reserve: creatures resting in the Hatchery's reserve (no care needed, not on show).
+   *  - requests: Linnea's open requests and how many she has had.
+   *  - restocked: traits of bred creatures released into the wild (they turn up there).
+   *  - tankKits / displayKits: Workshop kits built and not yet fitted.
+   */
+  book?: Record<string, BookEntry>;
+  bookClaimed?: string[];
+  decor?: Partial<Record<DecorId, number>>;
+  gifts?: CreatureData[];
+  reserve?: CreatureData[];
+  requests?: { active: CreatureRequest[]; done: number; nextId: number };
+  restocked?: Partial<Record<SpeciesId, Traits[]>>;
+  tankKits?: number;
+  displayKits?: number;
   playSeconds: number;
   savedAt: number;
 }
@@ -593,6 +651,16 @@ export function loadSave(spawnX: number, spawnY: number): { data: SaveData; load
         contact: d.sanctum?.contact === true,
       },
       mapSeen: typeof d.mapSeen === 'string' ? d.mapSeen : '',
+      // Phases 20-21: optional; anything malformed is dropped rather than breaking the load.
+      book: d.book && typeof d.book === 'object' ? d.book : undefined,
+      bookClaimed: Array.isArray(d.bookClaimed) ? d.bookClaimed.filter((x: unknown) => typeof x === 'string') : undefined,
+      decor: d.decor && typeof d.decor === 'object' ? d.decor : undefined,
+      gifts: Array.isArray(d.gifts) ? d.gifts : undefined,
+      reserve: Array.isArray(d.reserve) ? d.reserve : undefined,
+      requests: d.requests && Array.isArray(d.requests.active) ? { active: d.requests.active, done: Number(d.requests.done) || 0, nextId: Number(d.requests.nextId) || 1 } : undefined,
+      restocked: d.restocked && typeof d.restocked === 'object' ? d.restocked : undefined,
+      tankKits: typeof d.tankKits === 'number' ? d.tankKits : undefined,
+      displayKits: typeof d.displayKits === 'number' ? d.displayKits : undefined,
       relays: Array.isArray(d.relays) ? d.relays.filter((r: { x?: unknown; y?: unknown }) => typeof r?.x === 'number' && typeof r?.y === 'number') : [],
     } as SaveData;
     // Milestone 7: the scavenger crab makes scrap now, so the test gift ends.

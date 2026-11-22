@@ -4,7 +4,7 @@ Nov 21, 2026 · planned with Colin after Phase 14 (reward moments, PR #36)
 
 This is the agreed plan for work that is **not built yet**. Nothing here is implemented unless [Progress](../PROGRESS.md) says so. Read the [development handoff](AI_DEVELOPMENT_HANDOFF.md) before starting any of it, whichever AI tool you are. When a phase ships, move its entry into PROGRESS.md and mark it done here. Do not delete it.
 
-The order below is Colin's agreed phasing. Phases 15, 16 and 17 are built and merged. **Phase 18 is built** (on a branch with a pull request for Colin). **Phase 19 is agreed and ready to build** (planned with Colin on Nov 21, 2026, after Phase 16), each with a session prompt in `docs/prompts/`. Later items need a design pass with Colin before code. Ask him the open questions listed with each item.
+The order below is Colin's agreed phasing. **Phases 20 and 21 (Session A) are built** on a branch with a pull request (Nov 22, 2026). Phases 15, 16 and 17 are built and merged. **Phase 18 is built** (on a branch with a pull request for Colin). **Phase 19 is agreed and ready to build** (planned with Colin on Nov 21, 2026, after Phase 16), each with a session prompt in `docs/prompts/`. Later items need a design pass with Colin before code. Ask him the open questions listed with each item.
 
 ## Colin's decisions (Nov 21, 2026)
 
@@ -71,7 +71,7 @@ The order below is Colin's agreed phasing. Phases 15, 16 and 17 are built and me
   - **Puffcaps' room to drift scales with the tank (done in this pull request).**
     - The problem: a puffcap was only happy with at most one tank-mate, whatever the tank's size, so nobody could raise many of them.
     - Now a puffcap is content while its tank is no more than half full (`driftRoom` in `src/game/creatures.ts`, Node-tested). A small tank still allows 2, a Grand tank 4, and upgraded tanks and the display aquarium will allow more automatically.
-  - **Living tanks (added to Session A).** With generated art allowed, make the tanks themselves beautiful, building on the work already done on the open water and how it reacts to Kestrel (`src/fx/waterWake.ts`, `src/fx/surface.ts`, `src/world/habitatWater.ts`, `src/world/tanklife.ts`):
+  - **Living tanks (added to Session A). Done in Session A, except generated tank backdrops (see Phase 21).** With generated art allowed, make the tanks themselves beautiful, building on the work already done on the open water and how it reacts to Kestrel (`src/fx/waterWake.ts`, `src/fx/surface.ts`, `src/world/habitatWater.ts`, `src/world/tanklife.ts`):
     - **creatures swim naturally,** trailing water behind them: a soft wake and drifting particles stirred by their tails, as Kestrel's swimming does outside;
     - **surfacing:** when a creature breaks the surface at the top of the tank, ripples spread across it, a few bubbles and a little splash, like Kestrel surfacing;
     - **richer tank art:** generated painted backdrops, substrate, rocks and plants for the tank interiors (logged in `docs/art/SOURCES.md`), glass reflections and caustic light, and decorations (the Phase 20 and 21 rewards) that look like real aquarium pieces;
@@ -219,7 +219,9 @@ The open questions below were answered at the start of the session (see "Colin's
 - **Sound:** every enemy move gets an audible telegraph (danger first in the mix, per Phase 16).
 - **Open questions for Colin, early in the session:** what the weapon is and is called; how Kestrel's health works indoors (reuse suit integrity or something new); whether cleared rooms stay cleared or refill when you come back; how many infested sections, and in which wrecks.
 
-## Phase 20: the creature collection book and the hatching moment. Not built; first in line (Session A). Design answered: see "Colin's decisions (Nov 22, 2026)".
+## Phase 20: the creature collection book and the hatching moment. **Built in Session A** (pull request; see PROGRESS.md). Design answered: see "Colin's decisions (Nov 22, 2026)".
+
+**Done:** the Book tab, the hatching reveal scaled by rarity, naming (a suggestion kept with one tap, or typed), creature cards, and rare eggs and decorations for finished rows and pages. Choices the session made (Colin can change them): a row is every colour of one glow pattern (it gives a decoration); a page is all 12 kinds (a radiant rare egg); name suggestions are better mixed, and creatures kept before keep their old names. The original brief follows.
 
 **Why:** breeding already has real depth: four colours per species (the fourth only from breeding), three glow patterns (the third only from breeding), and radiant glow that runs in families (`src/game/traits.ts`). But the player rarely sees it. This phase makes rarity visible and every hatching exciting. It is the biggest visible win for the least work.
 
@@ -239,7 +241,16 @@ The open questions below were answered at the start of the session (see "Colin's
   - whether players choose names (or keep the generated ones);
   - what completing a row or a page gives (materials, a decoration, a rare egg).
 
-## Phase 21: care that pays, a breeding planner, and requests. Not built (Session A, with room for more creatures). Design answered: see "Colin's decisions (Nov 22, 2026)".
+## Phase 21: care that pays, a breeding planner, and requests. **Built in Session A, with room for more creatures** (pull request; see PROGRESS.md). Design answered: see "Colin's decisions (Nov 22, 2026)".
+
+**Done:** contentment, hand-feeding and recognising Kestrel, the care bonus (×1 to ×2 on rare results, shown in the planner), the breeding planner, Linnea's requests, restocking the reef, tank extensions (4 → 6, 8 → 12), the reserve, the display aquarium (20), sort/filter/move/care for all, decorations, and living tanks (wakes, surfacing, caustics, sand). Choices the session made (Colin can change them):
+- **Requests are shown, not given away:** bring the creature to Linnea in the jar and talk to her; you keep it. She opens two requests once something has been bred, and her third pays the display aquarium plans.
+- **The display aquarium is a refit** of an extended Grand tank (DR-1 kit), not a new base piece, so it uses the Grand tank's room.
+- **The reserve is part of the Hatchery** (opens once one is built, holds 30).
+- **Hand-feeding is free** (a treat, about once a minute per creature); it builds a bond that fades over about half an hour.
+- **Not done:** generated painted backdrops for the tank interiors (the session had no image generator; the new tank art is drawn in code). It can move to Session B or a later art pass.
+
+The original brief follows.
 
 **Why:** give breeding a rhythm and a reason, the way Dave the Diver's farm and orders keep you coming back, without copying them.
 
@@ -312,7 +323,7 @@ The open questions below were answered at the start of the session (see "Colin's
 5. Combat (Phase 19) gets more sections and tuning whenever Colin is ready to playtest; it can slot in between any of these.
 
 **Update (Colin, Nov 22, 2026): Phases 20–23 are built in two sessions, with every design question already answered** (see "Colin's decisions (Nov 22, 2026)"), so each session can start building after a quick look at a mock-up:
-- **Session A: Phases 20 and 21, plus room for more creatures.**
+- **Session A: Phases 20 and 21, plus room for more creatures. Built (pull request, Nov 22, 2026).**
   - The collection book tab, the hatching moment, naming and creature cards.
   - Contentment, hand-feeding, the breeding planner, Linnea's requests and restocking the reef.
   - Upgradeable tanks, the creature reserve and the display aquarium.

@@ -55,7 +55,10 @@ export type Action =
   // Panels.
   | 'feed'
   | 'clean'
-  | 'repair';
+  | 'repair'
+  // Phase 21: the Habitat console's hand-feed and "care for all".
+  | 'handFeed'
+  | 'careAll';
 
 export interface Binding {
   keys: string[];
@@ -109,6 +112,8 @@ const DEFAULTS: Record<Action, Binding> = {
   feed: { keys: ['f'], pad: [] },
   clean: { keys: ['c'], pad: [] },
   repair: { keys: ['r'], pad: [] },
+  handFeed: { keys: ['h'], pad: [] },
+  careAll: { keys: ['y'], pad: [] },
 };
 
 const STORE = 'fathomlight.bindings';

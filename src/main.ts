@@ -140,16 +140,19 @@ import { TankLife } from './world/tanklife';
 import { Escort } from './actors/escort';
 import { Critter } from './actors/critters';
 import { CareMode } from './ui/care';
-import { creatureName, creaturesIn, releaseFromJar as releaseJar, jarRoom, newCreature, putInJar, takeFromJar, payCost, PLANT_ORDER, PLANTS, SPECIES, SPECIES_ORDER, tankCapacity, tankNumber, tickCare, wildAllowed, WILD_CAP } from './game/creatures';
+import { CreatureCard } from './ui/creatureCard';
+import { HatchReveal } from './ui/hatchReveal';
+import { an, book, claimBookRewards, matchesRequest, hatchTier, kindName, record, requestText, restock, rewardText, showToLinnea, sweepBook, topUpRequests } from './game/collection';
+import { keepOldNames, creatureName, creaturesIn, releaseFromJar as releaseJar, jarRoom, newCreature, putInJar, takeFromJar, payCost, PLANT_ORDER, PLANTS, SPECIES, SPECIES_ORDER, tankCapacity, tankNumber, tickCare, wildAllowed, WILD_CAP } from './game/creatures';
 import { creatureMilestone, creatureSiteHint, fieldResearch, type CreatureSite } from './game/discovery';
 import { HatchPanel } from './ui/hatch';
-import { traitText, wildTraits } from './game/traits';
+import { traitsOf, traitText, wildTraits } from './game/traits';
 import { RatesPanel } from './ui/rates';
 import { Factory, FARM_TRAY, FEEDER_MASH_CAP, HOPPER_CAP, machineData, PRESS_COPPER_CAP, PRESS_PLATE_CAP, PRESS_SCRAP_CAP, whorlMult, whorlsFree } from './game/factory';
 import { LinesView } from './world/linegfx';
 import { StationMode } from './ui/station';
 import { DIVE_LIGHT, FINDS, GEAR, hasGear, jobOf, jobRunning, LAMP, OTHER_BLUEPRINTS, PIECE_BLUEPRINTS, RESEARCH, tickStations } from './game/gear';
-import type { BlueprintId } from './game/state';
+import type { BlueprintId, CreatureData, SpeciesId } from './game/state';
 import { audio } from './audio/engine';
 import { SoundDirector, WorkKind, zoneMix } from './audio/director';
 import { Lurkers } from './actors/lurker';
@@ -347,7 +350,25 @@ async function boot(): Promise<void> {
       const plan = linneaPlan(save);
       const hello = linneaGreeting(save);
       markLinneaMet(save, plan.spot);
-      line = linneaSay.start(hello ? [hello, ...plan.lines] : plan.lines);
+      // Phase 21: her creature requests. Showing her a creature she asked for (in the jar) comes first;
+      // then any new request. Requests have no time limit, and you keep the creature.
+      const shown = showToLinnea(save);
+      let lines = hello ? [hello, ...plan.lines] : plan.lines;
+      if (shown) {
+        const what = requestText(shown.req);
+        lines = [`Oh! Is that ${shown.who}? ${an(what).replace(/^a/, 'A')}... it's even lovelier than I imagined!`, `Thank you for showing me. Here, take ${rewardText(shown.req.reward)}.`];
+        grant((shown.req.reward.kind === 'display' ? major : notable)(shown.req.reward.kind === 'egg' ? 'egg' : 'piece', 'Linnea is delighted', `Request: ${what}`, shown.line, 'life'));
+        hud.toast(`Linnea's request done: ${shown.line}.`, 'big');
+      }
+      const fresh = topUpRequests(save);
+      if (fresh.length) {
+        const ask = fresh.map((q) => requestText(q));
+        lines = [...lines, `I've been dreaming of ${an(ask[0])}${ask[1] ? `, and ${an(ask[1])}` : ''}. If you ever raise one, would you bring it to show me?`];
+        hud.toast(`Linnea would love to see: ${ask.join('; ')}. Bring one in the jar to show her. Her wishes are in the Field kit's Book.`, 'big');
+      } else if (!shown && save.requests?.active.length && Math.random() < 0.35) {
+        lines = [...lines, `I still dream about ${an(requestText(save.requests.active[0]))}...`];
+      }
+      line = linneaSay.start(lines);
       persist();
     }
     const words = line.split(/\s+/).length;
@@ -597,8 +618,63 @@ async function boot(): Promise<void> {
   const contact = new Contact(choir);
   /** Milestone 11: the Signal array's zone map (opened at its console). */
   const zoneMap = new ZoneMap();
+  // Phase 20: creature cards (from the Habitat console, the Hatchery and the collection book).
+  const creatureCard = new CreatureCard({
+    save,
+    layout,
+    persist: () => persist(),
+    renamed: () => {
+      tankLife.sync(save, layout);
+      baseHooks?.syncTanks();
+    },
+  });
+  // Phase 20: the hatching moment (a short reveal for every egg, with a name to keep or edit).
+  const hatchReveal = new HatchReveal({
+    named: () => {
+      tankLife.sync(save, layout);
+      baseHooks?.syncTanks();
+      persist();
+    },
+    openBook: (c) => fieldKit.showBook(c.species),
+  });
+  let bookClock = 0;
+  // Phase 20: the collection book starts from what is already kept (silently, for older saves).
+  book(save);
+  // Phase 20: names suggested at hatching are better mixed now; creatures already kept keep theirs.
+  keepOldNames(save);
+  wildlife.applyRestock(save);
+  /** Phase 21: a bred creature let go restocks the reef with its looks. */
+  function noteRestock(species: SpeciesId, t: CreatureData['traits']): void {
+    if (!restock(save, species, t)) return;
+    wildlife.applyRestock(save);
+    hud.toast(`Its ${traitText(species, t!)} look will turn up on the reef from now on.`, 'big');
+  }
+  /** Phase 20: a hatching, scaled by rarity. Call before the creature is in the book. */
+  function hatchMoment(c: CreatureData, where: string): void {
+    const news = record(save, c);
+    const tier = hatchTier(news);
+    const sp = SPECIES[c.species];
+    const t = traitText(c.species, c.traits ?? traitsOf(c));
+    if (tier !== 'reveal') {
+      const ribbon = news.newRadiant ? 'Radiant!' : news.newColour && news.newPattern ? 'New colour and glow' : news.newColour ? 'New colour' : news.newPattern ? 'New glow pattern' : 'Radiant';
+      grant((tier === 'major' ? major : notable)('creature', ribbon, `A young ${sp.name.toLowerCase()}`, t, 'life'));
+      reward.whenClear(() => hatchReveal.show(c, news, tier, where));
+    } else {
+      sound.toast('item');
+      hatchReveal.show(c, news, tier, where);
+    }
+    claimRewards();
+  }
+  /** Phase 20: rewards for completed book rows and pages (decorations and rare eggs). */
+  function claimRewards(): void {
+    for (const r of claimBookRewards(save)) {
+      grant((r.page ? major : notable)(r.page ? 'egg' : 'piece', r.page ? 'Book page complete' : 'Book row complete', r.title, r.line, 'life'));
+      hud.toast(`${r.title}! ${r.line}.`, 'big');
+    }
+  }
   // Phase 15: the Field kit (I): Kestrel's gear, KS-1, KD-1 and the collection. The world holds still while it is open.
   const fieldKit = new FieldKit({
+    openCard: (c) => creatureCard.show(c),
     save: () => save,
     openLog: () => document.getElementById('log-btn')!.click(),
     canMap: () => hasArray(layout),
@@ -727,10 +803,23 @@ async function boot(): Promise<void> {
       tankLife.sync(save, layout);
       baseHooks?.syncTanks();
     },
-    released: (c) => wildlife.release(c.species, c.stage, save),
+    released: (c) => {
+      wildlife.release(c.species, c.stage, save);
+      noteRestock(c.species, c.traits);
+    },
     highlight: (id) => {
       tankLife.highlight = id;
       if (baseHooks) baseHooks.tankLife.highlight = id;
+    },
+    openCard: (c) => creatureCard.show(c),
+    handFedFx: (id, cid) => {
+      tankLife.handFeed(id, cid);
+      baseHooks?.tankLife.handFeed(id, cid);
+      sound.toast('item');
+    },
+    tankChanged: () => {
+      tankLife.sync(save, layout);
+      baseHooks?.syncTanks();
     },
   });
   // Milestone 9: the Hatchery's panel (it shares the care panel's frame).
@@ -739,6 +828,7 @@ async function boot(): Promise<void> {
     layout,
     toast: (t, k) => hud.toast(t, k),
     persist: () => persist(),
+    openCard: (c) => creatureCard.show(c),
     changed: () => {
       tankLife.sync(save, layout);
       baseHooks?.syncTanks();
@@ -954,7 +1044,7 @@ async function boot(): Promise<void> {
       if (isTankKind(p.kind)) {
         for (const c of save.creatures.filter((q) => q.tank === p.id)) {
           const home = layout.pieces.find(
-            (t) => isTankKind(t.kind) && t.id !== p.id && !buried.includes(t) && creaturesIn(save, t.id).length < tankCapacity(layout, t.id),
+            (t) => isTankKind(t.kind) && t.id !== p.id && !buried.includes(t) && creaturesIn(save, t.id).length < tankCapacity(layout, t.id, save),
           );
           if (home) {
             c.tank = home.id;
@@ -1052,8 +1142,8 @@ async function boot(): Promise<void> {
   function depositJar(tankId: number): void {
     const j = save.jar;
     if (!j) return;
-    if (creaturesIn(save, tankId).length >= tankCapacity(layout, tankId)) {
-      hud.toast(`Tank ${tankNumber(layout, tankId)} is full (${tankCapacity(layout, tankId)} creatures). Build another creature tank.`, 'warn');
+    if (creaturesIn(save, tankId).length >= tankCapacity(layout, tankId, save)) {
+      hud.toast(`Tank ${tankNumber(layout, tankId)} is full (${tankCapacity(layout, tankId, save)} creatures). Build another creature tank.`, 'warn');
       return;
     }
     if (j.keep) {
@@ -1317,6 +1407,7 @@ async function boot(): Promise<void> {
     // A wild catch goes back to its spot in the world; the jar logic (and the wild limit) is in creatures.ts.
     if (!j.keep) wildlife.release(j.species, j.stage, save);
     releaseJar(save);
+    if (j.keep) noteRestock(j.species, j.keep.traits);
     sound.release();
     hud.toast(`Released ${what}. ${j.stage === 'egg' ? 'The clutch drifts down to settle' : 'It swims off'} towards ${sp.home}.`);
     hud.setJar(jarText());
@@ -1832,9 +1923,13 @@ async function boot(): Promise<void> {
           setTimeout(() => hud.toast('A Workshop (build card 11) builds gear from blueprints. It takes hull plating from the plate press.', 'big'), 2600);
       } else {
         const g = GEAR[ev.id];
-        grant(gearReward(ev.id));
+        // Phase 21: tank kits are built again and again, so a smaller card.
+        if (ev.id === 'tankkit' || ev.id === 'displaykit') grant({ ...notable('tank', 'Kit built', g.name, 'Fit it at a Habitat console.', 'life'), code: g.code });
+        else grant(gearReward(ev.id));
         hud.toast(
-          ev.id === 'light'
+          ev.id === 'tankkit' || ev.id === 'displaykit'
+            ? `${g.name} ${g.code} built! Stand at a tank's Habitat console and choose Upgrade to fit it.`
+            : ev.id === 'light'
             ? `${g.name} ${g.code} built and clipped to your suit! It replaces the shoulder lamp: much brighter and wider. The dark cave in the east cliff is open to you now.`
             : ev.id === 'psuit'
               ? `${g.name} ${g.code} built! You wear it from now on: rated to 60 m instead of 30. The trench's upper ledges are in reach.`
@@ -1903,6 +1998,17 @@ async function boot(): Promise<void> {
     // ---- Factory (milestone 5): conveyors, the auto feeder and feed pipes ----
     factory.tick(save, layout, dt, storageRoom);
 
+    // ---- Phase 20: the book notices creatures kept from the wild (and anything else new) ----
+    bookClock += dt;
+    if (bookClock > 1) {
+      bookClock = 0;
+      const fresh = sweepBook(save);
+      for (const c of fresh) hud.toast(`New in your book: ${kindName(c.species, c.traits?.colour, c.traits?.pattern, c.traits?.radiant)}.`);
+      if (fresh.length) {
+        claimRewards();
+        persist();
+      }
+    }
     // ---- Creature care: needs run on play time ----
     for (const ev of tickCare(save, layout, dt)) {
       const name = SPECIES[ev.c.species].name;
@@ -1922,8 +2028,9 @@ async function boot(): Promise<void> {
         continue;
       }
       if (ev.type === 'nursery-hatched') {
-        grant(notable('creature', 'Hatched', `${creatureName(ev.c)} the ${name.toLowerCase()}`, traitText(ev.c.species, ev.c.traits!), 'life'));
-        hud.toast(`A ${name.toLowerCase()} hatched in the Hatchery: ${traitText(ev.c.species, ev.c.traits!)}. Choose a tank for it at the Hatchery console.`, 'big');
+        // Phase 20: the hatching moment, scaled by rarity (it names the baby too).
+        hatchMoment(ev.c, 'in the Hatchery');
+        hud.toast(`A ${name.toLowerCase()} hatched in the Hatchery: ${traitText(ev.c.species, ev.c.traits!)}. Choose a tank for it at the Hatchery console.`);
         if (!save.tips.includes('younghunger')) {
           save.tips.push('younghunger');
           setTimeout(() => hud.toast('Young in the Hatchery get hungry while they wait: run a feed pipe from an auto feeder into it, or feed them by hand at its console.', 'big'), 5000);
@@ -1933,8 +2040,8 @@ async function boot(): Promise<void> {
         continue;
       }
       if (ev.type === 'hatched') {
-        grant(notable('egg', 'Hatched', `${name} fry`, `In ${where}. They need feeding.`, 'life'));
-        hud.toast(`The ${name.toLowerCase()} eggs hatched in ${where}! The fry need feeding.`, 'big');
+        hatchMoment(ev.c, `in ${where}`);
+        hud.toast(`The ${name.toLowerCase()} egg hatched in ${where}! The young one needs feeding.`);
       }
       else if (ev.type === 'grown') {
         const ability = creatureMilestone(save, ev.c.species);
@@ -2169,6 +2276,7 @@ async function boot(): Promise<void> {
     const tankHere = null as Placed | null;
     care.setAvailable(tankHere?.id ?? (care.active ? care.tankId : null));
     care.update(dt);
+    hatchReveal.update(dt);
     // Milestone 6: the Dock button at a finished Moon pool dock (or berthed in one).
     const dockHere =
       blackout === 0 && !build.active && !care.active
@@ -3657,7 +3765,7 @@ async function boot(): Promise<void> {
       if (tankHere && save.jar) {
         const id = tankHere.id;
         const sp = SPECIES[save.jar.species];
-        const full = creaturesIn(save, id).length >= tankCapacity(layout, id);
+        const full = creaturesIn(save, id).length >= tankCapacity(layout, id, save);
         const what = save.jar.stage === 'egg' ? sp.eggName : save.jar.stage === 'young' ? sp.youngName : sp.name.toLowerCase();
         baseAct = { label: full ? `Tank ${tankNumber(layout, id)} is full` : `Put ${what} in tank ${tankNumber(layout, id)}`, run: () => depositJar(id) };
       } else if (tankHere && trayN) {
@@ -3665,7 +3773,9 @@ async function boot(): Promise<void> {
         baseAct = { label: `Take ${trayN} from tank ${tankNumber(layout, id)}'s tray`, run: () => takeTray(id) };
       } else if (linnea.present && Math.hypot(linnea.x - (aboard ? sub.x : diver.x), linnea.y - (aboard ? sub.y : diver.y)) < LINNEA_TALK_RANGE + (aboard ? 60 : 0)) {
         // Phase 18: Linnea only speaks when Kestrel comes up to her and asks.
-        baseAct = { label: linneaSay.hasMore ? 'Listen to Linnea' : 'Talk to Linnea', run: talkToLinnea };
+        // Phase 21: carrying a creature she asked for, the offer says so.
+        const wish = !linneaSay.hasMore && [save.jar, save.jar2].some((j) => j && j.stage !== 'egg' && save.requests?.active.some((q) => matchesRequest(q, j.species, j.keep ? traitsOf(j.keep) : j.traits ?? { colour: -1, pattern: -1 })));
+        baseAct = { label: linneaSay.hasMore ? 'Listen to Linnea' : wish ? 'Show Linnea your creature' : 'Talk to Linnea', run: talkToLinnea };
       } else if (pod?.by) {
         baseAct = {
           label: pod.powered ? `Unload ${carried} item${carried === 1 ? '' : 's'} into storage` : pod.frame ? 'Storage pod: still a frame' : 'Storage pod: no power',
@@ -3904,6 +4014,9 @@ async function boot(): Promise<void> {
     }
     for (const sc of schools) sc.update(dt, time, diver.x, diver.y, camX, camX + viewW, motion);
     for (const sc of basinSchools) sc.update(dt, time, diver.x, diver.y, camX, camX + viewW, motion);
+    // Phase 21: creatures that know Kestrel swim to the glass when he is near (outside, or walking the base).
+    tankLife.kestrel = interior.active ? null : { x: diver.x, y: diver.y };
+    if (baseHooks) baseHooks.tankLife.kestrel = interior.active && inside === 'base' ? { x: interior.walker.x, y: interior.walker.y } : null;
     tankLife.update(dt, time, save, camX, camX + viewW);
     // While tending a tank, the diver and drone fade so they don't hide it.
     const fade = (care.active ? 0.12 : dockUI.active || station.active ? 0.3 : 1) * (boarding ? boardFade : 1);
@@ -4438,7 +4551,7 @@ async function boot(): Promise<void> {
       if (!j) return null;
       const sp = SPECIES[j.species];
       const what = j.stage === 'egg' ? sp.eggName : j.stage === 'young' ? sp.youngName : sp.name.toLowerCase();
-      return creaturesIn(save, id).length >= tankCapacity(layout, id) ? `Tank ${tankNumber(layout, id)} is full` : `Put ${what} in tank ${tankNumber(layout, id)}`;
+      return creaturesIn(save, id).length >= tankCapacity(layout, id, save) ? `Tank ${tankNumber(layout, id)} is full` : `Put ${what} in tank ${tankNumber(layout, id)}`;
     },
     deposit: (id) => depositJar(id),
     trayCount: (id) => MATERIALS_LIST.reduce((a, k) => a + (save.tankData[String(id)]?.out?.[k] ?? 0), 0),
@@ -5426,6 +5539,14 @@ async function boot(): Promise<void> {
     rewardScale: () => reward.timeScale(),
     rewardPin: (ms: number | null) => reward.pin(ms),
     fieldKit,
+    // Phases 20-21: the hatching moment and creature cards (for checks).
+    hatchMoment: (id: number) => {
+      const c = [...save.creatures, ...save.nursery].find((q) => q.id === id);
+      if (c) hatchMoment(c, 'in the Hatchery');
+    },
+    creatureCard,
+    hatchReveal,
+    hatchPanel,
     // Phase 17b: the boots' silt puffs and the swim wake (for checks).
     siltPuffs,
     wake,

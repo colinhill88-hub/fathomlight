@@ -1,7 +1,8 @@
 import { Container, Graphics } from 'pixi.js';
 import { Critter } from '../actors/critters';
 import { BaseLayout, pieceRect, Placed } from '../game/base';
-import { creaturesIn, filteredTanks, tankDataFor, tanks, vigour } from '../game/creatures';
+import { contentment, creaturesIn, filteredTanks, KNOWS_KESTREL, tankDataFor, tanks, vigour } from '../game/creatures';
+import { drawDecor } from './tankDecor';
 import { traitsOf } from '../game/traits';
 import { CreatureData, PlantId, SaveData } from '../game/state';
 import { tankInner } from './basegfx';
@@ -27,6 +28,14 @@ interface Swimmer {
   retarget: number;
   rest: number;
   feeding: number;
+  /** Phase 21: 0..1 how content (playful when high, sluggish when low), refreshed now and then. */
+  mood: number;
+  /** Phase 21: a hand-fed treat it is going for. */
+  treat?: Flake;
+  /** Phase 21, living tanks: rising to break the surface, seconds until it may again, and the wake's timer. */
+  rising: boolean;
+  surfaceIn: number;
+  wakeIn: number;
 }
 
 interface Flake {
@@ -34,6 +43,8 @@ interface Flake {
   y: number;
   vy: number;
   life: number;
+  /** Phase 21: a hand-fed treat, for this creature only (bigger, and drawn as a pellet). */
+  for?: number;
 }
 
 interface TankView {
@@ -53,6 +64,12 @@ interface TankView {
   murkShown: number;
   water?: HabitatWater;
   filtered: boolean;
+  /** Phase 20: decorations on the sand (and the lantern's glow), keyed by what is placed. */
+  decorG: Container;
+  decorKey: string;
+  decorGlow: Container;
+  /** Where the sea chest sits (it lets out a bubble now and then). */
+  chestX: number | null;
 }
 
 export function drawPlant(kind: PlantId): Container {
@@ -125,6 +142,9 @@ export class TankLife {
   private views = new Map<number, TankView>();
   /** A creature to mark with a ring (the one picked in the care panel). */
   highlight: number | null = null;
+  /** Phase 21: where Kestrel is, so creatures that know him swim to the glass. Null: nobody near. */
+  kestrel: { x: number; y: number } | null = null;
+  private moodClock = 0;
   private ring = new Graphics();
   private readonly k: number;
 
@@ -180,13 +200,16 @@ export class TankLife {
           }
           glass.rect(box.x, box.y, box.w, 2).fill({ color: 0xffffff, alpha: 0.25 });
         }
-        root.addChild(plantG, flakesG, murk, bubblesG);
+        const decorG = new Container();
+        const decorGlow = new Container();
+        this.glow.addChild(decorGlow);
+        root.addChild(decorG, plantG, flakesG, murk, bubblesG);
         if (water) {
           root.addChildAt(water.back, 0);
           root.addChild(water.front);
         }
         this.view.addChild(root);
-        v = { id: t.id, root, plantG, plant: null, murk, glass, flakesG, bubblesG, flakes: [], bubbles: [], box, swimmers: new Map(), murkShown: -1, water, filtered: false };
+        v = { id: t.id, root, plantG, plant: null, murk, glass, flakesG, bubblesG, flakes: [], bubbles: [], box, swimmers: new Map(), murkShown: -1, water, filtered: false, decorG, decorKey: '', decorGlow, chestX: null };
         this.views.set(t.id, v);
       }
       v.filtered = filtered?.has(t.id) ?? false;
@@ -210,6 +233,31 @@ export class TankLife {
           p.scale.set(i % 2 && this.opts.clumps ? -sc : sc, sc);
           v.plantG.addChild(p);
         }
+      }
+      // Phase 20: decorations stand on the sand, spread out between the plants.
+      const decorKey = (td.decor ?? []).join(',');
+      if (decorKey !== v.decorKey) {
+        v.decorKey = decorKey;
+        v.decorG.removeChildren().forEach((c) => c.destroy({ children: true }));
+        v.decorGlow.removeChildren().forEach((c) => c.destroy());
+        v.chestX = null;
+        const list = td.decor ?? [];
+        const sc = Math.min(1.6, Math.max(0.55, v.box.h / 150)) * (this.opts.scale && this.opts.scale > 1 ? 1 : 1);
+        list.forEach((d, i) => {
+          const { view, glow } = drawDecor(d);
+          const u = (i + 0.5) / list.length * 0.8 + 0.1 + (i % 2 ? 0.04 : -0.04);
+          const x = v.box.x + v.box.w * u;
+          const y = v.box.y + v.box.h - 3 * this.k;
+          view.position.set(x, y);
+          view.scale.set((i % 2 ? -1 : 1) * sc, sc);
+          v.decorG.addChild(view);
+          if (glow) {
+            glow.position.set(x, y);
+            glow.scale.set(sc);
+            v.decorGlow.addChild(glow);
+          }
+          if (d === 'chest') v.chestX = x;
+        });
       }
       // Creatures.
       const here = creaturesIn(save, t.id);
@@ -245,6 +293,10 @@ export class TankLife {
           retarget: 0,
           rest: 0,
           feeding: 0,
+          mood: contentment(save, c).value,
+          rising: false,
+          surfaceIn: 4 + ((c.id * 7) % 9),
+          wakeIn: 0,
         };
         if (c.stage === 'egg') {
           s.x = eggX;
@@ -276,6 +328,22 @@ export class TankLife {
       v.flakes.push({ x: v.box.x + 20 * this.k + Math.random() * (v.box.w - 40 * this.k), y: v.box.y + 2 - Math.random() * 10 * this.k, vy: (8 + Math.random() * 10) * this.k, life: 7 + Math.random() * 3 });
   }
 
+  /**
+   * Phase 21: a treat from Kestrel's hand at the glass: one pellet drops in near the
+   * creature, which darts up to take it, with a ripple at the surface and a few bubbles.
+   */
+  handFeed(tankId: number, creatureId: number): void {
+    const v = this.views.get(tankId);
+    const s = v?.swimmers.get(creatureId);
+    if (!v || !s) return;
+    const x = Math.max(v.box.x + 12 * this.k, Math.min(v.box.x + v.box.w - 12 * this.k, s.x));
+    const f: Flake = { x, y: v.box.y + 6 * this.k, vy: 14 * this.k, life: 8, for: creatureId };
+    v.flakes.push(f);
+    s.treat = f;
+    v.water?.ripple(x, v.box.y + 4, 0, 18, 0.9);
+    for (let i = 0; i < 6; i++) v.bubbles.push({ x: x + (i - 3) * 3 * this.k, y: v.box.y + 14 * this.k + i * 2, r: (1 + (i % 3)) * this.k, life: 0.6 + i * 0.1 });
+  }
+
   /** Bubbles and a sparkle after cleaning the tank. */
   scrub(tankId: number): void {
     const v = this.views.get(tankId);
@@ -297,9 +365,18 @@ export class TankLife {
 
   update(dt: number, time: number, save: SaveData, viewX0: number, viewX1: number): void {
     this.ring.clear();
+    // Phase 21: moods change slowly, so they are refreshed a couple of times a second, not every frame.
+    this.moodClock -= dt;
+    const moods = this.moodClock <= 0;
+    if (moods) this.moodClock = 0.5;
     for (const v of this.views.values()) {
       const on = v.box.x + v.box.w > viewX0 - 100 && v.box.x < viewX1 + 100;
       v.root.visible = on;
+      v.decorGlow.visible = on;
+      if (moods) for (const s of v.swimmers.values()) s.mood = contentment(save, s.data).value;
+      // The sea chest lets a bubble slip out now and then.
+      if (on && v.chestX !== null && Math.random() < dt * 0.8)
+        v.bubbles.push({ x: v.chestX + (Math.random() - 0.5) * 10 * this.k, y: v.box.y + v.box.h - 20 * this.k, r: (1 + Math.random() * 1.6) * this.k, life: 2.5 });
       if (on) v.plantG.children.forEach((p, i) => (p.skew.x = Math.sin(time * 0.7 + i * 1.9 + v.id) * 0.07));
       const water = tankDataFor(save, v.id).water;
       v.water?.update(dt, time, water, v.filtered, on);
@@ -330,7 +407,7 @@ export class TankLife {
         if (v.water) f.x = Math.max(v.box.x + 3, Math.min(v.box.x + v.box.w - 3, f.x));
         let eaten = f.life <= 0;
         for (const s of v.swimmers.values()) {
-          if (s.stage === 'egg' || Math.hypot(s.x - f.x, s.y - f.y) >= 7 * this.k) continue;
+          if (s.stage === 'egg' || (f.for !== undefined && f.for !== s.data.id) || Math.hypot(s.x - f.x, s.y - f.y) >= (f.for !== undefined ? 12 : 7) * this.k) continue;
           eaten = true;
           if (v.water && f.life > 0) {
             s.feeding = 1;
@@ -341,7 +418,8 @@ export class TankLife {
           v.flakes.splice(i, 1);
           continue;
         }
-        if (on && v.water) fg.ellipse(f.x, f.y, 2 * this.k, 0.8 * this.k).fill({ color: 0xe3bc64, alpha: Math.min(1, f.life) });
+        if (on && f.for !== undefined) fg.circle(f.x, f.y, 2.6 * this.k).fill({ color: 0xd9894a, alpha: Math.min(1, f.life) }).circle(f.x - 0.8 * this.k, f.y - 0.8 * this.k, 0.9 * this.k).fill({ color: 0xffe2b0, alpha: Math.min(1, f.life) });
+        else if (on && v.water) fg.ellipse(f.x, f.y, 2 * this.k, 0.8 * this.k).fill({ color: 0xe3bc64, alpha: Math.min(1, f.life) });
         else if (on) fg.rect(f.x - 1.4 * this.k, f.y - 0.8 * this.k, 2.8 * this.k, 1.6 * this.k).fill({ color: 0xc9a24a, alpha: Math.min(1, f.life) });
       }
       const bg = v.bubblesG;
@@ -378,19 +456,40 @@ export class TankLife {
       const pad = (c.stage === 'grown' ? 22 : 16) * this.k;
       const sp = c.species;
       // Swim towards a sinking flake if there is one.
-      let flake: Flake | null = null;
+      let flake: Flake | null = s.treat && v.flakes.includes(s.treat) ? s.treat : null;
+      if (!flake) s.treat = undefined;
       let fd = 90 * this.k;
-      for (const f of v.flakes) {
-        const d = Math.hypot(f.x - s.x, f.y - s.y);
-        if (d < fd) {
-          fd = d;
-          flake = f;
+      if (!flake)
+        for (const f of v.flakes) {
+          if (f.for !== undefined && f.for !== c.id) continue;
+          const d = Math.hypot(f.x - s.x, f.y - s.y);
+          if (d < fd) {
+            fd = d;
+            flake = f;
+          }
         }
-      }
       s.retarget -= dt;
+      s.surfaceIn -= dt;
+      // Phase 21, living tanks: swimmers that live high in the water now and then rise to break the surface.
+      const surfacer = v.water && (sp === 'glowfin' || sp === 'puffcap' || sp === 'shrimp');
+      if (surfacer && !s.rising && s.surfaceIn <= 0 && s.mood > 0.45 && Math.random() < dt * 0.25) {
+        s.rising = true;
+        s.tx = Math.max(b.x + pad, Math.min(b.x + b.w - pad, s.x + (Math.random() - 0.5) * 60 * this.k));
+        s.ty = b.y + 2 * this.k;
+        s.retarget = 6;
+      }
+      // Phase 21: a creature that knows Kestrel swims to the glass on his side when he is near.
+      const kp = this.kestrel;
+      const greet = !flake && (c.bond ?? 0) >= KNOWS_KESTREL && !!kp && kp.x > b.x - 260 * this.k && kp.x < b.x + b.w + 260 * this.k && Math.abs(kp.y - (b.y + b.h / 2)) < b.h + 200 * this.k;
       if (flake) {
         s.tx = flake.x;
         s.ty = flake.y;
+      } else if (greet && kp) {
+        s.tx = Math.max(b.x + pad, Math.min(b.x + b.w - pad, kp.x + Math.sin(time * 1.3 + c.id) * 18 * this.k));
+        s.ty = Math.max(b.y + pad, Math.min(b.y + b.h - pad, kp.y + Math.cos(time * 1.1 + c.id) * 12 * this.k));
+        s.retarget = 0.5;
+      } else if (s.rising) {
+        // Keep heading up until it breaks the surface.
       } else if (s.retarget <= 0 || Math.hypot(s.tx - s.x, s.ty - s.y) < 8 * this.k) {
         s.tx = b.x + pad + Math.random() * (b.w - pad * 2);
         // Puffcaps drift high, rays keep low, glowfins swim the middle;
@@ -410,7 +509,13 @@ export class TankLife {
         ay = b.y + b.h - 12 * this.k - s.y;
         speed = 8 * this.k;
       }
-      if (flake) speed *= 1.6;
+      if (flake) speed *= s.treat ? 2.2 : 1.6;
+      // Phase 21: content creatures are playful (quicker, little loops); unhappy ones sluggish.
+      speed *= 0.65 + 0.6 * s.mood;
+      if (s.mood >= 0.85 && !flake && s.rest <= 0) {
+        ax += Math.cos(time * 2.4 + c.id) * 26 * this.k;
+        ay += Math.sin(time * 2.4 + c.id) * 18 * this.k;
+      }
       const l = Math.hypot(ax, ay) || 1;
       const k = 1 - Math.exp(-2 * dt);
       s.vx += ((ax / l) * speed - s.vx) * k;
@@ -418,7 +523,27 @@ export class TankLife {
       // Sick ones sink towards the floor.
       s.vy += sick * 6 * this.k * dt;
       s.x = Math.max(b.x + pad, Math.min(b.x + b.w - pad, s.x + s.vx * dt));
-      s.y = Math.max(b.y + pad * 0.8, Math.min(b.y + b.h - 10 * this.k, s.y + s.vy * dt));
+      const top = s.rising ? b.y + 4 * this.k : b.y + pad * 0.8;
+      s.y = Math.max(top, Math.min(b.y + b.h - 10 * this.k, s.y + s.vy * dt));
+      if (s.rising && (s.y <= b.y + 7 * this.k || flake)) {
+        // It breaks the surface: ripples run along the water line, droplets and bubbles. Then it dives again.
+        if (!flake && on) {
+          v.water?.surfaceBreak(s.x, Math.min(1.3, 0.6 + Math.hypot(s.vx, s.vy) / (40 * this.k)));
+          for (let i = 0; i < 5; i++) v.bubbles.push({ x: s.x + (i - 2) * 3 * this.k, y: b.y + 12 * this.k + i * 3 * this.k, r: (0.8 + (i % 3) * 0.6) * this.k, life: 0.5 + i * 0.08 });
+        }
+        s.rising = false;
+        s.surfaceIn = 10 + Math.random() * 14;
+        s.retarget = 0;
+        s.vy = Math.abs(s.vy) * 0.6;
+      }
+      // Its wake: motes stirred up behind it while it swims briskly (only where the tank is on screen).
+      s.wakeIn -= dt;
+      const speedNow = Math.hypot(s.vx, s.vy);
+      if (on && v.water && s.wakeIn <= 0 && speedNow > 12 * this.k) {
+        const l2 = speedNow || 1;
+        v.water.wake(s.x - (s.vx / l2) * 10 * this.k, s.y - (s.vy / l2) * 4 * this.k, s.vx, s.vy);
+        s.wakeIn = 0.12 + 1 / (1 + speedNow / (10 * this.k)) * 0.15;
+      }
     }
     s.critter.setVisible(on);
     if (!on) return;
