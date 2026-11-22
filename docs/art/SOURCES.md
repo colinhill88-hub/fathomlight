@@ -34,3 +34,12 @@ These were made in earlier sessions with other AI tools, which Colin used to gen
 | File | What | Tool | Date | Prompt (summary) | Edits |
 | --- | --- | --- | --- | --- | --- |
 | | | | | | |
+
+## Phases 20–21 (Session A, Nov 22, 2026)
+
+No generated images were added. This session's tool had no image generator, so the new art is drawn in code in the painterly style (layered lit and shadow shapes, rim light, barnacles and weed, warm colours only):
+- the eight tank decorations (`src/world/tankDecor.ts`);
+- the tanks' sand bed, pebbles and caustic light (`src/world/habitatWater.ts`);
+- creature portraits in the book and on cards, which are the real creature rigs rendered into small pictures (`src/ui/creatureSnap.ts`).
+
+Painted backdrops and substrate for the tank interiors are still welcome later (log them here).
