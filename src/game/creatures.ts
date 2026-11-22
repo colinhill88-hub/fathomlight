@@ -36,7 +36,8 @@ export interface SpeciesDef {
   plant: PlantId;
   /**
    * 'same': likes others of its kind. 'any': likes any tank-mate. 'space':
-   * prefers to be alone. 'clients' (milestone 7, the lantern shrimp): content
+   * needs room to drift: content while its tank is no more than half full
+   * (Colin, Nov 22, 2026: scales with the tank, see `driftRoom`). 'clients' (milestone 7, the lantern shrimp): content
    * when it has another species to clean.
    */
   company: 'same' | 'any' | 'space' | 'clients';
@@ -227,6 +228,14 @@ export const GTANK_CAPACITY = 8;
 export function tankCapacity(layout: BaseLayout, id: number): number {
   return layout.pieces.find((p) => p.id === id)?.kind === 'gtank' ? GTANK_CAPACITY : TANK_CAPACITY;
 }
+/**
+ * How many creatures a tank can hold while a puffcap still has room to drift
+ * (Colin, Nov 22, 2026): half its capacity, so it scales with the tank. A
+ * small tank keeps 2 as before, a Grand tank 4, and bigger or upgraded tanks more.
+ */
+export function driftRoom(capacity: number): number {
+  return Math.max(2, Math.floor(capacity / 2));
+}
 /** Tanks one filter pump can keep clean. */
 export const TANKS_PER_FILTER = 2;
 /** Kelp fibre per feed (it is ground into flakes). */
@@ -394,8 +403,10 @@ export function comfortTarget(save: SaveData, layout: BaseLayout, c: CreatureDat
     if (clients) t += 0.2;
     notes.push({ text: clients ? 'Has tank-mates to clean' : 'Idle: likes another species to clean', good: clients > 0 });
   } else {
-    if (mates.length <= 1) t += 0.2;
-    notes.push({ text: mates.length <= 1 ? 'Room to drift' : 'Crowded: likes space to drift', good: mates.length <= 1 });
+    const room = driftRoom(tankCapacity(layout, c.tank));
+    const roomy = mates.length + 1 <= room;
+    if (roomy) t += 0.2;
+    notes.push({ text: roomy ? 'Room to drift' : `Crowded: likes space to drift (at most ${room} in this tank)`, good: roomy });
   }
   if (c.species !== 'shrimp' && mates.some((m) => m.species === 'shrimp')) notes.push({ text: 'Kept clean by the lantern shrimp (more output)', good: true });
   const bad = mates.filter((m) => sp.dislikes.includes(m.species));

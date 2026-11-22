@@ -339,6 +339,26 @@ try {
     assert.equal(linneaPlan(bare).spot, 'forest');
   }
 
+  // ---- Puffcaps' room to drift scales with the tank (Colin, Nov 22, 2026) ----
+  {
+    assert.equal(care.driftRoom(care.TANK_CAPACITY), 2, 'A small tank: two puffcaps drift happily, as before');
+    assert.equal(care.driftRoom(care.GTANK_CAPACITY), 4, 'A Grand tank: four');
+    assert.equal(care.driftRoom(12), 6, 'Bigger tanks hold more');
+    const comfortOf = (kind, n) => {
+      const s = state.freshSave(0, 0);
+      const lay = new BaseLayout([{ id: 1, kind, gx: 0, gy: 0, rot: 0 }]);
+      lay.powered.add(1);
+      s.tankData[1] = { water: 1, plant: 'kelp' };
+      const made = [];
+      for (let i = 0; i < n; i++) made.push(care.newCreature(s, 'puffcap', 'grown', 1));
+      return care.comfortTarget(s, lay, made[0]).notes.find((x) => /drift/.test(x.text));
+    };
+    assert.equal(comfortOf('tank', 2).good, true);
+    assert.equal(comfortOf('tank', 3).good, false, 'Three is a crowd in a small tank');
+    assert.equal(comfortOf('gtank', 4).good, true, 'Four puffcaps have room in a Grand tank');
+    assert.equal(comfortOf('gtank', 5).good, false);
+  }
+
   // ---- Phase 19: combat inside the wrecks ----
   {
     const combat = await server.ssrLoadModule('/src/game/combat.ts');

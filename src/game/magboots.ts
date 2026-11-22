@@ -4,17 +4,17 @@
  * lets go. Clamped, Kestrel drops to the seabed and walks along it:
  *
  *  - slower than swimming, and the water's currents (the Wreck Shelf race, the
- *    vents' upflow) don't move her;
+ *    vents' upflow) don't move him;
  *  - Jump is a short, heavy hop;
- *  - walking off a ledge she sinks slowly with the boots still on, and lands
+ *  - walking off a ledge he sinks slowly with the boots still on, and lands
  *    with a thud (the size of the thud is reported, for the sound and silt);
- *  - she follows slopes and climbs small steps, and stops at walls.
+ *  - he follows slopes and climbs small steps, and stops at walls.
  *
  * Only the rule lives here (no drawing, no sound), so the Node checks in
  * scripts/test-progression.mjs can run it against the real terrain.
  *
  * (x, y) is the same point the swimming diver uses (the middle of the body),
- * so clamping on or letting go never moves her. The boots' soles are FOOT
+ * so clamping on or letting go never moves him. The boots' soles are FOOT
  * below it. Units are world units per second.
  */
 
@@ -74,7 +74,7 @@ function wallAt(x: number, y: number, solid: Solid): boolean {
   return solid(x, low);
 }
 
-/** Clamping on: find the floor under her now (she may be hanging well above it). */
+/** Clamping on: find the floor under him now (he may be hanging well above it). */
 export function magClamp(b: MagBody, solid: Solid): void {
   const f = floorBetween(b.x, b.y + MAG.foot - MAG.stepUp, b.y + MAG.foot + 2, solid);
   b.onFloor = f !== null;
@@ -110,7 +110,7 @@ export function magStep(b: MagBody, moveX: number, hop: boolean, dt: number, sol
     out.hopped = true;
   }
   if (b.onFloor) {
-    // Keep the soles on the floor: up a step or slope, down a slope; off an edge, she starts to sink.
+    // Keep the soles on the floor: up a step or slope, down a slope; off an edge, he starts to sink.
     const sole = b.y + MAG.foot;
     const f = floorBetween(b.x, sole - MAG.stepUp, sole + MAG.stepUp, solid);
     if (f === null) {

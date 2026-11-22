@@ -6,9 +6,9 @@ import type { SaveData } from './state';
  *
  *  - On foot, inside infested wreck sections only (the first is the Corvina's
  *    engine room). Never while swimming; never the sea's wildlife.
- *  - Kestrel's health is her suit integrity (the ring on the dive watch).
+ *  - Kestrel's health is his suit integrity (the ring on the dive watch).
  *    Hits crack it; out of a fight it seals itself again.
- *  - Losing is gentle: a blackout, then awake at the last safe lamp she
+ *  - Losing is gentle: a blackout, then awake at the last safe lamp he
  *    passed (or the section's door), keeping everything.
  *  - The hull keeper stays beaten once beaten (saved); the small machines
  *    rebuild themselves every time Kestrel comes back in.
@@ -42,14 +42,14 @@ export const RIVET = {
 export const BRACE = {
   /** A brace raised this recently when a hit lands is a perfect brace: no harm, and the attacker is knocked back. */
   perfect: 0.22,
-  /** Kestrel's height braced (crouched) and standing, for what passes over her. */
+  /** Kestrel's height braced (crouched) and standing, for what passes over him. */
   lowHeight: 52,
   height: 84,
   /** How long the attacker reels after a perfect brace. */
   stun: 1.3,
 };
 
-/** After a hit Kestrel can't be hit again for a moment (she flickers). */
+/** After a hit Kestrel can't be hit again for a moment (he flickers). */
 export const HURT_GRACE = 0.9;
 
 /** How much suit integrity each attack takes (1 is a whole suit). */

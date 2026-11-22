@@ -14,7 +14,7 @@ import type { FoeKind, FoeSpawn } from '../game/combat';
  * locker beside it.
  *
  * One tile is 40 units. Letters as in src/interior/corvina.ts, plus:
- *   K  a safe lamp (lit as Kestrel passes; after a blackout she wakes at the last one)
+ *   K  a safe lamp (lit as Kestrel passes; after a blackout he wakes at the last one)
  *   t  a rust tick      d  a weld drone (hovers above this spot)      h  the hull keeper
  *   Y  the shutter to the keeper's store (it lifts once the keeper is beaten)
  *   7  the chief engineer's log       $  the keeper's hoard of salvage

@@ -80,7 +80,7 @@ export interface FoeWorld {
   clear(ax: number, ay: number, bx: number, by: number): boolean;
 }
 
-/** Kestrel as the machines see her (set by the interior each frame). */
+/** Kestrel as the machines see him (set by the interior each frame). */
 export interface Hero {
   x: number;
   y: number;
@@ -429,7 +429,7 @@ export class FoeField {
     if (f.state !== 'idle') {
       f.face = dx >= 0 ? 1 : -1;
       const dist = Math.abs(dx);
-      // Keep its distance: back off when Kestrel comes close, close in when she's far.
+      // Keep its distance: back off when Kestrel comes close, close in when he's far.
       if (dist < DRONE.keepNear) wantX = f.x - f.face * 80;
       else if (dist > DRONE.keepFar) wantX = f.x + f.face * 80;
     } else wantX = f.homeX + Math.sin(f.t * 0.5) * 30;
@@ -451,7 +451,7 @@ export class FoeField {
         }
         break;
       case 'aim':
-        // The sighting line follows her, then holds still for the last moment: that's the cue to move.
+        // The sighting line follows him, then holds still for the last moment: that's the cue to move.
         if (f.t < DRONE.track) {
           f.aimX += (hero.x - f.aimX) * Math.min(1, dt * 10);
           f.aimY += (chestY - f.aimY) * Math.min(1, dt * 10);
@@ -537,7 +537,7 @@ export class FoeField {
           const r = resolveHit({ attack: 'charge', braced: hero.braced, braceAge: hero.braceAge, face: hero.face, fromX: f.x, x: hero.x });
           ev.push({ type: 'hurt', attack: 'charge', result: r, fromX: f.x, push: r === 'hit' ? 420 : 160 });
           if (r === 'hit') {
-            // It ran her down: no opening this time.
+            // It ran him down: no opening this time.
             f.state = 'walk';
             f.t = 0;
             f.vx = 0;
