@@ -19,6 +19,7 @@ const ROOTS = [
   '#save-code',
   '#pause-menu',
   '#read-panel',
+  '#creature-card',
   '#field-kit',
   '#contact',
   '#zone-map',

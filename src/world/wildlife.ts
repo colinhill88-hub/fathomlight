@@ -3,6 +3,7 @@ import { mulberry32, WORLD_SEED } from '../rng';
 import { groundY, isSolid, WORLD_H, WORLD_W } from './terrain';
 import { Critter } from '../actors/critters';
 import type { Traits } from '../game/traits';
+import { restockedLook } from '../game/collection';
 import { REGROW_SECONDS, SaveData, SpeciesId } from '../game/state';
 import type { PointLight } from './scenery';
 import type { FlowSample, WaterMotion } from '../scene/waterMotion';
@@ -389,6 +390,34 @@ export class Wildlife {
   private cachedTarget: Wild | null = null;
   private findTarget(): Wild | null {
     return this.cachedTarget;
+  }
+
+  /**
+   * Phase 21, restocking the reef: bred creatures you let go make their looks turn up in
+   * the wild. Every other wild creature of the species (eggs too, so a catch can carry it)
+   * takes one of the released looks; the rest keep their natural ones. Call on load and
+   * after a release. A creature caught from the wild takes the looks it shows.
+   */
+  applyRestock(save: SaveData): void {
+    const seen = new Map<SpeciesId, number>();
+    this.all.forEach((w, idx) => {
+      const i = seen.get(w.species) ?? 0;
+      seen.set(w.species, i + 1);
+      const look = restockedLook(save, w.species, i);
+      if (!look) return;
+      const t = w.critter.traits;
+      if (t.colour === look.colour && t.pattern === look.pattern && !!t.radiant === !!look.radiant) return;
+      const old = w.critter;
+      const fresh = new Critter(w.species, w.stage, idx + 31, look, this.living);
+      for (const [layer, a, b] of [[this.view, old.view, fresh.view], [this.emissive, old.emissive, fresh.emissive], [this.glow, old.glow, fresh.glow]] as const) {
+        const at = layer.getChildIndex(a);
+        layer.addChildAt(b, Math.max(0, at));
+        layer.removeChild(a);
+      }
+      fresh.setVisible(w.present);
+      old.destroy();
+      w.critter = fresh;
+    });
   }
 
   /** A released creature: if its spot is empty, it goes home at once. */
