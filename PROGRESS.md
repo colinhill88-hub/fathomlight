@@ -55,6 +55,8 @@ Full notes: [phase-19-wreck-combat.md](docs/phase-19-wreck-combat.md).
 - **Sound:** a synthesised warning for every attack, placed towards the machine, never muffled, dipping the soundtrack. There are also separate sounds for rivets, pings off armour, hits, blocks, the perfect brace, machines falling apart, the keeper's power-down, Kestrel's suit being hit and a lamp lighting. No sound files were added.
 - **Save:** only the optional `corvina.engine?: { taken }` is new. Old saves load untouched (checked in Node).
 
+**Also (Colin, before merging):** the Corvina's scan point moved. It used to be buried in her hull amidships and was hard to catch from outside. It now sits in open water just off her stern, beside the bollard and the deck hatch (the way in), so it's met on the way inside. Checked in Node (open water, clear of the upwelling, within scan reach of the bollard and hatch) and in `vite preview`: swimming east to the stern with real keys, the scanner offered the wreck and holding E logged it.
+
 **Validated:** `npm ci`, typecheck, build and the progression checks.
 
 The new Node checks cover:

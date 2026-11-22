@@ -402,6 +402,14 @@ try {
     assert.ok(Math.abs(at('E').tx - at('$').tx) * T > 60 && Math.abs(at('6').tx - at('$').tx) * T > 60, 'Door, locker and crate offers do not overlap');
     assert.ok(CORVINA_MAP.every((r) => r.length === 100), 'The Corvina keeps its size');
 
+    // The Corvina's scan point is in open water by her way in (Colin, before merging Phase 19).
+    {
+      const sp = { x: terrain.CV_HATCH.x - 120, y: terrain.CV_HATCH.y - 60 };
+      assert.equal(terrain.isSolid(sp.x, sp.y), false, 'The Corvina scan point is in open water');
+      assert.equal(terrain.cvUpwell(sp.x, sp.y), 0, 'It is clear of the upwelling over her deck');
+      assert.ok(Math.hypot(sp.x - terrain.CV_BOLLARD.x, sp.y - terrain.CV_BOLLARD.y) < 230, 'It is in scan reach of the bollard, the way in');
+      assert.ok(Math.hypot(sp.x - terrain.CV_HATCH.x, sp.y - terrain.CV_HATCH.y) < 230, 'and of the deck hatch');
+    }
     // The weapon comes the usual way: drawings, a Lab, the Workshop.
     assert.deepEqual(gearMod.RESEARCH.rivet.finds, ['rivetplans']);
     assert.equal(gearMod.GEAR.rivet.blueprint, 'rivet');

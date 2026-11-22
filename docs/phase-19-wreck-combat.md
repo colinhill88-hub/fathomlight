@@ -82,3 +82,7 @@ Kestrel's rivets play on `sfx`, so the room echo carries them. Hits, pings off a
 | `src/interior/combatLayer.ts` | Plugs the fight into the interior (`InteriorOptions.combat`): brace, shoot, hits, lamps, sparks, the shutter. |
 | `src/actors/walker.ts` | `guard`, `aim`, `aiming` and `kick`: the crouch, the raised forearm, the aiming arm and recoil, plus the driver and plate on the near forearm. `drawRivetDriver` and `drawGuardPlate` live in `src/actors/diver.ts` (the swimmer wears the driver too). |
 | `src/audio/director.ts` | `foe(cue, dx)`, `suitHit()`, `safeLamp()`. |
+
+## Also in this pull request
+
+The Corvina's scan point (`scanPoints.corvina` in `src/world/scenery.ts`) moved from inside her hull amidships to open water just off her stern, beside the bollard and deck hatch, so players meet it on the way in (Colin).
