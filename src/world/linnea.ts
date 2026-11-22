@@ -140,7 +140,7 @@ export class LinneaActor {
     this.view.position.set(this.x, this.y);
     this.glow.position.set(this.x, this.y);
     this.view.alpha = this.alpha;
-    this.glow.alpha = this.alpha * (0.55 + this.talkAmt * 0.35);
+    this.glow.alpha = this.alpha * (0.6 + this.talkAmt * 0.4);
     const h = this.headWorld();
     this.light.x = h.x;
     this.light.y = h.y;

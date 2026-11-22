@@ -26,16 +26,21 @@ export interface LinneaSpot {
   where: string;
 }
 
+/**
+ * Each spot is in open water and at least 190 units from any material or
+ * find, so Talk is never hidden behind a Collect for something else (pickups
+ * claim Collect within 72 units; she talks within 150).
+ */
 export const LINNEA_SPOTS: Record<LinneaSpotId, LinneaSpot> = {
   cliff: { id: 'cliff', x: 8330, lift: 110, face: -1, where: 'Sunlit Shallows, outside the dark cave in the east cliff' },
-  forest: { id: 'forest', x: 10060, lift: 150, face: -1, where: 'Kelp Forest, where the cliff cave comes out' },
-  caves: { id: 'caves', x: 14740, lift: 70, face: -1, where: 'Kelp Forest, outside the mouth of the kelp caves' },
+  forest: { id: 'forest', x: 10130, lift: 210, face: -1, where: 'Kelp Forest, where the cliff cave comes out' },
+  caves: { id: 'caves', x: 14560, lift: 110, face: -1, where: 'Kelp Forest, outside the mouth of the kelp caves' },
   shelf: { id: 'shelf', x: 19150, lift: 52, face: -1, where: 'the rock plateau above the race, at the edge of the Wreck Shelf' },
-  corvina: { id: 'corvina', x: 25300, lift: 64, face: -1, where: 'Wreck Shelf, outside the Corvina' },
+  corvina: { id: 'corvina', x: 25230, lift: 64, face: -1, where: 'Wreck Shelf, outside the Corvina' },
   rim: { id: 'rim', x: 26920, lift: 58, face: -1, where: 'the trench rim, where the Wreck Shelf ends' },
-  fulmar: { id: 'fulmar', x: 31080, lift: 70, face: -1, where: 'the trench floor, outside the Fulmar deep station' },
+  fulmar: { id: 'fulmar', x: 30990, lift: 170, face: -1, where: 'the trench floor, outside the Fulmar deep station' },
   sanctum: { id: 'sanctum', x: 32240, lift: 80, face: -1, where: 'the trench floor, by the round stone door' },
-  home: { id: 'home', x: 1250, lift: 130, face: -1, where: 'Sunlit Shallows, by the Kestrel buoy, after first contact' },
+  home: { id: 'home', x: 1250, lift: 210, face: -1, where: 'Sunlit Shallows, by the Kestrel buoy, after first contact' },
 };
 
 /** The order she moves through them (each one only while it is the current stage). */

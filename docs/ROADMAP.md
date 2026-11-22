@@ -4,7 +4,7 @@ Nov 21, 2026 · planned with Colin after Phase 14 (reward moments, PR #36)
 
 This is the agreed plan for work that is **not built yet**. Nothing here is implemented unless [Progress](../PROGRESS.md) says so. Read the [development handoff](AI_DEVELOPMENT_HANDOFF.md) before starting any of it, whichever AI tool you are. When a phase ships, move its entry into PROGRESS.md and mark it done here. Do not delete it.
 
-The order below is Colin's agreed phasing. Phases 15 and 16 are built. **Phase 17 is built** (on a branch with a pull request for Colin). **Phases 18 and 19 are agreed and ready to build** (planned with Colin on Nov 21, 2026, after Phase 16), each with a session prompt in `docs/prompts/`. Later items need a design pass with Colin before code. Ask him the open questions listed with each item.
+The order below is Colin's agreed phasing. Phases 15, 16 and 17 are built and merged. **Phase 18 is built** (on a branch with a pull request for Colin). **Phase 19 is agreed and ready to build** (planned with Colin on Nov 21, 2026, after Phase 16), each with a session prompt in `docs/prompts/`. Later items need a design pass with Colin before code. Ask him the open questions listed with each item.
 
 ## Colin's decisions (Nov 21, 2026)
 
@@ -129,7 +129,11 @@ Choices the session made (Colin can change them): the key is **N** (B was taken 
 - The diver's world position must stay stable when switching rigs. Air still runs as normal. No save field needed beyond what exists (the toggle doesn't need saving; start unclamped).
 - Check with real input in the race and on slopes, with keyboard, pad and touch. Update the progression audit if the race route changes.
 
-## Phase 18: Linnea, the axolotl guide. Not built.
+## Phase 18: Linnea, the axolotl guide. **Built** (see PROGRESS.md and [`phase-18-linnea.md`](phase-18-linnea.md)); waiting for Colin to play it and merge.
+
+**Decided with Colin during the session (Nov 21, 2026):** her look was approved from screenshots before the hints were wired up ("she's lovely"). All nine spots were confirmed: the dark east cliff, where the cliff cave comes out in the Kelp Forest (where she also mentions the boom's winch if KS-1 exists and the boom is shut, instead of a spot of its own), outside the kelp caves, above the race, outside the Corvina, the trench rim, outside the Fulmar, by the round stone door, and home by the Kestrel buoy after first contact. The hint wording was approved as written; every line is listed in the Phase 18 notes. Talk uses the Collect action (C, X on a pad, the Collect button on touch), so no new button.
+
+The original brief follows.
 
 **Session prompt:** [`docs/prompts/phase-18-linnea.md`](prompts/phase-18-linnea.md).
 

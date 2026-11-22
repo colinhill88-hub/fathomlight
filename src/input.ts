@@ -72,6 +72,8 @@ export class Input {
   private scanButton = false;
   private scanTapQueued = false;
   private collectButton = false;
+  /** Phase 18: a touch on Collect counts for at least one frame, however quick the tap. */
+  private collectTapQueued = false;
   private boardQueued = false;
   private flareQueued = false;
   private dartQueued = false;
@@ -259,6 +261,7 @@ export class Input {
       }
       colEl.classList.add('pressed');
       this.collectButton = true;
+      this.collectTapQueued = true;
     });
     const colUp = () => {
       colEl.classList.remove('pressed');
@@ -312,7 +315,8 @@ export class Input {
     }
 
     let scan = this.scanButton || held('scan');
-    let collect = this.collectButton || held('collect');
+    let collect = this.collectButton || this.collectTapQueued || held('collect');
+    this.collectTapQueued = false;
     // On foot, Space jumps and Shift sprints (Colin, after the terrain pass). In the water both still boost.
     let jumpHeld = this.boostButton || held('jump');
     let sprint = held('sprint') || (this.stickId !== null && this.stickFar);

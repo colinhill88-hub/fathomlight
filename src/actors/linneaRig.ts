@@ -156,8 +156,9 @@ export class LinneaRig {
     this.view.addChild(this.farLegs, this.fins, this.body, this.marks, this.head, this.nearLegs);
     this.head.addChildAt(this.farGills, 0);
     this.head.addChild(this.nearGills);
-    this.halo.ellipse(0, 0, 34, 26).fill({ color: 0xffb48c, alpha: 0.32 });
-    this.halo.ellipse(0, 0, 18, 14).fill({ color: 0xffc9a4, alpha: 0.3 });
+    // Faint: it only shows in dim water (it adds to Kestrel's lamp, so it must not wash her out).
+    this.halo.ellipse(0, 0, 34, 26).fill({ color: 0xffb48c, alpha: 0.14 });
+    this.halo.ellipse(0, 0, 18, 14).fill({ color: 0xffc9a4, alpha: 0.1 });
     batchAll(this.view);
     this.update({ dt: 0, time: 0, near: 0, talk: 0, mouth: 0, face: 1, speed: 0 });
   }
