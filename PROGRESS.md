@@ -36,7 +36,13 @@ Built from Colin's answers in the roadmap ("Colin's decisions (Nov 22, 2026)"). 
 
 **Checked:**
 - `npm ci`, typecheck, build and `node scripts/test-progression.mjs`. New checks in `scripts/test-rarity.mjs`: every species complete; the tiers sampled over 100,000–300,000 eggs (size 1 in 8, shapes 1 in 8 and 1 in 25, heirloom 1 in 100 from the 4th generation, Choir 1 in 150 only after contact); care doubling each; family inheritance; the planner matching breeding; wild forms; old and malformed creatures loading; book forms, hatch tiers and the forms reward; restocking; the song's tiers, the outstanding line and the companion rule.
-- In `vite preview` (fixture saves built by the session's Playwright scripts: a seeded base, positions in the trench and sanctum, creatures of many kinds): see the browser notes at the end of this section.
+- In `vite preview` (fixture saves built by the session's Playwright scripts: a seeded base via `__fathom.seedBase`, PS-2 and the resonator, Kestrel placed on the trench floor, in the antechamber or in the heart, creatures of many kinds and forms; the book was emptied so it refills from the creatures). No console errors in any of these:
+  - **keyboard:** E scanned a kiln eel and C coaxed a young one into the jar on the trench floor; I opened the Field kit, the Book showed the eel and seahorse pages and the rare forms row (tapping Heirloom line explained it and listed the eel); in the heart, keys 1–4 answered all three phrases, the companion (Pip, an heirloom glowfin in the jar) rose in its bubble beside Kestrel and answered, the Choir named 19 patterns in their colours with circling lights and an outer ring, all five lines played (including the outstanding line), and the credits rolled;
+  - **mouse:** the Hatchery's planner with two chime seahorses (size, shape and rare-shape odds); Keep on the hatching card of a Choir-touched baby;
+  - **a simulated gamepad:** View opened the kit and RB reached the Book (the page tab was then picked by a click);
+  - **iPhone 13 landscape touch:** the kit button, the Book tab, the eel and seahorse pages, tapping a rare form;
+  - also seen: the chime seahorses drifting in the antechamber, eels and seahorses (one Choir-touched) in a tank, the zoo.
+- **Not checked by the session:** sound (the eel's purr, the seahorse's chime, the companion's answer, the richer chords) cannot be heard in the test browser; a real gamepad's A/B/X/Y on the answer pads; the feel of the odds over a long real breeding run; the game runs at only a few frames a second in the test browser, so smoothness on the iPhone needs Colin's eyes.
 
 ### Phases 20 and 21 (Session A): creature care at the heart of the game (merged)
 

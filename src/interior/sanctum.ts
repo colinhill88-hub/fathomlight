@@ -24,6 +24,8 @@ export const HEART_W = 90;
 export const HEART_H = 34;
 /** The middle of the Choir's chamber, where the Choir rises (level units). */
 export const CHOIR_AT = { x: 14 * 40, y: 19 * 40 };
+/** Phase 23: the plinth where you answer (the map's '9'), for placing a companion beside it. */
+export const PLINTH_AT = { x: 13 * 40 + 20, y: 27 * 40 + 40 };
 
 export const HEART_MAP: string[] = (() => {
   const g: string[][] = Array.from({ length: HEART_H }, () => Array.from({ length: HEART_W }, () => '#'));
@@ -218,9 +220,9 @@ export class ChoirForm {
     if (this.bubble > 0.01) {
       const b = this.bubble;
       const { x: bx, y: by } = this.bubbleAt;
-      de.circle(bx, by, 34 * b).fill({ color: this.bubbleColour, alpha: 0.14 * b });
-      de.circle(bx, by, 34 * b).stroke({ color: 0xe8f0ff, width: 1.4, alpha: 0.55 * b });
-      de.circle(bx - 12 * b, by - 14 * b, 5 * b).fill({ color: 0xffffff, alpha: 0.35 * b });
+      de.circle(bx, by, 56 * b).fill({ color: this.bubbleColour, alpha: 0.14 * b });
+      de.circle(bx, by, 56 * b).stroke({ color: 0xe8f0ff, width: 1.6, alpha: 0.55 * b });
+      de.circle(bx - 20 * b, by - 22 * b, 7 * b).fill({ color: 0xffffff, alpha: 0.35 * b });
     }
   }
 

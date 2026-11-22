@@ -163,7 +163,7 @@ import { CombatLayer } from './interior/combatLayer';
 import { KEEPER_BEATEN, WAKE_SUIT, afterHit, combatOn, engineDoorOpen, mendSuit } from './game/combat';
 import { BaseCtx, BaseHooks, OCEAN_POOL_DEPTH, baseSignature, buildBaseLevel } from './interior/baselevel';
 import { SCAN_ENTRIES } from './game/scanner';
-import { CHOIR_AT, ChoirForm, HEART_MAP, heartOptions } from './interior/sanctum';
+import { CHOIR_AT, ChoirForm, HEART_MAP, heartOptions, PLINTH_AT } from './interior/sanctum';
 import { Contact, type ContactCompanion, type ContactWord } from './ui/contact';
 import { choirSong, companion, companionWord, type ChoirSong } from './game/choirSong';
 import { markSeen, ZoneMap } from './ui/zonemap';
@@ -5209,13 +5209,17 @@ async function boot(): Promise<void> {
       // Phase 23: the companion floats in its bubble of light beside Kestrel, glowing as it answers.
       const k = contact.companionK;
       mateCritter.setVisible(k > 0.02);
-      const toward = Math.sign(CHOIR_AT.x - interior.walker.x) || 1;
-      const mx = interior.walker.x + toward * 46;
-      const my = interior.walker.y - 70 - k * 30 + Math.sin(time * 1.6) * 3;
+      // Beside Kestrel at the plinth (or beside the plinth, if he has wandered off).
+      const near = Math.abs(interior.walker.x - PLINTH_AT.x) < 260 && Math.abs(interior.walker.y - PLINTH_AT.y) < 200;
+      const ax = near ? interior.walker.x : PLINTH_AT.x;
+      const ay = near ? interior.walker.y : PLINTH_AT.y;
+      const toward = Math.sign(CHOIR_AT.x - ax) || 1;
+      const mx = ax + toward * 64;
+      const my = ay - 90 - k * 50 + Math.sin(time * 1.6) * 3;
       choir.bubbleAt.x = mx;
       choir.bubbleAt.y = my;
       const g = contact.companionGlow;
-      mateCritter.update(dt, time, mx, my, toward * (8 + g * 20), 0, { vigour: 0.6 + g * 0.4, sick: 0, size: Math.max(0.05, k) * 1.1, notice: g });
+      mateCritter.update(dt, time, mx, my, toward * (8 + g * 20), 0, { vigour: 0.6 + g * 0.4, sick: 0, size: Math.max(0.05, k) * 1.9, notice: g });
       mateCritter.glow.alpha = 0.6 + g * 0.8;
     }
     const frozen = care.active || hatchPanel.active || station.active || contact.active || knockout > 0;

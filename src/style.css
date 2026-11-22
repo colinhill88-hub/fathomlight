@@ -3154,7 +3154,7 @@ body.on-foot #depth-chip {
 @keyframes contact-word {
   0% { opacity: 0; transform: translateX(-50%) translateY(4px); }
   25% { opacity: 1; transform: translateX(-50%) translateY(0); }
-  100% { opacity: 0.25; transform: translateX(-50%) translateY(-3px); }
+  100% { opacity: 0.6; transform: translateX(-50%) translateY(-3px); }
 }
 #contact .contact-pads {
   position: absolute;
