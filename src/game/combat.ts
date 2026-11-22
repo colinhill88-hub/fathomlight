@@ -64,7 +64,7 @@ export const DAMAGE: Record<string, number> = {
 export const FOE_HP: Record<FoeKind, number> = { tick: 2, drone: 2, keeper: 5 };
 
 /** Timings of each foe's moves (seconds) and speeds (units/s). */
-export const TICK = { sight: 360, speed: 150, tell: 0.55, lunge: 0.42, lungeSpeed: 640, lungeHop: 230, flipped: 1.1, rest: 0.6, height: 26, halfW: 16 };
+export const TICK = { sight: 360, speed: 150, tell: 0.55, lunge: 0.42, lungeSpeed: 640, lungeHop: 230, flipped: 1.1, rest: 0.6, height: 26, halfW: 16, climb: 680 };
 export const DRONE = { sight: 640, hover: 150, keepNear: 240, keepFar: 430, speed: 120, track: 0.75, lock: 0.4, boltSpeed: 720, cool: 1.1, rest: 1.4, halfW: 18 };
 export const KEEPER = { sight: 700, speed: 62, slamRange: 170, chargeRange: 640, windSlam: 0.95, windCharge: 0.85, chargeSpeed: 540, chargeMax: 1.3, waveSpeed: 430, waveLife: 1.7, waveHeight: 30, stuck: 1.7, stagger: 2.4, rest: 0.9, halfW: 42, height: 118 };
 

@@ -151,7 +151,16 @@ The original brief follows.
 - **Save:** optional new fields only (for example which of her spots you've met), with safe defaults.
 - Not decided yet (the session asks Colin, or picks a sensible default and says so): the full list of her spots and the hint wording for each stage.
 
-## Phase 19: combat inside the wrecks. Not built; the design is agreed in outline.
+## Phase 19: combat inside the wrecks. First section built (pull request); more sections wait for Colin's notes.
+
+**Built (Nov 22, 2026):** the Corvina's engine room, the Rivet driver RD-1, the rust tick, the weld drone and the hull keeper. Also bracing and ducking, safe lamps, a gentle blackout, warning sounds, and the Shoot action and touch button. See [the Phase 19 notes](phase-19-wreck-combat.md) and PROGRESS.md.
+- **Still to do after Colin plays it:**
+  - tune by feel: damage, timings, the perfect-brace window, the soft aim;
+  - decide how many more sections, and in which wrecks (the Fulmar is next in line);
+  - decide whether the keeper becomes a Corvina climax;
+  - decide whether a gamepad button should also brace.
+
+The open questions below were answered at the start of the session (see "Colin's decisions").
 
 **Session prompt:** [`docs/prompts/phase-19-wreck-combat.md`](prompts/phase-19-wreck-combat.md). Probably more than one session: the first builds the weapon, two or three enemy types and one infested section of a wreck to play, then Colin plays it before more is built.
 

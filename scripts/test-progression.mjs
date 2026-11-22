@@ -466,6 +466,16 @@ try {
       assert.ok(!evs.some((e) => e.type === 'hurt' && e.result === 'hit'), 'A raised guard turns the lunge');
       assert.ok(evs.some((e) => e.type === 'hurt' && e.result === 'perfect'), 'Braced just as it lands: a perfect brace');
     }
+    // A crate between them: the tick never lunges into it; it climbs over and comes on.
+    {
+      const crate = { tile: T, solid: (x, y) => y >= 400 || x < 0 || x > 2000 || (x >= 400 && x < 440 && y >= 360), clear: (ax, ay, bx, by) => { for (let k = 1; k < 20; k++) { const x = ax + (bx - ax) * k / 20; const y = ay + (by - ay) * k / 20; if (x >= 400 && x < 440 && y >= 360) return false; } return true; } };
+      const f = new foesMod.FoeField(crate, [0]);
+      f.reset([{ id: 't', kind: 'tick', x: 560, y: 400, room: 0 }]);
+      const h = hero({ x: 200, grace: 999 });
+      let over = false;
+      for (let t = 0; t < 6 && !over; t += 1 / 60) { f.step(1 / 60, h, []); if (f.foes[0].x < 400) over = true; }
+      assert.ok(over, 'A tick climbs over a crate between it and Kestrel');
+    }
     // Rivets: soft aim finds the tick; two hits and it falls apart.
     {
       const f = new foesMod.FoeField(world, [0]);

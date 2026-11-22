@@ -358,9 +358,12 @@ export class FoeField {
         break;
       case 'chase': {
         f.face = dx >= 0 ? 1 : -1;
-        const want = Math.abs(dx) > 150 ? f.face * TICK.speed : Math.abs(dx) < 90 ? -f.face * TICK.speed * 0.6 : 0;
+        // It keeps its distance in the open, but comes on (and over) when a crate stands between them.
+        const open = this.world.clear(f.x, f.y - 12, hero.x, hero.y - 12);
+        const want = !open || Math.abs(dx) > 150 ? f.face * TICK.speed : Math.abs(dx) < 90 ? -f.face * TICK.speed * 0.6 : 0;
         f.vx += (want - f.vx) * Math.min(1, dt * 8);
-        if (f.rest <= 0 && Math.abs(dx) < 260 && Math.abs(hero.y - f.y) < 50 && f.onGround) {
+        // Only lunge along a clear floor (never into a crate between them).
+        if (f.rest <= 0 && Math.abs(dx) < 260 && hero.y - f.y > -50 && hero.y - f.y < 100 && f.onGround && this.world.clear(f.x, f.y - 12, hero.x, hero.y - 30)) {
           f.state = 'tell';
           f.t = 0;
           f.vx = 0;
@@ -409,7 +412,12 @@ export class FoeField {
         }
         break;
     }
-    this.walk(f, dt, TICK.halfW, minX, maxX);
+    const blocked = this.walk(f, dt, TICK.halfW, minX, maxX);
+    // Chasing into a crate: it scrambles up and over.
+    if (blocked && f.state === 'chase' && f.onGround) {
+      f.vy = -TICK.climb;
+      f.onGround = false;
+    }
   }
 
   private drone(f: Foe, dt: number, hero: Hero, ev: FoeEvent[]): void {

@@ -73,6 +73,15 @@ There is no need to support older or low-end devices. If an effect has to be cut
 - **The Corvina** was the first (her insides as a multi-deck dungeon). **The base is walkable** (parts 1 and 2 built: rooms from the layout, ceiling conveyors and pipes with moving items, the moon pool as a second entry, lifts for tall shafts, whorls fitted from inside) (Colin's choice: everything indoors, machines included), with larger, more detailed pieces whose layout must make sense to walk through. Save compatibility does not matter for that rework: Colin will playtest from scratch.
 - **Logs and documents** open in a reading panel that stays until closed, and stay in the scanner log.
 - **Combat on foot (Colin, Nov 21, 2026; planned as Phase 19, see the [roadmap](docs/ROADMAP.md)).** Parts of the wrecks are infested by small mechanical robots and drones and by creatures made of rust and wreckage. They are never the sea's wildlife: the game is about caring for creatures, so Kestrel never fights animals. Fights are about reading moves and timing: each enemy telegraphs its attacks, and Kestrel answers with a shot, a block or brace, a duck or a dodge behind cover, as in good 2D side-scrollers (Ori is the reference for *feel* only). Kestrel earns a weapon that mounts visibly on the suit and changes the silhouette, like the tanks, pressure suits and grapple, growing from the harpoon's design. Losing is gentle: a blackout, then back at the wreck's entrance or the last safe platform, with nothing lost. Touch gets one extra button: Shoot.
+  - **First section built (Phase 19, Colin's choices of Nov 22, 2026).**
+    - **The weapon:** the **Rivet driver RD-1**, a forearm launcher grown from the harpoon. It fires glowing hot rivets, and its guard plate folds out to brace behind.
+    - **Health:** suit integrity, which seals itself between fights.
+    - **Enemies:** the Corvina's old hull-cleaning machines, rebuilt from rust. They are the rust tick, the weld drone and the hull keeper, and each telegraphs its attacks.
+    - **Respawning:** the hull keeper stays beaten; the small machines rebuild on every visit.
+    - **Where:** an optional, new engine room behind a welded door in the Corvina's hold.
+    - **Losing:** you wake by the last lit safe lamp.
+
+    Details: [Phase 19 notes](docs/phase-19-wreck-combat.md).
 
 ## Game systems
 
