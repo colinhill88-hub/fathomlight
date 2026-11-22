@@ -54,8 +54,9 @@ export abstract class ShoreRig {
 export class PuffcapRig extends ShoreRig {
   private readonly bell = new Container();
   private readonly ribbons: { root: Container; tip: Container; baseX: number }[] = [];
+  private readonly crown: Container[] = [];
 
-  constructor(young: boolean, pattern: number, phase: number) {
+  constructor(young: boolean, pattern: number, phase: number, shape = 0) {
     super(phase);
     const radius = young ? 23 : 34;
     const height = young ? 13 : 22;
@@ -89,6 +90,28 @@ export class PuffcapRig extends ShoreRig {
     }
     this.view.addChild(this.bell);
     this.bell.addChild(cup);
+    if (shape === 1) {
+      // Lace rim: a second, finer frill of scallops round the bell's edge.
+      const lace = new Graphics();
+      const n = young ? 9 : 13;
+      for (let i = 0; i < n; i++) {
+        const x = -radius + (i + 0.5) * (radius * 2) / n;
+        const y = 4 + Math.sin((i / (n - 1)) * Math.PI) * 6;
+        lace.circle(x, y, radius / n * 1.05).fill({ color: 0xffd8c0, alpha: 0.55 }).circle(x, y, radius / n * 0.45).fill({ color: 0xfff0e0, alpha: 0.6 });
+      }
+      this.bell.addChild(lace);
+    } else if (shape === 2) {
+      // Crowned bell: soft lobes standing up round the top, each swaying on its own.
+      for (let i = 0; i < 5; i++) {
+        const u = (i - 2) / 2;
+        const lobe = joint(this.bell, u * radius * 0.5, -height * (1.1 - u * u * 0.18));
+        const h = (young ? 7 : 12) * (1 - Math.abs(u) * 0.3);
+        lobe.addChild(new Graphics().moveTo(-3, 1).quadraticCurveTo(-4.5, -h * 0.7, 0, -h).quadraticCurveTo(4.5, -h * 0.7, 3, 1).closePath().fill({ color: 0xeaa58c, alpha: 0.9 })
+          .circle(0, -h + 1.6, 1.6).fill({ color: 0xffe2b0, alpha: 0.9 }));
+        lobe.rotation = u * 0.35;
+        this.crown.push(lobe);
+      }
+    }
     for (let i = 0; i < 7; i++) {
       const u = (i - 3) / 3;
       const x = radius * u * 0.79;
@@ -111,6 +134,7 @@ export class PuffcapRig extends ShoreRig {
     this.halo.scale.copyFrom(this.bell.scale);
     this.offset = -squeeze * 4;
     this.angle = Math.sin(p.time * 0.62) * 0.12 + p.flow * 0.23;
+    this.crown.forEach((lobe, i) => { lobe.rotation = (i - 2) * 0.17 + Math.sin(p.time * 1.7 + i) * 0.12 - squeeze * (i - 2) * 0.1; });
     this.ribbons.forEach(({ root, tip, baseX }, i) => {
       const u = i / (this.ribbons.length - 1) * 2 - 1;
       const lag = Math.sin(this.phase * Math.PI * 2 - i * 0.38 - 0.9);
@@ -130,8 +154,9 @@ export class TinkerRig extends ShoreRig {
   private readonly eyes: Container;
   private readonly shoulder = new Container();
   private readonly footY = 7;
+  private readonly crest = new Container();
 
-  constructor(young: boolean, pattern: number, phase: number) {
+  constructor(young: boolean, pattern: number, phase: number, shape = 0) {
     super(phase);
     const count = young ? 3 : 4;
     for (const far of [true, false]) {
@@ -157,7 +182,33 @@ export class TinkerRig extends ShoreRig {
       .poly([-9, crown + 7, -4, crown + 1, 7, crown + 8, 4, -6, -6, -8]).fill(0xd28f79)
       .poly([8, crown + 8, 16, crown + 5, 19, -8, 6, -6]).fill(0xad625c)
       .moveTo(-20, -7).quadraticCurveTo(-1, 2, 20, -9).stroke({ color: 0xe39d79, width: 2.4, alpha: 0.87 });
+    if (shape === 2) {
+      // Fan crest: a ribbed fan rising from the back of the shell (behind it).
+      this.crest.position.set(-12, crown + 6);
+      const fan = new Graphics();
+      const R = young ? 12 : 19;
+      fan.moveTo(0, 0);
+      for (let k = 0; k <= 8; k++) {
+        const a = -Math.PI * 0.95 + (k / 8) * Math.PI * 0.75;
+        fan.lineTo(Math.cos(a) * R * (k % 2 ? 0.86 : 1), Math.sin(a) * R * (k % 2 ? 0.86 : 1));
+      }
+      fan.closePath().fill(0xb46a64);
+      for (let k = 0; k <= 4; k++) {
+        const a = -Math.PI * 0.95 + (k / 4) * Math.PI * 0.75;
+        fan.moveTo(0, 0).lineTo(Math.cos(a) * R * 0.95, Math.sin(a) * R * 0.95).stroke({ color: 0xe9a985, width: 1.3, alpha: 0.85 });
+      }
+      this.crest.addChild(fan);
+      this.shell.addChild(this.crest);
+    }
     this.shell.addChild(armor);
+    if (shape === 1) {
+      // Spiked shell: a row of blunt spines along the top.
+      const sp = new Graphics();
+      for (const [x, y, h] of [[-22, crown + 5, 6], [-14, crown + 5, 7], [-5, crown + 1, 8], [5, crown + 5, 7], [14, crown + 4, 6]] as const)
+        sp.moveTo(x - 2.6, y + 1).lineTo(x + 0.5, y - h * (young ? 0.6 : 1)).lineTo(x + 2.8, y + 1.5).closePath().fill(0xa45c5a)
+          .moveTo(x - 0.6, y).lineTo(x + 0.4, y - h * (young ? 0.5 : 0.85)).stroke({ color: 0xe8a684, width: 0.9, alpha: 0.8 });
+      this.shell.addChild(sp);
+    }
     this.eyes = joint(this.shell, 16, -13);
     for (const [x, y] of [[1, -6], [6, -1]]) {
       this.eyes.addChild(new Graphics().moveTo(-2, 7).lineTo(x, y).stroke({ color: 0x704553, width: 2.7 })
@@ -190,6 +241,7 @@ export class TinkerRig extends ShoreRig {
     this.eyes.rotation = -p.curious * 0.24 + Math.sin(p.time * 0.9) * 0.13 + p.flow * 0.13;
     this.eye.x = 16 + 6 * Math.cos(this.eyes.rotation) + Math.sin(this.eyes.rotation);
     this.eye.y = -13 + bodyY + 6 * Math.sin(this.eyes.rotation) - Math.cos(this.eyes.rotation);
+    this.crest.rotation = Math.sin(p.time * 0.8) * 0.05 + brace * 0.2;
     this.claw.rotation = -0.22 + probe * 0.46 - p.curious * 0.48 + brace * 0.59 + p.feeding * 0.52;
     this.finger.rotation = 0.16 + probe * (0.28 + Math.sin(p.time * 12) * 0.2) + p.curious * 0.38 + p.feeding * Math.sin(p.time * 14) * 0.24;
     this.legs.forEach(({ limb, shin, foot, far }, i) => {
@@ -214,11 +266,13 @@ export class LanternShrimpRig extends ShoreRig {
   private readonly feelers: { base: Container; tip: Container }[] = [];
   private readonly fans: Container[] = [];
   private readonly mask = new Container();
+  private readonly whips: Container[] = [];
+  private plume: Container | null = null;
   private tuck = 0;
   private previousSpeed = 0;
   private tailTime = 0;
 
-  constructor(young: boolean, pattern: number, phase: number) {
+  constructor(young: boolean, pattern: number, phase: number, shape = 0) {
     super(phase);
     const count = young ? 3 : 5;
     let end = joint(this.view, -4, -3);
@@ -237,6 +291,22 @@ export class LanternShrimpRig extends ShoreRig {
       .quadraticCurveTo(-25, 6, -18, 14).quadraticCurveTo(-11, 18, 1, 0).fill(0xc7787e)
       .moveTo(-2, 0).lineTo(-17, -11).moveTo(-2, 0).lineTo(-16, 11).stroke({ color: 0xffceaa, width: 1.8, alpha: 0.8 }));
     this.abdomen.push(end);
+    if (shape === 2) {
+      // Plume tail: a feathery fan beyond the tail.
+      const plume = this.plume = joint(end, -16, 0);
+      const g = new Graphics();
+      for (const a of [-0.7, -0.35, 0, 0.35, 0.7]) {
+        const ex = -Math.cos(a) * (young ? 12 : 19);
+        const ey = Math.sin(a) * (young ? 12 : 19);
+        g.moveTo(0, 0).quadraticCurveTo(ex * 0.5, ey * 0.3, ex, ey).stroke({ color: 0xe9a596, width: 1.6, alpha: 0.85 });
+        for (let k = 1; k <= 4; k++) {
+          const px = (ex * k) / 5;
+          const py = (ey * k) / 5;
+          g.moveTo(px, py).lineTo(px - 2.5, py - 2.4).moveTo(px, py).lineTo(px - 2.5, py + 2.4).stroke({ color: 0xffd0b4, width: 0.8, alpha: 0.7 });
+        }
+      }
+      plume.addChild(g);
+    }
     this.view.addChild(this.mask);
     this.mask.addChild(new Graphics().moveTo(-9, -7).quadraticCurveTo(6, -22, 22, -11).lineTo(34, -10)
       .lineTo(25, -3).quadraticCurveTo(18, 14, 2, 12).quadraticCurveTo(-10, 8, -9, -7).fill(0x8c4e6c)
@@ -256,6 +326,13 @@ export class LanternShrimpRig extends ShoreRig {
       const tip = joint(base, length, -13 - i * 6);
       tip.addChild(new Graphics().moveTo(-1, 0).quadraticCurveTo(11, -5, young ? 16 : 23, -1)
         .stroke({ color: 0xffcfab, width: 1.2, alpha: 0.83 }));
+      if (shape === 1) {
+        // Long whips: each feeler goes on, twice as far, in a fine trailing whip.
+        const whip = joint(tip, young ? 16 : 23, -1);
+        whip.addChild(new Graphics().moveTo(0, 0).quadraticCurveTo(14, 4, young ? 24 : 36, -2).quadraticCurveTo(young ? 30 : 44, -5, young ? 34 : 50, 1)
+          .stroke({ color: 0xffd8b8, width: 0.9, alpha: 0.75 }));
+        this.whips.push(whip);
+      }
       this.feelers.push({ base, tip });
     }
     for (let i = 0; i < 4; i++) {
@@ -292,6 +369,8 @@ export class LanternShrimpRig extends ShoreRig {
     this.stroke.y = y - Math.sin(angle) * 13;
     if (this.tailTime > 0.32 && this.tailTime - p.dt <= 0.32) this.stroke.strength = 0.46;
     this.fans.forEach((fan, i) => { fan.rotation = Math.sin(this.phase * Math.PI * 2 - i * 1.5) * 0.57 - this.tuck * 0.8; });
+    this.whips.forEach((w, i) => { w.rotation = Math.sin(p.time * 2.9 - i * 1.2) * 0.35 + this.tuck * 0.6 + p.flow * 0.6; });
+    if (this.plume) this.plume.rotation = Math.sin(p.time * 3.2) * 0.18 - this.tuck * 0.5;
     this.feelers.forEach(({ base, tip }, i) => {
       base.rotation = Math.sin(p.time * 1.8 - i * 1.8) * 0.19 + p.curious * 0.37 - this.tuck * 0.64 + p.flow * 0.24 + p.feeding * 0.36;
       tip.rotation = Math.sin(p.time * 2.5 - i * 1.45) * 0.29 + this.tuck * 0.54 + p.flow * 0.5;
@@ -307,7 +386,7 @@ export class CinderRig extends ShoreRig {
   private readonly frill: Container[] = [];
   private readonly eyeHeight: number;
 
-  constructor(young: boolean, pattern: number, phase: number) {
+  constructor(young: boolean, pattern: number, phase: number, shape = 0) {
     super(phase);
     this.eyeHeight = young ? 10 : 15;
     this.head = joint(this.view, 13, 0);
@@ -336,7 +415,29 @@ export class CinderRig extends ShoreRig {
       edge.moveTo(-18 - i, y - 3).quadraticCurveTo(-10, y + 6, -2 + i * 3, y - 1)
         .stroke({ color: i % 2 ? 0x453733 : 0xbd8968, width: 2.6, alpha: 0.8 });
     }
+    if (shape === 1) {
+      // Tall spire: the coil winds up into a long tapering spire (behind the shell's face).
+      const sh = young ? 13 : 24;
+      const spire = new Graphics().moveTo(-17, -h + 8).lineTo(-9, -h - sh).lineTo(1, -h + 6).closePath().fill(0x4d3832);
+      for (let i = 1; i < 4; i++) {
+        const y = -h + 6 - (i * (sh + 6)) / 4;
+        const w = 9 * (1 - i / 4.4);
+        spire.moveTo(-9 - w, y + 2).quadraticCurveTo(-9, y - 1, -9 + w, y + 1).stroke({ color: 0xa7765c, width: 1.6, alpha: 0.8 });
+      }
+      this.shell.addChild(spire);
+    }
     this.shell.addChild(edge);
+    if (shape === 2) {
+      // Fluted shell: flared, wavy flutes along the shell's back edge.
+      const fl = new Graphics();
+      for (let i = 0; i < 5; i++) {
+        const y = -h * 0.85 + i * h * 0.19;
+        const x = -24 - Math.sin((i / 4) * Math.PI) * 6;
+        fl.moveTo(x + 6, y - 3).quadraticCurveTo(x - 7, y - 4, x - 8, y + 2).quadraticCurveTo(x - 2, y + 4, x + 6, y + 3).closePath().fill(0x7a5848)
+          .moveTo(x + 4, y).lineTo(x - 6, y + 1).stroke({ color: 0xd09a74, width: 1, alpha: 0.8 });
+      }
+      this.shell.addChild(fl);
+    }
     for (let i = 0; i < 5; i++) {
       const lobe = joint(this.view, -19 + i * 8, 3);
       lobe.addChild(new Graphics().ellipse(0, 1, 5.2, 2.2).fill(0x96755e));

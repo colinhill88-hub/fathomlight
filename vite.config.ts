@@ -12,7 +12,7 @@ export default defineConfig({
   build: {
     target: 'es2022',
     chunkSizeWarningLimit: 1500,
-    // animlab.html: the character animation lab (src/dev/animlab.ts), also on the play link.
-    rollupOptions: { input: { main: 'index.html', animlab: 'animlab.html' } },
+    // animlab.html: the character animation lab (src/dev/animlab.ts); zoo.html: every creature in every form (src/dev/zoo.ts). Both on the play link.
+    rollupOptions: { input: { main: 'index.html', animlab: 'animlab.html', zoo: 'zoo.html' } },
   },
 });

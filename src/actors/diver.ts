@@ -1,3 +1,4 @@
+import type { SpeciesId } from '../game/state';
 import { Container, Graphics, Point, Sprite, Text, type Texture } from 'pixi.js';
 import { isSolid } from '../world/terrain';
 import { mulberry32 } from '../rng';
@@ -622,7 +623,7 @@ export function buildDiveBag(): Container {
 
 /** What the specimen jar holds, for the jar on the belt. */
 export interface JarLook {
-  species: 'glowfin' | 'puffcap' | 'ray' | 'crab' | 'shrimp' | 'snail';
+  species: SpeciesId;
   stage: 'egg' | 'young' | 'grown';
 }
 
@@ -634,6 +635,9 @@ const JAR_TINT: Record<JarLook['species'], { body: number; fin: number; glow?: n
   shrimp: { body: 0xff9a92, fin: 0xd0605a },
   // Milestone 10's cinder snail: iron scales with ember-lit seams.
   snail: { body: 0x5a524a, fin: 0x2e2a26, glow: 0xff8a3a },
+  // Phase 22: the kiln eel (sooty, ember lights) and the chime seahorse (ivory, pearl glow).
+  eel: { body: 0x4a3e38, fin: 0x2a221e, glow: 0xffa04a },
+  horse: { body: 0xe6dcc8, fin: 0xa8977c, glow: 0xfff0c0 },
 };
 
 /**
@@ -696,6 +700,12 @@ export class BeltJar {
           g.circle(-0.4, 8.6, 2.6 * sc).fill({ color: t.body });
           g.circle(-0.4, 8.6, 2.6 * sc).stroke({ color: t.glow!, width: 0.6, alpha: 0.9 });
           g.circle(-0.4, 8.6, 1.2 * sc).stroke({ color: t.glow!, width: 0.5, alpha: 0.8 });
+        } else if (look.species === 'eel') {
+          g.moveTo(-3.2 * sc, 11).quadraticCurveTo(-1, 6.6, 1.4 * sc, 9.4).quadraticCurveTo(3 * sc, 11.4, 3.4 * sc, 7.2).stroke({ color: t.body, width: 1.6 * sc, cap: 'round' });
+        } else if (look.species === 'horse') {
+          g.ellipse(0, 8.4, 1.8 * sc, 2.8 * sc).fill({ color: t.body });
+          g.moveTo(0, 11).quadraticCurveTo(-1.6 * sc, 13, 0.4, 12.6).stroke({ color: t.body, width: 1 * sc });
+          g.circle(0.6, 5.6, 1.3 * sc).fill({ color: t.body });
         } else if (look.species === 'crab') {
           g.ellipse(0, 9, 3 * sc, 2 * sc).fill({ color: t.body });
           for (const sx of [-1, 1]) g.circle(sx * 3.2 * sc, 7.6, 1.1 * sc).fill({ color: t.fin });

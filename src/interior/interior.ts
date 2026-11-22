@@ -323,6 +323,18 @@ export class Interior {
   private shownKey = '';
   private opts: InteriorOptions = {};
 
+  /** Phase 23: put an extra actor (a creature's three layers) into the level, beside Kestrel; and take it out. */
+  addActor(lit: Container, emissive: Container, glow: Container): void {
+    this.actorLit.addChild(lit);
+    this.actorEm.addChild(emissive);
+    this.actorGlow.addChild(glow);
+  }
+  removeActor(lit: Container, emissive: Container, glow: Container): void {
+    this.actorLit.removeChild(lit);
+    this.actorEm.removeChild(emissive);
+    this.actorGlow.removeChild(glow);
+  }
+
   constructor(private readonly renderer: Renderer, paintedFace?: Texture, paintedSuit?: Texture, private readonly art?: WorldArt,
     redesigned = false, compact = false, private readonly livingBases = false, fidelity = false) {
     this.walker = new Walker(paintedFace, paintedSuit, redesigned, compact, fidelity);

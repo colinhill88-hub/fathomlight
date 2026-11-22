@@ -24,6 +24,8 @@ export const HEART_W = 90;
 export const HEART_H = 34;
 /** The middle of the Choir's chamber, where the Choir rises (level units). */
 export const CHOIR_AT = { x: 14 * 40, y: 19 * 40 };
+/** Phase 23: the plinth where you answer (the map's '9'), for placing a companion beside it. */
+export const PLINTH_AT = { x: 13 * 40 + 20, y: 27 * 40 + 40 };
 
 export const HEART_MAP: string[] = (() => {
   const g: string[][] = Array.from({ length: HEART_H }, () => Array.from({ length: HEART_W }, () => '#'));
@@ -75,6 +77,19 @@ export class ChoirForm {
   noteK = 0;
   /** The ending: it opens out and fills the room. */
   bloom = 0;
+  /**
+   * Phase 23: your collection in its song. `echo` are your creatures' glow colours; `rich`
+   * (0..1) how much of them it takes on: lights that circle it, and (above a half) an
+   * outer ring in your colours. `flash` is the colour of the word it is singing now.
+   */
+  echo: number[] = [];
+  rich = 0;
+  flash = -1;
+  flashK = 0;
+  /** Phase 23: the companion's bubble of light (0..1) and where it floats. */
+  bubble = 0;
+  bubbleAt = { x: 0, y: 0 };
+  bubbleColour = 0xfff0c0;
   private light: Light = { x: CHOIR_AT.x, y: CHOIR_AT.y, radius: 900, intensity: 0, color: [0.6, 0.6, 1], haze: 0.12 };
   static readonly COLOURS = [0x5ff0ff, 0xa27cff, 0xff5ad8, 0xffe7a0];
 
@@ -93,7 +108,9 @@ export class ChoirForm {
     const big = 1 + this.bloom * 0.8 + sing * 0.15;
     if (this.living) this.drawMantle(de, t, x, y, k, sing, big);
     else this.drawRings(de, t, x, y, k, sing, big);
-    const col = this.note >= 0 && sing > 0.05 ? C[this.note] : 0xb0b8ff;
+    this.drawEcho(de, t, x, y, k, big);
+    let col = this.note >= 0 && sing > 0.05 ? C[this.note] : 0xb0b8ff;
+    if (this.flash >= 0 && this.flashK > sing) col = this.flash;
     this.light.x = x;
     this.light.y = y;
     this.light.color = [((col >> 16) & 255) / 255, ((col >> 8) & 255) / 255, (col & 255) / 255];
@@ -164,16 +181,62 @@ export class ChoirForm {
     de.ellipse(x, y, width * 0.31, height * 0.48).fill({ color: 0xf8fcff, alpha: 0.96 * rise });
   }
 
+  /** Phase 23: your creatures' lights circling it, an outer ring of your colours, and the companion's bubble. */
+  private drawEcho(de: Graphics, t: number, x: number, y: number, k: number, big: number): void {
+    const r = this.rich * Math.min(1, this.bloom * 1.6);
+    if (r > 0.01 && this.echo.length) {
+      const n = Math.min(16, Math.max(4, this.echo.length));
+      for (let i = 0; i < n; i++) {
+        const a = t * 0.35 + (i / n) * Math.PI * 2;
+        const R = (230 + 40 * Math.sin(t * 0.5 + i)) * big * k;
+        const px = x + Math.cos(a) * R;
+        const py = y + Math.sin(a) * R * 0.42;
+        const c = this.echo[i % this.echo.length];
+        const flare = this.flash === c ? this.flashK : 0;
+        // Tier 3 (rich above three quarters): each light leaves a short trail.
+        if (this.rich > 0.75)
+          for (let s = 1; s <= 4; s++) {
+            const b = a - s * 0.06;
+            de.circle(x + Math.cos(b) * R, y + Math.sin(b) * R * 0.42, 5 - s).fill({ color: c, alpha: r * (0.35 - s * 0.07) });
+          }
+        de.circle(px, py, (5 + flare * 5) * (0.7 + 0.3 * r)).fill({ color: c, alpha: r * (0.6 + 0.4 * flare) });
+      }
+      if (this.rich > 0.5) {
+        // An outer ring in your colours, turning slowly the other way.
+        const R = 300 * big * k;
+        const segs = Math.max(6, this.echo.length * 2);
+        for (let i = 0; i < segs; i++) {
+          const a0 = -t * 0.12 + (i / segs) * Math.PI * 2;
+          const a1 = a0 + (Math.PI * 2) / segs * 0.8;
+          const pts: number[] = [];
+          for (let s = 0; s <= 6; s++) {
+            const a = a0 + ((a1 - a0) * s) / 6;
+            pts.push(x + Math.cos(a) * R, y + Math.sin(a) * R * 0.3);
+          }
+          de.poly(pts, false).stroke({ color: this.echo[i % this.echo.length], width: 2, alpha: r * 0.55 });
+        }
+      }
+    }
+    if (this.bubble > 0.01) {
+      const b = this.bubble;
+      const { x: bx, y: by } = this.bubbleAt;
+      de.circle(bx, by, 56 * b).fill({ color: this.bubbleColour, alpha: 0.14 * b });
+      de.circle(bx, by, 56 * b).stroke({ color: 0xe8f0ff, width: 1.6, alpha: 0.55 * b });
+      de.circle(bx - 20 * b, by - 22 * b, 7 * b).fill({ color: 0xffffff, alpha: 0.35 * b });
+    }
+  }
+
   lights(): Light[] {
     return this.light.intensity > 0 ? [this.light] : [];
   }
 }
 
-export function heartOptions(choir: ChoirForm): InteriorOptions {
+export function heartOptions(choir: ChoirForm, again = false): InteriorOptions {
   return {
     labels: {
       '1': 'Sing to the song-lock',
-      '9': 'Answer the Choir',
+      // Phase 23: after first contact the plinth lets you sing with it again.
+      '9': again ? 'Sing with the Choir again' : 'Answer the Choir',
     },
     style: 'sanctum',
     powered: true,

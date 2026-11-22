@@ -35,6 +35,9 @@ export class GlowfinRig {
   private readonly near = new Container();
   private readonly far = new Container();
   private readonly stalk = new Container();
+  /** Phase 22: the sail fin (shape 1) and the veil tail (shape 2), when it has one. */
+  private readonly sail = new Container();
+  private readonly veil = new Container();
   private readonly tip = new Point(11, -13);
   private readonly finTip: Point;
   private phase: number;
@@ -45,7 +48,7 @@ export class GlowfinRig {
   private wary = false;
   private previousSpeed = 0;
 
-  constructor(color: GlowfinColors, young: boolean, phase: number) {
+  constructor(color: GlowfinColors, young: boolean, phase: number, shape = 0) {
     this.phase = phase;
     // Fry have a fuller forehead, a shorter stalk and a rounder tail paddle.
     const back = young ? -13 : -20;
@@ -107,7 +110,29 @@ export class GlowfinRig {
       .bezierCurveTo(-1.6, -8.1, this.tip.x - 3.2, this.tip.y - 13.3, this.tip.x, this.tip.y)
       .stroke({ color: color.stripe, width: 2.05, cap: 'round' });
     this.stalk.addChild(stalk);
-    this.body.addChild(this.far, this.wrist, hull, this.near, this.stalk);
+    const k = young ? 0.62 : 1;
+    if (shape === 1) {
+      // A tall sail of a dorsal fin, ribbed, that ripples as it swims.
+      this.sail.position.set(-3 * k, brow + 4 * k);
+      const g = new Graphics().moveTo(-12 * k, 2).bezierCurveTo(-15 * k, -14 * k, -6 * k, -26 * k, 3 * k, -24 * k)
+        .bezierCurveTo(11 * k, -22 * k, 13 * k, -8 * k, 11 * k, 3).closePath().fill({ color: color.fin, alpha: 0.9 });
+      for (const [x0, x1, y1] of [[-9, -10, -17], [-5, -4, -22], [0, 2, -22], [5, 8, -16]] as const)
+        g.moveTo(x0 * k, 1).quadraticCurveTo(x1 * k, y1 * k * 0.5, x1 * k, y1 * k).stroke({ color: color.stripe, width: 0.9, alpha: 0.65, cap: 'round' });
+      g.moveTo(-13 * k, -6 * k).bezierCurveTo(-12 * k, -18 * k, -4 * k, -25 * k, 3 * k, -24 * k).stroke({ color: color.belly, width: 1.3, alpha: 0.6, cap: 'round' });
+      this.sail.addChild(g);
+    } else if (shape === 2) {
+      // A long, flowing veil tail on the tail paddle (it follows the stroke), and a trailing belly veil.
+      const L = finLength + 24 * k;
+      const v = new Graphics().moveTo(0, -3).bezierCurveTo(-L * 0.4, -16 * k, -L * 0.85, -18 * k, -L, -10 * k)
+        .bezierCurveTo(-L * 0.8, -4 * k, -L * 0.95, 2 * k, -L * 1.02, 8 * k)
+        .bezierCurveTo(-L * 0.8, 16 * k, -L * 0.4, 14 * k, 0, 3).closePath().fill({ color: color.fin, alpha: 0.62 });
+      for (const a of [-0.55, -0.2, 0.15, 0.5])
+        v.moveTo(-2, 0).quadraticCurveTo(-L * 0.5, a * 22 * k, -L * 0.95, a * 26 * k).stroke({ color: color.belly, width: 0.8, alpha: 0.45, cap: 'round' });
+      this.veil.position.set(-finLength + 4, 0);
+      this.veil.addChild(v);
+      this.paddle.addChildAt(this.veil, 0);
+    }
+    this.body.addChild(this.far, this.wrist, this.sail, hull, this.near, this.stalk);
     batchAll(this.body);
     this.update(0, 0, 0);
   }
@@ -130,6 +155,9 @@ export class GlowfinRig {
     const amplitude = (0.1 + 0.58 * stroke) * (1 - sick * 0.36);
     this.wrist.rotation = Math.sin(this.phase) * amplitude;
     this.paddle.rotation = Math.sin(this.phase - 0.8) * amplitude * 0.8;
+    this.sail.rotation = Math.sin(this.phase - 0.4) * (0.04 + amplitude * 0.12);
+    this.sail.scale.y = 1 - this.effort * 0.35;
+    this.veil.rotation = Math.sin(this.phase - 1.7) * (0.12 + amplitude * 0.5);
     // Use the fins most actively while hovering. Fold the fins in during the dash.
     const scull = (0.42 - 0.28 * this.pace + feeding * 0.2) * (1 - sick * 0.55);
     this.near.rotation = Math.sin(this.phase + 0.92) * scull + 0.18 * this.attention;

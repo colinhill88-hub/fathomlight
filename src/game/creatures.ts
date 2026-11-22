@@ -1,7 +1,7 @@
 import { BaseLayout, isDone, isTankKind, Placed } from './base';
 import { CreatureData, JarData, MaterialId, MATERIAL_ORDER, MATERIALS, PlantId, SaveData, SpeciesId, TankData } from './state';
 import { EAT_BELOW, MASH_FED, NURSERY_TROUGH, TRAY_CAP, trayCount, whorlMult } from './factory';
-import { ensureTraits, inherit, RADIANT_MAKE, traitsOf, wildTraits, type Traits } from './traits';
+import { ensureTraits, inherit, RADIANT_MAKE, traitsOf, wildForms, wildTraits, type Traits } from './traits';
 
 /**
  * Creature care (milestone 4). No drawing here, just the rules.
@@ -129,8 +129,36 @@ export const SPECIES: Record<SpeciesId, SpeciesDef> = {
     makesText: 'grazes mineral crust off the tank rocks and sheds it, cooled, as vent ore',
     scan: 'snail',
   },
+  // Phase 22: the trench floor, by the drowned Fulmar.
+  eel: {
+    id: 'eel',
+    name: 'Kiln eel',
+    youngName: 'young kiln eel',
+    eggName: 'kiln eel egg string',
+    home: "the trench floor's east end, past the Fulmar's stern",
+    plant: 'lumen',
+    company: 'any',
+    dislikes: ['puffcap'],
+    makes: 'brass',
+    makesText: 'noses through the tank gravel for old metal and polishes it into bright brass fittings',
+    scan: 'eel',
+  },
+  // Phase 22: the sanctum's edge, in the antechamber's pale light.
+  horse: {
+    id: 'horse',
+    name: 'Chime seahorse',
+    youngName: 'young chime seahorse',
+    eggName: 'chime seahorse brood pouch',
+    home: "the antechamber at the sanctum's edge",
+    plant: 'grass',
+    company: 'same',
+    dislikes: ['crab'],
+    makes: 'bloom',
+    makesText: 'hums to the seagrass at night, and now and then a glowing bloom opens where it sleeps',
+    scan: 'horse',
+  },
 };
-export const SPECIES_ORDER: SpeciesId[] = ['glowfin', 'puffcap', 'ray', 'crab', 'shrimp', 'snail'];
+export const SPECIES_ORDER: SpeciesId[] = ['glowfin', 'puffcap', 'ray', 'crab', 'shrimp', 'snail', 'eel', 'horse'];
 
 /**
  * Pairings (milestone 7; DESIGN.md, mixed tanks). Clashes: puffcap threads
@@ -142,6 +170,8 @@ export const CLASH_TEXT: Partial<Record<SpeciesId, (other: string) => string>> =
   glowfin: (o) => `Stung by the ${o}'s threads`,
   puffcap: (o) => `Ribbons snipped by the ${o}`,
   snail: (o) => `Scales picked at by the ${o}`,
+  eel: (o) => `Fin stung by the ${o}'s threads`,
+  horse: (o) => `Filaments snipped by the ${o}`,
 };
 /** Each cleaning lantern shrimp adds this much to a tank-mate's output (another species only)... */
 export const CLEAN_BONUS = 0.25;
@@ -731,7 +761,7 @@ function tickBreeding(save: SaveData, layout: BaseLayout, dt: number, ev: CareEv
         sickness: 0,
         make: 0,
         // Phase 21: a content, well-kept pair is up to twice as likely to give something rare.
-        traits: inherit(ensureTraits(pa), ensureTraits(pb), Math.random, carePower(save, pa, pb)),
+        traits: inherit(ensureTraits(pa), ensureTraits(pb), Math.random, carePower(save, pa, pb), { contact: !!save.sanctum?.contact }),
         parents: [creatureName(pa), creatureName(pb)],
       };
       save.nursery.push(egg);
@@ -756,7 +786,7 @@ export function payCost(save: SaveData, cost: Partial<Record<MaterialId, number>
 /** A new creature for a tank, from what was in the jar. */
 export function newCreature(save: SaveData, species: SpeciesId, stage: 'egg' | 'young', tank: number, traits?: Traits): CreatureData {
   // Milestone 9: wild ones get wild traits; young from the Hatchery or the Revival pool bring theirs.
-  const c: CreatureData = { id: save.nextCreatureId++, species, tank, stage, growth: 0, fed: 0.75, comfort: 0.5, sickness: 0, make: 0, traits: traits ?? wildTraits() };
+  const c: CreatureData = { id: save.nextCreatureId++, species, tank, stage, growth: 0, fed: 0.75, comfort: 0.5, sickness: 0, make: 0, traits: traits ?? { ...wildTraits(), ...wildForms() } };
   save.creatures.push(c);
   return c;
 }

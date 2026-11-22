@@ -905,6 +905,11 @@ export class SoundDirector {
     }
   }
 
+  /** Phase 23: a companion creature answers the Choir in its own voice (louder, centred). */
+  companionCall(species: string, young: boolean): void {
+    this.creatureCall(species, young, 2.2, 0);
+  }
+
   /**
    * Round 3: a soft call from a creature out in the world, placed by distance and pan.
    * Synthesised and quiet (ambience level, under every interaction); young ones are
@@ -932,6 +937,13 @@ export class SoundDirector {
       case 'snail': // A slow, wet glug.
         audio.tone({ t, freq: 260 * up, to: 180 * up, dur: 0.22, gain: 0.025 * a, type: 'sine', lp: 900, pan, send: 0.5 });
         audio.bubbles({ t: t + 0.12, n: 2, spread: 0.2, gain: 0.015 * a, low: 300, high: 700, pan });
+        break;
+      case 'eel': // Phase 22: a soft, throaty purr and a slow bubble, like a kettle far off.
+        audio.tone({ t, freq: 140 * up, to: 120 * up, dur: 0.35, gain: 0.02 * a, type: 'triangle', lp: 600, pan, send: 0.5 });
+        audio.bubbles({ t: t + 0.18, n: 1, spread: 0.1, gain: 0.012 * a, low: 250, high: 500, pan });
+        break;
+      case 'horse': // Phase 22: the chime seahorse hums a tiny three-note chime, falling, like a bell far off.
+        for (const [i, f] of [1318, 1175, 988].entries()) audio.bell({ t: t + i * 0.14, freq: f * up, gain: 0.011 * a, decay: 0.9, ratio: 3, index: 0.2, pan, send: 0.8 });
         break;
       default: // Glowfin and anything else: a soft, rising two-note chirp.
         audio.bell({ t, freq: 880 * up, gain: 0.015 * a, decay: 0.5, ratio: 2, index: 0.3, pan, send: 0.6 });

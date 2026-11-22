@@ -32,7 +32,7 @@ export class DappleRayRig {
   rest = 0;
   bank = 0;
 
-  constructor(young: boolean, phase: number) {
+  constructor(young: boolean, phase: number, shape = 0) {
     this.phase = phase;
     this.segmentLength = young ? 4.9 : 6;
     this.wingReach = young ? 13 : 23;
@@ -47,6 +47,12 @@ export class DappleRayRig {
       mount.addChild(joint);
       this.tail.push(joint);
       mount = joint;
+    }
+    if (shape === 2) {
+      // ...and a little plume at the tail's end.
+      const plume = new Graphics().moveTo(-this.segmentLength, 0).quadraticCurveTo(-this.segmentLength - 6, -6, -this.segmentLength - 11, -3)
+        .quadraticCurveTo(-this.segmentLength - 7, 0, -this.segmentLength - 11, 3).quadraticCurveTo(-this.segmentLength - 6, 6, -this.segmentLength, 0).fill(0xd8be8c);
+      mount.addChild(plume);
     }
     for (let i = 0; i < 2; i++) {
       const far = i === 0;
@@ -71,6 +77,22 @@ export class DappleRayRig {
       if (!far) {
         dapples(upper, [[-10.3, 3.3, 2.2], [-3.7, 6.6, 2], [5.2, 3.4, 2.45]]);
         dapples(tip, [[-3, reach * 0.61, 2.8], [3.7, reach * 0.36, 2.1]]);
+      }
+      if (shape === 1) {
+        // Pointed wings: a long swept tip on each wing.
+        outer.addChild(new Graphics().moveTo(-13.2, reach - 3).quadraticCurveTo(-20, reach + 6, -27, reach + 13)
+          .quadraticCurveTo(-14, reach + 6, -4, reach * 0.86).closePath().fill(far ? 0x958a6c : 0xc9b289)
+          .moveTo(-12, reach).quadraticCurveTo(-19, reach + 7, -26, reach + 12).stroke({ color: edge, width: 1.4, alpha: 0.8, cap: 'round' }));
+      } else if (shape === 2) {
+        // Fringed wings: a frill of soft lobes along each wing's edge.
+        const fr = new Graphics();
+        for (let k = 0; k <= 6; k++) {
+          const u = k / 6;
+          const x = -13 + u * 26;
+          const y = reach * (1 - u * 0.86) + 1;
+          fr.ellipse(x - 1, y + 2.2, 3.2, 2.4).fill({ color: far ? 0x8a7f62 : 0xe6cf9e, alpha: 0.85 });
+        }
+        outer.addChild(fr);
       }
       outer.addChild(tip);
       root.addChild(outer, upper);

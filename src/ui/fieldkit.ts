@@ -11,9 +11,9 @@ import { emblemSvg, type RewardIcon } from './reward';
 import type { JarLook, KitLook } from '../actors/diver';
 import type { KitPart } from '../actors/walker';
 import { KitPortrait } from './kitPortrait';
-import { book, DECOR, DECOR_ORDER, kindKey, kindName, pageOf, requestText, rewardText } from '../game/collection';
+import { book, DECOR, DECOR_ORDER, FORM_ROW, formName, formsOf, formsPage, formTier, kindKey, kindName, pageOf, requestText, rewardText, type FormId } from '../game/collection';
 import { allKept, creatureName } from '../game/creatures';
-import { COLOURS, PATTERNS, RARE_COLOUR, WILD_PATTERNS } from '../game/traits';
+import { COLOURS, PATTERNS, RARE_COLOUR, traitsOf, WILD_PATTERNS, type Traits } from '../game/traits';
 import type { CreatureData, SpeciesId } from '../game/state';
 import { snapImg } from './creatureSnap';
 
@@ -72,6 +72,8 @@ export class FieldKit {
   /** Phase 20: the book's open page and chosen cell. */
   private page: SpeciesId = 'glowfin';
   private cell: { colour: number; pattern: number } | null = null;
+  /** Phase 22: the chosen rare form on the page. */
+  private form: FormId | null = null;
   open = false;
   private portrait = new KitPortrait();
   /** The card under the mouse, and the one tapped or clicked (it stays lit until another is chosen). */
@@ -102,10 +104,17 @@ export class FieldKit {
       } else if (act === 'bk-page') {
         this.page = b.dataset.id as SpeciesId;
         this.cell = null;
+        this.form = null;
+        this.render();
+      } else if (act === 'bk-form') {
+        const f = b.dataset.id as FormId;
+        this.form = this.form === f ? null : f;
+        this.cell = null;
         this.render();
       } else if (act === 'bk-cell') {
         const [colour, pattern] = (b.dataset.id ?? '0:0').split(':').map(Number);
         this.cell = this.cell && this.cell.colour === colour && this.cell.pattern === pattern ? null : { colour, pattern };
+        this.form = null;
         this.render();
       } else if (act === 'bk-card') {
         const c = allKept(this.deps.save()).find((x) => x.id === Number(b.dataset.id));
@@ -358,6 +367,35 @@ export class FieldKit {
             colour === RARE_COLOUR || pattern >= WILD_PATTERNS ? 'Never seen in the wild: only breeding brings it out. Content, well-kept parents make it more likely.' : 'Seen in the wild, or bred from parents that carry it.'
           }</span></div>`;
     }
+    // Phase 22: the rare forms row (sizes, shapes, heirloom lines and, after contact, the Choir's touch).
+    const contact = !!s.sanctum?.contact;
+    const fp = formsPage(s, sp);
+    const formLook = (f: FormId): Traits => ({ colour: 0, pattern: 0, size: f === 'tiny' ? 'tiny' : f === 'giant' ? 'giant' : undefined, shape: f === 'shape1' ? 1 : f === 'shape2' ? 2 : undefined, heirloom: f === 'heirloom' || undefined, choir: f === 'choir' || undefined });
+    const formCells = fp.map(({ form, entry }) => {
+      const hidden = form === 'choir' && !contact && !entry;
+      const tier = formTier(form);
+      return `<button type="button" class="bk-cell bk-form ${tier}${entry ? ' have' : ''}${this.form === form ? ' on' : ''}" data-act="bk-form" data-id="${form}" aria-label="${hidden ? 'Not known yet' : esc(formName(sp, form))}">${
+        entry ? snapImg(sp, formLook(form), '', 'grown') : `${snapImg(sp, formLook(form === 'choir' ? 'tiny' : form), 'shadow', 'grown')}<b>???</b>`
+      }<small>${hidden ? '???' : esc(formName(sp, form))}</small></button>`;
+    }).join('');
+    const formsDone = FORM_ROW.every((f) => fp.find((x) => x.form === f)?.entry);
+    const forms = `<h3 class="bk-forms-head">Rare forms <span>${fp.filter((x) => x.entry).length}/${contact ? 6 : 5}${formsDone ? ' · every size and shape ✓' : ' · every size and shape gives a decoration'}</span></h3><div class="bk-forms">${formCells}</div>`;
+    if (this.form) {
+      const f = this.form;
+      const e = fp.find((x) => x.form === f)?.entry;
+      const mine = allKept(s).filter((c) => c.species === sp && c.stage !== 'egg' && formsOf(traitsOf(c)).includes(f));
+      const how: Record<FormId, string> = {
+        tiny: 'About 1 in 16 hatchings, and now and then in the wild. Tiny parents often have tiny young.',
+        giant: 'About 1 in 16 hatchings, and now and then in the wild. Giants often have giant young.',
+        shape1: 'About 1 in 8 hatchings, and now and then in the wild. It runs in families.',
+        shape2: 'About 1 in 25 hatchings, and never in the wild: only breeding brings it out.',
+        heirloom: 'About 1 in 100 hatchings, and only from the 4th generation of breeding. Once a line has one, it is passed down often.',
+        choir: contact ? 'About 1 in 150 hatchings now the Choir knows you. Its light runs in families.' : 'Something only the deep can give. Keep going.',
+      };
+      detail = `<div class="bk-detail"><b>${f === 'choir' && !contact && !e ? '???' : esc(formName(sp, f))} <em class="rtag ${formTier(f) === 'uncommon' ? 'unc' : formTier(f) === 'rare' ? 'rare' : f}">${formTier(f)}</em></b><span>${e ? `${e.src === 'bred' ? `First bred (generation ${e.gen})` : 'First kept from the wild'}. ` : ''}${how[f]} Great care makes it up to twice as likely.</span>${
+        e ? `<div class="bk-mine">${mine.length ? mine.map((c) => `<button type="button" data-act="bk-card" data-id="${c.id}">${esc(creatureName(c))}</button>`).join('') : '<small>None kept right now.</small>'}</div>` : ''
+      }</div>`;
+    }
     const reqs = s.requests?.active ?? [];
     const requests = reqs.length
       ? `<h3>Linnea would love to see <span>${s.requests?.done ?? 0} shown so far</span></h3><ul class="bk-reqs">${reqs
@@ -372,6 +410,7 @@ export class FieldKit {
       <section class="bk-page">
         <header><b>${SPECIES[sp].name}</b><span>${pg.filled}/12 kinds${pg.radiant ? ` · ${pg.radiant} radiant` : ''}</span></header>
         <div class="bk-grid">${head}${rows}</div>
+        ${forms}
         ${detail}
         ${requests}
         ${earned}

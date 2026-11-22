@@ -1,7 +1,7 @@
 import { cleanName, SPECIES, suggestedName } from '../game/creatures';
 import type { KindNews } from '../game/collection';
 import type { CreatureData } from '../game/state';
-import { COLOURS, PATTERNS, traitsOf } from '../game/traits';
+import { COLOURS, PATTERNS, SHAPES, traitsOf } from '../game/traits';
 import { rarityTags } from './creatureCard';
 import { snapImg, snapUrl } from './creatureSnap';
 
@@ -119,7 +119,16 @@ export class HatchReveal {
     const t = traitsOf(c);
     const sp = SPECIES[c.species];
     const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
-    const stamp = j.news.newRadiant
+    const nf = j.news.newForms;
+    const stamp = t.choir
+      ? 'Touched by the Choir!'
+      : nf.includes('heirloom')
+        ? 'The first of an heirloom line!'
+        : t.heirloom
+          ? 'An heirloom, like its line'
+          : nf.includes('shape2')
+            ? `First ${SHAPES[c.species][2]} ${sp.name.toLowerCase()}!`
+            : j.news.newRadiant
       ? 'First radiant of its kind!'
       : j.news.newColour && j.news.newPattern
         ? 'A new colour and a new glow!'
@@ -127,10 +136,16 @@ export class HatchReveal {
           ? `First ${COLOURS[c.species][t.colour].toLowerCase()} ${sp.name.toLowerCase()}!`
           : j.news.newPattern
             ? `First ${PATTERNS[c.species][t.pattern]} ${sp.name.toLowerCase()}!`
-            : j.news.newKind
-              ? 'New in your book'
-              : '';
-    this.el.className = `tier-${j.tier}${t.radiant ? ' radiant' : ''}`;
+            : nf.includes('tiny')
+              ? `First tiny ${sp.name.toLowerCase()}!`
+              : nf.includes('giant')
+                ? `First giant ${sp.name.toLowerCase()}!`
+                : nf.includes('shape1')
+                  ? `First ${SHAPES[c.species][1]} ${sp.name.toLowerCase()}!`
+                  : j.news.newKind
+                    ? 'New in your book'
+                    : '';
+    this.el.className = `tier-${j.tier}${t.radiant ? ' radiant' : ''}${t.choir ? ' choir' : t.heirloom ? ' heirloom' : ''}`;
     this.el.innerHTML = `<div class="hr-card">
       <div class="hr-stage">
         <svg class="hr-egg" viewBox="0 0 80 96" aria-hidden="true">
@@ -143,7 +158,7 @@ export class HatchReveal {
       </div>
       <div class="hr-text">
         <p class="hr-kicker">Hatched ${esc(j.where)}${stamp ? ` · <b>${stamp}</b>` : ''}</p>
-        <p class="hr-what">A young ${sp.name.toLowerCase()}: ${COLOURS[c.species][t.colour].toLowerCase()}, ${PATTERNS[c.species][t.pattern]} ${rarityTags(t)}</p>
+        <p class="hr-what">A young ${sp.name.toLowerCase()}: ${COLOURS[c.species][t.colour].toLowerCase()}, ${PATTERNS[c.species][t.pattern]} ${rarityTags(t, c.species)}</p>
         <div class="hr-name"><input maxlength="16" value="${esc(suggestedName(c))}" aria-label="Its name" autocomplete="off" spellcheck="false"><button type="button" class="keep" data-act="hr-keep">Keep</button></div>
         ${j.news.newKind ? '<button type="button" class="hr-book" data-act="hr-book">See it in the book</button>' : ''}
       </div>

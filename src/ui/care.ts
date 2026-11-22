@@ -35,7 +35,7 @@ import {
 } from '../game/creatures';
 import { DECOR, DECOR_ORDER, placeDecor, removeDecor } from '../game/collection';
 import type { DecorId } from '../game/state';
-import { genText, isRare, traitsOf, traitText } from '../game/traits';
+import { genText, isRare, isUncommon, rarityTier, traitsOf, traitText } from '../game/traits';
 import { CreatureData, MATERIALS, SaveData } from '../game/state';
 import { creatureMilestone } from '../game/discovery';
 import { TRAY_CAP, trayCount, TROUGH_CAP, whorlMult } from '../game/factory';
@@ -376,7 +376,8 @@ export class CareMode {
   /** The creatures shown as tabs: filtered and sorted (Phase 21, for big tanks). */
   private shown(list: CreatureData[]): CreatureData[] {
     const { save } = this.deps;
-    const rare = (c: CreatureData) => isRare(traitsOf(c)) || traitsOf(c).pattern >= 2;
+    const rare = (c: CreatureData) => isUncommon(traitsOf(c));
+    const tierRank = { common: 0, uncommon: 1, rare: 2, legendary: 3 } as const;
     const needs = (c: CreatureData) => c.stage !== 'egg' && (c.sickness > 0 || worstNeed(save, c).value < 0.5);
     let out = list.filter((c) =>
       this.filter === 'all' ? true : this.filter === 'rare' ? rare(c) : this.filter === 'care' ? needs(c) : c.species === this.filter,
@@ -385,7 +386,7 @@ export class CareMode {
       name: (c) => creatureName(c).toLowerCase(),
       species: (c) => `${c.species}:${creatureName(c).toLowerCase()}`,
       content: (c) => contentment(save, c).value,
-      rare: (c) => -(Number(!!traitsOf(c).radiant) * 2 + Number(rare(c))),
+      rare: (c) => -(tierRank[rarityTier(traitsOf(c))] * 2 + Number(!!traitsOf(c).radiant)),
     };
     const k = key[this.sort];
     return [...out].sort((a, b) => (k(a) < k(b) ? -1 : k(a) > k(b) ? 1 : 0));
