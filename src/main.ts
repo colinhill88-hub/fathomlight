@@ -167,6 +167,9 @@ import { PATTERNS } from './game/traits';
 import { initSoundUI } from './ui/sound';
 import { Rewards, type RewardSpec } from './ui/reward';
 import { FieldKit } from './ui/fieldkit';
+import { LinneaActor } from './world/linnea';
+import { LINNEA_TALK_RANGE, linneaGreeting, linneaPlan, markLinneaMet } from './game/linnea';
+import { LinneaSpeech } from './ui/linneaSpeech';
 import { gearReward, kitReward, major, moduleReward, notable, researchReward, tankReward } from './ui/rewardSpecs';
 
 declare const __BUILD_ID__: string;
@@ -325,6 +328,30 @@ async function boot(): Promise<void> {
   const fish = [0, 0, 1].map((look) => new Glowfin(look, GROTTO, livingCreatures));
   // Milestone 4: wild creatures to collect, and life inside the creature tanks.
   const wildlife = new Wildlife(livingCreatures);
+  // Phase 18: Linnea, the axolotl guide. She waits at one spot at a time (src/game/linnea.ts).
+  const linnea = new LinneaActor();
+  linnea.setSpot(linneaPlan(save).spot);
+  const linneaSay = new LinneaSpeech();
+  /**
+   * Talk to Linnea (the Collect action beside her): she says the first line of
+   * her current hint, or the next line if she has another. The first time ever,
+   * she says hello and her name first. Her mouth and chirps follow the words.
+   */
+  function talkToLinnea(): void {
+    let line: string | null = null;
+    if (linneaSay.hasMore) line = linneaSay.next();
+    if (!line) {
+      const plan = linneaPlan(save);
+      const hello = linneaGreeting(save);
+      markLinneaMet(save, plan.spot);
+      line = linneaSay.start(hello ? [hello, ...plan.lines] : plan.lines);
+      persist();
+    }
+    const words = line.split(/\s+/).length;
+    const chirps = Math.max(3, Math.min(8, Math.round(words / 2.2)));
+    linnea.talk(0.5 + chirps * 0.21, chirps);
+    sound.linneaChirp(linnea.chirpTimes(), Math.max(-0.6, Math.min(0.6, (linnea.x - diver.x) / 500)));
+  }
   // Milestone 8: wreck lurkers in their dens on the shelf.
   const lurkers = new Lurkers(LURKER_DENS, livingCreatures);
   // Milestone 10: the trench's predators.
@@ -508,6 +535,7 @@ async function boot(): Promise<void> {
       pickups.view,
       lodeArt.view,
       wildlife.view,
+      linnea.view,
       escort.view,
       lurkers.view,
       hunters.view,
@@ -527,7 +555,7 @@ async function boot(): Promise<void> {
     emissiveCam.addChild(gearFx.emissive, lodeArt.emissive, scenery.emissive, baseView.emissive, tankLife.emissive, pickups.emissive, wildlife.emissive, escort.emissive, lurkers.emissive, hunters.emissive, sub.emissive, drone.emissive, ...fish.map((f) => f.lure), diver.lens, diver.resonDot, surfaceFx.view);
     if (livingBases) emissiveCam.addChild(poolFx.view);
     if (wake) emissiveCam.addChildAt(wake.view, 0);
-    glowCam.addChild(scenery.glow, baseView.glow, tankLife.glow, pickups.glow, wildlife.glow, escort.glow, lurkers.glow, hunters.glow, sub.glow, drone.glow, ...fish.map((f) => f.halo), diver.lensGlow, diver.resonGlow);
+    glowCam.addChild(scenery.glow, baseView.glow, tankLife.glow, pickups.glow, wildlife.glow, linnea.glow, escort.glow, lurkers.glow, hunters.glow, sub.glow, drone.glow, ...fish.map((f) => f.halo), diver.lensGlow, diver.resonGlow);
   }
   populate();
 
@@ -2980,6 +3008,9 @@ async function boot(): Promise<void> {
     // After milestone 12: the specimen satchel is a second slot.
     const jarFull = !jarRoom(save);
     const wildOk = !!wt && wtKnown && wildSpare && save.kit.jar && !jarFull && !diver.surfaced && !atDrone;
+    // Phase 18: Linnea at her current spot; she turns to Kestrel (or KS-1) as it comes near.
+    linnea.setSpot(linneaPlan(save).spot);
+    linnea.update(dt, time, aboard ? sub.x : diver.x, aboard ? sub.y : diver.y, true);
     for (const ev of wildlife.update(dt, time, reachPt.x, reachPt.y, Math.hypot(diver.vx, diver.vy), aboard ? sub.thrust > 0 : diver.boosting, save, collectHeld && wildOk, camX - 200, camX + lastViewW + 200, motion)) {
       const caughtJar = { species: ev.species, stage: ev.stage, traits: wildlife.traitsOf(ev.id) };
       sound.holdDone('creature');
@@ -3626,6 +3657,9 @@ async function boot(): Promise<void> {
       } else if (tankHere && trayN) {
         const id = tankHere.id;
         baseAct = { label: `Take ${trayN} from tank ${tankNumber(layout, id)}'s tray`, run: () => takeTray(id) };
+      } else if (linnea.present && Math.hypot(linnea.x - (aboard ? sub.x : diver.x), linnea.y - (aboard ? sub.y : diver.y)) < LINNEA_TALK_RANGE + (aboard ? 60 : 0)) {
+        // Phase 18: Linnea only speaks when Kestrel comes up to her and asks.
+        baseAct = { label: linneaSay.hasMore ? 'Listen to Linnea' : 'Talk to Linnea', run: talkToLinnea };
       } else if (pod?.by) {
         baseAct = {
           label: pod.powered ? `Unload ${carried} item${carried === 1 ? '' : 's'} into storage` : pod.frame ? 'Storage pod: still a frame' : 'Storage pod: no power',
@@ -3932,7 +3966,7 @@ async function boot(): Promise<void> {
     diver.lensGlow.position.set(lp.x, lp.y);
     diver.lensGlow.alpha = diver.lamp * diver.view.alpha;
 
-    const lights: Light[] = [...(save.sub ? sub.lights : []), lampLight, ...gearFx.lights, ...drone.lights, ...scenery.lights, ...baseView.lights, ...pickups.lights, ...wildlife.lights, escort.light, ...lurkers.lights, ...hunters.lights, ...fish.map((f) => f.light)];
+    const lights: Light[] = [...(save.sub ? sub.lights : []), lampLight, ...gearFx.lights, ...drone.lights, ...scenery.lights, ...baseView.lights, ...pickups.lights, ...wildlife.lights, linnea.light, escort.light, ...lurkers.lights, ...hunters.lights, ...fish.map((f) => f.light)];
     // G2: soft contact shadows where things meet the seabed (the diver's, the sub's, the drone's and the base's feet).
     const contacts: [number, number, number, number][] = [];
     if (fx.contact && preset.contactShadows > 0) {
@@ -4013,6 +4047,13 @@ async function boot(): Promise<void> {
       poolFx.update(dt, time, -POOL_HALF_WIDTH, POOL_HALF_WIDTH, 0, diver.surfaced ? { x: hx - pool.x } : null);
     }
     updateTags(camX, camY, viewW);
+    // Phase 18: her words sit over her head, and fade as Kestrel swims off.
+    if (linneaSay.shown) {
+      const h = linnea.headWorld();
+      const far = Math.hypot(linnea.x - (aboard ? sub.x : diver.x), linnea.y - (aboard ? sub.y : diver.y)) > LINNEA_TALK_RANGE + 260;
+      if (far || !linnea.present || inside) linneaSay.hide();
+      else linneaSay.update(dt, (h.x - camX) * zoom, (h.y - camY) * zoom - 22 * zoom, cssW);
+    }
 
     const depthM = Math.max(0, diver.y - SURFACE_Y + 6) / WU_PER_METRE;
     if (domeAir || subAir) diveTime = 0;
@@ -5168,6 +5209,7 @@ async function boot(): Promise<void> {
     build,
     drone,
     wildlife,
+    linnea,
     tankLife,
     care,
     tickCare: (sec: number) => tickCare(save, layout, sec),
