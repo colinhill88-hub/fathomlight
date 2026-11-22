@@ -4678,6 +4678,16 @@ body.on-foot #btn-dart {
 }
 .bk-prize { text-align: center; color: rgba(201, 162, 74, 0.5); font-size: 16px; }
 .bk-prize.won { color: #f2d488; text-shadow: 0 0 8px rgba(255, 210, 110, 0.7); }
+/* Phase 22: the rare forms row of a book page. */
+.bk-forms-head { display: flex; justify-content: space-between; align-items: baseline; margin: 10px 2px 4px; font-size: 13px; color: #f2d488; }
+.bk-forms-head span { font-size: 11px; font-weight: 600; opacity: 0.75; color: #e8eef0; }
+.bk-forms { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 6px; }
+.bk-cell.bk-form { aspect-ratio: auto; height: 74px; padding-bottom: 14px; }
+.bk-cell.bk-form small { position: absolute; left: 2px; right: 2px; bottom: 2px; font-size: 9.5px; font-weight: 700; text-align: center; line-height: 1.1; opacity: 0.85; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bk-cell.bk-form.rare.have { border-color: rgba(201, 162, 74, 0.8); }
+.bk-cell.bk-form.legendary.have { border-color: #d9bd7a; box-shadow: 0 0 10px rgba(240, 220, 170, 0.45); }
+.bk-cell.bk-form[data-id="choir"].have { border-color: #a27cff; box-shadow: 0 0 12px rgba(162, 124, 255, 0.55); }
+.bk-detail em.rtag { font-style: normal; }
 .bk-hint { font-size: 12px; opacity: 0.75; margin: 8px 2px; }
 .bk-detail {
   margin: 8px 0;
@@ -4723,6 +4733,8 @@ body.on-foot #btn-dart {
   .bk-grid { padding: 6px; gap: 4px; }
   .bk-cell { aspect-ratio: auto; height: 54px; }
   .bk-pat { font-size: 11px; }
+  .bk-cell.bk-form { height: 58px; }
+  .bk-forms { gap: 4px; }
 }
 
 /* ---- Phase 20: the creature card ---- */
@@ -4819,6 +4831,15 @@ body.on-foot #btn-dart {
 }
 .rtag.rare { background: rgba(201, 162, 74, 0.25); color: #f2d488; border: 1px solid rgba(201, 162, 74, 0.6); }
 .rtag.radiant { background: rgba(255, 220, 120, 0.3); color: #fff1c2; border: 1px solid #e8c25a; box-shadow: 0 0 6px rgba(255, 210, 110, 0.5); }
+.rtag.unc { background: rgba(170, 200, 150, 0.16); color: #d6ecc0; border: 1px solid rgba(170, 200, 150, 0.5); }
+/* Phase 22: heirloom lines wear pearl and old gold. */
+.rtag.heirloom { background: linear-gradient(90deg, rgba(240, 226, 196, 0.3), rgba(201, 162, 74, 0.35)); color: #fff4dc; border: 1px solid #d9bd7a; }
+/* Phase 23: Choir-touched creatures are the one exception to the colour rule, so their tag carries the Choir's colours. */
+.rtag.choir { background: linear-gradient(90deg, rgba(95, 240, 255, 0.28), rgba(162, 124, 255, 0.32), rgba(255, 90, 216, 0.28)); color: #f2f6ff; border: 1px solid rgba(190, 170, 255, 0.8); box-shadow: 0 0 8px rgba(162, 124, 255, 0.55); }
+.cc-card.heirloom { border-color: #d9bd7a; box-shadow: 0 0 22px rgba(240, 220, 170, 0.3), 0 18px 60px rgba(0, 0, 0, 0.55); }
+.cc-card.choir { border-color: #a27cff; box-shadow: 0 0 26px rgba(95, 240, 255, 0.25), 0 0 40px rgba(255, 90, 216, 0.18), 0 18px 60px rgba(0, 0, 0, 0.55); }
+#hatch-reveal.heirloom .hr-card { border-color: #d9bd7a; box-shadow: 0 0 26px rgba(240, 220, 170, 0.4), 0 12px 40px rgba(0, 0, 0, 0.5); }
+#hatch-reveal.choir .hr-card { border-color: #a27cff; box-shadow: 0 0 28px rgba(95, 240, 255, 0.35), 0 0 44px rgba(255, 90, 216, 0.22), 0 12px 40px rgba(0, 0, 0, 0.5); }
 .cc-content { margin-top: 8px; }
 .cc-content .row { display: flex; justify-content: space-between; font-weight: 700; }
 .cc-content .track { height: 8px; border-radius: 4px; background: rgba(255, 255, 255, 0.1); overflow: hidden; margin: 3px 0 4px; }

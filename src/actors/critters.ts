@@ -1,7 +1,7 @@
 import { Container, Graphics } from 'pixi.js';
 import { mulberry32 } from '../rng';
 import type { SpeciesId } from '../game/state';
-import { traitsOf, type Traits } from '../game/traits';
+import { SIZE_SCALE, traitsOf, type Traits } from '../game/traits';
 import { GlowfinRig } from './glowfinRig';
 import { DappleRayRig } from './dappleRayRig';
 import { CinderRig, LanternShrimpRig, PuffcapRig, ShoreRig, TinkerRig, type Stroke } from './shoreCreatureRigs';
@@ -52,6 +52,22 @@ const BODY_TINTS: Record<SpeciesId, number[]> = {
   shrimp: [0xffffff, 0xff9a92, 0xd2ecff, 0xffdc6a],
   snail: [0xffffff, 0xe8b080, 0xc8c4bc, 0xffd890],
 };
+
+/** Phase 22: the core of each species' body (living rigs, grown), where heirloom and Choir marks go. */
+const CORE: Partial<Record<SpeciesId, { x: number; y: number; w: number; h: number }>> = {
+  glowfin: { x: 1, y: -2, w: 38, h: 30 },
+  puffcap: { x: 0, y: -12, w: 58, h: 28 },
+  ray: { x: 0, y: -1, w: 38, h: 12 },
+  crab: { x: -3, y: -15, w: 40, h: 20 },
+  shrimp: { x: 4, y: -1, w: 40, h: 18 },
+  snail: { x: -8, y: -22, w: 30, h: 36 },
+};
+
+/** Blend two 0xRRGGBB colours (0 = a, 1 = b). */
+function lerpColour(a: number, b: number, k: number): number {
+  const ch = (s: number) => Math.round(((a >> s) & 255) + ((((b >> s) & 255) - ((a >> s) & 255)) * k));
+  return (ch(16) << 16) | (ch(8) << 8) | ch(0);
+}
 
 /** Multiply two 0xRRGGBB tints. */
 function mulTint(a: number, b: number): number {
@@ -120,7 +136,7 @@ export class Critter {
     } else if (species === 'glowfin') this.drawGlowfin(living);
     else if (living && species !== 'ray') {
       const Rig = { puffcap: PuffcapRig, crab: TinkerRig, shrimp: LanternShrimpRig, snail: CinderRig }[species];
-      const rig = this.shoreRig = new Rig(stage === 'young', this.traits.pattern, this.phase);
+      const rig = this.shoreRig = new Rig(stage === 'young', this.traits.pattern, this.phase, this.traits.shape ?? 0);
       this.body.addChild(rig.view);
       this.emissive.addChild(rig.markings);
       this.glow.addChild(rig.halo);
@@ -133,11 +149,70 @@ export class Critter {
     else if (species === 'snail') this.drawSnail();
     else this.drawRay(living);
     if (stage !== 'egg' && !this.shoreRig) this.drawPattern();
+    if (stage !== 'egg' && (this.traits.heirloom || this.traits.choir)) this.drawMarks();
     if (stage !== 'egg' && this.traits.radiant) {
       // Radiant: a wider, brighter glow, and a soft aura around the whole body.
       this.parts.halo.scale.set(1.7);
       this.aura = new Graphics().ellipse(0, -2, 30, 20).fill({ color: 0xfff0c0, alpha: 0.5 });
       this.glow.addChildAt(this.aura, 0);
+    }
+  }
+
+  /**
+   * Phase 22: an heirloom wears fine pearl-gold scrollwork over its body and a soft
+   * gold sheen. Phase 23: a Choir-touched one carries the Choir's own colours (the one
+   * exception to the colour rule): shimmering bands of cyan, violet and magenta over its
+   * body, and a halo that slowly turns through them.
+   */
+  private heirloomMarks?: Graphics;
+  private choirMarks?: Graphics;
+  private choirAura?: Graphics;
+  private drawMarks(): void {
+    // The core of the body (not its tentacles, feelers or tail), in rig units.
+    const core = CORE[this.species] ?? { x: 0, y: 0, w: 36, h: 24 };
+    const k = this.stage === 'young' ? 0.7 : 1;
+    const cx = core.x * k;
+    const cy = core.y * k;
+    const w = core.w * k;
+    const h = core.h * k;
+    if (this.traits.heirloom) {
+      const g = (this.heirloomMarks = new Graphics());
+      // A scroll along the body: a long curl with little leaves, like engraving on old silver.
+      g.moveTo(cx - w * 0.32, cy).bezierCurveTo(cx - w * 0.15, cy - h * 0.22, cx + w * 0.05, cy + h * 0.2, cx + w * 0.22, cy - h * 0.04)
+        .stroke({ color: 0xfff0c8, width: 1.5, alpha: 0.95, cap: 'round' });
+      for (const [u, dir] of [[-0.24, -1], [-0.08, 1], [0.08, -1], [0.18, 1]] as const) {
+        const x = cx + w * u;
+        const y = cy + Math.sin(u * 9) * h * 0.08;
+        g.moveTo(x, y).quadraticCurveTo(x + 3, y + dir * 4, x + 5.5, y + dir * 2).stroke({ color: 0xfff0c8, width: 1.1, alpha: 0.9, cap: 'round' });
+      }
+      // A little rosette, the line's mark.
+      const rx = cx + w * 0.24;
+      const ry = cy - h * 0.05;
+      for (let i = 0; i < 6; i++) g.circle(rx + Math.cos((i / 6) * Math.PI * 2) * 2.2, ry + Math.sin((i / 6) * Math.PI * 2) * 2.2, 1.1).fill({ color: 0xfff0c8 });
+      g.circle(rx, ry, 1.2).fill({ color: 0xffffff });
+      // Pearly, warmer colouring.
+      this.tint = mulTint(this.tint, 0xfff3e2);
+      for (let i = 0; i < 6; i++) g.circle(cx - w * 0.3 + (i * w * 0.6) / 5, cy - h * 0.3 + ((i * 37) % 7) * h * 0.06, 0.8).fill({ color: 0xfff6dc });
+      this.emissive.addChild(g);
+      const sheen = new Graphics().ellipse(cx, cy, w * 0.62, h * 0.62).fill({ color: 0xf6e2b0, alpha: 0.32 });
+      this.glow.addChildAt(sheen, 0);
+      this.parts.sheen = sheen;
+    }
+    if (this.traits.choir) {
+      const g = (this.choirMarks = new Graphics());
+      const C = [0x5ff0ff, 0xa27cff, 0xff5ad8];
+      // Three fine curved bands over the body, like the Choir's rings seen edge-on.
+      for (let i = 0; i < 3; i++) {
+        const x = cx - w * 0.2 + i * w * 0.2;
+        g.moveTo(x - w * 0.04, cy - h * 0.36).quadraticCurveTo(x + w * 0.07, cy, x - w * 0.04, cy + h * 0.36).stroke({ color: C[i], width: 1.3, alpha: 0.9, cap: 'round' });
+      }
+      for (let i = 0; i < 5; i++) g.circle(cx - w * 0.28 + i * w * 0.14, cy - h * 0.4 + (i % 2) * h * 0.1, 0.9).fill({ color: C[i % 3] });
+      this.emissive.addChild(g);
+      const aura = (this.choirAura = new Graphics());
+      aura.ellipse(cx, cy, w * 0.75, h * 0.8).fill({ color: 0xffffff, alpha: 0.42 });
+      this.glow.addChildAt(aura, 0);
+      // A paler, faintly lilac body, as if lit from inside by the Choir.
+      this.tint = mulTint(this.tint, 0xe6dcff);
     }
   }
 
@@ -212,7 +287,7 @@ export class Critter {
     const L = GLOWFIN_LOOKS[this.look];
     const young = this.stage === 'young';
     if (living) {
-      this.glowfinRig = new GlowfinRig(L, young, this.phase);
+      this.glowfinRig = new GlowfinRig(L, young, this.phase, this.traits.shape ?? 0);
       this.body.addChild(this.glowfinRig.body);
     } else this.drawOriginalGlowfin();
     const anchor = this.glowfinRig?.lure;
@@ -307,7 +382,7 @@ export class Critter {
   // ---- Dapple ray ----
   private drawRay(living: boolean): void {
     if (living) {
-      this.rayRig = new DappleRayRig(this.stage === 'young', this.phase);
+      this.rayRig = new DappleRayRig(this.stage === 'young', this.phase, this.traits.shape ?? 0);
       this.body.addChild(this.rayRig.view);
     } else {
       const disc = new Graphics();
@@ -598,7 +673,8 @@ export class Critter {
     const slow = 1 - sick * 0.6;
     const feeding = pose.feeding ?? 0;
     const t = time * slow + this.phase;
-    const s = this.baseScale() * (pose.size ?? 1);
+    // Phase 22: a tiny or giant one is drawn smaller or bigger (eggs are eggs).
+    const s = this.baseScale() * (pose.size ?? 1) * (this.stage !== 'egg' && this.traits.size ? SIZE_SCALE[this.traits.size] : 1);
     const sp = Math.hypot(vx, vy);
     if (vx > 6) this.face = 1;
     else if (vx < -6) this.face = -1;
@@ -766,6 +842,19 @@ export class Critter {
     const tint = (grey << 16) | (Math.round(grey * 1.0) << 8) | Math.min(255, grey + 10);
     this.body.tint = sick > 0.01 ? mulTint(tint, this.tint) : this.tint;
     if (this.aura) this.aura.alpha = 0.35 * vig * (0.75 + 0.25 * Math.sin(t * 1.1));
+    if (this.heirloomMarks) {
+      this.heirloomMarks.alpha = (0.55 + 0.35 * Math.sin(t * 0.9)) * (0.4 + 0.6 * vig);
+      if (this.parts.sheen) this.parts.sheen.alpha = 0.6 * vig;
+    }
+    if (this.choirMarks && this.choirAura) {
+      // The halo turns slowly through cyan, violet and magenta; the bands shimmer.
+      const C = [0x5ff0ff, 0xa27cff, 0xff5ad8];
+      const u = (time * 0.25 + this.phase) % 3;
+      const i = Math.floor(u);
+      this.choirAura.tint = lerpColour(C[i], C[(i + 1) % 3], u - i);
+      this.choirAura.alpha = (0.5 + 0.25 * Math.sin(t * 1.6)) * (0.4 + 0.6 * vig);
+      this.choirMarks.alpha = (0.6 + 0.4 * Math.sin(t * 2.3)) * (0.4 + 0.6 * vig);
+    }
     if (this.traits.radiant && this.stage !== 'egg') this.parts.halo.alpha = Math.min(1, this.parts.halo.alpha * 1.35);
     for (const c of [this.view, this.emissive, this.glow]) {
       c.position.set(x, y + bob);

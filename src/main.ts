@@ -656,8 +656,12 @@ async function boot(): Promise<void> {
     const sp = SPECIES[c.species];
     const t = traitText(c.species, c.traits ?? traitsOf(c));
     if (tier !== 'reveal') {
-      const ribbon = news.newRadiant ? 'Radiant!' : news.newColour && news.newPattern ? 'New colour and glow' : news.newColour ? 'New colour' : news.newPattern ? 'New glow pattern' : 'Radiant';
-      grant((tier === 'major' ? major : notable)('creature', ribbon, `A young ${sp.name.toLowerCase()}`, t, 'life'));
+      const tr = c.traits ?? traitsOf(c);
+      // Phase 22: the rarest first (Choir-touched, heirloom, a rare shape), then the older news.
+      const ribbon = tr.choir ? 'Choir-touched!' : tr.heirloom ? (news.newForms.includes('heirloom') ? 'An heirloom line!' : 'Heirloom') : news.newForms.includes('shape2') ? 'A rare shape!'
+        : news.newRadiant ? 'Radiant!' : news.newColour && news.newPattern ? 'New colour and glow' : news.newColour ? 'New colour' : news.newPattern ? 'New glow pattern'
+        : news.newForms.includes('tiny') ? 'A tiny one!' : news.newForms.includes('giant') ? 'A giant!' : news.newForms.includes('shape1') ? 'A new shape' : tr.radiant ? 'Radiant' : 'Something special';
+      grant((tier === 'major' ? major : notable)('creature', ribbon, `A young ${sp.name.toLowerCase()}`, t, tr.choir ? 'choir' : 'life'));
       reward.whenClear(() => hatchReveal.show(c, news, tier, where));
     } else {
       sound.toast('item');

@@ -1,7 +1,7 @@
 import { mulberry32 } from '../rng';
 import { allKept, creatureName, SPECIES, SPECIES_ORDER } from './creatures';
 import type { BookEntry, CreatureData, CreatureRequest, DecorId, SaveData, SpeciesId } from './state';
-import { COLOURS, PATTERNS, RARE_COLOUR, traitsOf, WILD_PATTERNS, type Traits } from './traits';
+import { COLOURS, PATTERNS, RARE_COLOUR, SHAPES, traitsOf, WILD_PATTERNS, type Traits } from './traits';
 
 /**
  * Phases 20 and 21: the collection book, its rewards, tank decorations,
@@ -31,7 +31,60 @@ export function book(save: SaveData): Record<string, BookEntry> {
     // Older saves: everything already kept is in the book from the start, with no fanfare.
     for (const c of allKept(save)) if (c.stage !== 'egg') record(save, c);
   }
+  if (!save.bookForms) {
+    // Phase 22: the rare forms row, filled from what is already kept (quietly).
+    save.bookForms = {};
+    for (const c of allKept(save)) if (c.stage !== 'egg') recordForms(save, c);
+  }
   return save.book;
+}
+
+// ---- Phase 22: the rare forms row of each page ----
+/** Rare forms a species can show, in book order. */
+export type FormId = 'tiny' | 'giant' | 'shape1' | 'shape2' | 'heirloom' | 'choir';
+export const FORMS: FormId[] = ['tiny', 'giant', 'shape1', 'shape2', 'heirloom', 'choir'];
+/** The forms whose completion gives the row's reward (heirloom and Choir-touched are the long goals). */
+export const FORM_ROW: FormId[] = ['tiny', 'giant', 'shape1', 'shape2'];
+
+export function formsOf(t: Traits): FormId[] {
+  const out: FormId[] = [];
+  if (t.size === 'tiny') out.push('tiny');
+  if (t.size === 'giant') out.push('giant');
+  if (t.shape === 1) out.push('shape1');
+  if (t.shape === 2) out.push('shape2');
+  if (t.heirloom) out.push('heirloom');
+  if (t.choir) out.push('choir');
+  return out;
+}
+
+export function formName(species: SpeciesId, f: FormId): string {
+  return f === 'tiny' ? 'Tiny' : f === 'giant' ? 'Giant' : f === 'shape1' ? SHAPES[species][1].replace(/^./, (m) => m.toUpperCase())
+    : f === 'shape2' ? SHAPES[species][2].replace(/^./, (m) => m.toUpperCase()) : f === 'heirloom' ? 'Heirloom line' : 'Choir-touched';
+}
+
+/** How rare each form is, for the book's labels. */
+export function formTier(f: FormId): 'uncommon' | 'rare' | 'legendary' {
+  return f === 'heirloom' || f === 'choir' ? 'legendary' : f === 'shape2' ? 'rare' : 'uncommon';
+}
+
+/** Record the forms a raised creature shows. Returns the forms that are new to the book. */
+export function recordForms(save: SaveData, c: CreatureData): FormId[] {
+  const f = (save.bookForms ??= {});
+  const t = traitsOf(c);
+  const fresh: FormId[] = [];
+  for (const id of formsOf(t)) {
+    const k = `${c.species}:${id}`;
+    if (f[k]) continue;
+    f[k] = { src: (t.gen ?? 1) >= 2 ? 'bred' : 'wild', gen: t.gen ?? 1, t: Math.round(save.playSeconds) };
+    fresh.push(id);
+  }
+  return fresh;
+}
+
+/** One species' rare forms: which are in the book. */
+export function formsPage(save: SaveData, species: SpeciesId): { form: FormId; entry: BookEntry | null }[] {
+  book(save);
+  return FORMS.map((form) => ({ form, entry: save.bookForms?.[`${species}:${form}`] ?? null }));
 }
 
 /** What raising this creature adds to the book (computed before it is recorded). */
@@ -47,6 +100,10 @@ export interface KindNews {
   radiant: boolean;
   /** The rare colour or the bred-only third pattern. */
   rare: boolean;
+  /** Phase 22: forms (tiny, giant, a shape, heirloom, Choir-touched) new to the book. */
+  newForms: FormId[];
+  /** Phase 22: an heirloom, or Choir-touched (the rarest tier). */
+  legendary: boolean;
 }
 
 export function kindNews(save: SaveData, c: { species: SpeciesId; id: number; traits?: Traits }): KindNews {
@@ -65,7 +122,9 @@ export function kindNews(save: SaveData, c: { species: SpeciesId; id: number; tr
     newPattern: !has((_, pat) => pat === t.pattern),
     newRadiant: !!t.radiant && !entry?.radiant,
     radiant: !!t.radiant,
-    rare: t.colour === RARE_COLOUR || t.pattern >= WILD_PATTERNS,
+    rare: t.colour === RARE_COLOUR || t.pattern >= WILD_PATTERNS || t.shape === 2,
+    newForms: formsOf(t).filter((f) => !save.bookForms?.[`${c.species}:${f}`]),
+    legendary: !!t.heirloom || !!t.choir,
   };
 }
 
@@ -76,8 +135,11 @@ export function kindNews(save: SaveData, c: { species: SpeciesId; id: number; tr
  * or the first radiant of its kind.
  */
 export function hatchTier(n: KindNews): 'reveal' | 'notable' | 'major' {
-  if (n.newRadiant || ((n.newColour || n.newPattern) && n.rare)) return 'major';
-  if (n.newColour || n.newPattern || n.radiant) return 'notable';
+  // Phase 22: a first rare shape, a first heirloom or the Choir's light is major; any heirloom or
+  // Choir-touched baby, or a first tiny, giant or uncommon shape, is notable at least.
+  const newRare = n.newForms.some((f) => f === 'shape2' || f === 'heirloom' || f === 'choir');
+  if (n.newRadiant || ((n.newColour || n.newPattern) && n.rare) || newRare) return 'major';
+  if (n.newColour || n.newPattern || n.radiant || n.legendary || n.newForms.length) return 'notable';
   return 'reveal';
 }
 
@@ -89,6 +151,7 @@ export function record(save: SaveData, c: CreatureData): KindNews {
   const k = kindKey(c.species, t.colour, t.pattern);
   if (!b[k]) b[k] = { src: (t.gen ?? 1) >= 2 ? 'bred' : 'wild', gen: t.gen ?? 1, t: Math.round(save.playSeconds), ...(t.radiant ? { radiant: true } : {}) };
   else if (t.radiant) b[k].radiant = true;
+  recordForms(save, c);
   return n;
 }
 
@@ -100,7 +163,7 @@ export function sweepBook(save: SaveData): CreatureData[] {
     if (c.stage === 'egg') continue;
     const t = traitsOf(c);
     const e = b[kindKey(c.species, t.colour, t.pattern)];
-    if (e && (!t.radiant || e.radiant)) continue;
+    if (e && (!t.radiant || e.radiant) && formsOf(t).every((f) => save.bookForms?.[`${c.species}:${f}`])) continue;
     record(save, c);
     out.push(c);
   }
@@ -210,6 +273,14 @@ export function claimBookRewards(save: SaveData): BookReward[] {
       const line = giveReward(save, { kind: 'decor', decor: d });
       out.push({ id, title: `${SPECIES[sp].name}: every ${PATTERNS[sp][p]} colour`, line, page: false });
     });
+    // Phase 22: every size and shape of a species (tiny, giant, both shapes) gives a decoration too.
+    const fid = `forms:${sp}`;
+    if (!claimed.includes(fid) && FORM_ROW.every((f) => save.bookForms?.[`${sp}:${f}`])) {
+      claimed.push(fid);
+      const d = DECOR_ORDER[claimed.filter((x) => x.startsWith('row:') || x.startsWith('forms:')).length % DECOR_ORDER.length];
+      const line = giveReward(save, { kind: 'decor', decor: d });
+      out.push({ id: fid, title: `${SPECIES[sp].name}: every size and shape`, line, page: false });
+    }
     const id = `page:${sp}`;
     if (pg.complete && !claimed.includes(id)) {
       claimed.push(id);
@@ -339,8 +410,13 @@ export const RESTOCK_KEEP = 4;
 export function restock(save: SaveData, species: SpeciesId, t: Traits | undefined): boolean {
   if (!t || (t.gen ?? 1) < 2) return false;
   const list = ((save.restocked ??= {})[species] ??= []);
-  if (list.some((x) => x.colour === t.colour && x.pattern === t.pattern && !!x.radiant === !!t.radiant)) return false;
-  list.push(t.radiant ? { colour: t.colour, pattern: t.pattern, radiant: true, gen: 1 } : { colour: t.colour, pattern: t.pattern, gen: 1 });
+  if (list.some((x) => x.colour === t.colour && x.pattern === t.pattern && !!x.radiant === !!t.radiant && x.size === t.size && (x.shape ?? 0) === (t.shape ?? 0))) return false;
+  // Phase 22: its size and shape go too (the uncommon shape only: the rare shape, heirlooms and the Choir's light stay bred).
+  const look: Traits = { colour: t.colour, pattern: t.pattern, gen: 1 };
+  if (t.radiant) look.radiant = true;
+  if (t.size) look.size = t.size;
+  if (t.shape === 1) look.shape = 1;
+  list.push(look);
   if (list.length > RESTOCK_KEEP) list.shift();
   return true;
 }

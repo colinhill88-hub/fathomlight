@@ -1,4 +1,4 @@
-import type { Traits } from './traits';
+import { cleanTraits, type Traits } from './traits';
 /**
  * Everything about the player's progress that needs to survive closing the
  * app, plus automatic saving to the device (localStorage).
@@ -484,6 +484,11 @@ export interface SaveData {
   reserve?: CreatureData[];
   requests?: { active: CreatureRequest[]; done: number; nextId: number };
   restocked?: Partial<Record<SpeciesId, Traits[]>>;
+  /**
+   * Phase 22: the rare forms page of the book (tiny, giant, each shape, heirloom, Choir-touched),
+   * keyed "species:form" (src/game/collection.ts). Optional; filled from the creatures kept.
+   */
+  bookForms?: Record<string, BookEntry>;
   tankKits?: number;
   displayKits?: number;
   playSeconds: number;
@@ -659,10 +664,15 @@ export function loadSave(spawnX: number, spawnY: number): { data: SaveData; load
       reserve: Array.isArray(d.reserve) ? d.reserve : undefined,
       requests: d.requests && Array.isArray(d.requests.active) ? { active: d.requests.active, done: Number(d.requests.done) || 0, nextId: Number(d.requests.nextId) || 1 } : undefined,
       restocked: d.restocked && typeof d.restocked === 'object' ? d.restocked : undefined,
+      bookForms: d.bookForms && typeof d.bookForms === 'object' ? d.bookForms : undefined,
       tankKits: typeof d.tankKits === 'number' ? d.tankKits : undefined,
       displayKits: typeof d.displayKits === 'number' ? d.displayKits : undefined,
       relays: Array.isArray(d.relays) ? d.relays.filter((r: { x?: unknown; y?: unknown }) => typeof r?.x === 'number' && typeof r?.y === 'number') : [],
     } as SaveData;
+    // Phase 22: new trait fields are optional; anything malformed is dropped (old creatures stay ordinary).
+    for (const c of [...data.creatures, ...data.nursery, ...(data.reserve ?? []), ...(data.gifts ?? []), data.jar?.keep, data.jar2?.keep])
+      if (c?.traits && typeof c.traits === 'object') cleanTraits(c.traits);
+    for (const j of [data.jar, data.jar2]) if (j?.traits && typeof j.traits === 'object') cleanTraits(j.traits);
     // Milestone 7: the scavenger crab makes scrap now, so the test gift ends.
     delete data.gift;
     // Milestone 5: the build grid grew around the old site. Shift older bases

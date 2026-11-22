@@ -1,7 +1,7 @@
 import { BaseLayout, isDone, isTankKind, Placed } from './base';
 import { CreatureData, JarData, MaterialId, MATERIAL_ORDER, MATERIALS, PlantId, SaveData, SpeciesId, TankData } from './state';
 import { EAT_BELOW, MASH_FED, NURSERY_TROUGH, TRAY_CAP, trayCount, whorlMult } from './factory';
-import { ensureTraits, inherit, RADIANT_MAKE, traitsOf, wildTraits, type Traits } from './traits';
+import { ensureTraits, inherit, RADIANT_MAKE, traitsOf, wildForms, wildTraits, type Traits } from './traits';
 
 /**
  * Creature care (milestone 4). No drawing here, just the rules.
@@ -731,7 +731,7 @@ function tickBreeding(save: SaveData, layout: BaseLayout, dt: number, ev: CareEv
         sickness: 0,
         make: 0,
         // Phase 21: a content, well-kept pair is up to twice as likely to give something rare.
-        traits: inherit(ensureTraits(pa), ensureTraits(pb), Math.random, carePower(save, pa, pb)),
+        traits: inherit(ensureTraits(pa), ensureTraits(pb), Math.random, carePower(save, pa, pb), { contact: !!save.sanctum?.contact }),
         parents: [creatureName(pa), creatureName(pb)],
       };
       save.nursery.push(egg);
@@ -756,7 +756,7 @@ export function payCost(save: SaveData, cost: Partial<Record<MaterialId, number>
 /** A new creature for a tank, from what was in the jar. */
 export function newCreature(save: SaveData, species: SpeciesId, stage: 'egg' | 'young', tank: number, traits?: Traits): CreatureData {
   // Milestone 9: wild ones get wild traits; young from the Hatchery or the Revival pool bring theirs.
-  const c: CreatureData = { id: save.nextCreatureId++, species, tank, stage, growth: 0, fed: 0.75, comfort: 0.5, sickness: 0, make: 0, traits: traits ?? wildTraits() };
+  const c: CreatureData = { id: save.nextCreatureId++, species, tank, stage, growth: 0, fed: 0.75, comfort: 0.5, sickness: 0, make: 0, traits: traits ?? { ...wildTraits(), ...wildForms() } };
   save.creatures.push(c);
   return c;
 }

@@ -2,7 +2,7 @@ import { Container, Graphics } from 'pixi.js';
 import { mulberry32, WORLD_SEED } from '../rng';
 import { groundY, isSolid, WORLD_H, WORLD_W } from './terrain';
 import { Critter } from '../actors/critters';
-import type { Traits } from '../game/traits';
+import { wildLook, type Traits } from '../game/traits';
 import { restockedLook } from '../game/collection';
 import { REGROW_SECONDS, SaveData, SpeciesId } from '../game/state';
 import type { PointLight } from './scenery';
@@ -85,7 +85,7 @@ export class Wildlife {
 
   constructor(private readonly living = false) {
     const add = (w: Omit<Wild, 'critter' | 'x' | 'y' | 'vx' | 'vy' | 'tx' | 'ty' | 'retarget' | 'scared' | 'rest' | 'pull' | 'present'>) => {
-      const critter = new Critter(w.species, w.stage, this.all.length + 31, undefined, living);
+      const critter = new Critter(w.species, w.stage, this.all.length + 31, wildLook(this.all.length + 31), living);
       const it: Wild = { ...w, critter, x: w.homeX, y: w.homeY, vx: 0, vy: 0, tx: w.homeX, ty: w.homeY, retarget: 0, scared: 0, rest: 0, pull: 0, present: true };
       this.view.addChild(critter.view);
       this.emissive.addChild(critter.emissive);
@@ -403,10 +403,12 @@ export class Wildlife {
     this.all.forEach((w, idx) => {
       const i = seen.get(w.species) ?? 0;
       seen.set(w.species, i + 1);
-      const look = restockedLook(save, w.species, i);
-      if (!look) return;
+      const found = restockedLook(save, w.species, i);
+      if (!found) return;
       const t = w.critter.traits;
-      if (t.colour === look.colour && t.pattern === look.pattern && !!t.radiant === !!look.radiant) return;
+      // Phase 22: a released look keeps its size and shape too.
+      const look: Traits = { ...found };
+      if (t.colour === look.colour && t.pattern === look.pattern && !!t.radiant === !!look.radiant && t.size === look.size && (t.shape ?? 0) === (look.shape ?? 0)) return;
       const old = w.critter;
       const fresh = new Critter(w.species, w.stage, idx + 31, look, this.living);
       for (const [layer, a, b] of [[this.view, old.view, fresh.view], [this.emissive, old.emissive, fresh.emissive], [this.glow, old.glow, fresh.glow]] as const) {

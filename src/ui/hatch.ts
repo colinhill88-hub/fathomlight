@@ -1,7 +1,7 @@
 import { BaseLayout, pieceCode } from '../game/base';
 import { BREED_SECONDS, carePower, contentment, creatureName, creaturesIn, HATCH_CAP, HATCH_SECONDS, hatcheries, jarRoom, moveCreature, nurseryRoom, nurseryTroughCap, putInJar, pairsIn, RESERVE_CAP, SPECIES, SPECIES_ORDER, tankCapacity, tanks } from '../game/creatures';
 import { CreatureData, SaveData, SpeciesId } from '../game/state';
-import { COLOURS, eggOdds, genText, isRare, PATTERNS, RARE_COLOUR, traitsOf, traitText, WILD_PATTERNS } from '../game/traits';
+import { COLOURS, eggOdds, formText, genText, isRare, PATTERNS, RARE_COLOUR, SHAPES, traitsOf, traitText, WILD_PATTERNS } from '../game/traits';
 import { book, kindKey } from '../game/collection';
 import { snapImg } from './creatureSnap';
 import { MASH_PER_FIBRE } from '../game/factory';
@@ -302,14 +302,18 @@ export class HatchPanel {
       .map((c) => {
         const t = traitsOf(c);
         const on = c.id === this.planA ? 'A' : c.id === this.planB ? 'B' : '';
-        return `<button type="button" class="pp${on ? ' on' : ''}" data-act="p-pick" data-id="${c.id}">${snapImg(c.species, t, 'mini', 'grown')}<span><b>${on ? `${on} · ` : ''}${creatureName(c)}</b><small>${COLOURS[sp][t.colour]}, ${PATTERNS[sp][t.pattern]}${t.radiant ? ' · radiant' : ''} · ${Math.round(contentment(save, c).value * 100)}% content${c.tank < 0 ? ' · resting' : ''}</small></span></button>`;
+        return `<button type="button" class="pp${on ? ' on' : ''}" data-act="p-pick" data-id="${c.id}">${snapImg(c.species, t, 'mini', 'grown')}<span><b>${on ? `${on} · ` : ''}${creatureName(c)}</b><small>${COLOURS[sp][t.colour]}, ${PATTERNS[sp][t.pattern]}${formText(sp, t) ? ` · ${formText(sp, t)}` : ''}${t.radiant ? ' · radiant' : ''} · gen ${t.gen ?? 1} · ${Math.round(contentment(save, c).value * 100)}% content${c.tank < 0 ? ' · resting' : ''}</small></span></button>`;
       })
       .join('');
     let result = '<p class="note">Pick two parents.</p>';
     if (a && b) {
       const care = carePower(save, a, b);
-      const odds = eggOdds(traitsOf(a), traitsOf(b), care);
-      const base = eggOdds(traitsOf(a), traitsOf(b), 1);
+      const contact = !!save.sanctum?.contact;
+      const odds = eggOdds(traitsOf(a), traitsOf(b), care, { contact });
+      const base = eggOdds(traitsOf(a), traitsOf(b), 1, { contact });
+      const ta = traitsOf(a);
+      const tb = traitsOf(b);
+      const nextGen = Math.max(ta.gen ?? 1, tb.gen ?? 1) + 1;
       const bk = book(save);
       let missing = 0;
       for (let col = 0; col < 4; col++) for (let pat = 0; pat < 3; pat++) if (!bk[kindKey(sp, col, pat)]) missing += odds.colour[col] * odds.pattern[pat];
@@ -319,9 +323,13 @@ export class HatchPanel {
         <p class="care-bonus ${care >= 1.9 ? 'good' : care > 1.05 ? 'ok' : ''}">Care bonus ×${care.toFixed(1)}: ${care >= 1.9 ? 'a content, well-kept pair. Rare results are twice as likely.' : care > 1.05 ? 'happier parents would make rare results likelier still (up to ×2).' : 'just getting by. Feed, clean, decorate and hand-feed them to make rare results up to twice as likely.'}</p>
         <div class="odds"><div><h4>Colour</h4><ul>${COLOURS[sp].map((n, i) => row(n, odds.colour[i], i === RARE_COLOUR)).join('')}</ul></div>
         <div><h4>Glow pattern</h4><ul>${PATTERNS[sp].map((n, i) => row(n, odds.pattern[i], i >= WILD_PATTERNS)).join('')}</ul></div></div>
-        <ul class="odds-sum">${row('Radiant', odds.radiant, true)}${missing > 0.0005 ? row('A kind your book is missing', missing, true) : '<li><span>Every kind they can make is already in your book</span></li>'}</ul>
-        ${(a.traits?.radiant || b.traits?.radiant) ? '<p class="note">Radiance runs in this family.</p>' : ''}
-        <p class="note dim">Without the care bonus: rare colour ${oddsText(base.colour[RARE_COLOUR])}, radiant ${oddsText(base.radiant)}.</p>
+        <div class="odds"><div><h4>Size</h4><ul>${row('Tiny', odds.tiny)}${row('Giant', odds.giant)}${row('Ordinary', 1 - odds.tiny - odds.giant)}</ul></div>
+        <div><h4>${sp === 'snail' || sp === 'crab' ? 'Shell' : 'Shape'}</h4><ul>${SHAPES[sp].map((n, i) => row(n.replace(/^./, (m) => m.toUpperCase()), odds.shape[i], i === 2)).join('')}</ul></div></div>
+        <ul class="odds-sum">${row('Radiant', odds.radiant, true)}${odds.heirloom > 0 ? row('Heirloom line', odds.heirloom, true) : `<li><span>Heirloom lines appear from the 4th generation (this egg would be the ${nextGen}${nextGen === 2 ? 'nd' : nextGen === 3 ? 'rd' : 'th'})</span></li>`}${contact ? row('Choir-touched', odds.choir, true) : ''}${missing > 0.0005 ? row('A kind your book is missing', missing, true) : '<li><span>Every kind they can make is already in your book</span></li>'}</ul>
+        ${(ta.radiant || tb.radiant) ? '<p class="note">Radiance runs in this family.</p>' : ''}
+        ${(ta.heirloom || tb.heirloom) ? '<p class="note">An heirloom line: it is passed down often.</p>' : ''}
+        ${(ta.choir || tb.choir) ? '<p class="note">The Choir\'s light runs in this family.</p>' : ''}
+        <p class="note dim">Without the care bonus: rare colour ${oddsText(base.colour[RARE_COLOUR])}, rare shape ${oddsText(base.shape[2])}, radiant ${oddsText(base.radiant)}${base.heirloom > 0 ? `, heirloom ${oddsText(base.heirloom)}` : ''}.</p>
         ${together ? `<p class="note good">They share a tank already. If others of their kind are there too, any two may pair.</p>` : `<button type="button" class="big" data-act="p-pair">Pair them <small>move them into one tank</small></button>`}
       </div>`;
     }

@@ -1,8 +1,8 @@
 import { BaseLayout, pieceCode } from '../game/base';
 import { cleanName, contentment, creatureName, KNOWS_KESTREL, SPECIES, suggestedName } from '../game/creatures';
 import { kindKey, book } from '../game/collection';
-import type { CreatureData, SaveData } from '../game/state';
-import { COLOURS, genText, PATTERNS, RARE_COLOUR, traitsOf, WILD_PATTERNS } from '../game/traits';
+import type { CreatureData, SaveData, SpeciesId } from '../game/state';
+import { COLOURS, genText, PATTERNS, RARE_COLOUR, SHAPES, traitsOf, WILD_PATTERNS, type Traits } from '../game/traits';
 import { snapImg } from './creatureSnap';
 
 /*
@@ -25,10 +25,16 @@ export interface CardDeps {
 const esc = (t: string) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
 
 /** Small rarity tags for a creature's traits. */
-export function rarityTags(t: { colour: number; pattern: number; radiant?: boolean }): string {
+export function rarityTags(t: Traits, species?: SpeciesId): string {
   const tags: string[] = [];
+  // Phase 23 and 22 first: the rarest tier.
+  if (t.choir) tags.push('<span class="rtag choir">Choir-touched</span>');
+  if (t.heirloom) tags.push('<span class="rtag heirloom">heirloom line</span>');
   if (t.colour === RARE_COLOUR) tags.push('<span class="rtag rare">rare colour</span>');
   if (t.pattern >= WILD_PATTERNS) tags.push('<span class="rtag rare">bred-only glow</span>');
+  if (t.shape === 2) tags.push(`<span class="rtag rare">rare shape${species ? `: ${SHAPES[species][2]}` : ''}</span>`);
+  if (t.shape === 1) tags.push(`<span class="rtag unc">${species ? SHAPES[species][1] : 'uncommon shape'}</span>`);
+  if (t.size) tags.push(`<span class="rtag unc">${t.size}</span>`);
   if (t.radiant) tags.push('<span class="rtag radiant">radiant</span>');
   return tags.join('');
 }
@@ -155,13 +161,13 @@ export class CreatureCard {
           c.name ? `<button type="button" data-act="cc-reset" title="Go back to ${esc(suggestedName(c))}">Reset</button>` : ''
         }</div>`
       : `<h3>${esc(name)} ${egg ? '' : '<button type="button" class="cc-pen" data-act="cc-rename" aria-label="Rename" title="Rename">✎</button>'}</h3>`;
-    this.el.innerHTML = `<div class="cc-card${t.radiant ? ' radiant' : ''}">
+    this.el.innerHTML = `<div class="cc-card${t.radiant ? ' radiant' : ''}${t.choir ? ' choir' : t.heirloom ? ' heirloom' : ''}">
       <button type="button" class="x" data-act="cc-close" aria-label="Close">✕</button>
       <div class="cc-portrait">${snapImg(c.species, t, '', egg ? 'egg' : c.stage === 'young' ? 'young' : 'grown', name)}</div>
       <div class="cc-info">
         ${nameRow}
         <p class="cc-species">${sp.name}${c.stage === 'young' ? ' · young' : egg ? '' : ' · grown'}</p>
-        <p class="cc-traits">${COLOURS[c.species][t.colour]} · ${PATTERNS[c.species][t.pattern]} ${rarityTags(t)}</p>
+        <p class="cc-traits">${COLOURS[c.species][t.colour]} · ${PATTERNS[c.species][t.pattern]} ${rarityTags(t, c.species)}</p>
         <p class="cc-line">${genText(t).replace(/^./, (m) => m.toUpperCase())}${c.parents ? ` · parents ${esc(c.parents[0])} and ${esc(c.parents[1])}` : ''}</p>
         <p class="cc-line">${this.where(c)}</p>
         ${egg ? '' : `<div class="cc-content"><div class="row"><span>${ct.label}</span><span>${pct(ct.value)}</span></div><div class="track"><i class="${ct.value >= 0.85 ? 'hi' : ct.value < 0.5 ? 'lo' : ''}" style="width:${pct(ct.value)}"></i></div>

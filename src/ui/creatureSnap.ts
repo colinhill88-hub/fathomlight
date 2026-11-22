@@ -1,7 +1,7 @@
 import { Application, BlurFilter, Container, Rectangle } from 'pixi.js';
 import { Critter } from '../actors/critters';
 import type { SpeciesId } from '../game/state';
-import type { Traits } from '../game/traits';
+import { SIZE_SCALE, type Traits } from '../game/traits';
 
 /*
  * Phase 20: portraits of creatures for the collection book, creature cards and
@@ -37,7 +37,7 @@ function start(): Promise<Application | null> {
 }
 
 export function snapKey(species: SpeciesId, t: Traits, stage: 'young' | 'grown' | 'egg' = 'grown'): string {
-  return `${species}:${t.colour}:${t.pattern}:${t.radiant ? 1 : 0}:${stage}`;
+  return `${species}:${t.colour}:${t.pattern}:${t.radiant ? 1 : 0}:${stage}:${t.size ?? ''}${t.shape ?? 0}${t.heirloom ? 'h' : ''}${t.choir ? 'c' : ''}`;
 }
 
 /** The picture's address if it is ready (a data URL), else null (and it is queued). */
@@ -45,7 +45,7 @@ export function snapUrl(species: SpeciesId, t: Traits, stage: 'young' | 'grown' 
   const key = snapKey(species, t, stage);
   const hit = cache.get(key);
   if (hit) return hit;
-  if (!queue.some((q) => q.key === key)) queue.push({ key, species, stage, traits: { colour: t.colour, pattern: t.pattern, radiant: t.radiant } });
+  if (!queue.some((q) => q.key === key)) queue.push({ key, species, stage, traits: { colour: t.colour, pattern: t.pattern, radiant: t.radiant, size: t.size, shape: t.shape, heirloom: t.heirloom, choir: t.choir } });
   void pump();
   return null;
 }
@@ -80,18 +80,21 @@ async function pump(): Promise<void> {
 }
 
 function draw(a: Application, species: SpeciesId, stage: 'young' | 'grown' | 'egg', t: Traits): string {
-  const critter = new Critter(species, stage, 7, { colour: t.colour, pattern: t.pattern, radiant: t.radiant, gen: 2 }, true);
+  const critter = new Critter(species, stage, 7, { ...t, gen: 2 }, true);
   const host = new Container();
   // The glow layer is soft halos meant for the game's bloom pass: blur it here instead.
   critter.glow.blendMode = 'add';
-  critter.glow.alpha = t.radiant ? 0.9 : 0.45;
+  critter.glow.alpha = t.radiant || t.choir ? 0.9 : 0.45;
   critter.glow.filters = [new BlurFilter({ strength: 10, quality: 3 })];
   host.addChild(critter.glow, critter.view, critter.emissive);
   // A calm side-on pose, facing right, needs fully met.
   critter.face = 1;
   for (let i = 0; i < 8; i++) critter.update(1 / 30, 1.2 + i / 30, 0, 0, 12, 0, { vigour: 1, sick: 0, size: 1 });
   const b = critter.view.getBounds();
-  const s = Math.min((W * 0.78) / Math.max(1, b.width), (H * 0.74) / Math.max(1, b.height));
+  // The rig is drawn at its size (tiny or giant); fit an ordinary one, so the size still shows.
+  const k = t.size ? SIZE_SCALE[t.size] : 1;
+  const fit = Math.min((W * 0.7) / Math.max(1, b.width / k), (H * 0.66) / Math.max(1, b.height / k));
+  const s = Math.min(fit, (W * 0.96) / Math.max(1, b.width), (H * 0.92) / Math.max(1, b.height));
   host.scale.set(s);
   host.position.set(W / 2 - (b.x + b.width / 2) * s, H / 2 - (b.y + b.height / 2) * s);
   a.stage.removeChildren();
