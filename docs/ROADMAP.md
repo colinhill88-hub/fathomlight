@@ -42,6 +42,31 @@ The order below is Colin's agreed phasing. Phases 15, 16 and 17 are built and me
   - **Ledger:** log every generated image in `docs/art/SOURCES.md` with the file, what it is, the tool used, the date and the prompt (or a summary of it). The licence of the tool must allow selling the game (Colin may sell it on Steam). If unsure, ask Colin before using it.
   - **Phone-friendly:** keep files small (prefer `.webp`, sized to how big they are on screen), and keep a procedural fallback wherever the code already has one (`?art=procedural`).
   - **Animated things:** creatures and characters still need to move naturally. Painted textures can dress a jointed code rig (as Kestrel's face and suit materials do), rather than replacing animation with stiff sprites.
+- **Phases 20–23 design answers (Colin, Nov 22, 2026, answered all at once to save tokens; build in two sessions, A and B, below):**
+  - **Phase 20:**
+    - The collection book is a **new tab in the Field kit**.
+    - At hatching the game **suggests a name, which the player can keep with one tap or edit**.
+    - Completing a row or page gives **rare eggs and tank decorations**.
+    - The hatching moment is **scaled by rarity**: every egg gets a short reveal; a first-ever colour or pattern, or a radiant baby, gets a full reward card and fanfare.
+  - **Phase 21:**
+    - **Linnea gives the creature requests.**
+    - They pay in **rare eggs and tank decorations**.
+    - They have **no time limits**.
+    - Good care makes rare traits **clearly more likely**: about twice as likely for a content, well-kept pair as for a neglected one, and the planner shows it.
+  - **Room for more creatures (Colin raised this):** if breeding becomes the focus, today's tanks are too small (a small tank holds 4, a Grand tank 8; about 40–50 creatures by the end of the game). Add all three:
+    - a **huge display aquarium** (about 20 creatures; a late showpiece unlocked by a request or blueprint);
+    - **upgradeable tanks** in the Workshop (small 4 → 6, Grand 8 → 12);
+    - a **creature reserve** where creatures not on show rest safely with no care needed, and can be brought back to any tank.
+
+    The care and Hatchery panels must handle large numbers: lists that **sort and filter** (species, rare, needs care), a quick **move** between tanks and the reserve, and a **"care for all"** button for routine feeding and cleaning.
+  - **Phase 22:**
+    - New traits: **size** (the occasional tiny or giant one), **fin or shell shape**, and **heirloom lines**. Markings were not chosen.
+    - **Two new species:** one from the trench and one from the sanctum's edge, each with its own rare forms.
+    - **Tiered rarity:** uncommon traits about 1 in 8 hatchings, rare about 1 in 25, heirloom and Choir-touched 1 in 100 or rarer, all better with great care.
+  - **Phase 23:**
+    - **Choir-touched creatures may carry the Choir's cyan, violet and magenta.** This is the one exception to the colour rule, and only for them.
+    - The ending is **richer, same story**: the same ending for everyone, but its colours, sounds and the patterns the Choir sings back grow richer with a varied, rare collection, plus a special line for an outstanding one.
+    - A raised creature carried in the jar is an **optional companion** that joins the call and answer with its own moment.
 - **What's next (Colin, after Phase 19 merged):** make creature care and breeding the heart of the game (Dave the Diver is the inspiration for how satisfying that loop feels), with more rare and unique creatures tied into the Choir encounter. Then premium polish. Combat gets more sections and tuning later, through playtesting. The plan is Phases 20–24 below; each needs a short design check with Colin first (the open questions are listed with each).
 
 ## Phase 15: quality of life and the Field kit (built, PR #38)
@@ -184,7 +209,7 @@ The open questions below were answered at the start of the session (see "Colin's
 - **Sound:** every enemy move gets an audible telegraph (danger first in the mix, per Phase 16).
 - **Open questions for Colin, early in the session:** what the weapon is and is called; how Kestrel's health works indoors (reuse suit integrity or something new); whether cleared rooms stay cleared or refill when you come back; how many infested sections, and in which wrecks.
 
-## Phase 20: the creature collection book and the hatching moment. Not built; first in line.
+## Phase 20: the creature collection book and the hatching moment. Not built; first in line (Session A). Design answered: see "Colin's decisions (Nov 22, 2026)".
 
 **Why:** breeding already has real depth: four colours per species (the fourth only from breeding), three glow patterns (the third only from breeding), and radiant glow that runs in families (`src/game/traits.ts`). But the player rarely sees it. This phase makes rarity visible and every hatching exciting. It is the biggest visible win for the least work.
 
@@ -204,7 +229,7 @@ The open questions below were answered at the start of the session (see "Colin's
   - whether players choose names (or keep the generated ones);
   - what completing a row or a page gives (materials, a decoration, a rare egg).
 
-## Phase 21: care that pays, a breeding planner, and requests. Not built.
+## Phase 21: care that pays, a breeding planner, and requests. Not built (Session A, with room for more creatures). Design answered: see "Colin's decisions (Nov 22, 2026)".
 
 **Why:** give breeding a rhythm and a reason, the way Dave the Diver's farm and orders keep you coming back, without copying them.
 
@@ -219,7 +244,7 @@ The open questions below were answered at the start of the session (see "Colin's
   - how strongly care should change the odds;
   - whether requests have time limits (suggested: none, to stay cozy).
 
-## Phase 22: more ways to be rare. Not built.
+## Phase 22: more ways to be rare. Not built (Session B). Design answered: see "Colin's decisions (Nov 22, 2026)".
 
 **Why:** Colin wants more rare and unique creatures possible. Today rarity is colour, pattern and radiance.
 
@@ -235,7 +260,7 @@ The open questions below were answered at the start of the session (see "Colin's
   - whether to add species (how many, and where);
   - how rare "rare" should feel (one in ten hatchings, one in fifty).
 
-## Phase 23: creatures and the Choir. Not built.
+## Phase 23: creatures and the Choir. Not built (Session B). Design answered: see "Colin's decisions (Nov 22, 2026)".
 
 **Why:** tie the creature collection into the story's climax, so the ending is personal to each player.
 
@@ -275,6 +300,22 @@ The open questions below were answered at the start of the session (see "Colin's
 3. Phases 22 and 23: new rare traits and Choir-touched creatures, tied into the ending.
 4. Phase 24: premium polish.
 5. Combat (Phase 19) gets more sections and tuning whenever Colin is ready to playtest; it can slot in between any of these.
+
+**Update (Colin, Nov 22, 2026): Phases 20–23 are built in two sessions, with every design question already answered** (see "Colin's decisions (Nov 22, 2026)"), so each session can start building after a quick look at a mock-up:
+- **Session A: Phases 20 and 21, plus room for more creatures.**
+  - The collection book tab, the hatching moment, naming and creature cards.
+  - Contentment, hand-feeding, the breeding planner, Linnea's requests and restocking the reef.
+  - Upgradeable tanks, the creature reserve and the display aquarium.
+  - Panels that sort, filter, move and "care for all".
+  - Prompt: [`prompts/phases-20-21-creature-care.md`](prompts/phases-20-21-creature-care.md).
+- **Session B: Phases 22 and 23.**
+  - Size, shape and heirloom traits and the tiered rarity.
+  - The two new species.
+  - Choir-touched creatures.
+  - The richer ending and the optional companion.
+  - Prompt: [`prompts/phases-22-23-rarity-and-choir.md`](prompts/phases-22-23-rarity-and-choir.md).
+
+  Session B builds on Session A (the book and the care odds), so A comes first.
 
 ## Later: needs a design pass with Colin first
 

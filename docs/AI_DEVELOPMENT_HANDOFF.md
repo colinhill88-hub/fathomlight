@@ -14,7 +14,7 @@ Read [Design](../DESIGN.md) for the creative constraints, [Progress](../PROGRESS
 
 Fathomlight is a single-player 2D underwater exploration, base-building and creature-care game. Kestrel is the compact salvage diver. The opening is small and approachable. The route expands from Sunlit Shallows and the basin through the Kelp Forest, Wreck Shelf and trench to the Choir. The player should make connections through observed behavior, scans, tool use and revisits. Keep calm spaces, hazards, and deliberate moments of discovery. Use the existing log and contextual actions for guidance.
 
-The repository default (live) branch is `claude/underwater-game-m0-0qqajg`. Phases 12, 13 (PR #35), 14 (reward moments, PR #36) and 15 (jar release, Field kit, sonar control bar, PR #38) are all merged into it. Phase 16 (audio) is merged too (PRs #40–#43). Phase 17 is merged (PR #45). Phase 18 (Linnea, PR #46) and Phase 19's first infested section (the Corvina's engine room, PR #47) are merged. The next work is Phase 20 (the creature collection book and the hatching moment), the first of Phases 20–24 on creature care, rarity, the Choir and premium polish in the [roadmap](ROADMAP.md), with a ready session prompt in `docs/prompts/phase-20-collection-and-hatching.md`. Merging to the live branch starts the [GitHub Pages workflow](../.github/workflows/deploy.yml). Publish or merge only when Colin requests it.
+The repository default (live) branch is `claude/underwater-game-m0-0qqajg`. Phases 12, 13 (PR #35), 14 (reward moments, PR #36) and 15 (jar release, Field kit, sonar control bar, PR #38) are all merged into it. Phase 16 (audio) is merged too (PRs #40–#43). Phase 17 is merged (PR #45). Phase 18 (Linnea, PR #46) and Phase 19's first infested section (the Corvina's engine room, PR #47) are merged. The next work is Phases 20–23 (creature care, rarity and the Choir). Colin has answered all their design questions (the roadmap's "Colin's decisions (Nov 22, 2026)"), and they are built in two sessions: **Session A** (Phases 20 and 21, plus room for more creatures), prompt `docs/prompts/phases-20-21-creature-care.md`; then **Session B** (Phases 22 and 23), prompt `docs/prompts/phases-22-23-rarity-and-choir.md`. Phase 24 (premium polish) follows. See the [roadmap](ROADMAP.md). Merging to the live branch starts the [GitHub Pages workflow](../.github/workflows/deploy.yml). Publish or merge only when Colin requests it.
 
 ## Source map
 
@@ -92,14 +92,14 @@ See the [roadmap](ROADMAP.md) for the full plan. In short:
 2. **Phase 17: Kestrel's kit** is merged (PR #45): the Field kit portrait is the real Kestrel rig with highlights, and the mag-boots are a toggle walking mode.
 3. **Phase 18: Linnea,** a friendly axolotl guide with gentle hints, is built on a branch with a pull request (waiting for Colin to play and merge). Notes: [`phase-18-linnea.md`](phase-18-linnea.md).
 4. **Phases 20–24 (planned Nov 22, 2026):**
-   - **Phase 20:** the creature collection book and the hatching moment (next; prompt ready);
+   - **Phase 20:** the creature collection book and the hatching moment;
    - **Phase 21:** care that pays, a breeding planner and requests;
    - **Phase 22:** more rare traits;
    - **Phase 23:** creatures and the Choir;
    - **Phase 24:** premium polish.
 
-   Each starts with a short design check with Colin.
-5. **Phase 19: combat inside the wrecks** (merged) (on foot only; a deliberate change to the vision, see DESIGN.md's first pillar). Prompt: [`prompts/phase-19-wreck-combat.md`](prompts/phase-19-wreck-combat.md). The first section (the Corvina's engine room, the Rivet driver, three machines) is built on a pull request; Colin plays it before more sections are built. Notes: [`phase-19-wreck-combat.md`](phase-19-wreck-combat.md).
+   Colin answered every design question for 20–23 up front; build them as Session A (20 and 21, plus tank capacity, the reserve and the display aquarium) then Session B (22 and 23), with the prompts in `docs/prompts/`. Phase 24 still needs a short design check.
+5. **Phase 19: combat inside the wrecks** (merged) (on foot only; a deliberate change to the vision, see DESIGN.md's first pillar). Prompt: [`prompts/phase-19-wreck-combat.md`](prompts/phase-19-wreck-combat.md). The first section (the Corvina's engine room, the Rivet driver, three machines) is merged (PR #47); Colin playtests before more sections are built. Notes: [`phase-19-wreck-combat.md`](phase-19-wreck-combat.md).
 6. **Then design with Colin:** songs Kestrel plays on the resonator, a climax at each major site, movement flow, a goal board, and maps of major sites.
 
 Validation that is still open:
