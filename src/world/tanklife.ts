@@ -32,6 +32,10 @@ interface Swimmer {
   mood: number;
   /** Phase 21: a hand-fed treat it is going for. */
   treat?: Flake;
+  /** Phase 21, living tanks: rising to break the surface, seconds until it may again, and the wake's timer. */
+  rising: boolean;
+  surfaceIn: number;
+  wakeIn: number;
 }
 
 interface Flake {
@@ -290,6 +294,9 @@ export class TankLife {
           rest: 0,
           feeding: 0,
           mood: contentment(save, c).value,
+          rising: false,
+          surfaceIn: 4 + ((c.id * 7) % 9),
+          wakeIn: 0,
         };
         if (c.stage === 'egg') {
           s.x = eggX;
@@ -462,6 +469,15 @@ export class TankLife {
           }
         }
       s.retarget -= dt;
+      s.surfaceIn -= dt;
+      // Phase 21, living tanks: swimmers that live high in the water now and then rise to break the surface.
+      const surfacer = v.water && (sp === 'glowfin' || sp === 'puffcap' || sp === 'shrimp');
+      if (surfacer && !s.rising && s.surfaceIn <= 0 && s.mood > 0.45 && Math.random() < dt * 0.25) {
+        s.rising = true;
+        s.tx = Math.max(b.x + pad, Math.min(b.x + b.w - pad, s.x + (Math.random() - 0.5) * 60 * this.k));
+        s.ty = b.y + 2 * this.k;
+        s.retarget = 6;
+      }
       // Phase 21: a creature that knows Kestrel swims to the glass on his side when he is near.
       const kp = this.kestrel;
       const greet = !flake && (c.bond ?? 0) >= KNOWS_KESTREL && !!kp && kp.x > b.x - 260 * this.k && kp.x < b.x + b.w + 260 * this.k && Math.abs(kp.y - (b.y + b.h / 2)) < b.h + 200 * this.k;
@@ -472,6 +488,8 @@ export class TankLife {
         s.tx = Math.max(b.x + pad, Math.min(b.x + b.w - pad, kp.x + Math.sin(time * 1.3 + c.id) * 18 * this.k));
         s.ty = Math.max(b.y + pad, Math.min(b.y + b.h - pad, kp.y + Math.cos(time * 1.1 + c.id) * 12 * this.k));
         s.retarget = 0.5;
+      } else if (s.rising) {
+        // Keep heading up until it breaks the surface.
       } else if (s.retarget <= 0 || Math.hypot(s.tx - s.x, s.ty - s.y) < 8 * this.k) {
         s.tx = b.x + pad + Math.random() * (b.w - pad * 2);
         // Puffcaps drift high, rays keep low, glowfins swim the middle;
@@ -505,7 +523,27 @@ export class TankLife {
       // Sick ones sink towards the floor.
       s.vy += sick * 6 * this.k * dt;
       s.x = Math.max(b.x + pad, Math.min(b.x + b.w - pad, s.x + s.vx * dt));
-      s.y = Math.max(b.y + pad * 0.8, Math.min(b.y + b.h - 10 * this.k, s.y + s.vy * dt));
+      const top = s.rising ? b.y + 4 * this.k : b.y + pad * 0.8;
+      s.y = Math.max(top, Math.min(b.y + b.h - 10 * this.k, s.y + s.vy * dt));
+      if (s.rising && (s.y <= b.y + 7 * this.k || flake)) {
+        // It breaks the surface: ripples run along the water line, droplets and bubbles. Then it dives again.
+        if (!flake && on) {
+          v.water?.surfaceBreak(s.x, Math.min(1.3, 0.6 + Math.hypot(s.vx, s.vy) / (40 * this.k)));
+          for (let i = 0; i < 5; i++) v.bubbles.push({ x: s.x + (i - 2) * 3 * this.k, y: b.y + 12 * this.k + i * 3 * this.k, r: (0.8 + (i % 3) * 0.6) * this.k, life: 0.5 + i * 0.08 });
+        }
+        s.rising = false;
+        s.surfaceIn = 10 + Math.random() * 14;
+        s.retarget = 0;
+        s.vy = Math.abs(s.vy) * 0.6;
+      }
+      // Its wake: motes stirred up behind it while it swims briskly (only where the tank is on screen).
+      s.wakeIn -= dt;
+      const speedNow = Math.hypot(s.vx, s.vy);
+      if (on && v.water && s.wakeIn <= 0 && speedNow > 12 * this.k) {
+        const l2 = speedNow || 1;
+        v.water.wake(s.x - (s.vx / l2) * 10 * this.k, s.y - (s.vy / l2) * 4 * this.k, s.vx, s.vy);
+        s.wakeIn = 0.12 + 1 / (1 + speedNow / (10 * this.k)) * 0.15;
+      }
     }
     s.critter.setVisible(on);
     if (!on) return;
