@@ -46,6 +46,9 @@ export const COLOURS: Record<SpeciesId, string[]> = {
   crab: ['Rust', 'Olive', 'Brick', 'Steel blue'],
   shrimp: ['Amber', 'Ruby', 'Clearwater', 'Gilded'],
   snail: ['Iron', 'Bronze', 'Ash', 'Ember gold'],
+  // Phase 22: the two new species.
+  eel: ['Soot', 'Rust', 'Ash grey', 'Molten gold'],
+  horse: ['Ivory', 'Pearl rose', 'Driftwood', 'Sunstone'],
 };
 export const PATTERNS: Record<SpeciesId, string[]> = {
   glowfin: ['side line', 'spotted', 'banded'],
@@ -54,6 +57,8 @@ export const PATTERNS: Record<SpeciesId, string[]> = {
   crab: ['eye shine', 'shell spots', 'claw tips'],
   shrimp: ['side lights', 'banded', 'tail lantern'],
   snail: ['seam glow', 'foot lights', 'spiral glow'],
+  eel: ['ember line', 'cinder spots', 'kiln bands'],
+  horse: ['crown light', 'pearl beads', 'lyre lines'],
 };
 export const RARE_COLOUR = 3;
 
@@ -69,6 +74,8 @@ export const SHAPES: Record<SpeciesId, string[]> = {
   crab: ['smooth shell', 'spiked shell', 'fan crest'],
   shrimp: ['plain fan', 'long whips', 'plume tail'],
   snail: ['round coil', 'tall spire', 'fluted shell'],
+  eel: ['ribbon fin', 'sail crest', 'lantern tail'],
+  horse: ['curled tail', 'long snout', 'veil crown'],
 };
 
 /**

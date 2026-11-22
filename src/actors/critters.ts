@@ -6,6 +6,7 @@ import { GlowfinRig } from './glowfinRig';
 import { DappleRayRig } from './dappleRayRig';
 import { CinderRig, LanternShrimpRig, PuffcapRig, ShoreRig, TinkerRig, type Stroke } from './shoreCreatureRigs';
 import { batchAll } from './animkit';
+import { ChimeHorseRig, EEL_LOOKS, HORSE_LOOKS, KilnEelRig } from './deepCreatureRigs';
 
 /**
  * The keepable creatures of the sunlit shallows, drawn with code
@@ -51,6 +52,9 @@ const BODY_TINTS: Record<SpeciesId, number[]> = {
   crab: [0xffffff, 0xc4d494, 0xffa494, 0x98b6ea],
   shrimp: [0xffffff, 0xff9a92, 0xd2ecff, 0xffdc6a],
   snail: [0xffffff, 0xe8b080, 0xc8c4bc, 0xffd890],
+  // Phase 22: the new species draw their own colours (EEL_LOOKS, HORSE_LOOKS), so no tint.
+  eel: [0xffffff, 0xffffff, 0xffffff, 0xffffff],
+  horse: [0xffffff, 0xffffff, 0xffffff, 0xffffff],
 };
 
 /** Phase 22: the core of each species' body (living rigs, grown), where heirloom and Choir marks go. */
@@ -61,6 +65,8 @@ const CORE: Partial<Record<SpeciesId, { x: number; y: number; w: number; h: numb
   crab: { x: -3, y: -15, w: 40, h: 20 },
   shrimp: { x: 4, y: -1, w: 40, h: 18 },
   snail: { x: -8, y: -22, w: 30, h: 36 },
+  eel: { x: 0, y: 0, w: 44, h: 13 },
+  horse: { x: 0, y: -2, w: 16, h: 30 },
 };
 
 /** Blend two 0xRRGGBB colours (0 = a, 1 = b). */
@@ -134,9 +140,14 @@ export class Critter {
       if (living) this.drawLivingEggs();
       else this.drawEggs(r);
     } else if (species === 'glowfin') this.drawGlowfin(living);
-    else if (living && species !== 'ray') {
-      const Rig = { puffcap: PuffcapRig, crab: TinkerRig, shrimp: LanternShrimpRig, snail: CinderRig }[species];
-      const rig = this.shoreRig = new Rig(stage === 'young', this.traits.pattern, this.phase, this.traits.shape ?? 0);
+    else if (species === 'eel' || species === 'horse' || (living && species !== 'ray')) {
+      // Phase 22: the kiln eel and the chime seahorse only have their jointed rigs (both creature modes).
+      const young = stage === 'young';
+      const shape = this.traits.shape ?? 0;
+      const rig = this.shoreRig =
+        species === 'eel' ? new KilnEelRig(young, this.traits.pattern, this.phase, shape, EEL_LOOKS[this.look])
+        : species === 'horse' ? new ChimeHorseRig(young, this.traits.pattern, this.phase, shape, HORSE_LOOKS[this.look])
+        : new { puffcap: PuffcapRig, crab: TinkerRig, shrimp: LanternShrimpRig, snail: CinderRig }[species as 'puffcap' | 'crab' | 'shrimp' | 'snail'](young, this.traits.pattern, this.phase, shape);
       this.body.addChild(rig.view);
       this.emissive.addChild(rig.markings);
       this.glow.addChild(rig.halo);
@@ -279,6 +290,8 @@ export class Critter {
     if (this.species === 'crab') return young ? 0.8 : 1.15;
     if (this.species === 'shrimp') return young ? 0.75 : 1.05;
     if (this.species === 'snail') return young ? 0.8 : 1.2;
+    if (this.species === 'eel') return young ? 0.85 : 1.1;
+    if (this.species === 'horse') return young ? 0.85 : 1.2;
     return young ? 0.85 : 1.25;
   }
 
@@ -556,7 +569,7 @@ export class Critter {
     const embryo = new Graphics();
     this.eggs = new Container();
     const sp = this.species;
-    const colours: Record<SpeciesId, number> = { glowfin: 0x97a87c, puffcap: 0xda8a8e, ray: 0xad7955, crab: 0xb87563, shrimp: 0xd5a587, snail: 0xc37b50 };
+    const colours: Record<SpeciesId, number> = { glowfin: 0x97a87c, puffcap: 0xda8a8e, ray: 0xad7955, crab: 0xb87563, shrimp: 0xd5a587, snail: 0xc37b50, eel: 0xb06a40, horse: 0xe8d6b0 };
     const colour = colours[sp];
     g.ellipse(0, 2, 17, 3).fill({ color: 0x56493f, alpha: 0.55 });
     if (sp === 'ray') {

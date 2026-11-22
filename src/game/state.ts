@@ -146,7 +146,7 @@ export interface DroppedBag {
 }
 
 /** Creatures you can keep (milestone 4). Rules are in src/game/creatures.ts. */
-export type SpeciesId = 'glowfin' | 'puffcap' | 'ray' | 'crab' | 'shrimp' | 'snail';
+export type SpeciesId = 'glowfin' | 'puffcap' | 'ray' | 'crab' | 'shrimp' | 'snail' | 'eel' | 'horse';
 export type PlantId = 'coral' | 'kelp' | 'grass' | 'bladder' | 'lumen';
 
 /** One creature living in a creature tank. Every need is 0..1 (1 is best). */

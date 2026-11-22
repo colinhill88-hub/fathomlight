@@ -494,13 +494,14 @@ export class TankLife {
         s.tx = b.x + pad + Math.random() * (b.w - pad * 2);
         // Puffcaps drift high, rays keep low, glowfins swim the middle;
         // crabs walk the floor and shrimp keep low-to-middle (milestone 7).
-        const lo = sp === 'crab' || sp === 'snail' ? 0.9 : sp === 'ray' ? 0.7 : sp === 'puffcap' ? 0.2 : sp === 'shrimp' ? 0.45 : 0.3;
-        const hi = sp === 'crab' || sp === 'snail' ? 0.9 : sp === 'ray' ? 0.85 : sp === 'puffcap' ? 0.55 : sp === 'shrimp' ? 0.8 : 0.75;
+        // Phase 22: kiln eels keep low among the gravel; chime seahorses hang in the middle, by the grass.
+        const lo = sp === 'crab' || sp === 'snail' ? 0.9 : sp === 'ray' ? 0.7 : sp === 'eel' ? 0.7 : sp === 'horse' ? 0.4 : sp === 'puffcap' ? 0.2 : sp === 'shrimp' ? 0.45 : 0.3;
+        const hi = sp === 'crab' || sp === 'snail' ? 0.9 : sp === 'ray' ? 0.85 : sp === 'eel' ? 0.9 : sp === 'horse' ? 0.7 : sp === 'puffcap' ? 0.55 : sp === 'shrimp' ? 0.8 : 0.75;
         s.ty = b.y + b.h * (lo + Math.random() * (hi - lo));
         s.retarget = 2 + Math.random() * 4;
         if (sp === 'ray' && Math.random() < 0.3) s.rest = 2 + Math.random() * 3;
       }
-      let speed = (sp === 'puffcap' ? 12 : sp === 'crab' ? 16 : sp === 'snail' ? 7 : 30) * this.k * (0.5 + vig * 0.5) * (1 - sick * 0.6);
+      let speed = (sp === 'puffcap' ? 12 : sp === 'crab' ? 16 : sp === 'snail' ? 7 : sp === 'horse' ? 9 : sp === 'eel' ? 24 : 30) * this.k * (0.5 + vig * 0.5) * (1 - sick * 0.6);
       let ax = s.tx - s.x;
       let ay = s.ty - s.y;
       if (s.rest > 0 && !flake) {

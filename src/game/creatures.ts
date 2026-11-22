@@ -129,8 +129,36 @@ export const SPECIES: Record<SpeciesId, SpeciesDef> = {
     makesText: 'grazes mineral crust off the tank rocks and sheds it, cooled, as vent ore',
     scan: 'snail',
   },
+  // Phase 22: the trench floor, by the drowned Fulmar.
+  eel: {
+    id: 'eel',
+    name: 'Kiln eel',
+    youngName: 'young kiln eel',
+    eggName: 'kiln eel egg string',
+    home: "the trench floor's east end, past the Fulmar's stern",
+    plant: 'lumen',
+    company: 'any',
+    dislikes: ['puffcap'],
+    makes: 'brass',
+    makesText: 'noses through the tank gravel for old metal and polishes it into bright brass fittings',
+    scan: 'eel',
+  },
+  // Phase 22: the sanctum's edge, in the antechamber's pale light.
+  horse: {
+    id: 'horse',
+    name: 'Chime seahorse',
+    youngName: 'young chime seahorse',
+    eggName: 'chime seahorse brood pouch',
+    home: "the antechamber at the sanctum's edge",
+    plant: 'grass',
+    company: 'same',
+    dislikes: ['crab'],
+    makes: 'bloom',
+    makesText: 'hums to the seagrass at night, and now and then a glowing bloom opens where it sleeps',
+    scan: 'horse',
+  },
 };
-export const SPECIES_ORDER: SpeciesId[] = ['glowfin', 'puffcap', 'ray', 'crab', 'shrimp', 'snail'];
+export const SPECIES_ORDER: SpeciesId[] = ['glowfin', 'puffcap', 'ray', 'crab', 'shrimp', 'snail', 'eel', 'horse'];
 
 /**
  * Pairings (milestone 7; DESIGN.md, mixed tanks). Clashes: puffcap threads
@@ -142,6 +170,8 @@ export const CLASH_TEXT: Partial<Record<SpeciesId, (other: string) => string>> =
   glowfin: (o) => `Stung by the ${o}'s threads`,
   puffcap: (o) => `Ribbons snipped by the ${o}`,
   snail: (o) => `Scales picked at by the ${o}`,
+  eel: (o) => `Fin stung by the ${o}'s threads`,
+  horse: (o) => `Filaments snipped by the ${o}`,
 };
 /** Each cleaning lantern shrimp adds this much to a tank-mate's output (another species only)... */
 export const CLEAN_BONUS = 0.25;

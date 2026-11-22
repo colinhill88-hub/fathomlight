@@ -2,7 +2,7 @@ import { Application, BlurFilter, Container, Graphics } from 'pixi.js';
 import { Critter } from '../actors/critters';
 import { SPECIES, SPECIES_ORDER } from '../game/creatures';
 import type { SpeciesId } from '../game/state';
-import { SHAPES, type Traits } from '../game/traits';
+import { COLOURS, PATTERNS, SHAPES, type Traits } from '../game/traits';
 
 /**
  * Phase 22: the creature zoo (zoo.html, on the play link or with `npm run dev`).
@@ -26,6 +26,11 @@ const FORMS: { label: (sp: SpeciesId) => string; t: Partial<Traits> }[] = [
   { label: () => 'radiant', t: { radiant: true } },
 ];
 
+// ?kinds: every colour and glow pattern instead of the forms.
+if (q.has('kinds')) {
+  FORMS.length = 0;
+  for (let c = 0; c < 4; c++) for (const p of c === 3 ? [0, 2] : [c]) FORMS.push({ label: (sp) => `${COLOURS[sp][c]} · ${PATTERNS[sp][p]}`, t: { colour: c, pattern: p } });
+}
 const app = new Application();
 await app.init({ background: 0x0a2730, antialias: true, resizeTo: window, resolution: Math.min(2, devicePixelRatio) });
 document.body.prepend(app.canvas);
@@ -53,7 +58,7 @@ function layout(): void {
   const left = 90;
   const cw = (W - left - 10) / FORMS.length;
   const rh = (H - 30) / species.length;
-  const scale = Math.min(cw / 110, rh / 80);
+  const scale = Math.min(cw / 110, rh / 80) * Number(q.get('zoom') ?? 1);
   species.forEach((sp, r) => {
     const y = 26 + rh * (r + 0.55);
     const row = document.createElement('span');
@@ -65,6 +70,7 @@ function layout(): void {
     FORMS.forEach((f, i) => {
       const x = left + cw * (i + 0.5);
       const c = new Critter(sp, stage, 7 + i, { colour, pattern: 1, gen: 3, ...f.t }, true);
+      c.face = 1;
       glow.addChild(c.glow);
       lit.addChild(c.view);
       em.addChild(c.emissive);

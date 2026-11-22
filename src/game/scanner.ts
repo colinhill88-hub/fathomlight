@@ -324,6 +324,19 @@ export const SCAN_ENTRIES: ScanEntry[] = [
     category: 'Creature',
     text: 'A snail with an iron-scaled foot and a coiled iron shell, its seams glowing like embers. It creeps over the vent chimneys grazing their crust. Keep: likes lumen moss and others of its kind; tinker crabs pick at its scales. Grown, it sheds vent ore, and it can graze a chimney away.',
   },
+  // Phase 22: the two new species.
+  {
+    id: 'eel',
+    name: 'Kiln eel',
+    category: 'Creature',
+    text: 'A slender, sooty eel with a soft ribbon fin along its back and ember lights down its sides. It threads through the rubble at the trench floor\'s quiet east end, past the Fulmar\'s stern, nosing for old metal, and watches you with big gentle eyes. Young ones fit in the jar. Keep: likes lumen moss and any company, but puffcap threads sting its fin. Grown, it polishes the tank gravel\'s old metal into brass fittings.',
+  },
+  {
+    id: 'horse',
+    name: 'Chime seahorse',
+    category: 'Creature',
+    text: 'An ivory seahorse with a crown of pale filaments that glow at their tips. It drifts upright in the antechamber at the sanctum\'s edge and hums: a tiny three-note chime, falling, almost like the song-locks. Young ones fit in the jar. Keep: likes seagrass to hold with its tail, and others of its kind; tinker crabs snip its filaments. Grown, it now and then grows a glowing bloom where it sleeps.',
+  },
   {
     id: 'lanternjaw',
     name: 'Lanternjaw',

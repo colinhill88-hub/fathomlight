@@ -133,6 +133,15 @@ export class Wildlife {
     add({ id: 'snail-adult', species: 'snail', stage: 'grown', collectible: false, homeX: 30000, homeY: groundY(30000) - 7, range: 160, size: 1.5 });
     add({ id: 'snail-0', species: 'snail', stage: 'young', collectible: true, homeX: 29740, homeY: groundY(29740) - 7, range: 90, size: 1.2 });
     add({ id: 'snail-1', species: 'snail', stage: 'young', collectible: true, homeX: 30250, homeY: groundY(30250) - 7, range: 90, size: 1.2 });
+    // Phase 22: kiln eels threading the rubble at the trench floor's quiet east end (past the
+    // Fulmar's stern, by the round stone door; the striders keep to the west), and chime
+    // seahorses drifting upright in the antechamber at the sanctum's edge.
+    add({ id: 'eel-adult', species: 'eel', stage: 'grown', collectible: false, homeX: 32300, homeY: groundY(32300) - 60, range: 120, size: 1.6 });
+    add({ id: 'eel-0', species: 'eel', stage: 'young', collectible: true, homeX: 32220, homeY: groundY(32220) - 30, range: 60, size: 1.25 });
+    add({ id: 'eel-1', species: 'eel', stage: 'young', collectible: true, homeX: 32440, homeY: groundY(32440) - 30, range: 50, size: 1.25 });
+    add({ id: 'horse-adult', species: 'horse', stage: 'grown', collectible: false, homeX: 32000, homeY: 7940, range: 120, size: 1.5 });
+    add({ id: 'horse-0', species: 'horse', stage: 'young', collectible: true, homeX: 31880, homeY: 8020, range: 70, size: 1.25 });
+    add({ id: 'horse-1', species: 'horse', stage: 'young', collectible: true, homeX: 32230, homeY: 8040, range: 70, size: 1.25 });
     for (const w of this.all) {
       w.x = w.homeX + R(-30, 30);
       w.y = w.stage === 'egg' ? w.homeY : w.homeY + R(-20, 20);
@@ -208,6 +217,8 @@ export class Wildlife {
         w.ty = gy - 8;
         break;
       } else if (w.species === 'shrimp') w.ty = gy - R(24, 110);
+      else if (w.species === 'eel') w.ty = gy - R(18, 70);
+      else if (w.species === 'horse') w.ty = w.homeY + R(-50, 50);
       else w.ty = w.homeY + R(-w.range * 0.6, w.range * 0.6);
       if (!isSolid(w.tx, w.ty) && !isSolid(w.tx, w.ty + 20)) break;
     }
@@ -277,7 +288,7 @@ export class Wildlife {
         }
         let ax = w.tx - w.x;
         let ay = w.ty - w.y;
-        let speed = w.species === 'puffcap' ? 22 : w.species === 'snail' ? 10 : w.species === 'crab' ? (w.stage === 'grown' ? 30 : 24) : w.stage === 'grown' ? 60 : 48;
+        let speed = w.species === 'horse' ? 12 : w.species === 'eel' ? (w.stage === 'grown' ? 40 : 32) : w.species === 'puffcap' ? 22 : w.species === 'snail' ? 10 : w.species === 'crab' ? (w.stage === 'grown' ? 30 : 24) : w.stage === 'grown' ? 60 : 48;
         // Kelp forest creatures are curious but wary: they edge closer to a
         // diver who keeps still, and keep a little distance.
         const forest = w.species === 'crab' || w.species === 'shrimp';
@@ -296,7 +307,7 @@ export class Wildlife {
         if (w.scared > 0 && fd < 320) {
           ax = fdx;
           ay = fdy * 0.6;
-          speed = w.species === 'puffcap' ? 70 : w.species === 'snail' ? 18 : w.species === 'crab' ? 110 : 170;
+          speed = w.species === 'horse' ? 40 : w.species === 'puffcap' ? 70 : w.species === 'snail' ? 18 : w.species === 'crab' ? 110 : 170;
           if (w.species === 'crab' || w.species === 'snail') ay = 0;
         } else if (w === this.findTarget() && held && diverSpeed < STILL_SPEED && w.collectible) {
           // Being coaxed: it drifts calmly towards the diver.

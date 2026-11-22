@@ -458,6 +458,9 @@ async function boot(): Promise<void> {
     { id: 'chimney', points: () => (save.cleftOpen ? [] : scenery.trench.scanPoints.chimney) },
     { id: 'fulmar', points: () => scenery.trench.scanPoints.fulmar },
     { id: 'snail', points: () => wildlife.scanPoints('snail') },
+    // Phase 22: the kiln eel (trench floor) and the chime seahorse (the sanctum's antechamber).
+    { id: 'eel', points: () => wildlife.scanPoints('eel') },
+    { id: 'horse', points: () => (sanctum.door ? wildlife.scanPoints('horse') : []) },
     { id: 'lanternjaw', points: () => hunters.points('lanternjaw') },
     { id: 'stalker', points: () => hunters.points('stalker') },
     { id: 'spider', points: () => hunters.points('spider') },

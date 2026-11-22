@@ -14,6 +14,21 @@ export async function runRarityChecks(server) {
     server.ssrLoadModule('/src/game/collection.ts'),
     server.ssrLoadModule('/src/rng.ts'),
   ]);
+  const scanner = await server.ssrLoadModule('/src/game/scanner.ts');
+  // ---- Phase 22: every species, the two new ones included, is complete ----
+  {
+    assert.ok(care.SPECIES_ORDER.includes('eel') && care.SPECIES_ORDER.includes('horse'), 'The kiln eel and chime seahorse are keepable species');
+    for (const sp of care.SPECIES_ORDER) {
+      assert.equal(traits.COLOURS[sp].length, 4, `${sp} has 4 colours`);
+      assert.equal(traits.PATTERNS[sp].length, 3, `${sp} has 3 glow patterns`);
+      assert.equal(traits.SHAPES[sp].length, 3, `${sp} has 3 shapes`);
+      assert.ok(scanner.SCAN_ENTRIES.some((e) => e.id === care.SPECIES[sp].scan), `${sp} has a scanner entry`);
+      assert.ok(care.PLANTS[care.SPECIES[sp].plant], `${sp} likes a real plant`);
+    }
+    const save = state.freshSave(0, 0);
+    assert.equal(care.wildAllowed(save, 'eel'), true, 'A founding pair of eels can be taken from the wild');
+    assert.equal(col.pageOf(save, 'horse').filled, 0, 'The seahorse has an empty book page');
+  }
   const N = 100000;
   const plain = { colour: 0, pattern: 0, gen: 1 };
   const sample = (a, b, care = 1, opts = {}, n = N) => {
