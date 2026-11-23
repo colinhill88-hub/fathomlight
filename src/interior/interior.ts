@@ -60,7 +60,7 @@ const VENT_BURST = 1.0;
 /** Climbing speed on a ladder (the base on foot). */
 export const CLIMB = 210;
 /** The lighting shader adds up at most this many lights; the nearest win. */
-const MAX_LIGHTS = 16;
+const MAX_LIGHTS = 32;
 
 /** Something to hold Collect at (or tap, for the grapple). */
 export interface InteriorAct {

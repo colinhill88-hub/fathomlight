@@ -8,7 +8,7 @@ import type { Light } from '../fx/lighting';
  * a low ambient (dark until a ship's power is back) plus round lamps and the
  * helmet lamp's cone, with a little dust in the air so beams show.
  */
-const MAX = 16;
+const MAX = 32;
 
 const fragment = /* glsl */ `
 precision highp float;

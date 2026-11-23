@@ -20,7 +20,7 @@ import { AIR_POCKETS, WORLD_H, WORLD_SPAN, WORLD_X0 } from '../world/terrain';
  *  - Ultra: the diver's soft shadow on the seabed below.
  */
 
-export const MAX_LIGHTS = 12;
+export const MAX_LIGHTS = 32;
 export const MAX_CONTACTS = 12;
 
 const fragment = /* glsl */ `
@@ -433,20 +433,30 @@ export class Lighting {
     u.uContactCount = nc;
 
     // Keep the lights that matter most on screen: skip ones too far away,
-    // then keep the brightest up to the preset's limit.
+    // and rank stably by screen proximity + radius (not pulsing intensity, which
+    // caused lights near the cutoff in big bases to swap and flicker each frame).
     const cx = opts.camX + opts.viewW / 2;
     const cy = opts.camY + opts.viewH / 2;
     const reach = Math.hypot(opts.viewW, opts.viewH) / 2;
-    const visible = opts.lights
-      .filter((l) => l.intensity > 0.01 && Math.hypot(l.x - cx, l.y - cy) < reach + l.radius)
-      .sort((a, b) => b.intensity * b.radius - a.intensity * a.radius);
+    const candidates = opts.lights
+      .map((l) => {
+        const dist = Math.hypot(l.x - cx, l.y - cy);
+        const margin = reach + l.radius - dist;
+        return { l, margin };
+      })
+      .filter((e) => e.l.intensity > 0.01 && e.margin > 0)
+      .sort((a, b) => (b.margin + b.l.radius * 0.6) - (a.margin + a.l.radius * 0.6));
+    const visible = candidates.map((e) => e.l);
     // The lights that cast shadows go first (the shader treats the first uShadowCount that way).
     const casters = opts.shadowLights > 0 && opts.shadowSteps > 0 ? visible.filter((l) => l.shadow).slice(0, opts.shadowLights) : [];
     const rest = visible.filter((l) => !casters.includes(l));
     const ordered = [...casters, ...rest].slice(0, Math.min(opts.maxLights, MAX_LIGHTS));
     u.uShadowCount = Math.min(casters.length, ordered.length);
     ordered.forEach((l, i) => {
-      u.uLightA.set([l.x, l.y, l.radius, l.intensity], i * 4);
+      // Smoothly fade lights near the outer culling edge instead of popping off.
+      const dist = Math.hypot(l.x - cx, l.y - cy);
+      const edgeFade = Math.min(1, Math.max(0, (reach + l.radius - dist) / 120));
+      u.uLightA.set([l.x, l.y, l.radius, l.intensity * edgeFade], i * 4);
       u.uLightB.set([l.color[0], l.color[1], l.color[2], l.coneCos ?? -2], i * 4);
       u.uLightC.set([l.dirX ?? 0, l.dirY ?? 0, l.coneSoft ?? 0.1, l.haze ?? 0.1], i * 4);
     });
