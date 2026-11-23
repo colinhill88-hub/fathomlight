@@ -1943,9 +1943,10 @@ export class Interior {
       (l) => l.intensity > 0 && Math.abs(l.x - cx) < viewW / 2 + l.radius && Math.abs(l.y - cy) < viewH / 2 + l.radius,
     );
     pool.sort((a, b) => Math.hypot(a.x - cx, a.y - cy) - Math.hypot(b.x - cx, b.y - cy));
-    // G2: the helmet lamp and the nearest few room lamps cast shadows through the walls.
+    // G2: only the helmet lamp casts dynamic wall shadows so room lamps never
+    // snap wall-occlusion on and off when Kestrel runs past doorways.
     this.headLamp.shadow = true;
-    pool.forEach((l, i) => (l.shadow = i < 2));
+    for (const l of pool) l.shadow = false;
     const lights: Light[] = [this.headLamp, ...pool.slice(0, MAX_LIGHTS - 1)];
     this.lighting.update({
       time: this.time,

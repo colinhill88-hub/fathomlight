@@ -202,13 +202,17 @@ export class InteriorLighting {
     const cy = o.camY + o.viewH / 2;
     const reach = Math.hypot(o.viewW, o.viewH) / 2;
     const sorted = o.lights
-      .filter((l) => l.intensity > 0.01 && Math.hypot(l.x - cx, l.y - cy) < reach + l.radius)
-      .sort((a, b) => b.intensity * b.radius - a.intensity * a.radius);
+      .map((l) => ({ l, margin: reach + l.radius - Math.hypot(l.x - cx, l.y - cy) }))
+      .filter((e) => e.l.intensity > 0.01 && e.margin > 0)
+      .sort((a, b) => (b.margin + b.l.radius * 0.5) - (a.margin + a.l.radius * 0.5))
+      .map((e) => e.l);
     const casters = o.shadowLights > 0 && o.shadowSteps > 0 ? sorted.filter((l) => l.shadow).slice(0, o.shadowLights) : [];
     const vis = [...casters, ...sorted.filter((l) => !casters.includes(l))].slice(0, MAX);
     u.uShadowCount = casters.length;
     vis.forEach((l, i) => {
-      u.uA.set([l.x, l.y, l.radius, l.intensity], i * 4);
+      const dist = Math.hypot(l.x - cx, l.y - cy);
+      const edgeFade = l.shadow ? 1 : Math.min(1, Math.max(0, (reach + l.radius - dist) / 160));
+      u.uA.set([l.x, l.y, l.radius, l.intensity * edgeFade], i * 4);
       u.uB.set([l.color[0], l.color[1], l.color[2], l.coneCos ?? -2], i * 4);
       u.uC.set([l.dirX ?? 0, l.dirY ?? 0, l.coneSoft ?? 0.1, l.haze ?? 0.05], i * 4);
     });
