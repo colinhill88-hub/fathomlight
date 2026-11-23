@@ -28,11 +28,15 @@ export const MAG = {
   /** Pull down while clamped and off the floor, and the slow sink's top speed. */
   gravity: 520,
   sink: 150,
-  /** From the body's middle down to the soles, and up to the top of the helmet. */
-  foot: 40,
-  head: 54,
+  /**
+   * From the body's middle down to the soles, and up to the top of the helmet.
+   * (Kestrel was drawn 20% smaller in the open water on Nov 23, 2026: these
+   * were 40, 54 and 13.)
+   */
+  foot: 32,
+  head: 43,
   /** Half the body's width, for walls. */
-  half: 13,
+  half: 10,
   /** The tallest step (or steepest bit of slope per frame) the boots walk up. */
   stepUp: 14,
   /** How fast the body may rise or fall to keep the soles on a slope or step (no snapping). */

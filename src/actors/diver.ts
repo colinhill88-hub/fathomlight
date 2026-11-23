@@ -1138,11 +1138,28 @@ export class Diver {
   private readonly mag: MagBody = { x: 0, y: 0, vx: 0, vy: 0, onFloor: false };
   private walkBreath = 1.5;
   private readonly walkPt = { x: 0, y: 0 };
-  /** Walker units to world units: the standing rig at the swimmer's size. */
-  static readonly WALK_K = 0.9;
-
-  private static readonly SCALE = 0.86;
-  private static readonly RADIUS = 26;
+  /**
+   * Kestrel's size in the open water (Colin, Nov 23, 2026): the swimmer and
+   * the mag-boots walker are drawn at the same size, 20% smaller than the
+   * walker used to be, so the ocean feels bigger. Change KESTREL_SIZE to
+   * resize both together.
+   */
+  static readonly KESTREL_SIZE = 0.8;
+  /** Walker units to world units (the standing rig was 0.9 before the resize). */
+  static readonly WALK_K = 0.9 * Diver.KESTREL_SIZE;
+  /**
+   * The swimming body's drawing scale. It was 0.86, which drew the swimmer's
+   * helmet about twice the walker's on screen; SWIM_MATCH makes them the same
+   * size, then KESTREL_SIZE shrinks both.
+   */
+  private static readonly SWIM_MATCH = 0.5;
+  private static readonly SCALE = 0.86 * Diver.SWIM_MATCH * Diver.KESTREL_SIZE;
+  /** The swimmer's size against the old one, for distances tuned at the old size. */
+  static readonly SWIM_K = Diver.SWIM_MATCH * Diver.KESTREL_SIZE;
+  /** How far below the waterline the body floats at the surface (30 at the old size), so the helmet stays out. */
+  static readonly FLOAT = Math.round(30 * Diver.SWIM_K);
+  /** The swimmer's collision circle follows the drawing (it was 26). */
+  private static readonly RADIUS = Math.round(26 * Diver.SWIM_K);
   private static readonly SPEED = 230;
   private static readonly BOOST_SPEED = 430;
   /** With the TH-2 thruster head (found in the kelp forest). */
@@ -1712,8 +1729,8 @@ export class Diver {
     this.x += this.vx * dt;
     this.y += this.vy * dt;
     if (this.surfaced) this.treadWater(dt, waterline);
-    if (waterline > 0 && this.y < waterline + 18) {
-      this.y = waterline + 18;
+    if (waterline > 0 && this.y < waterline + 18 * Diver.SWIM_K) {
+      this.y = waterline + 18 * Diver.SWIM_K;
       this.vy = Math.max(0, this.vy);
     }
     this.collide();
@@ -1877,7 +1894,7 @@ export class Diver {
     const hover = 1 - travel;
     const scanning = this.visualAction === 'scan';
     const grappling = this.visualAction === 'grapple';
-    const nearFloor = !this.surfaced && isSolid(this.x - this.face * 48, this.y + 29);
+    const nearFloor = !this.surfaced && isSolid(this.x - this.face * 48 * Diver.SWIM_K, this.y + 29 * Diver.SWIM_K);
     const spread = (this.surfaced ? 0.35 : 0.12 + power * 0.43) * (nearFloor ? 0.58 : 1);
     for (let i = 0; i < 2; i++) {
       const near = i === 0;
@@ -1977,8 +1994,8 @@ export class Diver {
       this.breaths++;
     }
     // Pop up out of the water after a fast breach, overshoot and settle.
-    const pop = -30 * this.popStrength * Math.exp(-2.6 * t) * Math.cos(5.5 * t);
-    const targetY = waterline + 30 + Math.sin(this.time * 1.7) * 2.5 + pop - this.heave * 3;
+    const pop = -30 * Diver.SWIM_K * this.popStrength * Math.exp(-2.6 * t) * Math.cos(5.5 * t);
+    const targetY = waterline + Diver.FLOAT + (Math.sin(this.time * 1.7) * 2.5 - this.heave * 3) * Diver.SWIM_K + pop;
     this.y += (targetY - this.y) * Math.min(1, dt * 9);
     this.vy = 0;
   }

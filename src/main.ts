@@ -25,6 +25,7 @@ import { loadWorldArt } from './art/worldArt';
 import { initSettingsUI } from './ui';
 import { Input } from './input';
 import { Diver, type KitLook } from './actors/diver';
+import { MAG } from './game/magboots';
 import { Walker } from './actors/walker';
 import { SiltPuffs } from './fx/siltPuffs';
 import { Glowfin } from './actors/glowfin';
@@ -2687,10 +2688,10 @@ async function boot(): Promise<void> {
       }
       if (w.landed > 0) {
         sound.magLand(w.landed);
-        siltPuffs.puff(diver.x, diver.y + 40, 0.35 + 0.65 * w.landed);
+        siltPuffs.puff(diver.x, diver.y + MAG.foot, 0.35 + 0.65 * w.landed);
         if (w.landed > 0.5) shake = Math.max(shake, 0.3 * w.landed);
       }
-      if (w.hopped) siltPuffs.puff(diver.x, diver.y + 40, 0.25);
+      if (w.hopped) siltPuffs.puff(diver.x, diver.y + MAG.foot, 0.25);
     } else if (!aboard) {
       // The boost needs the hip thruster, found at the survey beacon (before milestone 11).
       if (inControl && s.boost && save.kit.thruster === 0 && time - noThrusterAt > 6) {
@@ -4843,7 +4844,7 @@ async function boot(): Promise<void> {
     backToWater();
     swimmingPool = dock;
     diver.x = pool.ladder;
-    diver.y = pool.y + 29;
+    diver.y = pool.y + Diver.FLOAT - 1;
     diver.vx = 0;
     diver.vy = 48;
     diver.surfaced = true;
