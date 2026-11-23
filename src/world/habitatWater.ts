@@ -1,4 +1,5 @@
-import { Container, FillGradient, Graphics } from 'pixi.js';
+import { Container, FillGradient, Graphics, Sprite, type Texture } from 'pixi.js';
+import type { TankArt, TankBackdropKind } from '../art/tankArt';
 
 export interface WaterBox { x: number; y: number; w: number; h: number }
 
@@ -11,15 +12,128 @@ interface Ripple {
   age: number;
 }
 
-const depth = new FillGradient({
-  type: 'linear', start: { x: 0.4, y: 0 }, end: { x: 0.6, y: 1 },
-  colorStops: [
-    { offset: 0, color: 0x76b5a9 },
-    { offset: 0.2, color: 0x327b79 },
-    { offset: 0.68, color: 0x204e59 },
-    { offset: 1, color: 0x153940 },
-  ],
-});
+interface ThemePalette {
+  stops: readonly [number, number, number, number];
+  farRock: number;
+  midRock: number;
+  midRockRim: number;
+  midRockShade: number;
+  haze: number;
+  hazeAlpha: number;
+  sandTop: number;
+  sandDeep: number;
+  pebbles: readonly [number, number, number, number];
+  shaftColor: number;
+  shaftAlpha: number;
+  causticColor: number;
+}
+
+const THEMES: Record<TankBackdropKind, ThemePalette> = {
+  bare: {
+    stops: [0x78bbb0, 0x347f7c, 0x1f4e58, 0x14363e],
+    farRock: 0x26565c,
+    midRock: 0x3b655c,
+    midRockRim: 0x8db28e,
+    midRockShade: 0x1b3b42,
+    haze: 0x2b6469,
+    hazeAlpha: 0.24,
+    sandTop: 0xb89e6e,
+    sandDeep: 0x89724e,
+    pebbles: [0x6e6252, 0x9e8c6c, 0x595046, 0xcab68c],
+    shaftColor: 0xe6f4c4,
+    shaftAlpha: 0.11,
+    causticColor: 0xe8f6c8,
+  },
+  coral: {
+    stops: [0x82c4b5, 0x3a8984, 0x21555f, 0x163c44],
+    farRock: 0x2b5d62,
+    midRock: 0x4b6b5d,
+    midRockRim: 0xb2b88f,
+    midRockShade: 0x214449,
+    haze: 0x337074,
+    hazeAlpha: 0.2,
+    sandTop: 0xc8ae80,
+    sandDeep: 0x957d5a,
+    pebbles: [0x8d6c64, 0xb89680, 0x6b5852, 0xe0c4a8],
+    shaftColor: 0xf4f2c8,
+    shaftAlpha: 0.13,
+    causticColor: 0xf2f4c8,
+  },
+  kelp: {
+    stops: [0x6eb39c, 0x2e756e, 0x1c484f, 0x123238],
+    farRock: 0x224e50,
+    midRock: 0x3c5b49,
+    midRockRim: 0x8fa86e,
+    midRockShade: 0x183436,
+    haze: 0x275d59,
+    hazeAlpha: 0.24,
+    sandTop: 0xae9764,
+    sandDeep: 0x7d6b44,
+    pebbles: [0x675c48, 0x8f7f5a, 0x4f493c, 0xbba878],
+    shaftColor: 0xe2f0b4,
+    shaftAlpha: 0.12,
+    causticColor: 0xe2f2b8,
+  },
+  grass: {
+    stops: [0x86c9b8, 0x3e8f84, 0x23585e, 0x173e44],
+    farRock: 0x2c6464,
+    midRock: 0x47735d,
+    midRockRim: 0xa4c486,
+    midRockShade: 0x204748,
+    haze: 0x367872,
+    hazeAlpha: 0.18,
+    sandTop: 0xc6b17e,
+    sandDeep: 0x948056,
+    pebbles: [0x766c56, 0xa89872, 0x5d5646, 0xd8c698],
+    shaftColor: 0xedf6c8,
+    shaftAlpha: 0.14,
+    causticColor: 0xecf6ca,
+  },
+  bladder: {
+    stops: [0x518d83, 0x245e5c, 0x173c44, 0x0f2a31],
+    farRock: 0x1b4046,
+    midRock: 0x324c44,
+    midRockRim: 0x798a5a,
+    midRockShade: 0x132a30,
+    haze: 0x1e4a4c,
+    hazeAlpha: 0.28,
+    sandTop: 0x988358,
+    sandDeep: 0x6b5c3d,
+    pebbles: [0x585042, 0x7c6e50, 0x444038, 0xa29068],
+    shaftColor: 0xd8e4a0,
+    shaftAlpha: 0.1,
+    causticColor: 0xdbe8a8,
+  },
+  lumen: {
+    stops: [0x336c74, 0x1b4651, 0x112f3a, 0x0a1e26],
+    farRock: 0x14333d,
+    midRock: 0x243c42,
+    midRockRim: 0x69885c,
+    midRockShade: 0x0d1f26,
+    haze: 0x143942,
+    hazeAlpha: 0.28,
+    sandTop: 0x756c58,
+    sandDeep: 0x4e483c,
+    pebbles: [0x464844, 0x65685e, 0x363a38, 0x868c74],
+    shaftColor: 0xdcf4a4,
+    shaftAlpha: 0.08,
+    causticColor: 0xdaf2a6,
+  },
+};
+
+function makeGradient(stops: readonly [number, number, number, number]): FillGradient {
+  return new FillGradient({
+    type: 'linear',
+    start: { x: 0.4, y: 0 },
+    end: { x: 0.6, y: 1 },
+    colorStops: [
+      { offset: 0, color: stops[0] },
+      { offset: 0.22, color: stops[1] },
+      { offset: 0.68, color: stops[2] },
+      { offset: 1, color: stops[3] },
+    ],
+  });
+}
 
 /** Phase 21, living tanks: a soft wake behind swimmers, and a creature breaking the surface. */
 interface Mote { x: number; y: number; vx: number; vy: number; age: number; life: number; r: number }
@@ -30,7 +144,7 @@ const WAVE_LIFE = 2.2;
 /** How fast a surface ripple runs along the water line (units a second). */
 const WAVE_SPEED = 70;
 
-/** A tiny seeded random for the fixed sand and pebbles. */
+/** A tiny seeded random for the fixed sand, rocks and pebbles. */
 function seeded(n: number): () => number {
   let a = (n * 2654435761) >>> 0 || 1;
   return () => {
@@ -50,6 +164,11 @@ const clamp = (n: number, low: number, high: number) => Math.max(low, Math.min(h
 export class HabitatWater {
   readonly back = new Container();
   readonly front = new Container();
+  private readonly backdropLayer = new Container();
+  private readonly backdropMask = new Graphics();
+  private readonly paintedSprite = new Sprite();
+  private readonly proceduralBackdrop = new Graphics();
+  private readonly sand = new Graphics();
   private readonly surface = new Graphics();
   private readonly beds = new Graphics();
   private readonly suspended = new Graphics();
@@ -61,43 +180,237 @@ export class HabitatWater {
   private rippleDelay = 0;
   private clarity = -1;
   private visible = false;
+  private theme: TankBackdropKind | null = null;
+  private causticColor = 0xe8f6c8;
   private readonly caustics = new Graphics();
   private readonly motes: Mote[] = [];
   private readonly waves: SurfaceWave[] = [];
   private readonly drops: Drop[] = [];
 
-  constructor(private readonly box: WaterBox, private readonly seed: number) {
+  constructor(
+    private readonly box: WaterBox,
+    private readonly seed: number,
+    private readonly tankArt?: TankArt,
+  ) {
     const { x, y, w, h } = box;
-    const backdrop = new Graphics().rect(x + EDGE, y + EDGE, w - EDGE * 2, h * 0.9).fill({ fill: depth, alpha: 0.86 });
-    // A softly lit plane behind the creatures suggests a curved pressure window.
-    backdrop.moveTo(x + w * 0.07, y + 8).lineTo(x + w * 0.38, y + 8)
-      .quadraticCurveTo(x + w * 0.39, y + h * 0.55, x + w * 0.49, y + h * 0.8)
-      .lineTo(x + w * 0.23, y + h * 0.86).quadraticCurveTo(x + w * 0.12, y + h * 0.47, x + w * 0.07, y + 8)
-      .fill({ color: 0xc5ecba, alpha: 0.12 });
-    const edge = new Graphics().roundRect(x + 2, y + 2, w - 4, h - 4, 5).stroke({ color: 0x8db8a5, width: 1.2, alpha: 0.55 })
-      .moveTo(x + 4, y + h * 0.18).lineTo(x + 4, y + h * 0.81).stroke({ color: 0xe1edc7, width: 2, alpha: 0.32 });
+    this.backdropMask.rect(x + EDGE, y + EDGE, w - EDGE * 2, h - EDGE * 2).fill(0xffffff);
+    this.backdropLayer.mask = this.backdropMask;
+    this.paintedSprite.visible = false;
+    this.backdropLayer.addChild(this.proceduralBackdrop, this.paintedSprite);
+
+    const edge = new Graphics()
+      .roundRect(x + 2, y + 2, w - 4, h - 4, 5).stroke({ color: 0x8db8a5, width: 1.2, alpha: 0.55 })
+      .moveTo(x + 4, y + h * 0.14).lineTo(x + 4, y + h * 0.84).stroke({ color: 0xe6f2d0, width: 2, alpha: 0.34 })
+      .moveTo(x + w - 4, y + h * 0.18).lineTo(x + w - 4, y + h * 0.78).stroke({ color: 0x9ec4b5, width: 1.2, alpha: 0.22 });
     this.particles = Math.min(23, Math.ceil(w / 25 + 6));
-    // Phase 21: a sand bed along the bottom with pebbles and a few shells, lit from above.
-    const sand = new Graphics();
-    const r = seeded(seed + 101);
-    const top = y + h * 0.9;
-    sand.moveTo(x + EDGE, y + h - EDGE);
-    for (let i = 0; i <= 12; i++) sand.lineTo(x + EDGE + ((w - EDGE * 2) * i) / 12, top + Math.sin(i * 1.7 + seed) * h * 0.018 + (r() - 0.5) * h * 0.015);
-    sand.lineTo(x + w - EDGE, y + h - EDGE).closePath().fill({ color: 0xb49a6a, alpha: 0.85 });
-    sand.rect(x + EDGE, top + h * 0.035, w - EDGE * 2, h * 0.07).fill({ color: 0x8a7350, alpha: 0.45 });
-    const pebbles = Math.round(w / 9);
-    for (let i = 0; i < pebbles; i++) {
-      const px = x + 6 + r() * (w - 12);
-      const py = top + h * 0.02 + r() * h * 0.07;
-      const pr = 0.8 + r() * 2.4;
-      const tone = [0x6e6252, 0x9c8a6a, 0x5a5048, 0xc8b48a][Math.floor(r() * 4)];
-      sand.ellipse(px, py, pr * 1.3, pr).fill({ color: tone, alpha: 0.9 });
-      sand.ellipse(px - pr * 0.3, py - pr * 0.35, pr * 0.5, pr * 0.3).fill({ color: 0xf2e6c8, alpha: 0.35 });
-    }
-    this.back.addChild(backdrop, this.caustics, sand, this.beds);
+
+    this.back.addChild(this.backdropMask, this.backdropLayer, this.caustics, this.sand, this.beds);
     this.front.addChild(this.dirt, this.suspended, this.surface, edge);
     this.dirt.rect(x, y, w, h).fill(0x829264)
       .rect(x + 2, y + h * 0.76, w - 4, h * 0.23).fill(0x5f6e46);
+
+    this.setTheme('bare');
+  }
+
+  /** Switch the tank's painted backdrop (or painterly procedural fallback) to match its plant. */
+  setTheme(kind: TankBackdropKind): void {
+    if (this.theme === kind) return;
+    this.theme = kind;
+    const pal = THEMES[kind];
+    this.causticColor = pal.causticColor;
+    const tex = this.tankArt?.[kind] ?? this.tankArt?.bare;
+    if (tex) {
+      this.applyPaintedBackdrop(tex);
+      this.proceduralBackdrop.visible = false;
+    } else {
+      this.paintedSprite.visible = false;
+      this.proceduralBackdrop.visible = true;
+      this.drawProceduralBackdrop(kind, pal);
+    }
+    this.drawSandBed(pal, Boolean(tex));
+  }
+
+  private applyPaintedBackdrop(tex: Texture): void {
+    const { x, y, w, h } = this.box;
+    const iw = w - EDGE * 2;
+    const ih = h - EDGE * 2;
+    const scale = Math.max(iw / Math.max(1, tex.width), ih / Math.max(1, tex.height));
+    this.paintedSprite.texture = tex;
+    this.paintedSprite.anchor.set(0.5, 0.5);
+    this.paintedSprite.position.set(x + w * 0.5, y + h * 0.5);
+    this.paintedSprite.scale.set(scale);
+    this.paintedSprite.alpha = 0.94;
+    this.paintedSprite.visible = true;
+  }
+
+  /** Layered painterly procedural backdrop tailored to each plant's biome. */
+  private drawProceduralBackdrop(kind: TankBackdropKind, pal: ThemePalette): void {
+    const { x, y, w, h } = this.box;
+    const g = this.proceduralBackdrop.clear();
+    const r = seeded(this.seed * 31 + kind.charCodeAt(0) * 17);
+
+    // 1. Deep water gradient fill.
+    g.rect(x + EDGE, y + EDGE, w - EDGE * 2, h - EDGE * 2).fill({ fill: makeGradient(pal.stops), alpha: 0.94 });
+
+    // 2. Soft sunlit shafts descending from the surface.
+    for (let i = 0; i < 3; i++) {
+      const sx = x + w * (0.14 + i * 0.3 + (r() - 0.5) * 0.08);
+      const topW = w * (0.12 + r() * 0.08);
+      const drift = w * (0.06 + r() * 0.05);
+      g.moveTo(sx, y + EDGE)
+        .lineTo(sx + topW, y + EDGE)
+        .quadraticCurveTo(sx + topW + drift * 0.5, y + h * 0.48, sx + topW * 1.35 + drift, y + h * 0.92)
+        .lineTo(sx + drift * 0.5, y + h * 0.92)
+        .quadraticCurveTo(sx + drift * 0.25, y + h * 0.45, sx, y + EDGE)
+        .fill({ color: pal.shaftColor, alpha: pal.shaftAlpha * (0.8 + i * 0.15) });
+    }
+
+    // 3. Far atmospheric reef ridge silhouette.
+    g.moveTo(x + EDGE, y + h - EDGE);
+    const farSteps = 10;
+    for (let i = 0; i <= farSteps; i++) {
+      const u = i / farSteps;
+      const arch = Math.sin(u * Math.PI);
+      const ridgeY = y + h * (0.46 + (1 - arch) * 0.12 + Math.sin(u * 7 + this.seed) * 0.06 + (r() - 0.5) * 0.05);
+      g.lineTo(x + EDGE + u * (w - EDGE * 2), ridgeY);
+    }
+    g.lineTo(x + w - EDGE, y + h - EDGE).closePath().fill({ color: pal.farRock, alpha: 0.56 });
+
+    // 4. Midground terraced rock ledges with warm top light and shadowed undersides.
+    const drawTerrace = (x0: number, x1: number, topY: number, height: number, flip: boolean): void => {
+      const left = x + w * x0;
+      const right = x + w * x1;
+      const ty = y + h * topY;
+      const by = y + h * Math.min(0.95, topY + height);
+      const midX = (left + right) * 0.5;
+      const slope = flip ? -h * 0.035 : h * 0.035;
+      g.moveTo(left, by)
+        .lineTo(left + (flip ? w * 0.03 : 0), ty + slope)
+        .quadraticCurveTo(midX, ty - h * 0.025, right - (flip ? 0 : w * 0.03), ty - slope)
+        .lineTo(right, by)
+        .closePath()
+        .fill({ color: pal.midRock, alpha: 0.72 });
+      // Warm sunlit top rim.
+      g.moveTo(left + (flip ? w * 0.03 : 0), ty + slope)
+        .quadraticCurveTo(midX, ty - h * 0.025, right - (flip ? 0 : w * 0.03), ty - slope)
+        .stroke({ color: pal.midRockRim, width: Math.max(1.5, h * 0.018), alpha: 0.45, cap: 'round' });
+      // Cool shadowed base crevice.
+      g.moveTo(left + (right - left) * 0.08, ty + h * 0.06)
+        .quadraticCurveTo(midX, ty + h * 0.04, right - (right - left) * 0.08, ty + h * 0.07)
+        .lineTo(right - (right - left) * 0.05, by)
+        .lineTo(left + (right - left) * 0.05, by)
+        .closePath()
+        .fill({ color: pal.midRockShade, alpha: 0.48 });
+    };
+    drawTerrace(-0.02, 0.36, 0.62, 0.34, false);
+    drawTerrace(0.64, 1.02, 0.58, 0.38, true);
+    drawTerrace(0.24, 0.74, 0.74, 0.22, false);
+
+    // 5. Distant biome-specific flora silhouettes recessed into the background.
+    this.drawThemeFlora(g, kind, r);
+
+    // 6. Thin depth-haze veil so background stays soft and foreground creatures pop.
+    g.rect(x + EDGE, y + EDGE, w - EDGE * 2, h - EDGE * 2).fill({ color: pal.haze, alpha: pal.hazeAlpha });
+
+    // 7. Subtle curved pressure-window highlight.
+    g.moveTo(x + w * 0.06, y + 6).lineTo(x + w * 0.34, y + 6)
+      .quadraticCurveTo(x + w * 0.36, y + h * 0.52, x + w * 0.45, y + h * 0.8)
+      .lineTo(x + w * 0.2, y + h * 0.85).quadraticCurveTo(x + w * 0.11, y + h * 0.46, x + w * 0.06, y + 6)
+      .fill({ color: 0xc5ecba, alpha: 0.08 });
+  }
+
+  private drawThemeFlora(g: Graphics, kind: TankBackdropKind, r: () => number): void {
+    const { x, y, w, h } = this.box;
+    if (kind === 'coral') {
+      const clusters = Math.max(3, Math.round(w / 95));
+      for (let i = 0; i < clusters; i++) {
+        const cx = x + w * (0.12 + (i + 0.3 + r() * 0.4) * (0.76 / clusters));
+        const cy = y + h * (0.64 + (i % 2) * 0.12);
+        const col = i % 2 ? 0xc8746e : 0xdca08c;
+        for (let b = -2; b <= 2; b++) {
+          const ang = -Math.PI / 2 + b * 0.34 + (r() - 0.5) * 0.12;
+          const len = h * (0.1 + r() * 0.09);
+          const bx = cx + Math.cos(ang) * len;
+          const by = cy + Math.sin(ang) * len;
+          g.moveTo(cx, cy).lineTo(bx, by).stroke({ color: col, width: Math.max(2, h * 0.02), cap: 'round', alpha: 0.52 });
+          g.circle(bx, by, Math.max(1.5, h * 0.014)).fill({ color: 0xf2c2b0, alpha: 0.45 });
+        }
+      }
+    } else if (kind === 'kelp') {
+      const fronds = Math.max(5, Math.round(w / 55));
+      for (let i = 0; i < fronds; i++) {
+        const bx = x + w * (0.08 + (i + r() * 0.6) * (0.84 / fronds));
+        const fh = h * (0.42 + r() * 0.34);
+        const sway = (r() - 0.5) * w * 0.08;
+        g.moveTo(bx, y + h * 0.9)
+          .bezierCurveTo(bx + sway, y + h * 0.9 - fh * 0.35, bx - sway * 0.8, y + h * 0.9 - fh * 0.72, bx + sway * 0.5, y + h * 0.9 - fh)
+          .stroke({ color: i % 2 ? 0x768b44 : 0x5c7542, width: Math.max(2.5, w * 0.018), cap: 'round', alpha: 0.44 });
+      }
+    } else if (kind === 'grass') {
+      const tufts = Math.max(6, Math.round(w / 42));
+      for (let i = 0; i < tufts; i++) {
+        const bx = x + w * (0.06 + (i + r() * 0.5) * (0.88 / tufts));
+        const by = y + h * (0.76 + (i % 2) * 0.08);
+        for (let b = -2; b <= 2; b++) {
+          const bh = h * (0.14 + r() * 0.14);
+          g.moveTo(bx + b * 2, by)
+            .quadraticCurveTo(bx + b * 4, by - bh * 0.55, bx + b * 6 + (r() - 0.5) * 4, by - bh)
+            .stroke({ color: b % 2 ? 0x6ea052 : 0x528246, width: Math.max(1.4, h * 0.011), cap: 'round', alpha: 0.48 });
+        }
+      }
+    } else if (kind === 'bladder') {
+      const stalks = Math.max(4, Math.round(w / 70));
+      for (let i = 0; i < stalks; i++) {
+        const bx = x + w * (0.1 + (i + r() * 0.5) * (0.8 / stalks));
+        const sh = h * (0.45 + r() * 0.3);
+        const lean = (r() - 0.5) * w * 0.07;
+        g.moveTo(bx, y + h * 0.9)
+          .quadraticCurveTo(bx + lean, y + h * 0.9 - sh * 0.55, bx + lean * 0.6, y + h * 0.9 - sh)
+          .stroke({ color: 0x6c6034, width: Math.max(1.8, h * 0.014), cap: 'round', alpha: 0.48 });
+        for (const t of [0.42, 0.72, 0.96]) {
+          g.circle(bx + lean * t, y + h * 0.9 - sh * t, Math.max(2, h * 0.018)).fill({ color: 0xa49042, alpha: 0.45 });
+        }
+      }
+    } else if (kind === 'lumen') {
+      const patches = Math.max(4, Math.round(w / 75));
+      for (let i = 0; i < patches; i++) {
+        const px = x + w * (0.12 + (i + r() * 0.5) * (0.76 / patches));
+        const py = y + h * (0.62 + (i % 3) * 0.09);
+        const rx = w * (0.045 + r() * 0.035);
+        const ry = h * (0.022 + r() * 0.016);
+        // Soft warm yellow-green moss glow halo (no Choir colours).
+        g.ellipse(px, py - ry * 0.4, rx * 1.9, ry * 2.2).fill({ color: 0xc2e278, alpha: 0.14 });
+        g.ellipse(px, py, rx, ry).fill({ color: 0x8fb852, alpha: 0.62 });
+        g.ellipse(px - rx * 0.18, py - ry * 0.25, rx * 0.55, ry * 0.45).fill({ color: 0xeaf6aa, alpha: 0.55 });
+      }
+    }
+  }
+
+  private drawSandBed(pal: ThemePalette, overImage: boolean): void {
+    const { x, y, w, h } = this.box;
+    const sand = this.sand.clear();
+    const r = seeded(this.seed + 101);
+    const top = y + h * 0.89;
+    const sandAlpha = overImage ? 0.68 : 0.9;
+    sand.moveTo(x + EDGE, y + h - EDGE);
+    for (let i = 0; i <= 14; i++) {
+      sand.lineTo(
+        x + EDGE + ((w - EDGE * 2) * i) / 14,
+        top + Math.sin(i * 1.5 + this.seed) * h * 0.018 + (r() - 0.5) * h * 0.014,
+      );
+    }
+    sand.lineTo(x + w - EDGE, y + h - EDGE).closePath().fill({ color: pal.sandTop, alpha: sandAlpha });
+    sand.rect(x + EDGE, top + h * 0.035, w - EDGE * 2, h * 0.075).fill({ color: pal.sandDeep, alpha: overImage ? 0.36 : 0.48 });
+
+    const pebbles = Math.round(w / 9);
+    for (let i = 0; i < pebbles; i++) {
+      const px = x + 6 + r() * (w - 12);
+      const py = top + h * 0.02 + r() * h * 0.072;
+      const pr = 0.8 + r() * 2.4;
+      const tone = pal.pebbles[Math.floor(r() * 4)];
+      sand.ellipse(px, py, pr * 1.35, pr).fill({ color: tone, alpha: overImage ? 0.78 : 0.92 });
+      sand.ellipse(px - pr * 0.3, py - pr * 0.35, pr * 0.5, pr * 0.3).fill({ color: 0xf4ead0, alpha: 0.36 });
+    }
   }
 
   ripple(x: number, y: number, vx: number, vy: number, strength: number): void {
@@ -228,7 +541,7 @@ export class HabitatWater {
       const sway = Math.sin(t * 0.7 + i * 2.1) * w * 0.05;
       cg.moveTo(cx - w * 0.035, y + 8).quadraticCurveTo(cx + sway, y + h * 0.45, cx + sway * 1.6 - w * 0.02, y + h * 0.88)
         .lineTo(cx + sway * 1.6 + w * 0.03, y + h * 0.88).quadraticCurveTo(cx + sway + w * 0.04, y + h * 0.45, cx + w * 0.035, y + 8)
-        .fill({ color: 0xe8f6c8, alpha: (0.035 + 0.03 * Math.sin(t * 1.3 + i)) * (0.4 + this.clarity * 0.6) });
+        .fill({ color: this.causticColor, alpha: (0.035 + 0.03 * Math.sin(t * 1.3 + i)) * (0.4 + this.clarity * 0.6) });
     }
     for (let i = 0; i < 9; i++) {
       const cx = x + w * ((i * 0.137 + Math.sin(t * 0.4 + i) * 0.03 + 1) % 1);

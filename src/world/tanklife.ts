@@ -7,6 +7,7 @@ import { traitsOf } from '../game/traits';
 import { CreatureData, PlantId, SaveData } from '../game/state';
 import { tankInner } from './basegfx';
 import { HabitatWater, type WaterBox } from './habitatWater';
+import type { TankArt } from '../art/tankArt';
 
 /**
  * Life inside the creature tanks (milestone 4): the creatures swimming, the
@@ -137,6 +138,8 @@ export interface TankLifeOptions {
   glass?: boolean;
   livingCreatures?: boolean;
   livingBases?: boolean;
+  /** Painted tank backdrops (one per plant plus bare), optional with procedural fallback. */
+  tankArt?: TankArt;
 }
 
 /**
@@ -195,7 +198,7 @@ export class TankLife {
         const murk = new Graphics();
         const glass = new Graphics();
         const bubblesG = new Graphics();
-        const water = this.opts.livingBases ? new HabitatWater(box, t.id) : undefined;
+        const water = this.opts.livingBases ? new HabitatWater(box, t.id, this.opts.tankArt) : undefined;
         // Front glass: faint tint and two diagonal glints.
         if (this.opts.glass !== false) glass.rect(box.x, box.y, box.w, box.h).fill({ color: 0x9ccac0, alpha: 0.08 });
         if (water) {
@@ -229,6 +232,7 @@ export class TankLife {
       const plantKey = `${td.plant ?? ''}|${td.plant2 ?? ''}`;
       if (plantKey !== v.plant) {
         v.plant = plantKey;
+        v.water?.setTheme(td.plant ?? td.plant2 ?? 'bare');
         v.plantG.removeChildren().forEach((c) => c.destroy({ children: true }));
         const grand = t.kind === 'gtank';
         const kinds = [td.plant ?? null, grand ? (td.plant2 ?? null) : null];

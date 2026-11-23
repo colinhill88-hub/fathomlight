@@ -4,6 +4,20 @@ The live branch includes the Fulmar foothold, Codex Phases 1–11D the Phase 12 
 
 Play link: https://colinhill88-hub.github.io/fathomlight/ (live; first successful deploy 2026-11-14)
 
+### Tank backdrops & UI/UX polish pass (Colin, Nov 23, 2026; local working tree)
+
+Upgraded both the creature tanks and every menu/HUD surface to a cohesive Outpost Kestrel look:
+- **Painted tank backdrop pipeline (`src/art/tankArt.ts`, `src/world/habitatWater.ts`, `src/world/tanklife.ts`, `src/interior/baselevel.ts`, `src/main.ts`):**
+  - Every creature tank — both in the exterior base cutaway and inside the walkable base — now switches its backdrop automatically to match its planted flora (`bare`, `coral`, `kelp`, `grass`, `bladder`, `lumen`).
+  - `loadTankArt()` loads generated painted backdrops from `src/art/tanks/<kind>.webp` (or `.png`), fits them cleanly inside the tank window with aspect-ratio cover masking, and respects `?art=procedural` and `?worldArt=procedural`.
+  - When no generated image is present (or with `?art=procedural`), `HabitatWater` now renders a multi-layered biome-themed painterly procedural backdrop: themed water gradients, sunlit shafts, far reef ridge silhouettes, sculpted sunlit rock terraces, recessed distant flora silhouettes (branch coral clusters, swaying ribbon kelp, seagrass tufts, bladder stalks, or glowing warm yellow-green lumen moss), depth haze, and themed pebble sand beds.
+  - Note: the image-generation service returned `503 MODEL_CAPACITY_EXHAUSTED` during this session, so no generated image files were committed yet; dropping the 6 generated `.webp` files into `src/art/tanks/` activates them automatically with zero code changes.
+- **UI/UX polish across every menu (`src/style.css`):**
+  - Unified every menu and console (`#title-screen`, `#pause-menu`, `#save-code`, `#settings-panel`, `#log-panel`, `#care-panel`, `#dock-panel`, `#station-panel`, `#rates-panel`, `#field-kit`, `#creature-card`, `#hatch-reveal`, `#read-panel`, `#zone-map`, `#build-bar`, HUD buttons, and toasts) into one cohesive **Outpost Kestrel deep sea-glass & weathered brass** visual language with frosted backdrop blur, subtle top specular rims, brass section dividers, and smooth entrance motion.
+  - Added custom thin sea-glass & brass scrollbars across all scrollable menus, styled volume sliders, crisp keyboard focus rings, tactile button press states, and hover-only lift/glow (`@media (hover: hover)` so iPhone touch taps never stick).
+  - Preserved 44 px minimum touch targets, iPhone landscape layouts, gamepad `.pad-focus` rings, high-contrast disabled buttons, `prefers-reduced-motion`, and the Choir colour rule.
+- **Not checked in this session:** Node.js and Git CLI are not installed on this Windows machine's PATH, so `npm run typecheck`, `npm run build`, `node scripts/test-progression.mjs`, and `vite preview` browser checks still need to be run once Node 22 is available (or in CI).
+
 ### Kestrel's size in the open water (Colin, Nov 23, 2026; pull request, not merged)
 
 Colin noticed the swimming Kestrel was drawn much bigger than the mag-boots walker (the swimmer's helmet was about twice the walker's on screen). He prefers the smaller walker ("it makes the ocean seem bigger") and asked for both to match, then 20% smaller again.

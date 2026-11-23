@@ -10,6 +10,7 @@ import { HATCH_CAP } from '../game/creatures';
 import { WHORLS_PER_PIECE } from '../game/factory';
 import { ITEM_COLOURS, pointAlong } from '../world/linegfx';
 import { drawPlant, TankLife } from '../world/tanklife';
+import type { TankArt } from '../art/tankArt';
 import { drawHabitatFrame, drawObservationCrown, drawPressureRib } from '../world/habitatFrame';
 import { HousingOcean } from './housingOcean';
 import { HousingHull } from './housingHull';
@@ -238,6 +239,7 @@ export interface BaseCtx {
   livingBases: boolean;
   housingOcean: boolean;
   basinBackdrop?: Texture;
+  tankArt?: TankArt;
   panorama?: (registration: OceanRegistration) => OceanSource;
   oceanSurround?: (registration: OceanRegistration) => OceanSource;
   modularHousing: boolean;
@@ -414,6 +416,7 @@ export class BaseHooks implements InteriorHooks {
       glass: false,
       livingCreatures: ctx.livingCreatures,
       livingBases: ctx.livingBases,
+      tankArt: ctx.tankArt,
     });
     this.extraLit.addChild(this.habitatForeground);
     for (const l of level.lifts) this.spots.push({ room: level.rooms[0], x: l.x, y: l.y, r: 40, what: 'lift', to: { x: l.toX, y: l.toY }, up: l.up });

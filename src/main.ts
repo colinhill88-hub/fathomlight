@@ -138,6 +138,7 @@ import { BaseView, BuildOverlay, storageCapacity } from './world/basegfx';
 import { BuildMode } from './ui/build';
 import { Wildlife } from './world/wildlife';
 import { TankLife } from './world/tanklife';
+import { loadTankArt } from './art/tankArt';
 import { Escort } from './actors/escort';
 import { Critter } from './actors/critters';
 import { CareMode } from './ui/care';
@@ -293,7 +294,7 @@ async function boot(): Promise<void> {
   const compact = redesigned && urlq.get('character') !== 'phase9';
   // art=procedural still switches the whole Shallows pilot back to procedural art.
   const useShallowsArt = visualMode('art', 'shallows');
-  const [shallowsArt, shallowsSeabed, shallowsKelp, paintedFace, paintedSuit, forestMidground, forestOutcrop, shelfMidground, worldArt] = await Promise.all([
+  const [shallowsArt, shallowsSeabed, shallowsKelp, paintedFace, paintedSuit, forestMidground, forestOutcrop, shelfMidground, worldArt, tankArt] = await Promise.all([
     useShallowsArt ? loadShallowsArt(fidelity) : null,
     useShallowsArt && visualMode('terrain') ? loadShallowsSeabed() : null,
     useShallowsArt && visualMode('kelp') ? loadShallowsKelp() : null,
@@ -303,6 +304,7 @@ async function boot(): Promise<void> {
     visualMode('forestTerrain') ? loadForestOutcrop() : undefined,
     visualMode('shelf') ? loadWreckShelfMidground() : undefined,
     visualMode('worldArt') ? loadWorldArt(fidelity) : undefined,
+    useShallowsArt && visualMode('worldArt') ? loadTankArt(fidelity) : undefined,
   ]);
   const zoneBackdrop = new ZoneBackdrop(forestMidground, shelfMidground, worldArt);
   zoneBackdrop.build();
@@ -385,7 +387,7 @@ async function boot(): Promise<void> {
   const gearFx = new GearFx();
   // Phase 13: mineral lodes for KS-1's drill nose.
   const lodeArt = new LodeArt();
-  const tankLife = new TankLife({ livingCreatures, livingBases });
+  const tankLife = new TankLife({ livingCreatures, livingBases, tankArt });
   // Milestone 9: a grown glowfin from the jar swims beside the diver as a light.
   const escort = new Escort(livingCreatures);
   let workingSpecimen: Critter | null = null;
@@ -4579,6 +4581,7 @@ async function boot(): Promise<void> {
     housingOcean,
     modularHousing,
     basinBackdrop: worldArt?.plates.basin,
+    tankArt,
     // The whole route shares one downward-facing sightline. The foundations and
     // seabed stay registered to the level as the camera follows the walker.
     panorama: oceanCapture ? (registration) =>

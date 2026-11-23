@@ -1,9 +1,17 @@
 :root {
-  --ui-bg: rgba(10, 32, 40, 0.82);
-  --ui-line: rgba(200, 230, 225, 0.22);
-  --ui-text: #e4efec;
+  --ui-bg: rgba(10, 30, 38, 0.86);
+  --ui-panel-bg: linear-gradient(165deg, rgba(16, 40, 48, 0.96), rgba(7, 20, 27, 0.97) 72%);
+  --ui-card-bg: rgba(255, 255, 255, 0.045);
+  --ui-line: rgba(188, 224, 218, 0.22);
+  --ui-brass: #c9a24a;
+  --ui-brass-hi: #f2d488;
+  --ui-brass-line: rgba(201, 162, 74, 0.44);
+  --ui-lime: #c6f03a;
+  --ui-text: #e6f1ee;
   --ui-dim: #9fb8b4;
   --ui-accent: #c9a24a; /* muted hardware yellow */
+  --ui-shadow: 0 14px 44px rgba(2, 10, 15, 0.56), inset 0 1px 0 rgba(214, 240, 232, 0.14);
+  --ui-ease: cubic-bezier(0.22, 1, 0.36, 1);
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-right: env(safe-area-inset-right, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
@@ -5078,3 +5086,454 @@ body.on-foot #btn-dart {
 #care-panel .tchip.on { border-color: #ffe6a8; background: rgba(201, 162, 74, 0.2); }
 #care-panel .tsel { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 6px; }
 #care-panel .tsel small { flex-basis: 100%; opacity: 0.75; }
+
+/* ============================================================================
+   UI/UX Polish Pass (Outpost Kestrel deep sea-glass & weathered brass)
+   Unifies every menu, console, modal, HUD button, scrollbar and interaction.
+   Strictly preserves 44px touch targets, iPhone landscape media queries,
+   gamepad .pad-focus rings, and the Choir colour rule.
+   ============================================================================ */
+
+@keyframes ui-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes ui-panel-in {
+  from { opacity: 0; transform: translateY(8px) scale(0.985); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes ui-slide-in {
+  from { opacity: 0; transform: translateX(14px); }
+  to { opacity: 1; transform: none; }
+}
+
+/* Custom thin sea-glass & brass scrollbars across all scrollable menus */
+#hud .panel,
+#care-panel,
+#dock-panel,
+#station-panel,
+#rates-panel,
+#read-panel .read-card,
+#zone-map .zm-card,
+.code-card,
+.fk-body,
+.cc-card {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(201, 162, 74, 0.45) rgba(6, 18, 24, 0.35);
+}
+
+#hud .panel::-webkit-scrollbar,
+#care-panel::-webkit-scrollbar,
+#dock-panel::-webkit-scrollbar,
+#station-panel::-webkit-scrollbar,
+#rates-panel::-webkit-scrollbar,
+#read-panel .read-card::-webkit-scrollbar,
+#zone-map .zm-card::-webkit-scrollbar,
+.code-card::-webkit-scrollbar,
+.fk-body::-webkit-scrollbar,
+.cc-card::-webkit-scrollbar {
+  width: 7px;
+  height: 7px;
+}
+
+#hud .panel::-webkit-scrollbar-track,
+#care-panel::-webkit-scrollbar-track,
+#dock-panel::-webkit-scrollbar-track,
+#station-panel::-webkit-scrollbar-track,
+#rates-panel::-webkit-scrollbar-track,
+#read-panel .read-card::-webkit-scrollbar-track,
+#zone-map .zm-card::-webkit-scrollbar-track,
+.code-card::-webkit-scrollbar-track,
+.fk-body::-webkit-scrollbar-track,
+.cc-card::-webkit-scrollbar-track {
+  background: rgba(6, 18, 24, 0.32);
+  border-radius: 999px;
+}
+
+#hud .panel::-webkit-scrollbar-thumb,
+#care-panel::-webkit-scrollbar-thumb,
+#dock-panel::-webkit-scrollbar-thumb,
+#station-panel::-webkit-scrollbar-thumb,
+#rates-panel::-webkit-scrollbar-thumb,
+#read-panel .read-card::-webkit-scrollbar-thumb,
+#zone-map .zm-card::-webkit-scrollbar-thumb,
+.code-card::-webkit-scrollbar-thumb,
+.fk-body::-webkit-scrollbar-thumb,
+.cc-card::-webkit-scrollbar-thumb {
+  background: rgba(201, 162, 74, 0.42);
+  border-radius: 999px;
+  border: 1px solid rgba(10, 26, 32, 0.6);
+}
+
+#hud .panel::-webkit-scrollbar-thumb:hover,
+#care-panel::-webkit-scrollbar-thumb:hover,
+#dock-panel::-webkit-scrollbar-thumb:hover,
+#station-panel::-webkit-scrollbar-thumb:hover,
+#rates-panel::-webkit-scrollbar-thumb:hover,
+.fk-body::-webkit-scrollbar-thumb:hover {
+  background: rgba(242, 212, 136, 0.68);
+}
+
+/* ---- Unified deep sea-glass & brass surfaces for every side console & panel ---- */
+#hud .panel,
+#care-panel,
+#dock-panel,
+#station-panel,
+#rates-panel {
+  background: var(--ui-panel-bg);
+  border: 1px solid var(--ui-brass-line);
+  box-shadow: var(--ui-shadow);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+#care-panel.habitat-console {
+  background: linear-gradient(160deg, rgba(22, 52, 56, 0.97), rgba(9, 24, 31, 0.98) 72%);
+  border-color: rgba(201, 162, 74, 0.5);
+  box-shadow: 0 16px 46px rgba(2, 12, 16, 0.62), inset 0 1px 0 rgba(214, 242, 232, 0.18);
+}
+
+#care-panel .acts {
+  background: linear-gradient(180deg, rgba(10, 26, 34, 0.9), rgba(7, 19, 26, 0.99) 28%);
+  border-top: 1px solid rgba(201, 162, 74, 0.22);
+}
+
+#care-panel,
+#dock-panel,
+#station-panel {
+  animation: ui-slide-in 0.24s var(--ui-ease) both;
+}
+
+#hud .panel:not([hidden]),
+#rates-panel:not([hidden]) {
+  animation: ui-panel-in 0.22s var(--ui-ease) both;
+}
+
+/* Modal backdrops & centered cards */
+#title-screen,
+#pause-menu,
+#save-code,
+#field-kit:not([hidden]),
+#creature-card:not([hidden]),
+#read-panel,
+#zone-map {
+  backdrop-filter: blur(5px);
+  -webkit-backdrop-filter: blur(5px);
+  animation: ui-fade-in 0.2s ease-out both;
+}
+
+.pause-card,
+.code-card,
+.fk-card,
+.cc-card,
+#read-panel .read-card,
+#zone-map .zm-card {
+  animation: ui-panel-in 0.26s var(--ui-ease) both;
+}
+
+.pause-card,
+.code-card {
+  background: var(--ui-panel-bg);
+  border: 1px solid var(--ui-brass-line);
+  box-shadow: 0 0 0 3px rgba(8, 18, 24, 0.55), var(--ui-shadow);
+}
+
+.fk-card {
+  border-color: rgba(201, 162, 74, 0.52);
+  box-shadow: 0 0 0 4px rgba(8, 18, 24, 0.58), 0 22px 64px rgba(0, 0, 0, 0.62), inset 0 1px 0 rgba(242, 212, 136, 0.16);
+}
+
+/* ---- Title screen atmosphere & typography ---- */
+#title-screen {
+  background:
+    radial-gradient(ellipse at 50% 24%, rgba(36, 102, 114, 0.34), transparent 56%),
+    radial-gradient(ellipse at 50% 60%, rgba(12, 42, 54, 0.45), rgba(3, 10, 16, 0.88) 76%);
+}
+
+.title-card {
+  position: relative;
+  padding: 26px 24px 22px;
+  border-radius: 20px;
+  background: linear-gradient(180deg, rgba(10, 28, 36, 0.52), rgba(5, 16, 22, 0.68));
+  border: 1px solid rgba(201, 162, 74, 0.28);
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.48), inset 0 1px 0 rgba(220, 244, 236, 0.14);
+  animation: ui-panel-in 0.42s var(--ui-ease) both;
+}
+
+.title-card h1::after {
+  content: '';
+  display: block;
+  width: min(220px, 52%);
+  height: 1px;
+  margin: 12px auto 0;
+  background: linear-gradient(90deg, transparent, rgba(201, 162, 74, 0.72), transparent);
+}
+
+.title-card .title-tag {
+  margin: 10px 0 22px;
+  color: #b4d0d2;
+  font-size: 14.5px;
+  letter-spacing: 0.02em;
+}
+
+.title-buttons button,
+.pause-card button,
+.code-card .row button {
+  min-height: 44px;
+  background: linear-gradient(180deg, rgba(20, 48, 60, 0.88), rgba(11, 28, 38, 0.92));
+  border: 1px solid rgba(180, 222, 218, 0.26);
+  box-shadow: inset 0 1px 0 rgba(220, 244, 238, 0.1), 0 4px 14px rgba(0, 0, 0, 0.25);
+  transition: transform 0.14s var(--ui-ease), border-color 0.16s ease, background 0.16s ease, box-shadow 0.16s ease;
+}
+
+.title-buttons button.primary,
+.pause-card button.primary {
+  background: linear-gradient(180deg, rgba(198, 240, 58, 0.26), rgba(154, 198, 42, 0.18));
+  border-color: rgba(198, 240, 58, 0.78);
+  box-shadow: 0 0 18px rgba(198, 240, 58, 0.16), inset 0 1px 0 rgba(239, 255, 192, 0.28);
+}
+
+/* ---- Consistent brass headers & section dividers across panels ---- */
+#hud .panel h2,
+#dock-panel h3,
+#station-panel h3,
+#care-panel h3,
+.rates-head h2 {
+  color: var(--ui-brass-hi);
+}
+
+#hud .panel h2 {
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-size: 12.5px;
+  padding-bottom: 5px;
+  border-bottom: 1px solid rgba(201, 162, 74, 0.22);
+}
+
+#dock-panel .head,
+#station-panel .head,
+#care-panel .care-head {
+  padding-bottom: 6px;
+  margin-bottom: 6px;
+  border-bottom: 1px solid rgba(201, 162, 74, 0.22);
+}
+
+/* ---- HUD top-right instrument buttons & chips ---- */
+#settings-btn,
+#kit-btn,
+#log-btn,
+#build-btn,
+#tend-btn,
+#dock-btn,
+#station-btn {
+  background: linear-gradient(180deg, rgba(16, 42, 52, 0.88), rgba(8, 24, 32, 0.92));
+  border-color: rgba(201, 162, 74, 0.36);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.36), inset 0 1px 0 rgba(220, 244, 236, 0.16);
+  transition: transform 0.14s var(--ui-ease), border-color 0.16s ease, box-shadow 0.16s ease, background 0.16s ease;
+}
+
+#inventory,
+#jar-chip,
+#sub-chip,
+#depth-chip,
+#suit-bar {
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.32), inset 0 1px 0 rgba(214, 240, 232, 0.12);
+}
+
+/* ---- Polished range sliders in Settings ---- */
+#sound-rows input[type='range'] {
+  accent-color: var(--ui-brass-hi);
+  cursor: pointer;
+}
+
+/* ---- Card & button tactile polish across every console ---- */
+#dock-panel .mod,
+#station-panel .mod,
+#care-panel .tblock,
+#care-panel .trough,
+#care-panel .habitat-care {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.055), rgba(4, 16, 22, 0.24));
+  border-color: rgba(188, 224, 218, 0.2);
+  box-shadow: inset 0 1px 0 rgba(220, 244, 238, 0.06);
+}
+
+#dock-panel .act,
+#station-panel .act,
+#care-panel button,
+.fk-head .tab,
+.fk-close,
+.fk-foot button,
+.preset-row button,
+.fx-toggles button,
+.sound-toggles button,
+#read-panel button,
+#zone-map .x,
+#zone-map .zm-frag,
+.hr-name .keep,
+.hr-book,
+.cc-card .x,
+.cc-pen {
+  transition: transform 0.13s var(--ui-ease), border-color 0.16s ease, background 0.16s ease, box-shadow 0.16s ease, color 0.16s ease;
+}
+
+#care-panel .tchip {
+  transition: transform 0.14s var(--ui-ease), border-color 0.15s ease, background 0.15s ease;
+}
+
+#care-panel .track,
+#dock-panel .track,
+#station-panel .track,
+.cc-content .track {
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.45);
+}
+
+/* Build bar glass & brass rim */
+#build-bar {
+  background: linear-gradient(180deg, rgba(14, 38, 46, 0.94), rgba(7, 20, 26, 0.96));
+  border-top: 1px solid var(--ui-brass-line);
+  box-shadow: 0 -10px 32px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(242, 212, 136, 0.14);
+}
+
+#build-title,
+#build-info {
+  background: linear-gradient(180deg, rgba(14, 38, 46, 0.92), rgba(8, 22, 28, 0.94));
+  border: 1px solid var(--ui-brass-line);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.38), inset 0 1px 0 rgba(220, 244, 236, 0.12);
+}
+
+/* Toasts: crisper sea-glass pills with warm brass left accent */
+#toasts .toast {
+  background: linear-gradient(160deg, rgba(14, 38, 46, 0.92), rgba(7, 20, 26, 0.95));
+  border: 1px solid rgba(201, 162, 74, 0.34);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.42), inset 0 1px 0 rgba(220, 244, 236, 0.12);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+/* Tactile press feedback on all enabled buttons */
+#settings-btn:active,
+#kit-btn:active,
+#log-btn:active,
+#build-btn:active,
+#tend-btn:active,
+#dock-btn:active,
+#station-btn:active,
+.title-buttons button:not(:disabled):active,
+.pause-card button:not(:disabled):active,
+.code-card .row button:not(:disabled):active,
+.fk-head .tab:not(:disabled):active,
+.fk-foot button:not(:disabled):active,
+#dock-panel .act:not(:disabled):active,
+#station-panel .act:not(:disabled):active,
+#care-panel button:not(:disabled):active,
+#read-panel button:not(:disabled):active,
+.hr-name .keep:not(:disabled):active {
+  transform: scale(0.97);
+}
+
+/* Desktop hover polish (guarded by hover: hover so iPhone touch never sticks) */
+@media (hover: hover) {
+  #settings-btn:hover,
+  #kit-btn:hover,
+  #log-btn:hover,
+  #build-btn:hover,
+  #tend-btn:hover,
+  #dock-btn:hover,
+  #station-btn:hover {
+    border-color: var(--ui-brass-hi);
+    box-shadow: 0 0 14px rgba(201, 162, 74, 0.28), 0 6px 20px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(242, 212, 136, 0.24);
+    transform: translateY(-1px);
+  }
+
+  .title-buttons button:not(:disabled):hover,
+  .pause-card button:not(:disabled):hover,
+  .code-card .row button:not(:disabled):hover {
+    border-color: var(--ui-brass-hi);
+    background: linear-gradient(180deg, rgba(28, 62, 74, 0.94), rgba(15, 36, 46, 0.96));
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.34), 0 0 14px rgba(201, 162, 74, 0.2);
+    transform: translateY(-1px);
+  }
+
+  .title-buttons button.primary:not(:disabled):hover,
+  .pause-card button.primary:not(:disabled):hover {
+    border-color: #d8ff66;
+    background: linear-gradient(180deg, rgba(198, 240, 58, 0.36), rgba(164, 210, 48, 0.24));
+    box-shadow: 0 0 22px rgba(198, 240, 58, 0.32), inset 0 1px 0 rgba(245, 255, 210, 0.38);
+  }
+
+  #dock-panel .act:not(:disabled):hover,
+  #station-panel .act:not(:disabled):hover,
+  .fk-head .tab:not(.on):hover,
+  .fk-close:hover,
+  .fk-foot button:hover,
+  .cc-card .x:hover,
+  .cc-pen:hover,
+  .preset-row button:not([aria-checked='true']):hover,
+  .fx-toggles button:hover,
+  .sound-toggles button:hover,
+  #read-panel button:hover,
+  #zone-map .x:hover,
+  .hr-name .keep:hover,
+  .hr-book:hover {
+    border-color: var(--ui-brass-hi);
+    background-color: rgba(201, 162, 74, 0.2);
+    box-shadow: 0 0 12px rgba(201, 162, 74, 0.2);
+  }
+
+  #care-panel .tchip:hover {
+    border-color: rgba(242, 212, 136, 0.55);
+    background: rgba(201, 162, 74, 0.12);
+    transform: translateY(-1px);
+  }
+
+  .bk-cell:hover {
+    border-color: rgba(242, 212, 136, 0.65);
+    transform: translateY(-1px);
+  }
+}
+
+/* Crisp keyboard focus rings everywhere */
+#hud button:focus-visible,
+#dock-panel button:focus-visible,
+#station-panel button:focus-visible,
+#rates-panel button:focus-visible,
+#field-kit button:focus-visible,
+#creature-card button:focus-visible,
+#read-panel button:focus-visible,
+#zone-map button:focus-visible,
+#title-screen button:focus-visible,
+#pause-menu button:focus-visible,
+#save-code button:focus-visible,
+#hatch-reveal button:focus-visible {
+  outline: 2px solid var(--ui-brass-hi);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #hud .panel,
+  #care-panel,
+  #dock-panel,
+  #station-panel,
+  #rates-panel,
+  #title-screen,
+  #pause-menu,
+  #save-code,
+  #field-kit,
+  #creature-card,
+  #read-panel,
+  #zone-map,
+  .title-card,
+  .pause-card,
+  .code-card,
+  .fk-card,
+  .cc-card,
+  #read-panel .read-card,
+  #zone-map .zm-card {
+    animation: none !important;
+  }
+  button {
+    transition: none !important;
+  }
+}

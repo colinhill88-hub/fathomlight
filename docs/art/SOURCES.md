@@ -55,3 +55,7 @@ No generated images were added. This session also had no image generator, so all
 See every creature in every form at `zoo.html` (on the play link, or with `npm run dev`).
 
 **Image-generation prompts** for painted textures to dress these rigs (and the Session A tank backdrops) are ready in [`prompts/phases-22-23-creatures.md`](prompts/phases-22-23-creatures.md). Generated textures go in `src/art/creatures/` and are logged in the table above.
+
+## Tank backdrops & UI polish pass (Nov 23, 2026)
+
+Wired `src/art/tankArt.ts` (`loadTankArt`) and `HabitatWater.setTheme()` so every tank (exterior and walkable interior) automatically displays a per-plant painted backdrop from `src/art/tanks/{bare,coral,kelp,grass,bladder,lumen}.{webp,png}` when present, and falls back to multi-layered biome-themed painterly procedural backdrops (rock ridges, sunlit terraces, distant plant silhouettes, depth haze, and themed sand beds) when files are absent or `?art=procedural` is active. No generated image files were added during this session because the image-generation server returned `503 MODEL_CAPACITY_EXHAUSTED`; drop generated `.webp` plates into `src/art/tanks/` and log them in the table above whenever capacity is available.
