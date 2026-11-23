@@ -48,7 +48,7 @@ export interface ExchangeSupplyOffer {
 
 export const EXCHANGE_SUPPLIES: readonly ExchangeSupplyOffer[] = [
   { id: 'brass', name: 'Brass fittings ×4', line: 'Salvaged marine brass delivered straight to base storage.', cost: 50, mat: 'brass', qty: 4 },
-  { id: 'plating', name: 'Hull plating ×4', line: 'Pressed hull plates delivered straight to base storage.', cost: 55, mat: 'plating', qty: 4 },
+  { id: 'plating', name: 'Hull plating ×4', line: 'Pressed hull plates delivered straight to base storage.', cost: 55, mat: 'plate', qty: 4 },
   { id: 'bloom', name: 'Glowing bloom ×1', line: 'A deep-water bloom for the Revival pool, delivered to storage.', cost: 65, mat: 'bloom', qty: 1 },
   { id: 'whorl', name: 'Echo whorl ×1', line: 'An acoustic whorl to double a tank or machine’s output.', cost: 140 },
 ];
