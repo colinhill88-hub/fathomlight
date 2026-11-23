@@ -527,7 +527,7 @@ export const SANCTUM = {
   heart: { x: 29420, y: 0 },
   /** The Choir gate (after contact): in the antechamber, and its twin by the Kestrel buoy. */
   gate: { x: 32170, y: 7990 },
-  homeGate: { x: 1180, y: 0 },
+  homeGate: { x: 1820, y: 0 },
 };
 export const sanctum = { door: false, locks: [false, false] };
 const SANCTUM_SHAPES: CaveShape[] = [SANCTUM.shaft, SANCTUM.ante, SANCTUM.narrows, SANCTUM.hall, SANCTUM.down, SANCTUM.pool];

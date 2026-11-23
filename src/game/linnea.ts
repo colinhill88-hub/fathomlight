@@ -40,7 +40,7 @@ export const LINNEA_SPOTS: Record<LinneaSpotId, LinneaSpot> = {
   rim: { id: 'rim', x: 26920, lift: 58, face: -1, where: 'the trench rim, where the Wreck Shelf ends' },
   fulmar: { id: 'fulmar', x: 30990, lift: 170, face: -1, where: 'the trench floor, outside the Fulmar deep station' },
   sanctum: { id: 'sanctum', x: 32240, lift: 80, face: -1, where: 'the trench floor, by the round stone door' },
-  home: { id: 'home', x: 1250, lift: 210, face: -1, where: 'Sunlit Shallows, by the Kestrel buoy, after first contact' },
+  home: { id: 'home', x: 1820, lift: 265, face: -1, where: 'Sunlit Shallows, just east of the Kestrel base, after first contact' },
 };
 
 /** The order she moves through them (each one only while it is the current stage). */
