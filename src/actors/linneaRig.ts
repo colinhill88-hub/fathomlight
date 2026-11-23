@@ -1,4 +1,5 @@
-import { Container, FillGradient, Graphics } from 'pixi.js';
+import { Container, FillGradient, Graphics, Sprite } from 'pixi.js';
+import { getCreatureArt } from '../art/creatureArt';
 import { approach, batchAll, clamp } from './animkit';
 
 /**
@@ -196,7 +197,17 @@ export class LinneaRig {
     h.circle(21.2, -6.3, 2.2).fill({ color: 0x3e2a30, alpha: 0.7 });
     h.circle(22.2, -7.5, 1.05).fill(0xfff4e8);
     h.circle(19.9, -5.0, 0.5).fill({ color: 0xfff4e8, alpha: 0.75 });
-    this.head.addChild(h, this.mouthG, this.lid);
+    const painted = getCreatureArt().linnea;
+    let headNode: Container = h;
+    if (painted) {
+      const sp = new Sprite(painted);
+      sp.anchor.set(0.5, 0.5);
+      sp.position.set(13, -2);
+      sp.width = 41;
+      sp.height = 31;
+      headNode = sp;
+    }
+    this.head.addChild(headNode, this.mouthG, this.lid);
     this.head.position.set(NECK_X - 3, 0);
     // A big friendly head, as axolotls have.
     this.head.scale.set(1.14);
