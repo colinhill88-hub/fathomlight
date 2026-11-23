@@ -148,7 +148,7 @@ import { an, book, claimBookRewards, matchesRequest, hatchTier, kindName, record
 import { keepOldNames, creatureName, creaturesIn, releaseFromJar as releaseJar, jarRoom, newCreature, putInJar, takeFromJar, payCost, PLANT_ORDER, PLANTS, SPECIES, SPECIES_ORDER, tankCapacity, tankNumber, tickCare, wildAllowed, WILD_CAP } from './game/creatures';
 import { creatureMilestone, creatureSiteHint, fieldResearch, type CreatureSite } from './game/discovery';
 import { HatchPanel } from './ui/hatch';
-import { traitsOf, traitText, wildTraits } from './game/traits';
+import { isRare, traitsOf, traitText, wildTraits } from './game/traits';
 import { RatesPanel } from './ui/rates';
 import { Factory, FARM_TRAY, FEEDER_MASH_CAP, HOPPER_CAP, machineData, PRESS_COPPER_CAP, PRESS_PLATE_CAP, PRESS_SCRAP_CAP, whorlMult, whorlsFree } from './game/factory';
 import { LinesView } from './world/linegfx';
@@ -655,25 +655,36 @@ async function boot(): Promise<void> {
     wildlife.applyRestock(save);
     hud.toast(`Its ${traitText(species, t!)} look will turn up on the reef from now on.`, 'big');
   }
-  /** Phase 20: a hatching, scaled by rarity. Call before the creature is in the book. */
-  function hatchMoment(c: CreatureData, where: string): void {
+  /** Phase 20: a hatching, scaled by rarity. Call before the creature is in the book.
+   *  Colin (Nov 23, 2026): meaningful notifications only — full popups for new book entries,
+   *  rare/radiant/heirloom/Choir babies, Linnea's requests, and the first hatch ever;
+   *  ordinary repeats settle quietly without interrupting play. */
+  function hatchMoment(c: CreatureData, where: string, forceShow = false): boolean {
     const news = record(save, c);
     const tier = hatchTier(news);
     const sp = SPECIES[c.species];
-    const t = traitText(c.species, c.traits ?? traitsOf(c));
-    if (tier !== 'reveal') {
-      const tr = c.traits ?? traitsOf(c);
-      // Phase 22: the rarest first (Choir-touched, heirloom, a rare shape), then the older news.
-      const ribbon = tr.choir ? 'Choir-touched!' : tr.heirloom ? (news.newForms.includes('heirloom') ? 'An heirloom line!' : 'Heirloom') : news.newForms.includes('shape2') ? 'A rare shape!'
-        : news.newRadiant ? 'Radiant!' : news.newColour && news.newPattern ? 'New colour and glow' : news.newColour ? 'New colour' : news.newPattern ? 'New glow pattern'
-        : news.newForms.includes('tiny') ? 'A tiny one!' : news.newForms.includes('giant') ? 'A giant!' : news.newForms.includes('shape1') ? 'A new shape' : tr.radiant ? 'Radiant' : 'Something special';
-      grant((tier === 'major' ? major : notable)('creature', ribbon, `A young ${sp.name.toLowerCase()}`, t, tr.choir ? 'choir' : 'life'));
-      reward.whenClear(() => hatchReveal.show(c, news, tier, where));
-    } else {
-      sound.toast('item');
-      hatchReveal.show(c, news, tier, where);
+    const tr = c.traits ?? traitsOf(c);
+    const t = traitText(c.species, tr);
+    const firstHatch = !save.tips.includes('hatched1');
+    const wanted = (save.requests?.active ?? []).some((q) => matchesRequest(q, c.species, tr));
+    const meaningful = forceShow || firstHatch || tier !== 'reveal' || isRare(tr) || wanted;
+    if (firstHatch) save.tips.push('hatched1');
+    if (meaningful) {
+      if (tier !== 'reveal') {
+        // Phase 22: the rarest first (Choir-touched, heirloom, a rare shape), then the older news.
+        const ribbon = tr.choir ? 'Choir-touched!' : tr.heirloom ? (news.newForms.includes('heirloom') ? 'An heirloom line!' : 'Heirloom') : news.newForms.includes('shape2') ? 'A rare shape!'
+          : news.newRadiant ? 'Radiant!' : news.newColour && news.newPattern ? 'New colour and glow' : news.newColour ? 'New colour' : news.newPattern ? 'New glow pattern'
+          : news.newForms.includes('tiny') ? 'A tiny one!' : news.newForms.includes('giant') ? 'A giant!' : news.newForms.includes('shape1') ? 'A new shape' : tr.radiant ? 'Radiant' : 'Something special';
+        grant((tier === 'major' ? major : notable)('creature', ribbon, `A young ${sp.name.toLowerCase()}`, t, tr.choir ? 'choir' : 'life'));
+        reward.whenClear(() => hatchReveal.show(c, news, tier, where));
+      } else {
+        sound.toast('item');
+        hatchReveal.show(c, news, tier, where);
+      }
+      if (wanted) hud.toast(`A young ${sp.name.toLowerCase()} hatched (${t}) — Linnea has been hoping to see one like this!`, 'big');
     }
     claimRewards();
+    return meaningful;
   }
   /** Phase 20: rewards for completed book rows and pages (decorations and rare eggs). */
   function claimRewards(): void {
@@ -2025,48 +2036,57 @@ async function boot(): Promise<void> {
       // Phase 13: kept creatures are named (hatching eggs are still a clutch).
       const who = ev.c.stage === 'egg' ? `The ${name.toLowerCase()}` : `${creatureName(ev.c)} the ${name.toLowerCase()}`;
       const where = ev.c.tank < 0 ? "the Creature room" : `tank ${tankNumber(layout, ev.c.tank)}`;
-      // Milestone 9: breeding.
+      // Milestone 9: breeding (Colin, Nov 23, 2026: only celebrate the first egg laid;
+      // later eggs lay quietly so the hatching moment carries the excitement).
       if (ev.type === 'laid') {
-        const tp = layout.pieces.find((q) => q.id === ev.parents[0].tank);
-        grant(notable('egg', 'New egg', `A ${name.toLowerCase()} egg`, traitText(ev.c.species, ev.c.traits!), 'life'));
-        hud.toast(`A ${name.toLowerCase()} pair in ${tp ? pieceCode(layout, tp) : 'a tank'} laid an egg: it is in the Creature room (${traitText(ev.c.species, ev.c.traits!)}).`, 'big');
         if (!save.tips.includes('laid')) {
+          const tp = layout.pieces.find((q) => q.id === ev.parents[0].tank);
           save.tips.push('laid');
+          grant(notable('egg', 'New egg', `A ${name.toLowerCase()} egg`, traitText(ev.c.species, ev.c.traits!), 'life'));
+          hud.toast(`A ${name.toLowerCase()} pair in ${tp ? pieceCode(layout, tp) : 'a tank'} laid an egg: it is in the Creature room (${traitText(ev.c.species, ev.c.traits!)}).`, 'big');
           setTimeout(() => hud.toast('Eggs hatch in the Creature room, and the young swim to a tank that suits them by themselves. Its console shows every tank in the base.', 'big'), 2600);
         }
+        baseHooks?.syncTanks();
         persist();
         continue;
       }
       if (ev.type === 'nursery-hatched') {
         // Phase 20: the hatching moment, scaled by rarity (it names the baby too).
-        // Colin (after Session B): the young swim home by themselves (to a tank, or the reserve).
+        // Colin (Nov 23, 2026): ordinary repeat hatchlings that settle themselves do so quietly;
+        // only meaningful births (new book entries, rare/special, Linnea's requests, first hatch)
+        // or babies stuck waiting in a cradle show a popup/toast.
         const home = ev.home;
         const homeText = home === 'reserve' ? 'the reserve' : typeof home === 'number' ? (() => { const tp = layout.pieces.find((q) => q.id === home); return tp ? pieceCode(layout, tp) : 'a tank'; })() : null;
-        hatchMoment(ev.c, homeText ? `and swam to ${homeText}` : 'in the Creature room');
-        hud.toast(homeText
-          ? `A ${name.toLowerCase()} hatched (${traitText(ev.c.species, ev.c.traits!)}) and swam to ${homeText} by itself.`
-          : `A ${name.toLowerCase()} hatched in the Creature room: ${traitText(ev.c.species, ev.c.traits!)}. No tank suits it yet: choose one at the Creature room console.`);
-        if (homeText) {
-          persist();
-          baseHooks?.syncTanks();
-          continue;
-        }
-        if (!save.tips.includes('younghunger')) {
-          save.tips.push('younghunger');
-          setTimeout(() => hud.toast('Young in the Creature room get hungry while they wait: run a feed pipe from an auto feeder into it, or feed them by hand at its console.', 'big'), 5000);
+        const shown = hatchMoment(ev.c, homeText ? `and swam to ${homeText}` : 'in the Creature room');
+        if (!homeText) {
+          hud.toast(`A ${name.toLowerCase()} hatched in the Creature room (${traitText(ev.c.species, ev.c.traits!)}). No tank suits it yet: choose one at the Creature room console.`);
+          if (!save.tips.includes('younghunger')) {
+            save.tips.push('younghunger');
+            setTimeout(() => hud.toast('Young in the Creature room get hungry while they wait: run a feed pipe from an auto feeder into it, or feed them by hand at its console.', 'big'), 5000);
+          }
+        } else if (shown) {
+          hud.toast(`A ${name.toLowerCase()} hatched (${traitText(ev.c.species, ev.c.traits!)}) and swam to ${homeText} by itself.`);
         }
         baseHooks?.syncTanks();
         persist();
         continue;
       }
       if (ev.type === 'hatched') {
-        hatchMoment(ev.c, `in ${where}`);
-        hud.toast(`The ${name.toLowerCase()} egg hatched in ${where}! The young one needs feeding.`);
+        const shown = hatchMoment(ev.c, `in ${where}`);
+        if (shown) hud.toast(`The ${name.toLowerCase()} egg hatched in ${where}! The young one needs feeding.`);
       }
       else if (ev.type === 'grown') {
         const ability = creatureMilestone(save, ev.c.species);
-        grant(notable('creature', 'Fully grown', `${creatureName(ev.c)} the ${name.toLowerCase()}`, ability ? 'It has a new ability.' : 'Watch for its mature glow.', 'life'));
-        hud.toast(`${who} in ${where} is fully grown. ${ability || 'Look for its mature glow pattern and what it leaves in the tray.'}`, 'big');
+        const firstTip = `grown:${ev.c.species}`;
+        const firstOfSpecies = !save.tips.includes(firstTip);
+        const tr = ev.c.traits ?? traitsOf(ev.c);
+        const special = !!tr.radiant || !!tr.heirloom || !!tr.choir;
+        const wanted = (save.requests?.active ?? []).some((q) => matchesRequest(q, ev.c.species, tr));
+        if (firstOfSpecies || ability || special || wanted) {
+          if (firstOfSpecies) save.tips.push(firstTip);
+          grant(notable('creature', 'Fully grown', `${creatureName(ev.c)} the ${name.toLowerCase()}`, ability ? 'It has a new ability.' : 'Watch for its mature glow.', 'life'));
+          hud.toast(`${who} in ${where} is fully grown. ${ability || 'Look for its mature glow pattern and what it leaves in the tray.'}`, 'big');
+        }
       }
       else if (ev.type === 'sick') hud.toast(`${who} in ${where} is sick (${ev.why}). Tend it soon.`, 'warn');
       else if (ev.type === 'better') hud.toast(`${who} in ${where} is feeling better`);
@@ -5608,7 +5628,7 @@ async function boot(): Promise<void> {
     // Phases 20-21: the hatching moment and creature cards (for checks).
     hatchMoment: (id: number) => {
       const c = [...save.creatures, ...save.nursery].find((q) => q.id === id);
-      if (c) hatchMoment(c, 'in the Creature room');
+      if (c) hatchMoment(c, 'in the Creature room', true);
     },
     creatureCard,
     hatchReveal,
