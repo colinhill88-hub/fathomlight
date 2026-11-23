@@ -32,6 +32,75 @@ export function drawFoe(f: Foe, g: Graphics, e: Graphics, gl: Graphics, time: nu
   else drawKeeper(f, g, e, gl, time);
 }
 
+/**
+ * Emissive & telegraph-only overlay for painted foe sprites (eyes, drone
+ * laser sight & torch charge, keeper vulnerable core & warning flares).
+ */
+export function drawFoeFx(f: Foe, e: Graphics, gl: Graphics, time: number): void {
+  const s = f.face;
+  if (f.kind === 'tick') {
+    if (f.dead) return;
+    const tell = f.state === 'tell' ? Math.min(1, f.t / TICK.tell) : 0;
+    const flipped = f.state === 'flipped';
+    const ex = f.x + 15 * s;
+    const ey = f.y - (flipped ? 8 : 14);
+    const hot = flipped ? 0.25 : 0.65 + tell * 0.35 + (f.state === 'lunge' ? 0.35 : 0);
+    e.circle(ex, ey, 2.4 + tell * 1.6).fill({ color: RED, alpha: Math.min(1, hot) });
+    if (tell > 0 || f.state === 'lunge') gl.circle(ex, ey, 11 + tell * 14).fill({ color: RED, alpha: 0.35 + 0.3 * tell });
+    return;
+  }
+  if (f.kind === 'drone') {
+    if (f.dead) return;
+    const x = f.x;
+    const y = f.y;
+    const charge = f.state === 'aim' ? Math.min(1, f.t / (DRONE.track + DRONE.lock)) : 0;
+    const locked = f.state === 'aim' && f.t >= DRONE.track;
+    const cool = f.state === 'cool';
+    if (f.state === 'aim') {
+      const a = Math.atan2(f.aimY - y, f.aimX - x);
+      const len = Math.hypot(f.aimX - x, f.aimY - y) + 40;
+      const blink = locked ? (Math.sin(time * 40) > 0 ? 1 : 0.35) : 0.5;
+      if (locked) e.moveTo(x, y + 10).lineTo(x + Math.cos(a) * len, y + 10 + Math.sin(a) * len).stroke({ color: RED, width: 1.8, alpha: 0.9 * blink });
+      else
+        for (let k = 0; k < len; k += 16) {
+          const k2 = Math.min(len, k + 8);
+          e.moveTo(x + Math.cos(a) * k, y + 10 + Math.sin(a) * k).lineTo(x + Math.cos(a) * k2, y + 10 + Math.sin(a) * k2).stroke({ color: RED, width: 1.2, alpha: 0.55 * blink });
+        }
+      e.circle(f.aimX, f.aimY, locked ? 5 : 3).stroke({ color: RED, width: 1.4, alpha: 0.85 * blink });
+    }
+    if (cool) {
+      e.circle(x - 4 * s, y - 2, 6).fill({ color: HOT, alpha: 0.65 + 0.25 * Math.sin(time * 14) });
+      gl.circle(x - 4 * s, y - 2, 16).fill({ color: 0xff8a2a, alpha: 0.42 });
+    }
+    if (charge > 0) {
+      const tx = x + 16 * s;
+      const ty = y + 16;
+      e.circle(tx, ty, 2 + charge * 4).fill({ color: HOT, alpha: 0.6 + 0.4 * charge });
+      gl.circle(tx, ty, 8 + charge * 20).fill({ color: 0xffa83a, alpha: 0.25 + 0.35 * charge });
+    }
+    e.circle(x + 15 * s, y - 2, 3.2).fill({ color: RED, alpha: locked ? 1 : 0.78 });
+    gl.circle(x + 15 * s, y - 2, 9).fill({ color: RED, alpha: locked ? 0.55 : 0.24 });
+    return;
+  }
+  // Hull Keeper emissive core + visor warning flare.
+  if (f.dead) return;
+  const open = f.state === 'stuck' || f.state === 'stagger';
+  const warn = f.state === 'windSlam' || f.state === 'windCharge' || f.state === 'charge';
+  const coreX = f.x + 2 * s;
+  const coreY = f.y - 68;
+  const pulse = 0.5 + 0.5 * Math.sin(time * (open ? 12 : 3));
+  e.circle(coreX, coreY, open ? 13 : 7).fill({ color: open ? HOT : 0xff7a22, alpha: open ? 0.85 + 0.15 * pulse : 0.4 });
+  if (open) {
+    gl.circle(coreX, coreY, 40 + pulse * 12).fill({ color: 0xff9a2a, alpha: 0.5 });
+    e.circle(coreX, coreY, 18 + pulse * 3).stroke({ color: HOT, width: 2.2, alpha: 0.78 });
+  }
+  const eyeX = f.x + 6 * s;
+  const eyeY = f.y - 102;
+  e.rect(eyeX - 7, eyeY - 2, 14, 3.6).fill({ color: RED, alpha: warn ? 1 : 0.75 });
+  if (warn) gl.ellipse(eyeX, eyeY, 26, 12).fill({ color: RED, alpha: 0.45 + 0.3 * Math.sin(time * 30) });
+  if (f.flash > 0) e.circle(coreX, coreY, 22).fill({ color: 0xffffff, alpha: f.flash * 0.65 });
+}
+
 /** A rust tick: a domed shell of riveted hull plate on six scrap-rod legs, one red sensor eye. */
 function drawTick(f: Foe, g: Graphics, e: Graphics, gl: Graphics, time: number): void {
   if (f.dead) return;

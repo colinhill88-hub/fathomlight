@@ -1,9 +1,10 @@
-import type { Graphics } from 'pixi.js';
+import { Container, Sprite, type Graphics } from 'pixi.js';
 import type { Light } from '../fx/lighting';
 import type { Walker } from '../actors/walker';
-import { HURT_GRACE, KEEPER, foesFor, type FoeKind, type FoeSpawn, type HitResult, type SectionSave } from '../game/combat';
-import { FoeField, type FoeCue, type FoeEvent, type Hero } from '../game/foes';
-import { drawFoe } from './foeArt';
+import { HURT_GRACE, KEEPER, TICK, foesFor, type FoeKind, type FoeSpawn, type HitResult, type SectionSave } from '../game/combat';
+import { FoeField, type Foe, type FoeCue, type FoeEvent, type Hero } from '../game/foes';
+import { drawFoe, drawFoeFx } from './foeArt';
+import { getPropArt } from '../art/propArt';
 import type { Interior, InteriorCombat, InteriorEvent, InteriorInput } from './interior';
 
 /**
@@ -53,6 +54,8 @@ export class CombatLayer implements InteriorCombat {
   private flashT = 0;
   private flashAt = { x: 0, y: 0 };
   private time = 0;
+  private foeLayer: Container | null = null;
+  private foeSprites = new Map<Foe, Sprite>();
 
   constructor(
     private readonly interior: Interior,
@@ -65,8 +68,14 @@ export class CombatLayer implements InteriorCombat {
     this.begin();
   }
 
+  private clearFoeSprites(): void {
+    for (const s of this.foeSprites.values()) s.destroy();
+    this.foeSprites.clear();
+  }
+
   /** A fresh visit: every small machine is back, the keeper too unless beaten; no lamps lit yet. */
   begin(): void {
+    this.clearFoeSprites();
     this.field.reset(foesFor(this.layout.spawns, this.section()));
     this.field.reached = 0;
     this.lit = this.layout.lamps.map(() => false);
@@ -77,6 +86,7 @@ export class CombatLayer implements InteriorCombat {
 
   /** After a blackout: the rooms from the safe lamp on fill again; the ones behind stay as they were. */
   wake(): { x: number; y: number } {
+    this.clearFoeSprites();
     const reached = this.field.reached;
     const lamp = [...this.layout.lamps].filter((l) => l.room <= reached).sort((a, b) => b.room - a.room)[0];
     const room = lamp?.room ?? 0;
@@ -233,7 +243,75 @@ export class CombatLayer implements InteriorCombat {
         glow.circle(lx, ly, 34 + Math.sin(time * 2 + i) * 3).fill({ color: LIME, alpha: 0.35 });
       } else em.roundRect(lx - 7, ly - 10, 14, 18, 4).fill({ color: 0x8a6a2a, alpha: 0.45 });
     });
-    for (const f of this.field.foes) drawFoe(f, back, em, glow, time);
+    const foeArt = getPropArt().foes;
+    if (!this.foeLayer && back.parent) {
+      this.foeLayer = new Container();
+      const idx = back.parent.getChildIndex(back);
+      back.parent.addChildAt(this.foeLayer, idx + 1);
+    }
+    const activeFoes = new Set<Foe>();
+    for (const f of this.field.foes) {
+      const tex = foeArt[f.kind];
+      if (tex && this.foeLayer) {
+        if (f.dead && f.kind !== 'keeper') {
+          const old = this.foeSprites.get(f);
+          if (old) {
+            old.destroy();
+            this.foeSprites.delete(f);
+          }
+          continue;
+        }
+        activeFoes.add(f);
+        let spr = this.foeSprites.get(f);
+        if (!spr) {
+          spr = new Sprite(tex);
+          this.foeLayer.addChild(spr);
+          this.foeSprites.set(f, spr);
+        }
+        if (f.kind === 'tick') {
+          const flipped = f.state === 'flipped';
+          const tell = f.state === 'tell' ? Math.min(1, f.t / TICK.tell) : 0;
+          const jitter = tell > 0 ? Math.sin(time * 70) * 1.8 * tell : 0;
+          const bob = !flipped && Math.abs(f.vx) > 20 ? Math.abs(Math.sin(time * 18)) * 3 : 0;
+          const sc = 52 / Math.max(1, tex.width);
+          spr.anchor.set(0.5, flipped ? 0.2 : 0.92);
+          spr.scale.set(sc * f.face, flipped ? -sc : sc * (1 - tell * 0.14));
+          spr.position.set(f.x + jitter, f.y - bob - (f.state === 'lunge' ? 4 : 0));
+          spr.rotation = flipped ? Math.sin(time * 16) * 0.08 : f.state === 'lunge' ? -0.14 * f.face : 0;
+        } else if (f.kind === 'drone') {
+          const reel = f.state === 'reel';
+          const sc = 64 / Math.max(1, tex.width);
+          spr.anchor.set(0.5, 0.5);
+          spr.scale.set(sc * f.face, sc);
+          spr.position.set(f.x + (reel ? Math.sin(time * 40) * 2.5 : 0), f.y + Math.sin(time * 4.2) * 3);
+          spr.rotation = reel ? Math.sin(time * 24) * 0.18 : Math.sin(time * 2.1) * 0.04;
+        } else {
+          // Hull Keeper boss.
+          const open = f.state === 'stuck' || f.state === 'stagger';
+          const windS = f.state === 'windSlam' ? Math.min(1, f.t / KEEPER.windSlam) : 0;
+          const windC = f.state === 'windCharge' ? Math.min(1, f.t / KEEPER.windCharge) : 0;
+          const sink = f.dead ? Math.min(1, f.deadT * 1.5) * 24 : 0;
+          const stomp = !f.dead && Math.abs(f.vx) > 5 ? Math.abs(Math.sin(time * 8)) * 4 : 0;
+          const shake = (windC > 0 ? Math.sin(time * 60) * 1.8 * windC : 0) + (f.state === 'stagger' ? Math.sin(time * 30) * 2.2 : 0);
+          const sc = 176 / Math.max(1, tex.width);
+          spr.anchor.set(0.45, 0.96);
+          spr.scale.set(sc * f.face, sc * (open ? 0.94 : 1));
+          spr.position.set(f.x + shake, f.y + sink - stomp);
+          spr.rotation = (f.dead ? 0.16 : f.state === 'charge' ? 0.12 : -windC * 0.14 - windS * 0.1) * f.face;
+          spr.alpha = f.dead ? 0.72 : 1;
+        }
+        spr.tint = f.flash > 0 ? 0xffdfa8 : f.dead ? 0x8a8682 : 0xffffff;
+        drawFoeFx(f, em, glow, time);
+      } else {
+        drawFoe(f, back, em, glow, time);
+      }
+    }
+    for (const [f, spr] of this.foeSprites) {
+      if (!activeFoes.has(f)) {
+        spr.destroy();
+        this.foeSprites.delete(f);
+      }
+    }
     // Shockwaves: a rolling ridge of dust and a hot line along the floor.
     for (const wv of this.field.waves) {
       const k = wv.life / KEEPER.waveLife;

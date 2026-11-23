@@ -78,8 +78,10 @@ See every creature in every form at `zoo.html` (on the play link, or with `npm r
 
 Wired `src/art/tankArt.ts` (`loadTankArt`) and `HabitatWater.setTheme()` so every tank (exterior and walkable interior) automatically displays its matching painted `.webp` backdrop from `src/art/tanks/{bare,coral,kelp,grass,bladder,lumen}.webp` (all 6 installed and logged in the table above), and falls back to multi-layered biome-themed painterly procedural backdrops when `?art=procedural` or `?worldArt=procedural` is active.
 
-## Painted vehicles & hero base exterior modules (Nov 23, 2026)
+## Painted vehicles, hero base modules, tank decor & wreck machines (Nov 23, 2026)
 
 Added `src/art/propArt.ts` (`loadPropArt`), sharing the 4-corner pure-white cutout loader from `src/art/creatureArt.ts`, with `?art=procedural` fallback:
 - Vehicles (`src/art/vehicles/`): `sub.webp` (KS-1 Submersible, `src/actors/sub.ts`), `drone.webp` (KD-1 Build Drone, `src/actors/drone.ts`), `buoy.webp` (EX-1 Supply Buoy, `src/world/supplyBuoy.ts`).
 - Hero base exterior modules (`src/art/base/`): `dome.webp`, `dock.webp`, `lab.webp`, `workshop.webp`, `nursery.webp`, `turbine.webp` (`src/world/basegfx.ts`, keeping live animated lights, scan bar, sparks, turbine rotor, and live interior tanks on top).
+- Tank decorations — all 16 pieces (`src/art/decor/`): `arch.webp`, `amphora.webp`, `helmet.webp`, `chest.webp`, `driftwood.webp`, `clam.webp`, `lantern.webp`, `wheel.webp`, `cairn.webp`, `floats.webp`, `anchor.webp`, `bell.webp`, `coralarch.webp`, `astrolabe.webp`, `belljar.webp`, `kelplantern.webp` (`src/world/tankDecor.ts`, keeping glow auras on luminous pieces).
+- Wreck combat machines — Corvina engine room (`src/art/foes/`): `tick.webp` (Rust Tick), `drone.webp` (Weld Drone), `keeper.webp` (Hull Keeper boss) (`src/interior/combatLayer.ts` & `src/interior/foeArt.ts`, keeping all readable combat telegraphs, laser sight, flaring eyes, and blazing core).

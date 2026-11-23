@@ -4,6 +4,14 @@ The live branch includes the Fulmar foothold, Codex Phases 1–11D the Phase 12 
 
 Play link: https://colinhill88-hub.github.io/fathomlight/ (live; first successful deploy 2026-11-14)
 
+### Painted vehicles, base exterior modules, all 16 tank decor & wreck machines (Colin, Nov 23, 2026)
+
+Extended the painterly cutout pipeline with `src/art/propArt.ts` (`loadPropArt`, reusing the 4-corner pure-white flood-fill cutout from `src/art/creatureArt.ts` with `?art=procedural` fallback) and installed **28 new painted `.webp` plates** (all logged in `docs/art/SOURCES.md`):
+- **Vehicles (`src/art/vehicles/`):** `KS-1` Submersible (`src/actors/sub.ts`), `KD-1` Build Drone (`src/actors/drone.ts`), and `EX-1` Supply Buoy (`src/world/supplyBuoy.ts`), preserving all live lights, welding sparks, cargo cradles, damage cracks, mooring chain, and pulsing beacon.
+- **Hero Base Exterior Modules (`src/art/base/`):** Dome Habitat, Moon Pool Dock, Lab, Workshop, Creature Room (`tank`/`gtank`), and Current Turbine (`src/world/basegfx.ts`), preserving live glowing windows, Lab scan bar, Workshop sparks, spinning Turbine blades, and live swimming creatures inside the Creature Room window.
+- **All 16 Tank Decorations (`src/art/decor/`):** all 8 Field-Kit/Linnea pieces (`arch`, `amphora`, `helmet`, `chest`, `driftwood`, `clam`, `lantern`, `wheel`) and all 8 Supply Buoy exclusives (`cairn`, `floats`, `anchor`, `bell`, `coralarch`, `astrolabe`, `belljar`, `kelplantern`) wired into `src/world/tankDecor.ts` with warm glow auras preserved on luminous pieces.
+- **Wreck Combat Machines (`src/art/foes/`):** Rust Tick, Weld Drone, and Hull Keeper boss wired into `src/interior/combatLayer.ts` & `src/interior/foeArt.ts` (`drawFoeFx`), keeping every attack telegraph (flaring red eyes, drone laser sight & torch charge, flipped tick, hurt flash, and the Keeper's blazing vulnerable reactor core).
+
 ### Painted creature textures — all 8 keepable species (Colin, Nov 23, 2026)
 
 Wired `src/art/creatureArt.ts` (`loadCreatureArt` with automatic 4-corner white background cutout, soft anti-aliased edge feathering, and tight bounding-box crop) and installed all 8 painted `.webp` creature body textures (`src/art/creatures/{glowfin,puffcap,ray,crab,shrimp,snail,eel,horse}.webp`, ~131 KB total, logged in `docs/art/SOURCES.md`):
