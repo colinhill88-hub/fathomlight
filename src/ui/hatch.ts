@@ -478,7 +478,7 @@ export class HatchPanel {
       }
     const tabBtn = (id: typeof this.tab, label: string) => `<button type="button" data-act="h-tab" data-id="${id}" class="tab${this.tab === id ? ' on' : ''}">${label}</button>`;
     const head = `
-      <div class="care-head"><b>${code} · Creature room</b><span>${list.length}/${cap} · ${powered ? 'warm' : 'no power'}</span>
+      <div class="care-head"><b>${code === 'Creature room' ? code : `${code} · Creature room`}</b><span>${list.length}/${cap} · ${powered ? 'warm' : 'no power'}</span>
         <button type="button" class="x" data-act="h-close" aria-label="Close">✕</button></div>
       <div class="tabs h-tabs">${tabBtn('tanks', 'Tanks')}${tabBtn('cradles', `Cradles${gifts.length ? ` · ${gifts.length} rare egg${gifts.length > 1 ? 's' : ''}` : ''}`)}${tabBtn('reserve', `Reserve ${save.reserve?.length ?? 0}/${RESERVE_CAP}`)}${tabBtn('planner', 'Planner')}</div>`;
     if (this.tab !== 'cradles') {

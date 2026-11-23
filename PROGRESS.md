@@ -4,6 +4,17 @@ The live branch includes the Fulmar foothold, Codex Phases 1–11D the Phase 12 
 
 Play link: https://colinhill88-hub.github.io/fathomlight/ (live; first successful deploy 2026-11-14)
 
+### The Creature room and smaller creatures (Colin, Nov 23, 2026; same pull request)
+
+After playing Session B Colin found the Hatchery a bottleneck with about six breeding pairs, managing creatures room to room disconnected, and the creatures too big and flat. His decisions are in the roadmap; built:
+- **The Creature room** replaces the Hatchery (same piece, same saves; every "Hatchery" the player sees now says Creature room). Its console's new **Tanks** tab (first) shows every tank: count and room, water, plant, who is hungry or needs care, which pairs are laying (and when crowding slows them), each creature as a small portrait with its contentment. Tap one to move it to another tank or the reserve, or open its card; **Feed** and **Clean** per tank; **Care for all**. It works only at the room's console.
+- **Young swim home by themselves:** a hatchling goes to its parents' tank (eggs now remember it, the optional `from`), else a tank with its plant and its own kind, never in with a creature it clashes with or a puffcap's too-full tank; else the reserve; else it waits in a cradle as before. The hatching card says "Hatched and swam to TANK 2". A switch on the console (`autoSettle`, optional, on by default) turns it off.
+- **Pace:** a pair lays every 10 minutes (was 6); a tank over half full lays more slowly, down to a quarter of the speed when full; young take 12 minutes to grow (was 8).
+- **Smaller creatures, bigger tanks:** in tanks creatures are drawn at 0.5 (was 0.85). Tanks hold 12 / 24 (extended 18 / 36, the display aquarium 60). Each creature dirties the water a third as much and gets hungry about 30% more slowly; the shoal bonus is capped at seven tank-mates.
+- **Depth, in code:** a soft shadow on each creature's underside and light on its back, a shadow on the sand under each creature, and depth in the tanks (each creature swims at its own depth: further back smaller, bluer and dimmer, drawn behind). Creatures now start spread through the tank instead of all in the middle.
+- **For Codex:** section 7 of `docs/art/prompts/phases-22-23-creatures.md` asks for painted part textures with baked shading and optional normal maps, and says how to wire them into the rigs.
+- **Checked:** the Node checks (new: crowding, a hatchling's choice of home, the reserve and waiting fallbacks, the switch, a happy pair laying in about 10 minutes and a full tank far more slowly; older checks updated to the new capacities and times). In `vite preview`: the Tanks tab with the mouse and at iPhone 13 landscape by touch (moving a creature, feeding a tank), a tank of eight smaller glowfins at different depths, the zoo with the shading. No console errors. Not checked in the browser: a hatchling swimming home in the live game (the test base had no power; the Node checks cover it), and smoothness of a 60-creature display aquarium on the iPhone.
+
 ### Phases 22 and 23 (Session B): rare creatures and the Choir (pull request, not merged)
 
 Built from Colin's answers in the roadmap ("Colin's decisions (Nov 22, 2026)"). Colin approved the two new species' names and looks from zoo screenshots during the session. Every new save field is optional; old saves and old creatures load unchanged (checked in Node).
