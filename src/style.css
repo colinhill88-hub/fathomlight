@@ -5537,3 +5537,482 @@ body.on-foot #btn-dart {
     transition: none !important;
   }
 }
+
+/* ============================================================================
+   Total UI Redesign — Outpost Kestrel Brass & Deep-Glass Hardware Terminals
+   ============================================================================ */
+
+/* ---- Bold brass-crowned terminal framing on every console & modal ---- */
+#care-panel,
+#dock-panel,
+#station-panel,
+#hud .panel,
+#rates-panel,
+.pause-card,
+.code-card,
+.fk-card,
+.cc-card,
+.hr-card {
+  border-top: 3px solid var(--ui-brass);
+  border-left: 1px solid rgba(201, 162, 74, 0.34);
+  border-right: 1px solid rgba(201, 162, 74, 0.34);
+  border-bottom: 1px solid rgba(130, 185, 178, 0.28);
+  background: linear-gradient(170deg, rgba(17, 44, 52, 0.96) 0%, rgba(9, 24, 32, 0.98) 52%, rgba(5, 15, 22, 0.99) 100%);
+  box-shadow:
+    0 20px 54px rgba(1, 8, 12, 0.7),
+    0 0 0 1px rgba(4, 14, 20, 0.85),
+    inset 0 1px 0 rgba(242, 212, 136, 0.32);
+}
+
+#care-panel,
+#dock-panel,
+#station-panel {
+  width: min(432px, 46vw);
+  padding: 14px 16px 0;
+  border-radius: 16px;
+}
+
+#dock-panel,
+#station-panel {
+  padding-bottom: 16px;
+}
+
+/* ---- Habitat Console header & powered telemetry pill ---- */
+#care-panel .care-head {
+  padding: 2px 0 10px;
+  margin-bottom: 10px;
+  border-bottom: 1px solid rgba(201, 162, 74, 0.35);
+}
+
+#care-panel .care-head b {
+  font-size: 14.5px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #f6dc96;
+}
+
+#care-panel .care-pill {
+  flex: none !important;
+  opacity: 1 !important;
+  margin-left: auto;
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 11px !important;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  border: 1px solid rgba(198, 240, 58, 0.45);
+  background: rgba(198, 240, 58, 0.14);
+  color: #dcfca0;
+}
+
+#care-panel .care-pill.off {
+  border-color: rgba(240, 120, 90, 0.5);
+  background: rgba(216, 73, 46, 0.18);
+  color: #ffb8a2;
+}
+
+/* ---- Recessed dark-glass instrument modules inside Habitat Console ---- */
+#care-panel .habitat-care,
+#care-panel .care-sec {
+  margin: 0 0 12px;
+  padding: 11px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(176, 214, 206, 0.18);
+  background: linear-gradient(180deg, rgba(4, 15, 22, 0.56), rgba(6, 20, 28, 0.42));
+  box-shadow: inset 0 2px 10px rgba(0, 0, 0, 0.35), 0 1px 0 rgba(214, 242, 232, 0.08);
+}
+
+/* ---- Creature Portrait Grid in Habitat Console ---- */
+#care-panel .tabs.care-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 7px;
+  margin: 8px 0 10px;
+}
+
+#care-panel .tab.care-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 2px;
+  min-height: 82px;
+  padding: 5px 5px 6px;
+  border-radius: 11px;
+  border: 1px solid rgba(176, 214, 206, 0.22);
+  background: linear-gradient(180deg, rgba(20, 48, 56, 0.65), rgba(8, 22, 30, 0.85));
+  text-align: center;
+  overflow: hidden;
+}
+
+#care-panel .tab.care-tile .tile-pic {
+  position: relative;
+  width: 100%;
+  height: 44px;
+  border-radius: 7px;
+  display: grid;
+  place-items: center;
+  background: radial-gradient(ellipse at 50% 60%, rgba(84, 150, 146, 0.42), rgba(6, 18, 24, 0.78));
+  border: 1px solid rgba(180, 224, 216, 0.14);
+}
+
+#care-panel .tab.care-tile img.tile-snap {
+  width: 58px;
+  height: 42px;
+  object-fit: contain;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.45));
+}
+
+#care-panel .tab.care-tile .mood-dot {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #e2c46a;
+  box-shadow: 0 0 6px rgba(226, 196, 106, 0.7);
+}
+#care-panel .tab.care-tile .mood-dot.good {
+  background: #c6f03a;
+  box-shadow: 0 0 7px rgba(198, 240, 58, 0.8);
+}
+#care-panel .tab.care-tile .mood-dot.low {
+  background: #f06a4e;
+  box-shadow: 0 0 7px rgba(240, 106, 78, 0.85);
+}
+
+#care-panel .tab.care-tile .tile-name {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #edf7f4;
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+#care-panel .tab.care-tile small {
+  font-size: 9.5px;
+  color: #9bb8b4;
+  opacity: 0.9;
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+#care-panel .tab.care-tile.r-rare,
+#care-panel .tab.care-tile.r-radiant {
+  border-color: rgba(232, 194, 90, 0.55);
+}
+#care-panel .tab.care-tile.r-heirloom {
+  border-color: rgba(240, 220, 170, 0.75);
+}
+#care-panel .tab.care-tile.r-choir {
+  border-color: rgba(162, 124, 255, 0.75);
+}
+
+#care-panel .tab.care-tile.on {
+  border-color: #f6dc96;
+  background: linear-gradient(180deg, rgba(201, 162, 74, 0.28), rgba(44, 58, 44, 0.55));
+  box-shadow: 0 0 0 1px rgba(246, 220, 150, 0.45), 0 4px 14px rgba(201, 162, 74, 0.22);
+}
+
+/* ---- Selected Creature Hero Card ---- */
+#care-panel .care-hero {
+  display: grid;
+  grid-template-columns: 88px 1fr;
+  gap: 11px;
+  align-items: center;
+  margin: 8px 0 10px;
+  padding: 9px 10px;
+  border-radius: 12px;
+  border: 1px solid rgba(201, 162, 74, 0.42);
+  background: linear-gradient(135deg, rgba(24, 58, 66, 0.75), rgba(8, 22, 30, 0.85));
+  box-shadow: inset 0 1px 0 rgba(242, 212, 136, 0.2);
+}
+#care-panel .care-hero.radiant {
+  border-color: #e8c25a;
+  box-shadow: 0 0 16px rgba(255, 210, 110, 0.24), inset 0 1px 0 rgba(255, 232, 160, 0.35);
+}
+#care-panel .care-hero.heirloom {
+  border-color: #e2c98a;
+  box-shadow: 0 0 16px rgba(240, 220, 170, 0.26);
+}
+#care-panel .care-hero.choir {
+  border-color: #a27cff;
+  box-shadow: 0 0 18px rgba(162, 124, 255, 0.32);
+}
+
+#care-panel .hero-pic {
+  width: 88px;
+  height: 68px;
+  border-radius: 9px;
+  display: grid;
+  place-items: center;
+  background: radial-gradient(ellipse at 50% 60%, rgba(92, 162, 158, 0.48), rgba(6, 18, 24, 0.9));
+  border: 1px solid rgba(188, 226, 218, 0.24);
+}
+#care-panel .hero-pic img.hero-snap {
+  width: 82px;
+  height: 62px;
+  object-fit: contain;
+  filter: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.55));
+}
+#care-panel .hero-meta h3 {
+  margin: 0;
+  font-size: 18px;
+  line-height: 1.15;
+  color: #ffe8a8;
+}
+#care-panel .hero-meta h3 small {
+  font-size: 12px;
+  font-weight: 500;
+  color: #a4c2be;
+}
+#care-panel .hero-meta .traits {
+  margin: 3px 0 0;
+  font-size: 12px;
+}
+#care-panel .hero-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 5px;
+}
+#care-panel .hero-badges .rtag {
+  margin-left: 0;
+}
+
+/* ---- Bold, glowing 10px telemetry gauges across all consoles ---- */
+#care-panel .track,
+#dock-panel .track,
+#station-panel .track,
+.cc-content .track {
+  height: 10px;
+  border-radius: 999px;
+  background: rgba(3, 10, 16, 0.72);
+  border: 1px solid rgba(180, 220, 214, 0.16);
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.6);
+  overflow: hidden;
+}
+
+#care-panel .track i,
+#dock-panel .track i,
+#station-panel .track i,
+.cc-content .track i {
+  border-radius: 999px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35);
+}
+
+#care-panel .track i.water {
+  background: linear-gradient(90deg, #3c8fa8, #7ad2d6);
+}
+#care-panel .track i.fed {
+  background: linear-gradient(90deg, #b88a34, #f0cf72);
+}
+#care-panel .track i.comfort {
+  background: linear-gradient(90deg, #4b9c6e, #8ae0a2);
+}
+#care-panel .track i.content {
+  background: linear-gradient(90deg, #c9a24a, #f2d878);
+}
+#care-panel .track i.content.hi {
+  background: linear-gradient(90deg, #a8d44a, #d4ff6a);
+}
+#care-panel .track i.low,
+#dock-panel .track i.low {
+  background: linear-gradient(90deg, #c4422a, #ff7a5c);
+}
+
+/* ---- Primary gold action buttons ---- */
+#care-panel .acts .big,
+#care-panel .trough .feed {
+  background: linear-gradient(180deg, #e2be68 0%, #c1963c 100%);
+  border: 1px solid #f4dc98;
+  color: #16130b;
+  font-weight: 800;
+  box-shadow: 0 4px 14px rgba(201, 162, 74, 0.32), inset 0 1px 0 rgba(255, 248, 220, 0.55);
+}
+
+/* ---- Flora buttons with colour-coded botanical dots ---- */
+#care-panel .plants > span,
+#care-panel .decor > span {
+  display: block;
+  width: 100%;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #d8be7e;
+  margin-bottom: 4px;
+}
+
+#care-panel .plant {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  text-align: left;
+  padding: 5px 10px;
+}
+#care-panel .plant .p-lbl {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.2;
+}
+#care-panel .plant .p-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex: none;
+  background: #8ab4a8;
+  box-shadow: 0 0 6px currentColor;
+}
+#care-panel .plant-coral .p-dot { background: #e08276; color: #e08276; }
+#care-panel .plant-kelp .p-dot { background: #b4a24a; color: #b4a24a; }
+#care-panel .plant-grass .p-dot { background: #6ec268; color: #6ec268; }
+#care-panel .plant-bladder .p-dot { background: #c49c42; color: #c49c42; }
+#care-panel .plant-lumen .p-dot { background: #c6f03a; color: #c6f03a; }
+#care-panel .plant.locked .p-dot { background: #5a6c6e; color: transparent; box-shadow: none; }
+
+/* ---- BOTTOM CONTROL BAR REDESIGN (#ctl-helper.skin-sonar) ---- */
+#ctl-helper.skin-sonar {
+  position: fixed;
+  padding: 0.5em 1.25em;
+  gap: 0.55em 1.05em;
+  border-radius: 16px;
+  background:
+    linear-gradient(90deg, transparent, rgba(242, 212, 136, 0.14), rgba(198, 245, 106, 0.16), transparent) -35% 0 / 35% 100% no-repeat,
+    linear-gradient(180deg, rgba(16, 40, 48, 0.92), rgba(7, 20, 27, 0.96));
+  border: 1px solid rgba(201, 162, 74, 0.52);
+  border-top: 2px solid rgba(242, 212, 136, 0.72);
+  box-shadow:
+    0 10px 30px rgba(0, 0, 0, 0.55),
+    0 0 0 3px rgba(6, 18, 24, 0.55),
+    inset 0 1px 0 rgba(255, 240, 195, 0.24);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  animation: ctl-sweep 7s linear infinite;
+}
+
+#ctl-helper.skin-sonar::before,
+#ctl-helper.skin-sonar::after {
+  content: '';
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, #fff2c2, #b88934);
+  box-shadow: 0 0 6px rgba(242, 212, 136, 0.55);
+  flex: none;
+  opacity: 0.85;
+}
+
+#ctl-helper.skin-sonar .ctl {
+  gap: 0.48em;
+  padding: 0.18em 0.45em 0.18em 0.22em;
+  border-radius: 10px;
+  color: #b8d2ce;
+  font-variant: normal;
+  font-size: 0.95em;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+}
+
+#ctl-helper.skin-sonar .ctl.ctx {
+  padding: 0.22em 0.7em 0.22em 0.3em;
+  background: linear-gradient(180deg, rgba(201, 162, 74, 0.24), rgba(160, 120, 42, 0.14));
+  border: 1px solid rgba(242, 212, 136, 0.52);
+  box-shadow: 0 0 14px rgba(201, 162, 74, 0.2);
+  color: #fff6d6;
+}
+
+#ctl-helper.skin-sonar .ctl.ctx .lbl {
+  text-shadow: 0 1px 6px rgba(242, 212, 136, 0.45);
+}
+
+#ctl-helper.skin-sonar kbd {
+  min-width: 1.9em;
+  padding: 0.16em 0.55em;
+  border-radius: 8px;
+  font-weight: 800;
+  color: #d6ff7a;
+  background: linear-gradient(180deg, rgba(16, 44, 42, 0.96), rgba(6, 22, 24, 0.98));
+  border: 1px solid rgba(198, 245, 106, 0.62);
+  border-bottom: 2px solid rgba(130, 178, 52, 0.78);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.42), inset 0 1px 0 rgba(226, 255, 160, 0.24);
+}
+
+#ctl-helper.skin-sonar .ctx kbd {
+  color: #1c1608;
+  background: linear-gradient(180deg, #fae29c, #cfa042);
+  border-color: #fff0bf;
+  border-bottom: 2px solid #8f6820;
+  box-shadow: 0 0 12px rgba(242, 212, 136, 0.55), inset 0 1px 0 rgba(255, 252, 232, 0.65);
+}
+
+/* ---- Top-left HUD dive-computer resource pills ---- */
+#inventory {
+  padding: 6px 9px;
+  border-radius: 12px;
+  border: 1px solid rgba(201, 162, 74, 0.36);
+  border-top: 2px solid rgba(201, 162, 74, 0.65);
+  background: linear-gradient(170deg, rgba(14, 38, 46, 0.9), rgba(6, 18, 26, 0.94));
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+#jar-chip,
+#sub-chip,
+#depth-chip,
+#suit-bar {
+  border: 1px solid rgba(201, 162, 74, 0.38);
+  background: linear-gradient(170deg, rgba(14, 38, 46, 0.9), rgba(6, 18, 26, 0.94));
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+/* ---- Top-center toasts: bold brass left accent ---- */
+#toasts .toast {
+  border-left: 3px solid var(--ui-brass-hi);
+  padding: 9px 14px;
+  border-radius: 12px;
+}
+
+/* ---- Compact iPhone landscape protection ---- */
+@media (max-height: 440px) {
+  #care-panel,
+  #dock-panel,
+  #station-panel {
+    width: min(360px, 48vw);
+    padding: 10px 12px 0;
+  }
+  #care-panel .tabs.care-grid {
+    gap: 5px;
+  }
+  #care-panel .tab.care-tile {
+    min-height: 66px;
+    padding: 3px 3px 4px;
+  }
+  #care-panel .tab.care-tile .tile-pic {
+    height: 34px;
+  }
+  #care-panel .tab.care-tile img.tile-snap {
+    width: 44px;
+    height: 32px;
+  }
+  #care-panel .care-hero {
+    grid-template-columns: 68px 1fr;
+    padding: 7px 8px;
+  }
+  #care-panel .hero-pic {
+    width: 68px;
+    height: 52px;
+  }
+  #care-panel .hero-pic img.hero-snap {
+    width: 62px;
+    height: 48px;
+  }
+}

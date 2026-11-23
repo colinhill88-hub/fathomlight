@@ -40,6 +40,7 @@ import { CreatureData, MATERIALS, SaveData } from '../game/state';
 import { creatureMilestone } from '../game/discovery';
 import { TRAY_CAP, trayCount, TROUGH_CAP, whorlMult } from '../game/factory';
 import { MATERIAL_ORDER, TankData } from '../game/state';
+import { snapImg } from './creatureSnap';
 
 /** The output tray (milestone 5 part 2): what is waiting, and how it leaves. */
 function trayLine(save: SaveData, td: TankData, living: boolean): string {
@@ -529,12 +530,18 @@ export class CareMode {
           .join('')}</select></div>`
       : '';
     const tabs = visible
-      .map(
-        (c) =>
-          `<button type="button" data-act="pick" data-id="${c.id}" class="tab${c.id === this.selected ? ' on' : ''}${c.sickness > 0.02 ? ' sick' : ''}">${
-            c.stage === 'egg' ? `${SPECIES[c.species].name} eggs` : `${creatureName(c)} <small>${SPECIES[c.species].name.toLowerCase()}${c.stage === 'young' ? ', young' : ''}</small>`
-          }</button>`,
-      )
+      .map((c) => {
+        const tr = traitsOf(c);
+        const tier = rarityTier(tr);
+        const happy = c.stage === 'egg' ? null : contentment(save, c);
+        const moodCls = happy ? (happy.value >= 0.8 ? 'good' : happy.value < 0.45 ? 'low' : 'mid') : 'mid';
+        const rareCls = tr.choir ? ' r-choir' : tr.heirloom ? ' r-heirloom' : tr.radiant ? ' r-radiant' : tier >= 2 ? ' r-rare' : '';
+        return `<button type="button" data-act="pick" data-id="${c.id}" class="tab care-tile${c.id === this.selected ? ' on' : ''}${c.sickness > 0.02 ? ' sick' : ''}${rareCls}">
+          <span class="tile-pic">${snapImg(c.species, tr, 'tile-snap', c.stage, creatureName(c))}<i class="mood-dot ${moodCls}" aria-hidden="true"></i></span>
+          <span class="tile-name">${c.stage === 'egg' ? `${SPECIES[c.species].name} eggs` : creatureName(c)}</span>
+          <small>${c.stage === 'egg' ? 'clutch' : `${SPECIES[c.species].name.toLowerCase()}${c.stage === 'young' ? ' · young' : ''}`}</small>
+        </button>`;
+      })
       .join('');
     const c = list.find((x) => x.id === this.selected);
     let body = '';
@@ -564,9 +571,9 @@ export class CareMode {
         const known = save.scans.includes(PLANTS[p].scan);
         const [k, n] = Object.entries(PLANTS[p].cost)[0] as [keyof typeof MATERIALS, number];
         const cur = slot === 1 ? td.plant : td.plant2;
-        return `<button type="button" data-act="${slot === 1 ? 'plant' : 'plant2'}" data-id="${p}" class="plant${cur === p ? ' on' : ''}${known ? '' : ' locked'}">${
+        return `<button type="button" data-act="${slot === 1 ? 'plant' : 'plant2'}" data-id="${p}" class="plant plant-${p}${cur === p ? ' on' : ''}${known ? '' : ' locked'}"><i class="p-dot" aria-hidden="true"></i><span class="p-lbl">${
           known ? PLANTS[p].name : 'Unknown plant'
-        }<small>${cur === p ? 'growing' : (save.cuttings[p] ?? 0) > 0 ? `cutting (${save.cuttings[p]} ready)` : `${n} ${MATERIALS[k].name.toLowerCase()}`}</small></button>`;
+        }<small>${cur === p ? 'growing' : (save.cuttings[p] ?? 0) > 0 ? `cutting (${save.cuttings[p]} ready)` : `${n} ${MATERIALS[k].name.toLowerCase()}`}</small></span></button>`;
       }).join('');
     // Milestone 7 part 2: a Grand tank has a second planter, so two species can both have their favourite.
     const grand = layout.pieces.find((q) => q.id === this.tankId)?.kind === 'gtank';
@@ -584,16 +591,40 @@ export class CareMode {
       <div class="acts">${feed}${clean}${all}${upgrade}${save.jar ? `<button type="button" data-act="deposit" ${list.length >= capacity ? `disabled title="This habitat holds ${capacity}: make room or use another"` : 'title="Move the jar\'s creature into this habitat"'}>${list.length >= capacity ? 'Habitat full' : 'Move specimen from jar'}</button>` : ''}</div>
       <ul class="notes">${trayLine(save, td, true)}</ul>
     </section>` : '';
+    const hero = c
+      ? (() => {
+          const tr = traitsOf(c);
+          const badges = [
+            tr.choir ? '<span class="rtag choir">Choir</span>' : '',
+            tr.heirloom ? '<span class="rtag heirloom">Heirloom</span>' : '',
+            tr.radiant ? '<span class="rtag radiant">Radiant</span>' : '',
+            !tr.radiant && isRare(tr) ? '<span class="rtag rare">Rare</span>' : '',
+          ].join('');
+          const heroCls = tr.choir ? ' choir' : tr.heirloom ? ' heirloom' : tr.radiant ? ' radiant' : '';
+          return `<div class="care-hero${heroCls}">
+            <div class="hero-pic">${snapImg(c.species, tr, 'hero-snap', c.stage, creatureName(c))}</div>
+            <div class="hero-meta">
+              <h3>${c.stage === 'egg' ? SPECIES[c.species].eggName.replace(/^./, (m) => m.toUpperCase()) : `${creatureName(c)} <small>· ${SPECIES[c.species].name}</small>`}</h3>
+              <p class="traits${isRare(tr) ? ' rare' : ''}">${traitText(c.species, tr)} <small>· ${genText(tr)}</small></p>
+              ${badges ? `<div class="hero-badges">${badges}</div>` : ''}
+            </div>
+          </div>`;
+        })()
+      : '';
     const html = `
-      <div class="care-head"><b>${livingBases ? `Habitat Console · ${this.code()}` : this.code()}${this.tankId !== null && isDisplay(save, layout, this.tankId) ? ' · Display aquarium' : ''}</b><span>${list.length}/${capacity} · ${powered ? 'powered' : 'no power'}</span>
+      <div class="care-head"><b>${livingBases ? `Habitat Console · ${this.code()}` : this.code()}${this.tankId !== null && isDisplay(save, layout, this.tankId) ? ' · Display aquarium' : ''}</b><span class="care-pill ${powered ? 'on' : 'off'}">${list.length}/${capacity} · ${powered ? 'powered' : 'no power'}</span>
         <button type="button" class="x" data-act="close" aria-label="Close">✕</button></div>
       ${overview}
-      ${chips}
-      ${list.length ? (visible.length ? `<div class="tabs">${tabs}</div>` : '<p class="note">None in this tank match. Tap All to see everyone.</p>') : ''}
-      ${c ? `<h3>${c.stage === 'egg' ? SPECIES[c.species].eggName.replace(/^./, (m) => m.toUpperCase()) : `${creatureName(c)} <small>· ${SPECIES[c.species].name}</small>`}</h3><p class="traits${isRare(traitsOf(c)) ? ' rare' : ''}">${traitText(c.species, traitsOf(c))} <small>· ${genText(traitsOf(c))}</small></p>` : ''}
-      ${body}
-      <div class="plants"><span>${grand ? 'Planter 1:' : 'Plant:'}</span>${plants}</div>
-      ${this.decorRow()}
+      <section class="care-sec">
+        ${chips}
+        ${list.length ? (visible.length ? `<div class="tabs care-grid">${tabs}</div>` : '<p class="note">None in this tank match. Tap All to see everyone.</p>') : ''}
+        ${hero}
+        ${body}
+      </section>
+      <section class="care-sec care-flora">
+        <div class="plants"><span>${grand ? 'Planter 1' : 'Tank Flora'}</span>${plants}</div>
+        ${this.decorRow()}
+      </section>
       <div class="acts">
         ${livingBases ? '' : feed + clean + all + upgrade}
         ${c ? `${this.jarButton()}<button type="button" data-act="release" class="${armed ? 'armed' : ''}">${armed ? 'Tap again' : 'Release'}</button>` : ''}

@@ -250,138 +250,139 @@ export class HabitatWater {
     const r = seeded(this.seed * 31 + kind.charCodeAt(0) * 17);
 
     // 1. Deep water gradient fill.
-    g.rect(x + EDGE, y + EDGE, w - EDGE * 2, h - EDGE * 2).fill({ fill: makeGradient(pal.stops), alpha: 0.94 });
+    g.rect(x + EDGE, y + EDGE, w - EDGE * 2, h - EDGE * 2).fill({ fill: makeGradient(pal.stops), alpha: 0.96 });
 
-    // 2. Soft sunlit shafts descending from the surface.
-    for (let i = 0; i < 3; i++) {
-      const sx = x + w * (0.14 + i * 0.3 + (r() - 0.5) * 0.08);
-      const topW = w * (0.12 + r() * 0.08);
-      const drift = w * (0.06 + r() * 0.05);
+    // 2. Dramatic diagonal sunlit shafts streaming from the water surface.
+    for (let i = 0; i < 4; i++) {
+      const sx = x + w * (0.08 + i * 0.25 + (r() - 0.5) * 0.06);
+      const topW = w * (0.09 + r() * 0.07);
+      const drift = w * (0.08 + r() * 0.05);
       g.moveTo(sx, y + EDGE)
         .lineTo(sx + topW, y + EDGE)
-        .quadraticCurveTo(sx + topW + drift * 0.5, y + h * 0.48, sx + topW * 1.35 + drift, y + h * 0.92)
-        .lineTo(sx + drift * 0.5, y + h * 0.92)
+        .quadraticCurveTo(sx + topW + drift * 0.5, y + h * 0.46, sx + topW * 1.45 + drift, y + h * 0.94)
+        .lineTo(sx + drift * 0.5, y + h * 0.94)
         .quadraticCurveTo(sx + drift * 0.25, y + h * 0.45, sx, y + EDGE)
-        .fill({ color: pal.shaftColor, alpha: pal.shaftAlpha * (0.8 + i * 0.15) });
+        .fill({ color: pal.shaftColor, alpha: pal.shaftAlpha * 1.45 * (0.75 + (i % 2) * 0.35) });
     }
 
-    // 3. Far atmospheric reef ridge silhouette.
+    // 3. High far reef valley silhouette framing left & right, dipping in the middle.
     g.moveTo(x + EDGE, y + h - EDGE);
-    const farSteps = 10;
+    const farSteps = 12;
     for (let i = 0; i <= farSteps; i++) {
       const u = i / farSteps;
-      const arch = Math.sin(u * Math.PI);
-      const ridgeY = y + h * (0.46 + (1 - arch) * 0.12 + Math.sin(u * 7 + this.seed) * 0.06 + (r() - 0.5) * 0.05);
+      const valley = Math.sin(u * Math.PI); // high on sides, lower in center
+      const ridgeY = y + h * (0.24 + valley * 0.26 + Math.sin(u * 9 + this.seed) * 0.05 + (r() - 0.5) * 0.04);
       g.lineTo(x + EDGE + u * (w - EDGE * 2), ridgeY);
     }
-    g.lineTo(x + w - EDGE, y + h - EDGE).closePath().fill({ color: pal.farRock, alpha: 0.56 });
+    g.lineTo(x + w - EDGE, y + h - EDGE).closePath().fill({ color: pal.farRock, alpha: 0.78 });
 
-    // 4. Midground terraced rock ledges with warm top light and shadowed undersides.
+    // 4. Midground sculpted reef rock terraces with warm sunlit ledges & shadowed overhangs.
     const drawTerrace = (x0: number, x1: number, topY: number, height: number, flip: boolean): void => {
       const left = x + w * x0;
       const right = x + w * x1;
       const ty = y + h * topY;
-      const by = y + h * Math.min(0.95, topY + height);
+      const by = y + h * Math.min(0.96, topY + height);
       const midX = (left + right) * 0.5;
-      const slope = flip ? -h * 0.035 : h * 0.035;
+      const slope = flip ? -h * 0.055 : h * 0.055;
       g.moveTo(left, by)
-        .lineTo(left + (flip ? w * 0.03 : 0), ty + slope)
-        .quadraticCurveTo(midX, ty - h * 0.025, right - (flip ? 0 : w * 0.03), ty - slope)
+        .lineTo(left + (flip ? w * 0.04 : 0), ty + slope)
+        .quadraticCurveTo(midX, ty - h * 0.045, right - (flip ? 0 : w * 0.04), ty - slope)
         .lineTo(right, by)
         .closePath()
-        .fill({ color: pal.midRock, alpha: 0.72 });
-      // Warm sunlit top rim.
-      g.moveTo(left + (flip ? w * 0.03 : 0), ty + slope)
-        .quadraticCurveTo(midX, ty - h * 0.025, right - (flip ? 0 : w * 0.03), ty - slope)
-        .stroke({ color: pal.midRockRim, width: Math.max(1.5, h * 0.018), alpha: 0.45, cap: 'round' });
-      // Cool shadowed base crevice.
-      g.moveTo(left + (right - left) * 0.08, ty + h * 0.06)
-        .quadraticCurveTo(midX, ty + h * 0.04, right - (right - left) * 0.08, ty + h * 0.07)
-        .lineTo(right - (right - left) * 0.05, by)
-        .lineTo(left + (right - left) * 0.05, by)
+        .fill({ color: pal.midRock, alpha: 0.9 });
+      // Crisp warm sunlit limestone/slate top shelf.
+      g.moveTo(left + (flip ? w * 0.04 : 0), ty + slope)
+        .quadraticCurveTo(midX, ty - h * 0.045, right - (flip ? 0 : w * 0.04), ty - slope)
+        .stroke({ color: pal.midRockRim, width: Math.max(2.5, h * 0.028), alpha: 0.78, cap: 'round' });
+      // Deep cool overhang shadow underneath.
+      g.moveTo(left + (right - left) * 0.06, ty + h * 0.065)
+        .quadraticCurveTo(midX, ty + h * 0.035, right - (right - left) * 0.06, ty + h * 0.075)
+        .lineTo(right - (right - left) * 0.03, by)
+        .lineTo(left + (right - left) * 0.03, by)
         .closePath()
-        .fill({ color: pal.midRockShade, alpha: 0.48 });
+        .fill({ color: pal.midRockShade, alpha: 0.68 });
     };
-    drawTerrace(-0.02, 0.36, 0.62, 0.34, false);
-    drawTerrace(0.64, 1.02, 0.58, 0.38, true);
-    drawTerrace(0.24, 0.74, 0.74, 0.22, false);
+    drawTerrace(-0.03, 0.34, 0.44, 0.52, false);
+    drawTerrace(0.66, 1.03, 0.39, 0.57, true);
+    drawTerrace(0.18, 0.52, 0.66, 0.3, false);
+    drawTerrace(0.48, 0.84, 0.62, 0.34, true);
 
-    // 5. Distant biome-specific flora silhouettes recessed into the background.
+    // 5. Lush biome-specific background flora growing on the sculpted shelves.
     this.drawThemeFlora(g, kind, r);
 
-    // 6. Thin depth-haze veil so background stays soft and foreground creatures pop.
-    g.rect(x + EDGE, y + EDGE, w - EDGE * 2, h - EDGE * 2).fill({ color: pal.haze, alpha: pal.hazeAlpha });
+    // 6. Gentle atmospheric haze veil (light enough that the painted rock & flora read clearly).
+    g.rect(x + EDGE, y + EDGE, w - EDGE * 2, h - EDGE * 2).fill({ color: pal.haze, alpha: pal.hazeAlpha * 0.48 });
 
-    // 7. Subtle curved pressure-window highlight.
-    g.moveTo(x + w * 0.06, y + 6).lineTo(x + w * 0.34, y + 6)
-      .quadraticCurveTo(x + w * 0.36, y + h * 0.52, x + w * 0.45, y + h * 0.8)
-      .lineTo(x + w * 0.2, y + h * 0.85).quadraticCurveTo(x + w * 0.11, y + h * 0.46, x + w * 0.06, y + 6)
-      .fill({ color: 0xc5ecba, alpha: 0.08 });
+    // 7. Subtle curved pressure-window glass highlight.
+    g.moveTo(x + w * 0.05, y + 6).lineTo(x + w * 0.3, y + 6)
+      .quadraticCurveTo(x + w * 0.32, y + h * 0.52, x + w * 0.41, y + h * 0.8)
+      .lineTo(x + w * 0.18, y + h * 0.85).quadraticCurveTo(x + w * 0.1, y + h * 0.46, x + w * 0.05, y + 6)
+      .fill({ color: 0xc5ecba, alpha: 0.07 });
   }
 
   private drawThemeFlora(g: Graphics, kind: TankBackdropKind, r: () => number): void {
     const { x, y, w, h } = this.box;
     if (kind === 'coral') {
-      const clusters = Math.max(3, Math.round(w / 95));
+      const clusters = Math.max(4, Math.round(w / 80));
       for (let i = 0; i < clusters; i++) {
-        const cx = x + w * (0.12 + (i + 0.3 + r() * 0.4) * (0.76 / clusters));
-        const cy = y + h * (0.64 + (i % 2) * 0.12);
-        const col = i % 2 ? 0xc8746e : 0xdca08c;
+        const cx = x + w * (0.09 + (i + 0.25 + r() * 0.5) * (0.82 / clusters));
+        const cy = y + h * (0.48 + (i % 2) * 0.16);
+        const col = i % 2 ? 0xd0746c : 0xe4a892;
         for (let b = -2; b <= 2; b++) {
-          const ang = -Math.PI / 2 + b * 0.34 + (r() - 0.5) * 0.12;
-          const len = h * (0.1 + r() * 0.09);
+          const ang = -Math.PI / 2 + b * 0.36 + (r() - 0.5) * 0.12;
+          const len = h * (0.14 + r() * 0.12);
           const bx = cx + Math.cos(ang) * len;
           const by = cy + Math.sin(ang) * len;
-          g.moveTo(cx, cy).lineTo(bx, by).stroke({ color: col, width: Math.max(2, h * 0.02), cap: 'round', alpha: 0.52 });
-          g.circle(bx, by, Math.max(1.5, h * 0.014)).fill({ color: 0xf2c2b0, alpha: 0.45 });
+          g.moveTo(cx, cy).lineTo(bx, by).stroke({ color: col, width: Math.max(2.6, h * 0.026), cap: 'round', alpha: 0.72 });
+          g.circle(bx, by, Math.max(2.2, h * 0.02)).fill({ color: 0xf6c8b6, alpha: 0.68 });
         }
       }
     } else if (kind === 'kelp') {
-      const fronds = Math.max(5, Math.round(w / 55));
+      const fronds = Math.max(6, Math.round(w / 46));
       for (let i = 0; i < fronds; i++) {
-        const bx = x + w * (0.08 + (i + r() * 0.6) * (0.84 / fronds));
-        const fh = h * (0.42 + r() * 0.34);
-        const sway = (r() - 0.5) * w * 0.08;
+        const bx = x + w * (0.06 + (i + r() * 0.6) * (0.88 / fronds));
+        const fh = h * (0.52 + r() * 0.34);
+        const sway = (r() - 0.5) * w * 0.09;
         g.moveTo(bx, y + h * 0.9)
           .bezierCurveTo(bx + sway, y + h * 0.9 - fh * 0.35, bx - sway * 0.8, y + h * 0.9 - fh * 0.72, bx + sway * 0.5, y + h * 0.9 - fh)
-          .stroke({ color: i % 2 ? 0x768b44 : 0x5c7542, width: Math.max(2.5, w * 0.018), cap: 'round', alpha: 0.44 });
+          .stroke({ color: i % 2 ? 0x8ea44c : 0x6a8648, width: Math.max(3.5, w * 0.022), cap: 'round', alpha: 0.65 });
       }
     } else if (kind === 'grass') {
-      const tufts = Math.max(6, Math.round(w / 42));
+      const tufts = Math.max(8, Math.round(w / 36));
       for (let i = 0; i < tufts; i++) {
-        const bx = x + w * (0.06 + (i + r() * 0.5) * (0.88 / tufts));
-        const by = y + h * (0.76 + (i % 2) * 0.08);
+        const bx = x + w * (0.05 + (i + r() * 0.5) * (0.9 / tufts));
+        const by = y + h * (0.66 + (i % 2) * 0.12);
         for (let b = -2; b <= 2; b++) {
-          const bh = h * (0.14 + r() * 0.14);
-          g.moveTo(bx + b * 2, by)
-            .quadraticCurveTo(bx + b * 4, by - bh * 0.55, bx + b * 6 + (r() - 0.5) * 4, by - bh)
-            .stroke({ color: b % 2 ? 0x6ea052 : 0x528246, width: Math.max(1.4, h * 0.011), cap: 'round', alpha: 0.48 });
+          const bh = h * (0.2 + r() * 0.18);
+          g.moveTo(bx + b * 2.5, by)
+            .quadraticCurveTo(bx + b * 4.5, by - bh * 0.55, bx + b * 7 + (r() - 0.5) * 5, by - bh)
+            .stroke({ color: b % 2 ? 0x80b85c : 0x5c944c, width: Math.max(1.8, h * 0.014), cap: 'round', alpha: 0.7 });
         }
       }
     } else if (kind === 'bladder') {
-      const stalks = Math.max(4, Math.round(w / 70));
+      const stalks = Math.max(5, Math.round(w / 58));
       for (let i = 0; i < stalks; i++) {
-        const bx = x + w * (0.1 + (i + r() * 0.5) * (0.8 / stalks));
-        const sh = h * (0.45 + r() * 0.3);
-        const lean = (r() - 0.5) * w * 0.07;
+        const bx = x + w * (0.08 + (i + r() * 0.5) * (0.84 / stalks));
+        const sh = h * (0.52 + r() * 0.32);
+        const lean = (r() - 0.5) * w * 0.08;
         g.moveTo(bx, y + h * 0.9)
           .quadraticCurveTo(bx + lean, y + h * 0.9 - sh * 0.55, bx + lean * 0.6, y + h * 0.9 - sh)
-          .stroke({ color: 0x6c6034, width: Math.max(1.8, h * 0.014), cap: 'round', alpha: 0.48 });
-        for (const t of [0.42, 0.72, 0.96]) {
-          g.circle(bx + lean * t, y + h * 0.9 - sh * t, Math.max(2, h * 0.018)).fill({ color: 0xa49042, alpha: 0.45 });
+          .stroke({ color: 0x84743c, width: Math.max(2.2, h * 0.017), cap: 'round', alpha: 0.68 });
+        for (const t of [0.38, 0.68, 0.94]) {
+          g.circle(bx + lean * t, y + h * 0.9 - sh * t, Math.max(2.8, h * 0.024)).fill({ color: 0xc2aa4e, alpha: 0.68 });
         }
       }
     } else if (kind === 'lumen') {
-      const patches = Math.max(4, Math.round(w / 75));
+      const patches = Math.max(5, Math.round(w / 65));
       for (let i = 0; i < patches; i++) {
-        const px = x + w * (0.12 + (i + r() * 0.5) * (0.76 / patches));
-        const py = y + h * (0.62 + (i % 3) * 0.09);
-        const rx = w * (0.045 + r() * 0.035);
-        const ry = h * (0.022 + r() * 0.016);
-        // Soft warm yellow-green moss glow halo (no Choir colours).
-        g.ellipse(px, py - ry * 0.4, rx * 1.9, ry * 2.2).fill({ color: 0xc2e278, alpha: 0.14 });
-        g.ellipse(px, py, rx, ry).fill({ color: 0x8fb852, alpha: 0.62 });
-        g.ellipse(px - rx * 0.18, py - ry * 0.25, rx * 0.55, ry * 0.45).fill({ color: 0xeaf6aa, alpha: 0.55 });
+        const px = x + w * (0.1 + (i + r() * 0.5) * (0.8 / patches));
+        const py = y + h * (0.48 + (i % 3) * 0.12);
+        const rx = w * (0.055 + r() * 0.04);
+        const ry = h * (0.028 + r() * 0.02);
+        // Warm yellow-green moss glow halo (no Choir colours).
+        g.ellipse(px, py - ry * 0.4, rx * 2.1, ry * 2.6).fill({ color: 0xc8ea78, alpha: 0.22 });
+        g.ellipse(px, py, rx, ry).fill({ color: 0x98c456, alpha: 0.82 });
+        g.ellipse(px - rx * 0.18, py - ry * 0.25, rx * 0.58, ry * 0.48).fill({ color: 0xf2fca8, alpha: 0.78 });
       }
     }
   }
