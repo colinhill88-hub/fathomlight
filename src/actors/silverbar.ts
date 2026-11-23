@@ -1,5 +1,6 @@
-import { Container, FillGradient, Graphics, Point } from 'pixi.js';
+import { Container, FillGradient, Graphics, Point, Sprite } from 'pixi.js';
 import { approach, batchAll, clamp } from './animkit';
+import { getCreatureArt } from '../art/creatureArt';
 
 const scales = new FillGradient({
   type: 'linear', start: { x: 0.45, y: 0 }, end: { x: 0.55, y: 1 },
@@ -24,6 +25,25 @@ export class Silverbar {
 
   constructor(view: Container, phase: number, private readonly size: number) {
     this.phase = phase;
+    this.wrist.position.set(-9.6, 0.8);
+    this.wrist.addChild(new Graphics().moveTo(1, -1.9).lineTo(-4.7, -1.1).lineTo(-5.2, 1.1)
+      .lineTo(1, 1.9).closePath().fill(0x809d8f));
+    this.fork.position.set(-4.4, 0);
+    this.fork.addChild(new Graphics().moveTo(1, -1.15).quadraticCurveTo(-3.7, -4.2, -12.4, -9.1)
+      .lineTo(-8.6, -1.8).lineTo(-4.4, 0).lineTo(-9.7, 3.7).lineTo(-12.5, 10.5)
+      .quadraticCurveTo(-3.7, 5.2, 1, 1.18).closePath().fill(0xd8ac67)
+      .moveTo(-2, 0).lineTo(-10.7, -6.6).moveTo(-2, 0).lineTo(-10.7, 7.8).stroke({ color: 0xeac991, width: 0.93 }));
+    this.wrist.addChild(this.fork);
+    const painted = getCreatureArt().silverbar;
+    if (painted) {
+      const spr = new Sprite(painted);
+      spr.anchor.set(0.46, 0.54);
+      const sc = 30 / Math.max(1, painted.width);
+      spr.scale.set(sc);
+      spr.position.set(2.8, 0.2);
+      view.addChild(this.wrist, spr);
+      return;
+    }
     const body = new Graphics();
     body.moveTo(-10.5, 0.6).quadraticCurveTo(-8, -7.4, 0, -8.4)
       .quadraticCurveTo(7, -8.1, 14.6, -1.9).quadraticCurveTo(16.3, -0.3, 13, 1.4)
@@ -37,15 +57,6 @@ export class Silverbar {
     body.moveTo(4.2, -7.8).quadraticCurveTo(7.9, -2.4, 4.9, 5.6).lineTo(0.4, 7.1)
       .quadraticCurveTo(4.1, -0.6, 0, -8.3).closePath().fill(0x263c45);
     body.circle(9.9, -2.5, 2.05).fill(0x203138).circle(10.6, -3.2, 0.73).fill(0xedebca);
-    this.wrist.position.set(-9.6, 0.8);
-    this.wrist.addChild(new Graphics().moveTo(1, -1.9).lineTo(-4.7, -1.1).lineTo(-5.2, 1.1)
-      .lineTo(1, 1.9).closePath().fill(0x809d8f));
-    this.fork.position.set(-4.4, 0);
-    this.fork.addChild(new Graphics().moveTo(1, -1.15).quadraticCurveTo(-3.7, -4.2, -12.4, -9.1)
-      .lineTo(-8.6, -1.8).lineTo(-4.4, 0).lineTo(-9.7, 3.7).lineTo(-12.5, 10.5)
-      .quadraticCurveTo(-3.7, 5.2, 1, 1.18).closePath().fill(0xd8ac67)
-      .moveTo(-2, 0).lineTo(-10.7, -6.6).moveTo(-2, 0).lineTo(-10.7, 7.8).stroke({ color: 0xeac991, width: 0.93 }));
-    this.wrist.addChild(this.fork);
     this.pectoral.position.set(2.6, 1.6);
     this.pectoral.addChild(new Graphics().moveTo(0.5, -0.65).quadraticCurveTo(-3.5, -0.9, -8, 3.7)
       .quadraticCurveTo(-5, 4.7, -1.6, 2.5).closePath().fill({ color: 0x446f70, alpha: 0.92 }));

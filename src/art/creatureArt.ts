@@ -12,7 +12,7 @@ import type { SpeciesId } from '../game/state';
  *
  * Missing textures or `?art=procedural` fall back cleanly to the code-drawn rigs.
  */
-export type CreatureArtKey = SpeciesId | 'linnea' | 'lurker' | 'angler' | 'stalker' | 'spider';
+export type CreatureArtKey = SpeciesId | 'linnea' | 'lurker' | 'angler' | 'stalker' | 'spider' | 'silverbar';
 export type CreatureArt = Partial<Record<CreatureArtKey, Texture>>;
 
 const webps = import.meta.glob<string>('./creatures/*.webp', { eager: true, import: 'default', query: '?url&no-inline' });
@@ -152,7 +152,7 @@ export function keyOutWhiteAndCrop(img: HTMLImageElement, mipmaps: boolean, maxD
 
 const SPECIES_FILES: readonly CreatureArtKey[] = [
   'glowfin', 'puffcap', 'ray', 'crab', 'shrimp', 'snail', 'eel', 'horse',
-  'linnea', 'lurker', 'angler', 'stalker', 'spider',
+  'linnea', 'lurker', 'angler', 'stalker', 'spider', 'silverbar',
 ];
 
 export async function loadCreatureArt(mipmaps = false): Promise<CreatureArt> {
