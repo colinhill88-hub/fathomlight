@@ -535,7 +535,7 @@ export class CareMode {
         const tier = rarityTier(tr);
         const happy = c.stage === 'egg' ? null : contentment(save, c);
         const moodCls = happy ? (happy.value >= 0.8 ? 'good' : happy.value < 0.45 ? 'low' : 'mid') : 'mid';
-        const rareCls = tr.choir ? ' r-choir' : tr.heirloom ? ' r-heirloom' : tr.radiant ? ' r-radiant' : tier >= 2 ? ' r-rare' : '';
+        const rareCls = tr.choir ? ' r-choir' : tr.heirloom ? ' r-heirloom' : tr.radiant ? ' r-radiant' : tier === 'rare' || tier === 'legendary' ? ' r-rare' : '';
         return `<button type="button" data-act="pick" data-id="${c.id}" class="tab care-tile${c.id === this.selected ? ' on' : ''}${c.sickness > 0.02 ? ' sick' : ''}${rareCls}">
           <span class="tile-pic">${snapImg(c.species, tr, 'tile-snap', c.stage, creatureName(c))}<i class="mood-dot ${moodCls}" aria-hidden="true"></i></span>
           <span class="tile-name">${c.stage === 'egg' ? `${SPECIES[c.species].name} eggs` : creatureName(c)}</span>
