@@ -1,9 +1,10 @@
-import { Container, Graphics } from 'pixi.js';
+import { Container, Graphics, Sprite } from 'pixi.js';
 import { mulberry32, WORLD_SEED } from '../rng';
 import { groundY, isSolid, SLED_X } from '../world/terrain';
 import { BaseLayout, CELL, GRID_BASE, GRID_ROWS, GRID_X1, PIECES, pieceRect, Placed } from '../game/base';
 import type { PointLight } from '../world/scenery';
 import { clearLine, findPath, pathLength } from '../world/navgrid';
+import { getPropArt } from '../art/propArt';
 
 /**
  * The build drone, "KD-1" (milestone 3 follow-up, Colin's idea; made
@@ -287,7 +288,18 @@ export class Drone {
     pg.circle(-3, 16.5, 1.6).fill({ color: 0x9f8d66 });
     pg.circle(2.5, 17.5, 1.9).fill({ color: 0x6a5a4c });
     this.cradleG.visible = this.pouchG.visible = false;
-    this.body.addChild(this.antenna, this.armUpper, this.pouchG, this.cradleG, buildBody(), this.fanL, this.fanR, buildGlass());
+    const painted = getPropArt().vehicles.drone;
+    if (painted) {
+      const spr = new Sprite(painted);
+      spr.anchor.set(0.5, 0.5);
+      const sc = 44 / Math.max(1, painted.width);
+      spr.scale.set(sc);
+      spr.position.set(0, -1);
+      this.armUpper.alpha = 0.01;
+      this.body.addChild(this.armUpper, this.pouchG, this.cradleG, spr);
+    } else {
+      this.body.addChild(this.antenna, this.armUpper, this.pouchG, this.cradleG, buildBody(), this.fanL, this.fanR, buildGlass());
+    }
     this.view.addChild(this.body);
 
     // Old cable tangled round it in the wreck (gone once it is freed).
@@ -304,15 +316,22 @@ export class Drone {
     this.body.addChild(this.tangle);
 
     // Glowing parts: the eye (a round lens, or a smiling arc when happy), torch, antenna tip.
-    this.eye.circle(0, 0, 3.3).fill({ color: 0xffc070 });
-    this.eye.circle(-1, -1.1, 1).fill({ color: 0xfff4dc });
-    this.smile.moveTo(-3.2, 1.2).quadraticCurveTo(0, -3.2, 3.2, 1.2).stroke({ color: 0xffc070, width: 1.9, cap: 'round' });
-    this.smile.visible = false;
-    this.eyeHalo.circle(0, 0, 10).fill({ color: 0xffb050, alpha: 0.7 });
+    if (painted) {
+      this.eye.circle(12, 8, 2.2).fill({ color: 0xdcff72, alpha: 0.65 });
+      this.smile.moveTo(9, 9).quadraticCurveTo(12, 5.5, 15, 9).stroke({ color: 0xdcff72, width: 1.8, cap: 'round' });
+      this.smile.visible = false;
+      this.eyeHalo.circle(12, 8, 11).fill({ color: 0xc6f03a, alpha: 0.45 });
+    } else {
+      this.eye.circle(0, 0, 3.3).fill({ color: 0xffc070 });
+      this.eye.circle(-1, -1.1, 1).fill({ color: 0xfff4dc });
+      this.smile.moveTo(-3.2, 1.2).quadraticCurveTo(0, -3.2, 3.2, 1.2).stroke({ color: 0xffc070, width: 1.9, cap: 'round' });
+      this.smile.visible = false;
+      this.eyeHalo.circle(0, 0, 10).fill({ color: 0xffb050, alpha: 0.7 });
+      this.tip.circle(0, 0, 1.2).fill({ color: 0xff6a4a });
+      this.tipHalo.circle(0, 0, 5).fill({ color: 0xff5a3a, alpha: 0.6 });
+    }
     this.torch.circle(0, 0, 2.2).fill({ color: 0xfff8ec });
     this.torchHalo.circle(0, 0, 18).fill({ color: 0xfff0d0, alpha: 0.9 });
-    this.tip.circle(0, 0, 1.2).fill({ color: 0xff6a4a });
-    this.tipHalo.circle(0, 0, 5).fill({ color: 0xff5a3a, alpha: 0.6 });
     this.emissive.addChild(this.eye, this.smile, this.tip, this.torch);
     this.glow.addChild(this.eyeHalo, this.tipHalo, this.torchHalo);
     this.lights.push(this.eyeLight, this.weldLight);

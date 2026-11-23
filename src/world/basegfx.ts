@@ -1,5 +1,6 @@
-import { Container, FillGradient, Graphics, Text } from 'pixi.js';
+import { Container, FillGradient, Graphics, Sprite, Text } from 'pixi.js';
 import { MATERIAL_ORDER } from '../game/state';
+import { getPropArt } from '../art/propArt';
 import { mulberry32, WORLD_SEED } from '../rng';
 import { groundY, WORLD_W, WORLD_X0 } from './terrain';
 import { drawHabitatFrame, drawObservationCrown, drawPressureRib } from './habitatFrame';
@@ -1714,9 +1715,160 @@ function drawWorkshop(n: number, livingBases: boolean): PieceArt {
   return { body, windows, windowGlow, lamp: { x: W - 22, y: 30 }, station: { arm, torch, armAt: { x: bx + bw / 2 + 6, y: 42 } } };
 }
 
+/** Painted exterior hulls for the 6 hero base modules (fallback to procedural if absent). */
+function drawPaintedHero(kind: PieceKind, n: number): PieceArt | null {
+  const baseArt = getPropArt().base;
+  if (kind === 'dome' && baseArt.dome) {
+    const W = CELL * 2;
+    const H = CELL * 2;
+    const body = new Container();
+    const spr = new Sprite(baseArt.dome);
+    spr.anchor.set(0.5, 1);
+    const natH = (W + 8) * (baseArt.dome.height / Math.max(1, baseArt.dome.width));
+    spr.width = W + 8;
+    spr.height = Math.min(H - 6, natH * 1.28);
+    spr.position.set(W / 2, H - 2);
+    body.addChild(spr);
+    const windows = new Graphics();
+    const windowGlow = new Graphics();
+    windows.ellipse(W / 2, H - spr.height * 0.62, W * 0.34, spr.height * 0.22).fill({ color: 0xffe49e, alpha: 0.24 });
+    windowGlow.ellipse(W / 2, H - spr.height * 0.62, W * 0.44, spr.height * 0.32).fill({ color: 0xffd280, alpha: 0.28 });
+    body.addChild(stencil(`HAB-0${n}`, W / 2, H - 16, 7));
+    return { body, windows, windowGlow, lamp: { x: W / 2, y: Math.max(8, H - spr.height - 2) } };
+  }
+  if (kind === 'dock' && baseArt.dock) {
+    const W = CELL * 3;
+    const H = CELL * 2;
+    const body = new Container();
+    const spr = new Sprite(baseArt.dock);
+    spr.width = W + 8;
+    spr.height = H - 2;
+    spr.position.set(-4, 2);
+    body.addChild(spr);
+    const windows = new Graphics();
+    const windowGlow = new Graphics();
+    for (const lx of [W * 0.27, W * 0.73]) {
+      windows.roundRect(lx - 4, H * 0.22, 8, 14, 3).fill({ color: 0xc6f03a, alpha: 0.85 });
+      windowGlow.circle(lx, H * 0.26, 20).fill({ color: 0xc6f03a, alpha: 0.32 });
+    }
+    windowGlow.ellipse(W / 2, H * 0.76, W * 0.22, H * 0.16).fill({ color: 0xffd280, alpha: 0.22 });
+    body.addChild(stencil(`MP-${n}`, W / 2, 18, 8));
+    return { body, windows, windowGlow, lamp: { x: W / 2 + 44, y: 18 } };
+  }
+  if (kind === 'lab' && baseArt.lab) {
+    const W = CELL;
+    const H = CELL;
+    const body = new Container();
+    const g = body.addChild(new Graphics());
+    tubeV(g, 0, 18, W / 2, 1);
+    const spr = new Sprite(baseArt.lab);
+    spr.anchor.set(0.5, 1);
+    spr.width = W + 8;
+    spr.height = Math.round(H * 0.86);
+    spr.position.set(W / 2, H - 4);
+    body.addChild(spr);
+    const windows = new Graphics();
+    const windowGlow = new Graphics();
+    windows.circle(W * 0.34, H * 0.56, 13).fill({ color: 0xffda94, alpha: 0.32 });
+    windows.circle(W * 0.66, H * 0.56, 13).fill({ color: 0xd8f48c, alpha: 0.32 });
+    windowGlow.circle(W * 0.34, H * 0.56, 22).fill({ color: 0xffcf78, alpha: 0.22 });
+    windowGlow.circle(W * 0.66, H * 0.56, 22).fill({ color: 0xc6f03a, alpha: 0.2 });
+    const scan = new Graphics().rect(0, 0, 14, 1.8).fill({ color: 0xffffff, alpha: 0.85 });
+    scan.position.set(W * 0.66 - 7, H * 0.5);
+    windows.addChild(scan);
+    body.addChild(stencil(`LAB-${n}`, W / 2, H - 12, 6));
+    return { body, windows, windowGlow, lamp: { x: 22, y: 26 }, station: { bar: scan, y0: H * 0.5, h: 12 } };
+  }
+  if (kind === 'workshop' && baseArt.workshop) {
+    const W = CELL * 2;
+    const H = CELL;
+    const body = new Container();
+    const spr = new Sprite(baseArt.workshop);
+    spr.width = W + 8;
+    spr.height = H - 6;
+    spr.position.set(-4, 3);
+    body.addChild(spr);
+    const windows = new Graphics();
+    const windowGlow = new Graphics();
+    windows.roundRect(W / 2 - 14, H / 2 - 10, 28, 20, 4).fill({ color: 0xffd278, alpha: 0.35 });
+    windowGlow.circle(W / 2, H / 2, 36).fill({ color: 0xffb84a, alpha: 0.28 });
+    const torch = new Graphics().circle(0, 0, 2.4).fill({ color: 0xfff0c0 });
+    windows.addChild(torch);
+    const arm = new Container();
+    arm.position.set(W / 2, H / 2 - 14);
+    body.addChild(arm);
+    body.addChild(stencil(`WS-${n}`, W / 2, 14, 7));
+    return { body, windows, windowGlow, lamp: { x: W - 22, y: 20 }, station: { arm, torch, armAt: { x: W / 2, y: H / 2 - 14 } } };
+  }
+  if ((kind === 'tank' || kind === 'gtank') && baseArt.nursery) {
+    const grand = kind === 'gtank';
+    const W = CELL * (grand ? 3 : 2);
+    const H = CELL * (grand ? 2 : 1);
+    const I = grand ? GTANK_INNER : TANK_INNER;
+    const body = new Container();
+    const spr = new Sprite(baseArt.nursery);
+    spr.width = W + 8;
+    spr.height = H - 2;
+    spr.position.set(-4, 1);
+    body.addChild(spr);
+    const windows = new Graphics();
+    const windowGlow = new Graphics();
+    windows.roundRect(I.x + 10, I.y + 1, I.w - 20, 3, 1.5).fill({ color: 0xfff1d0, alpha: 0.8 });
+    windowGlow.roundRect(I.x + 2, I.y, I.w - 4, I.h * 0.45, 4).fill({ color: PAL.warm, alpha: 0.16 });
+    body.addChild(stencil(grand ? `GT-${n}` : `TK-${n}`, W / 2, H - 8, 6));
+    return { body, windows, windowGlow, lamp: { x: W - 22, y: 12 } };
+  }
+  if (kind === 'turbine' && baseArt.turbine) {
+    const W = CELL;
+    const H = CELL * 2;
+    const cx = W / 2;
+    const hubY = H / 2 - 4;
+    const body = new Container();
+    const g = body.addChild(new Graphics());
+    // Side collar stubs & dark backing column so upper/lower collars join cleanly.
+    tubeH(g, 0, 18, H - CELL / 2, 1);
+    tubeH(g, W - 18, W, H - CELL / 2, 1);
+    tubeH(g, 0, 18, CELL / 2, 1);
+    tubeH(g, W - 18, W, CELL / 2, 1);
+    g.roundRect(22, 8, W - 44, H - 16, 8).fill({ color: PAL.steelDark });
+    const spr = new Sprite(baseArt.turbine);
+    spr.anchor.set(0.5, 0.5);
+    const natH = (W + 6) * (baseArt.turbine.height / Math.max(1, baseArt.turbine.width));
+    spr.width = W + 6;
+    spr.height = Math.min(H - 18, natH * 1.15);
+    spr.position.set(cx, hubY + 6);
+    body.addChild(spr);
+    // Live spinning impeller rotor inside the brass intake ring!
+    const rotor = new Container();
+    const rg = rotor.addChild(new Graphics());
+    for (let i = 0; i < 3; i++) {
+      const a = (i / 3) * Math.PI * 2;
+      const ca = Math.cos(a);
+      const sa = Math.sin(a);
+      const P = (u: number, v: number): [number, number] => [ca * u - sa * v, sa * u + ca * v];
+      rg.poly([P(5, -3), P(14, -9), P(24, -4), P(25, 2), P(6, 4)].flat()).fill({ color: 0x626c72 });
+      rg.poly([P(6, 1), P(25, 2), P(6, 4)].flat()).fill({ color: 0x3a4248 });
+    }
+    rg.circle(0, 0, 6.5).fill({ color: PAL.chrome });
+    rg.circle(-1.5, -1.5, 2.4).fill({ color: PAL.chromeHi, alpha: 0.7 });
+    rg.circle(0, 0, 2).fill({ color: PAL.steelDeep });
+    rotor.position.set(cx, hubY - 3);
+    body.addChild(rotor);
+    const windows = new Graphics();
+    const windowGlow = new Graphics();
+    windows.circle(cx, hubY + spr.height * 0.37, 3.2).fill({ color: 0xffc84a, alpha: 0.9 });
+    windowGlow.circle(cx, hubY + spr.height * 0.37, 14).fill({ color: 0xffb830, alpha: 0.4 });
+    body.addChild(stencil(`CT-${n}`, cx, 20, 6));
+    return { body, rotor, windows, windowGlow, lamp: { x: W - 26, y: 14 } };
+  }
+  return null;
+}
+
 /** Draw a piece's art. The same drawing is used for placed pieces and the build ghost. */
 export function drawPiece(kind: PieceKind, n: number, rot: number, seed: number, livingBases = false, housingOcean = livingBases, panorama = false): PieceArt {
   rand = mulberry32(WORLD_SEED ^ (seed * 7919 + 0x1b5e));
+  const painted = drawPaintedHero(kind, n);
+  if (painted) return painted;
   if (kind === 'dome') return livingBases ? drawKestrelHabitat(n) : drawDome(n);
   if (kind === 'corridor') return livingBases ? drawPressureCorridor(n, rot, true, panorama) : drawCorridor(n, rot);
   if (kind === 'shaft') return drawShaft(n, livingBases);

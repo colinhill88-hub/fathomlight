@@ -28,7 +28,7 @@ export function getCreatureArt(): CreatureArt {
 }
 
 /** Decode an image URL into an HTMLImageElement. */
-function loadImage(url: string): Promise<HTMLImageElement> {
+export function loadImage(url: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const img = new Image();
     img.decoding = 'async';
@@ -40,11 +40,11 @@ function loadImage(url: string): Promise<HTMLImageElement> {
 
 /**
  * Remove the exterior pure-white background using a 4-corner flood-fill so
- * interior eye catchlights and bright belly highlights stay 100% intact.
+ * interior eye catchlights and bright highlights stay 100% intact.
  * Crops tightly to the non-transparent silhouette for predictable rig fitting.
  */
-function keyOutWhiteAndCrop(img: HTMLImageElement, mipmaps: boolean): Texture {
-  const scale = Math.min(1, TARGET_MAX_DIM / Math.max(img.naturalWidth, img.naturalHeight));
+export function keyOutWhiteAndCrop(img: HTMLImageElement, mipmaps: boolean, maxDim = TARGET_MAX_DIM): Texture {
+  const scale = Math.min(1, maxDim / Math.max(img.naturalWidth, img.naturalHeight));
   const w = Math.max(1, Math.round(img.naturalWidth * scale));
   const h = Math.max(1, Math.round(img.naturalHeight * scale));
   const src = document.createElement('canvas');

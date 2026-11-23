@@ -1,8 +1,9 @@
-import { Container, Graphics, Text } from 'pixi.js';
+import { Container, Graphics, Sprite, Text } from 'pixi.js';
 import { mulberry32, WORLD_SEED } from '../rng';
 import { isSolid, WORLD_W, WORLD_X0 } from '../world/terrain';
 import type { Light } from '../fx/lighting';
 import type { SubModule } from '../game/state';
+import { getPropArt } from '../art/propArt';
 
 /**
  * The submersible KS-1 (milestone 6), drawn with code and driven like a
@@ -254,11 +255,27 @@ export class Sub {
     this.view.addChild(this.body);
     this.emissive.addChild(this.eBody);
     this.glow.addChild(this.gBody);
-    this.drawStern();
-    this.drawHull();
-    this.drawCockpit();
-    this.drawModules();
-    this.drawExtras();
+    const painted = getPropArt().vehicles.sub;
+    if (painted) {
+      const spr = new Sprite(painted);
+      spr.anchor.set(0.5, 0.52);
+      const sc = 248 / Math.max(1, painted.width);
+      spr.scale.set(sc);
+      spr.position.set(0, -4);
+      this.body.addChild(spr);
+      this.navLens.circle(94, 24, 5).fill({ color: 0xffe8b0 });
+      this.navHalo.circle(94, 24, 18).fill({ color: 0xffd280, alpha: 0.45 });
+      this.tailLamp.circle(-84, -22, 2.2).fill({ color: 0xff4a3a });
+      this.tailHalo.circle(-84, -22, 10).fill({ color: 0xff3a2a, alpha: 0.65 });
+      this.drawModules();
+      this.drawExtras();
+    } else {
+      this.drawStern();
+      this.drawHull();
+      this.drawCockpit();
+      this.drawModules();
+      this.drawExtras();
+    }
     this.body.addChild(this.dents, this.domeCrack);
     this.drawDamage();
     this.body.addChild(this.frameMask);

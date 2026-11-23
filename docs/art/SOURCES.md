@@ -77,3 +77,9 @@ See every creature in every form at `zoo.html` (on the play link, or with `npm r
 ## Tank backdrops & UI polish pass (Nov 23, 2026)
 
 Wired `src/art/tankArt.ts` (`loadTankArt`) and `HabitatWater.setTheme()` so every tank (exterior and walkable interior) automatically displays its matching painted `.webp` backdrop from `src/art/tanks/{bare,coral,kelp,grass,bladder,lumen}.webp` (all 6 installed and logged in the table above), and falls back to multi-layered biome-themed painterly procedural backdrops when `?art=procedural` or `?worldArt=procedural` is active.
+
+## Painted vehicles & hero base exterior modules (Nov 23, 2026)
+
+Added `src/art/propArt.ts` (`loadPropArt`), sharing the 4-corner pure-white cutout loader from `src/art/creatureArt.ts`, with `?art=procedural` fallback:
+- Vehicles (`src/art/vehicles/`): `sub.webp` (KS-1 Submersible, `src/actors/sub.ts`), `drone.webp` (KD-1 Build Drone, `src/actors/drone.ts`), `buoy.webp` (EX-1 Supply Buoy, `src/world/supplyBuoy.ts`).
+- Hero base exterior modules (`src/art/base/`): `dome.webp`, `dock.webp`, `lab.webp`, `workshop.webp`, `nursery.webp`, `turbine.webp` (`src/world/basegfx.ts`, keeping live animated lights, scan bar, sparks, turbine rotor, and live interior tanks on top).
