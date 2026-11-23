@@ -1874,20 +1874,45 @@ function drawPaintedHero(kind: PieceKind, n: number, housingOcean: boolean): Pie
     const hubY = H / 2 - 4;
     const body = new Container();
     const g = body.addChild(new Graphics());
-    // Side collar stubs & dark backing column so upper/lower collars join cleanly.
+    const windows = new Graphics();
+    const windowGlow = new Graphics();
+    // Side collar stubs so upper/lower collars join cleanly.
     tubeH(g, 0, 18, H - CELL / 2, 1);
     tubeH(g, W - 18, W, H - CELL / 2, 1);
     tubeH(g, 0, 18, CELL / 2, 1);
     tubeH(g, W - 18, W, CELL / 2, 1);
-    g.roundRect(22, 8, W - 44, H - 16, 8).fill({ color: PAL.steelDark });
+    // Detailed riveted upper & lower generator housings framing the painted turbine heart.
+    g.roundRect(18, 6, W - 36, H - 12, 8).fill({ color: PAL.steel });
+    g.roundRect(18, 6, W - 36, 12, 6).fill({ color: PAL.steelDark });
+    g.rect(22, 16, 6, H - 28).fill({ color: 0xffffff, alpha: 0.08 });
+    g.rect(W - 28, 16, 6, H - 28).fill({ color: PAL.steelDeep, alpha: 0.4 });
+    // Brass horizontal collar bands + gold power spine.
+    g.rect(18, 52, W - 36, 4).fill({ color: 0x9c7b38 });
+    g.rect(18, H - 56, W - 36, 4).fill({ color: 0x9c7b38 });
+    g.rect(cx - 3, 20, 6, H - 40).fill({ color: 0xb08020 });
+    windows.rect(cx - 2, 20, 4, H - 40).fill({ color: 0xffc040, alpha: 0.85 });
+    windowGlow.rect(cx - 5, 20, 10, H - 40).fill({ color: 0xffb030, alpha: 0.3 });
+    // Glowing lime intake/exhaust vent grilles in the upper & lower housings.
+    for (const vy of [22, H - 48]) {
+      g.roundRect(26, vy, W - 52, 24, 3).fill({ color: PAL.steelDeep });
+      for (let k = 0; k < 4; k++) {
+        g.rect(29, vy + 3 + k * 5.2, W - 58, 2.8).fill({ color: 0x4a6a14 });
+        windows.rect(29, vy + 3 + k * 5.2, W - 58, 2.8).fill({ color: PAL.glass, alpha: 0.78 });
+      }
+      windowGlow.rect(26, vy, W - 52, 24).fill({ color: PAL.glass, alpha: 0.28 });
+    }
+    rivets(g, 24, 14, W - 24, 14, 6);
+    rivets(g, 24, H - 12, W - 24, H - 12, 6);
+    algaeLine(g, 18, W - 18, H - 6, 10);
+    // Painted brass-rimmed turbine cowling at its exact natural aspect ratio (no stretching!).
     const spr = new Sprite(baseArt.turbine);
     spr.anchor.set(0.5, 0.5);
-    const natH = (W + 6) * (baseArt.turbine.height / Math.max(1, baseArt.turbine.width));
-    spr.width = W + 6;
-    spr.height = Math.min(H - 18, natH * 1.15);
-    spr.position.set(cx, hubY + 6);
+    const natH = (W + 4) * (baseArt.turbine.height / Math.max(1, baseArt.turbine.width));
+    spr.width = W + 4;
+    spr.height = natH;
+    spr.position.set(cx, hubY + 4);
     body.addChild(spr);
-    // Live spinning impeller rotor inside the brass intake ring!
+    // Live spinning impeller rotor inside the circular brass intake ring!
     const rotor = new Container();
     const rg = rotor.addChild(new Graphics());
     for (let i = 0; i < 3; i++) {
@@ -1903,11 +1928,9 @@ function drawPaintedHero(kind: PieceKind, n: number, housingOcean: boolean): Pie
     rg.circle(0, 0, 2).fill({ color: PAL.steelDeep });
     rotor.position.set(cx, hubY - 3);
     body.addChild(rotor);
-    const windows = new Graphics();
-    const windowGlow = new Graphics();
-    windows.circle(cx, hubY + spr.height * 0.37, 3.2).fill({ color: 0xffc84a, alpha: 0.9 });
-    windowGlow.circle(cx, hubY + spr.height * 0.37, 14).fill({ color: 0xffb830, alpha: 0.4 });
-    body.addChild(stencil(`CT-${n}`, cx, 20, 6));
+    windows.circle(cx, hubY + natH * 0.36, 3.2).fill({ color: 0xffc84a, alpha: 0.9 });
+    windowGlow.circle(cx, hubY + natH * 0.36, 14).fill({ color: 0xffb830, alpha: 0.4 });
+    body.addChild(stencil(`CT-${n}`, cx, 14, 6));
     return { body, rotor, windows, windowGlow, lamp: { x: W - 26, y: 14 } };
   }
   return null;
