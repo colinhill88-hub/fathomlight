@@ -108,18 +108,26 @@ export class Hud {
 
   refreshInventory(bump?: MaterialId): void {
     const { bag, stored } = this.getSave();
+    let hasBag = false;
+    let hasAny = false;
     for (const id of MATERIAL_ORDER) {
       const c = this.chipEls.get(id)!;
       c.count.textContent = String(bag[id]);
       // Materials in the base's storage show as a small "+N" (safe from blackouts).
       c.stored.textContent = stored[id] ? `+${stored[id]}` : '';
-      c.el.classList.toggle('empty', bag[id] === 0 && stored[id] === 0);
+      const empty = bag[id] === 0 && stored[id] === 0;
+      if (bag[id] > 0) hasBag = true;
+      if (!empty) hasAny = true;
+      c.el.classList.toggle('empty', empty);
+      c.el.classList.toggle('bag-zero', bag[id] === 0);
       if (bump === id) {
         c.el.classList.remove('bump');
         void c.el.offsetWidth; // restart the animation
         c.el.classList.add('bump');
       }
     }
+    this.chips.classList.toggle('bag-empty', !hasBag);
+    this.chips.classList.toggle('all-empty', !hasAny);
     if (!this.logPanel.hidden) this.renderLog();
   }
 

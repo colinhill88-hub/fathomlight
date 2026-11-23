@@ -42,6 +42,19 @@ import { TRAY_CAP, trayCount, TROUGH_CAP, whorlMult } from '../game/factory';
 import { MATERIAL_ORDER, TankData } from '../game/state';
 import { snapImg } from './creatureSnap';
 
+/** Compact status pill with the full explanation in its hover tooltip. */
+function shortNote(text: string): string {
+  const mEgg = text.match(/next egg in about (\d+\s*\w+)/i);
+  if (mEgg) return `Egg ~${mEgg[1]}`;
+  if (/ready to breed/i.test(text)) return 'Ready to breed';
+  if (/to shelter in/i.test(text)) return text.replace(/\s*to shelter in/i, '');
+  if (/wants /i.test(text)) return text.replace(/^Wants\s+/i, 'Needs ').replace(/\s*in the tank/i, '');
+  if (/room to drift/i.test(text)) return 'Room to drift';
+  if (/crowded/i.test(text)) return 'Crowded';
+  if (/tank-mate|company|own kind|shoal/i.test(text)) return text.length > 26 ? `${text.slice(0, 24)}…` : text;
+  return text.length > 28 ? `${text.slice(0, 26)}…` : text;
+}
+
 /** The output tray (milestone 5 part 2): what is waiting, and how it leaves. */
 function trayLine(save: SaveData, td: TankData, living: boolean): string {
   const n = trayCount(td);
@@ -50,9 +63,11 @@ function trayLine(save: SaveData, td: TankData, living: boolean): string {
     .join(', ');
   const belt = save.lines.some((l) => l.kind === 'belt' && save.tankData[String(l.from)] === td);
   const good = n < TRAY_CAP;
-  return `<li class="${good ? 'good' : 'bad'}">${good ? '✓' : '✗'} Output tray ${n}/${TRAY_CAP}${what ? ` (${what})` : ''}${
+  const full = `Output tray ${n}/${TRAY_CAP}${what ? ` (${what})` : ''}${
     belt ? ': a conveyor carries it away' : n ? (living ? ' · Collect at the amber tray' : ': stop by the tank and tap Collect to take it, or run a conveyor from the tank') : ''
-  }${good ? '' : '. Full: making is paused'}</li>`;
+  }${good ? '' : '. Full: making is paused'}`;
+  const label = `Tray ${n}/${TRAY_CAP}${good ? (belt ? ' · belt' : '') : ' full'}`;
+  return `<li class="${good ? 'good' : 'bad'}" title="${full.replace(/"/g, '&quot;')}">${good ? '✓' : '✗'} ${label}</li>`;
 }
 
 /**
@@ -558,13 +573,11 @@ export class CareMode {
         ${bar('Fed', c.fed, 'fed')}
         ${bar('Comfort', c.comfort, 'comfort')}
         ${livingBases ? '' : bar('Water quality', td.water, 'water')}
-        <ul class="notes">${[...ct.notes, ...[breedNote(save, layout, c)].filter((n) => !!n)].map((n) => `<li class="${n!.good ? 'good' : 'bad'}">${n!.good ? '✓' : '✗'} ${n!.text}</li>`).join('')}<li class="${
+        <ul class="notes note-pills">${[...ct.notes, ...[breedNote(save, layout, c)].filter((n) => !!n)].map((n) => `<li class="${n!.good ? 'good' : 'bad'}" title="${n!.text.replace(/"/g, '&quot;')}">${n!.good ? '✓' : '✗'} ${shortNote(n!.text)}</li>`).join('')}<li class="${
           filtered ? 'good' : 'bad'
-        }">${filtered ? '✓ Filter pump keeps the water clean' : '✗ No filter pump: the water slowly gets dirty'}</li>${
-          piped ? `<li class="good">✓ Feed pipe: ${Math.round(td.mash ?? 0)}/${TROUGH_CAP} L of mash in the trough</li>` : ''
-        }${livingBases ? '' : trayLine(save, td, false)}${mult > 1 ? `<li class="good">✓ ${mult - 1} Echo whorl${mult > 2 ? 's' : ''}: ×${mult} output, eats and fouls ×${mult}</li>` : ''}</ul>${
-          c.stage === 'grown' ? `<p class="note">${makeLine(save, layout, c)}</p>` : ''
-        }`;
+        }" title="${filtered ? 'Filter pump keeps the water clean' : 'No filter pump: the water slowly gets dirty'}">${filtered ? '✓ Filter' : '✗ No filter'}</li>${
+          piped ? `<li class="good" title="Feed pipe: ${Math.round(td.mash ?? 0)}/${TROUGH_CAP} L of mash in the trough">✓ Pipe ${Math.round(td.mash ?? 0)}/${TROUGH_CAP}L</li>` : ''
+        }${livingBases ? '' : trayLine(save, td, false)}${mult > 1 ? `<li class="good" title="${mult - 1} Echo whorl${mult > 2 ? 's' : ''}: ×${mult} output, eats and fouls ×${mult}">✓ ×${mult} whorl</li>` : ''}</ul>`;
     }
     const planter = (slot: 1 | 2) =>
       PLANT_ORDER.map((p) => {
@@ -587,18 +600,22 @@ export class CareMode {
     const upgrade = this.upgradeButton();
     const overview = livingBases ? `<section class="habitat-care" aria-label="Habitat care">
       ${bar('Water quality', td.water, 'water')}
-      ${filtered ? '<p class="note">Filter pump running</p>' : ''}
+      <ul class="notes note-pills">${filtered ? '<li class="good" title="Filter pump running">✓ Filter running</li>' : '<li class="bad" title="No filter pump connected">✗ No filter</li>'}${trayLine(save, td, true)}</ul>
       <div class="acts">${feed}${clean}${all}${upgrade}${save.jar ? `<button type="button" data-act="deposit" ${list.length >= capacity ? `disabled title="This habitat holds ${capacity}: make room or use another"` : 'title="Move the jar\'s creature into this habitat"'}>${list.length >= capacity ? 'Habitat full' : 'Move specimen from jar'}</button>` : ''}</div>
-      <ul class="notes">${trayLine(save, td, true)}</ul>
     </section>` : '';
     const hero = c
       ? (() => {
           const tr = traitsOf(c);
+          const rate = c.stage === 'grown' ? makeRate(save, layout, c) : null;
+          const prodTag = rate && rate.perMin > 0
+            ? `<span class="rtag prod" title="${makeLine(save, layout, c).replace(/"/g, '&quot;')}">+${rate.perMin.toFixed(2)} ${SPECIES[c.species].makes === 'fibre' ? 'fibre' : SPECIES[c.species].makes}/m</span>`
+            : '';
           const badges = [
             tr.choir ? '<span class="rtag choir">Choir</span>' : '',
             tr.heirloom ? '<span class="rtag heirloom">Heirloom</span>' : '',
             tr.radiant ? '<span class="rtag radiant">Radiant</span>' : '',
             !tr.radiant && isRare(tr) ? '<span class="rtag rare">Rare</span>' : '',
+            prodTag,
           ].join('');
           const heroCls = tr.choir ? ' choir' : tr.heirloom ? ' heirloom' : tr.radiant ? ' radiant' : '';
           return `<div class="care-hero${heroCls}">

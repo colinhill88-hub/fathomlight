@@ -6053,6 +6053,59 @@ body.on-foot #btn-dart {
   }
 }
 
+/* ---- Interface Simplification: calm diving HUD & compact console status pills ---- */
+body:not(.building):not(.stationing):not(.docking):not(.caring) #inventory.bag-empty {
+  display: none;
+}
+
+body:not(.building):not(.stationing):not(.docking):not(.caring) #inventory .chip.bag-zero {
+  display: none;
+}
+
+#inventory.all-empty {
+  display: none;
+}
+
+#care-panel ul.note-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  list-style: none;
+  margin: 8px 0 4px;
+  padding: 0;
+}
+
+#care-panel ul.note-pills li {
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.25;
+  border: 1px solid rgba(180, 220, 214, 0.22);
+  background: rgba(12, 34, 42, 0.72);
+  cursor: help;
+}
+
+#care-panel ul.note-pills li.good {
+  border-color: rgba(154, 214, 134, 0.35);
+  background: rgba(56, 112, 72, 0.24);
+  color: #cfecc2;
+}
+
+#care-panel ul.note-pills li.bad {
+  border-color: rgba(240, 128, 96, 0.48);
+  background: rgba(168, 56, 38, 0.24);
+  color: #ffc2ae;
+}
+
+.rtag.prod {
+  background: rgba(140, 210, 120, 0.18);
+  color: #d6f5b0;
+  border: 1px solid rgba(166, 224, 130, 0.45);
+  text-transform: none;
+  letter-spacing: 0.02em;
+}
+
 /* ---- Compact iPhone landscape protection ---- */
 @media (max-height: 440px) {
   #care-panel,
