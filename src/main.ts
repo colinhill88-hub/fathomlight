@@ -139,6 +139,8 @@ import { BuildMode } from './ui/build';
 import { Wildlife } from './world/wildlife';
 import { TankLife } from './world/tanklife';
 import { loadTankArt } from './art/tankArt';
+import { SupplyBuoy } from './world/supplyBuoy';
+import { ExchangePanel } from './ui/exchange';
 import { Escort } from './actors/escort';
 import { Critter } from './actors/critters';
 import { CareMode } from './ui/care';
@@ -341,6 +343,8 @@ async function boot(): Promise<void> {
   const linnea = new LinneaActor();
   linnea.setSpot(linneaPlan(save).spot);
   const linneaSay = new LinneaSpeech();
+  // Research Exchange (Supply Buoy EX-1): dispatch surplus creatures for Survey Credits.
+  const supplyBuoy = new SupplyBuoy();
   /**
    * Talk to Linnea (the Collect action beside her): she says the first line of
    * her current hint, or the next line if she has another. The first time ever,
@@ -566,6 +570,7 @@ async function boot(): Promise<void> {
       lodeArt.view,
       wildlife.view,
       linnea.view,
+      supplyBuoy.view,
       escort.view,
       lurkers.view,
       hunters.view,
@@ -582,10 +587,10 @@ async function boot(): Promise<void> {
       scenery.over,
     );
     frontCam.addChild(scenery.front);
-    emissiveCam.addChild(gearFx.emissive, lodeArt.emissive, scenery.emissive, baseView.emissive, tankLife.emissive, pickups.emissive, wildlife.emissive, escort.emissive, lurkers.emissive, hunters.emissive, sub.emissive, drone.emissive, ...fish.map((f) => f.lure), diver.lens, diver.resonDot, surfaceFx.view);
+    emissiveCam.addChild(gearFx.emissive, lodeArt.emissive, scenery.emissive, baseView.emissive, tankLife.emissive, pickups.emissive, wildlife.emissive, supplyBuoy.emissive, escort.emissive, lurkers.emissive, hunters.emissive, sub.emissive, drone.emissive, ...fish.map((f) => f.lure), diver.lens, diver.resonDot, surfaceFx.view);
     if (livingBases) emissiveCam.addChild(poolFx.view);
     if (wake) emissiveCam.addChildAt(wake.view, 0);
-    glowCam.addChild(scenery.glow, baseView.glow, tankLife.glow, pickups.glow, wildlife.glow, linnea.glow, escort.glow, lurkers.glow, hunters.glow, sub.glow, drone.glow, ...fish.map((f) => f.halo), diver.lensGlow, diver.resonGlow);
+    glowCam.addChild(scenery.glow, baseView.glow, tankLife.glow, pickups.glow, wildlife.glow, linnea.glow, supplyBuoy.glow, escort.glow, lurkers.glow, hunters.glow, sub.glow, drone.glow, ...fish.map((f) => f.halo), diver.lensGlow, diver.resonGlow);
   }
   populate();
 
@@ -709,6 +714,23 @@ async function boot(): Promise<void> {
       document.body.classList.toggle('kit-open', open);
       audio.setPaused(open);
     },
+  });
+  const exchangePanel = new ExchangePanel({
+    save: () => save,
+    layout: () => layout,
+    persist,
+    changed: () => {
+      tankLife.sync(save, layout);
+      baseHooks?.syncTanks();
+    },
+    toast: (text, kind) => hud.toast(text, kind),
+    refreshInventory: () => hud.refreshInventory(),
+    onBuy: (kind, title, line) => {
+      sound.toast('big');
+      grant(notable(kind === 'egg' ? 'egg' : 'piece', 'Exchange order', title, line, 'life'));
+      hud.toast(`${title}: ${line}`, 'big');
+    },
+    onDispatch: () => sound.toast('item'),
   });
   const padNav = new PadNav();
   let seenClock = 0;
@@ -1700,7 +1722,7 @@ async function boot(): Promise<void> {
     buildId: __BUILD_ID__,
     onPause: (p) => audio.setPaused(p),
     panelOpen: () =>
-      build.active || care.active || dockUI.active || station.active || hatchPanel.active || contact.active || zoneMap.open || hud.reading || rates.open || fieldKit.open || !settingsPanel.hidden || !logPanel.hidden,
+      build.active || care.active || dockUI.active || station.active || hatchPanel.active || contact.active || zoneMap.open || hud.reading || rates.open || fieldKit.open || exchangePanel.open || !settingsPanel.hidden || !logPanel.hidden,
   });
   window.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && !logPanel.hidden) document.getElementById('log-btn')!.click();
@@ -2259,7 +2281,7 @@ async function boot(): Promise<void> {
     menus.update();
     helperFrame(dt);
     // The title screen and the pause menu hold the world still.
-    if (menus.paused || fieldKit.open) {
+    if (menus.paused || fieldKit.open || exchangePanel.open) {
       diver.cancelSurfaceReaction();
       pausedFrames++;
       return;
@@ -3165,6 +3187,7 @@ async function boot(): Promise<void> {
     // Phase 18: Linnea at her current spot; she turns to Kestrel (or KS-1) as it comes near.
     linnea.setSpot(linneaPlan(save).spot);
     linnea.update(dt, time, aboard ? sub.x : diver.x, aboard ? sub.y : diver.y, true);
+    supplyBuoy.update(time);
     for (const ev of wildlife.update(dt, time, reachPt.x, reachPt.y, Math.hypot(diver.vx, diver.vy), aboard ? sub.thrust > 0 : diver.boosting, save, collectHeld && wildOk, camX - 200, camX + lastViewW + 200, motion)) {
       const caughtJar = { species: ev.species, stage: ev.stage, traits: wildlife.traitsOf(ev.id) };
       sound.holdDone('creature');
@@ -3816,6 +3839,8 @@ async function boot(): Promise<void> {
         // Phase 21: carrying a creature she asked for, the offer says so.
         const wish = !linneaSay.hasMore && [save.jar, save.jar2].some((j) => j && j.stage !== 'egg' && save.requests?.active.some((q) => matchesRequest(q, j.species, j.keep ? traitsOf(j.keep) : j.traits ?? { colour: -1, pattern: -1 })));
         baseAct = { label: linneaSay.hasMore ? 'Listen to Linnea' : wish ? 'Show Linnea your creature' : 'Talk to Linnea', run: talkToLinnea };
+      } else if (Math.hypot(supplyBuoy.x - (aboard ? sub.x : diver.x), supplyBuoy.y - (aboard ? sub.y : diver.y)) < 140 + (aboard ? 60 : 0)) {
+        baseAct = { label: 'Open Research Exchange (EX-1)', run: () => exchangePanel.show() };
       } else if (pod?.by) {
         baseAct = {
           label: pod.powered ? `Unload ${carried} item${carried === 1 ? '' : 's'} into storage` : pod.frame ? 'Storage pod: still a frame' : 'Storage pod: no power',

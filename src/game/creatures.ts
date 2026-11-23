@@ -803,7 +803,8 @@ function tickBreeding(save: SaveData, layout: BaseLayout, dt: number, ev: CareEv
       }
       td.breed ??= {};
       const crowd = crowding(creaturesIn(save, t.id).length, tankCapacity(layout, t.id, save));
-      const prog = Math.min(1, (td.breed[sp] ?? 0) + (pairs * dt * crowd) / BREED_SECONDS);
+      const tonic = (td.tonicUntil ?? 0) > save.playSeconds;
+      const prog = Math.min(1, (td.breed[sp] ?? 0) + (pairs * dt * crowd * (tonic ? 1.6 : 1)) / BREED_SECONDS);
       td.breed[sp] = prog;
       if (prog < 1 || nurseryRoom(save, layout) <= 0) continue;
       td.breed[sp] = 0;
@@ -813,6 +814,7 @@ function tickBreeding(save: SaveData, layout: BaseLayout, dt: number, ev: CareEv
       if (j >= i) j++;
       const pa = b[i];
       const pb = b[j];
+      const power = tonic ? Math.min(1, carePower(save, pa, pb) + 0.45) : carePower(save, pa, pb);
       const egg: CreatureData = {
         id: save.nextCreatureId++,
         species: sp,
@@ -823,8 +825,8 @@ function tickBreeding(save: SaveData, layout: BaseLayout, dt: number, ev: CareEv
         comfort: 0.5,
         sickness: 0,
         make: 0,
-        // Phase 21: a content, well-kept pair is up to twice as likely to give something rare.
-        traits: inherit(ensureTraits(pa), ensureTraits(pb), Math.random, carePower(save, pa, pb), { contact: !!save.sanctum?.contact }),
+        // Phase 21 + Research Exchange: good care & Rich Kelp Tonic raise rare odds.
+        traits: inherit(ensureTraits(pa), ensureTraits(pb), Math.random, power, { contact: !!save.sanctum?.contact }),
         parents: [creatureName(pa), creatureName(pb)],
         from: t.id,
       };

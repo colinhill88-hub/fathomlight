@@ -190,8 +190,20 @@ export const DECOR: Record<DecorId, { name: string; line: string }> = {
   clam: { name: 'Giant clam shell', line: 'An empty clam shell, pearly inside.' },
   lantern: { name: 'Ship’s lantern', line: 'A ship’s lantern that glows a soft warm amber.' },
   wheel: { name: 'Ship’s wheel', line: 'A wooden wheel from a lost ship, half sunk in the sand.' },
+  // Exclusive Supply Buoy (Research Exchange) decorations
+  anchor: { name: 'Sunken anchor', line: 'A heavy iron fluke anchor draped in barnacles and weed.' },
+  coralarch: { name: 'Coral archway', line: 'A natural arch of rosy terracotta reef coral.' },
+  astrolabe: { name: 'Brass astrolabe', line: 'A surveyor’s old brass rings, still gleaming in the sand.' },
+  floats: { name: 'Glass float cluster', line: 'Hand-blown sea-green fisherman’s floats tied in hemp netting.' },
+  bell: { name: 'Ship’s bell', line: 'A tarnished bronze ship’s bell tilted into the pebbles.' },
+  belljar: { name: 'Lumen bell jar', line: 'A brass-capped glass jar holding a warm glowing moss sprig.' },
+  cairn: { name: 'Pebble cairn', line: 'A balanced stack of smooth river stones for curious swimmers.' },
+  kelplantern: { name: 'Kelp lantern', line: 'A woven brass cage lantern casting warm golden light across the sand.' },
 };
-export const DECOR_ORDER: DecorId[] = ['arch', 'clam', 'amphora', 'driftwood', 'helmet', 'lantern', 'chest', 'wheel'];
+export const DECOR_ORDER: DecorId[] = [
+  'arch', 'clam', 'amphora', 'driftwood', 'helmet', 'lantern', 'chest', 'wheel',
+  'anchor', 'coralarch', 'astrolabe', 'floats', 'bell', 'belljar', 'cairn', 'kelplantern',
+];
 
 export function addDecor(save: SaveData, d: DecorId, n = 1): void {
   (save.decor ??= {})[d] = (save.decor[d] ?? 0) + n;

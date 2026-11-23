@@ -207,10 +207,14 @@ export interface TankData {
   level?: number;
   /** Phase 20: aquarium decorations placed in this tank (src/game/collection.ts). */
   decor?: DecorId[];
+  /** Research Exchange: playSeconds until Rich Kelp Tonic wears off (faster breeding & boosted rare odds). */
+  tonicUntil?: number;
 }
 
-/** Phase 20: tank decorations, earned from the collection book and Linnea's requests. */
-export type DecorId = 'arch' | 'amphora' | 'helmet' | 'chest' | 'driftwood' | 'clam' | 'lantern' | 'wheel';
+/** Phase 20 + Research Exchange: tank decorations, earned from the book, Linnea, or the Supply Buoy. */
+export type DecorId =
+  | 'arch' | 'amphora' | 'helmet' | 'chest' | 'driftwood' | 'clam' | 'lantern' | 'wheel'
+  | 'anchor' | 'coralarch' | 'astrolabe' | 'floats' | 'bell' | 'belljar' | 'cairn' | 'kelplantern';
 
 /** Phase 20: one kind (species, colour, pattern) in the collection book. */
 export interface BookEntry {
@@ -495,6 +499,8 @@ export interface SaveData {
   autoSettle?: boolean;
   tankKits?: number;
   displayKits?: number;
+  /** Research Exchange (Supply Buoy): Survey Credits earned by dispatching surplus raised creatures. */
+  credits?: number;
   playSeconds: number;
   savedAt: number;
 }
@@ -672,6 +678,7 @@ export function loadSave(spawnX: number, spawnY: number): { data: SaveData; load
       autoSettle: typeof d.autoSettle === 'boolean' ? d.autoSettle : undefined,
       tankKits: typeof d.tankKits === 'number' ? d.tankKits : undefined,
       displayKits: typeof d.displayKits === 'number' ? d.displayKits : undefined,
+      credits: typeof d.credits === 'number' && Number.isFinite(d.credits) && d.credits >= 0 ? Math.floor(d.credits) : undefined,
       relays: Array.isArray(d.relays) ? d.relays.filter((r: { x?: unknown; y?: unknown }) => typeof r?.x === 'number' && typeof r?.y === 'number') : [],
     } as SaveData;
     // Phase 22: new trait fields are optional; anything malformed is dropped (old creatures stay ordinary).

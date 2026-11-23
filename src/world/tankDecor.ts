@@ -143,6 +143,106 @@ export function drawDecor(id: DecorId): { view: Container; glow?: Graphics } {
       barnacles(g, [[-18, -34], [20, -8]], 1.5);
       break;
     }
+    case 'anchor': {
+      // Heavy iron fluke anchor leaning in the sand with a draped chain link and weed.
+      g.moveTo(0, -52).lineTo(0, -10).stroke({ color: 0x4c5458, width: 6, cap: 'round' });
+      g.moveTo(-1, -50).lineTo(-1, -12).stroke({ color: 0x7c868a, width: 1.8, alpha: 0.7 });
+      g.moveTo(-16, -42).lineTo(16, -42).stroke({ color: 0x5c4a38, width: 5, cap: 'round' });
+      g.circle(0, -55, 5.5).stroke({ color: 0x6c7478, width: 2.6 });
+      g.moveTo(-24, -18).quadraticCurveTo(0, -2, 24, -18).stroke({ color: 0x4c5458, width: 6, cap: 'round' });
+      g.poly([-28, -22, -18, -14, -22, -24]).fill({ color: 0x626c70 });
+      g.poly([28, -22, 18, -14, 22, -24]).fill({ color: 0x626c70 });
+      barnacles(g, [[-12, -10], [10, -8], [-4, -30], [14, -42]], 1.5);
+      weed(g, -20, -14, 14, -5);
+      weed(g, 18, -14, 12, 4, 0x8a7a30);
+      break;
+    }
+    case 'coralarch': {
+      // A natural arch of warm rosy-terracotta reef coral.
+      g.moveTo(-26, 0).quadraticCurveTo(-24, -46, 0, -48).quadraticCurveTo(24, -46, 26, 0)
+        .stroke({ color: 0xc2685e, width: 11, cap: 'round' });
+      g.moveTo(-24, -4).quadraticCurveTo(-22, -44, 0, -46).quadraticCurveTo(22, -44, 24, -4)
+        .stroke({ color: 0xe69c88, width: 4, alpha: 0.7, cap: 'round' });
+      for (const [bx, by, tx, ty] of [[-20, -30, -32, -44], [-8, -46, -14, -58], [10, -46, 16, -57], [22, -28, 32, -40]] as const) {
+        g.moveTo(bx, by).lineTo(tx, ty).stroke({ color: 0xd47a6e, width: 4.5, cap: 'round' });
+        g.circle(tx, ty, 3).fill({ color: 0xf4c2b2 });
+      }
+      barnacles(g, [[-24, -4], [24, -5]], 1.4);
+      break;
+    }
+    case 'astrolabe': {
+      // A surveyor's weathered brass astrolabe tilted in the sand.
+      g.circle(0, -24, 21).stroke({ color: 0xb88b3a, width: 4.5 });
+      g.circle(0, -24, 16).stroke({ color: 0xdfc06c, width: 1.5, alpha: 0.7 });
+      g.ellipse(0, -24, 20, 8).stroke({ color: 0x9c722c, width: 2.4 });
+      g.ellipse(0, -24, 8, 20).stroke({ color: 0xc99c48, width: 2.2 });
+      g.moveTo(-16, -34).lineTo(16, -14).stroke({ color: 0xf0d68a, width: 2.2, cap: 'round' });
+      g.circle(0, -24, 3.5).fill({ color: 0xf2d88e });
+      g.circle(0, -48, 4).stroke({ color: 0xb88b3a, width: 2 });
+      g.ellipse(0, 1, 22, 5).fill({ color: 0xc2ab7e, alpha: 0.85 });
+      break;
+    }
+    case 'floats': {
+      // Hand-blown sea-green fisherman's glass floats in hemp netting.
+      for (const [fx, fy, r, col] of [[-12, -13, 12, 0x5c9c88], [12, -11, 10, 0x76b094], [0, -25, 11, 0x4e8c7a]] as const) {
+        g.circle(fx, fy, r).fill({ color: col, alpha: 0.88 });
+        g.circle(fx - r * 0.3, fy - r * 0.3, r * 0.35).fill({ color: 0xd8f2df, alpha: 0.55 });
+        g.circle(fx, fy, r).stroke({ color: 0x9c8256, width: 1.6, alpha: 0.8 });
+        g.moveTo(fx - r * 0.7, fy - r * 0.5).lineTo(fx + r * 0.7, fy + r * 0.5).stroke({ color: 0x8a7048, width: 1.1, alpha: 0.7 });
+        g.moveTo(fx + r * 0.7, fy - r * 0.5).lineTo(fx - r * 0.7, fy + r * 0.5).stroke({ color: 0x8a7048, width: 1.1, alpha: 0.7 });
+      }
+      weed(g, -22, 0, 11, -4);
+      break;
+    }
+    case 'bell': {
+      // Tarnished bronze ship's bell tilted in the sand.
+      view.rotation = 0.24;
+      g.poly([-20, -4, -14, -22, -11, -36, 11, -36, 14, -22, 20, -4]).fill({ color: 0x9c7838 });
+      g.poly([-17, -6, -12, -22, -9, -34, -2, -34, -4, -20, -8, -6]).fill({ color: 0xd4b05c, alpha: 0.7 });
+      g.ellipse(0, -4, 20, 4.5).fill({ color: 0x423018 });
+      g.circle(0, -5, 4).fill({ color: 0xc9a24a });
+      g.circle(0, -40, 4.5).stroke({ color: 0x8a6830, width: 2.4 });
+      g.moveTo(-14, -20).lineTo(14, -20).stroke({ color: 0x5c8468, width: 2, alpha: 0.65 });
+      barnacles(g, [[12, -10], [8, -28], [-12, -12]], 1.4);
+      break;
+    }
+    case 'belljar': {
+      // Brass-capped glass bell jar holding a warm glowing sprig of lumen moss.
+      g.rect(-15, -7, 30, 7).fill({ color: 0x7a5c28 });
+      g.roundRect(-13, -44, 26, 38, 12).fill({ color: 0x8cc2b0, alpha: 0.28 }).stroke({ color: 0xcce8d8, width: 1.5, alpha: 0.7 });
+      g.ellipse(0, -14, 9, 5).fill({ color: 0x88b84c });
+      g.circle(-4, -17, 3.5).fill({ color: 0xc2e86a });
+      g.circle(3, -19, 4).fill({ color: 0xeaf8a8 });
+      g.circle(0, -15, 2.5).fill({ color: 0xf8ffd0 });
+      g.circle(0, -47, 3.5).fill({ color: 0xc9a24a });
+      glow = new Graphics();
+      glow.circle(0, -20, 30).fill({ color: 0xc6e86a, alpha: 0.24 });
+      glow.circle(0, -20, 14).fill({ color: 0xeef8a8, alpha: 0.42 });
+      break;
+    }
+    case 'cairn': {
+      // Balanced stack of smooth river stones.
+      for (const [cy, rx, ry, col] of [[-5, 22, 6, 0x6d6458], [-14, 17, 5.5, 0x8c806e], [-22, 13, 4.8, 0x646058], [-29, 9.5, 4, 0xa8987e], [-35, 6, 3.2, 0x7d7466]] as const) {
+        g.ellipse(0, cy, rx, ry).fill({ color: col });
+        g.ellipse(-rx * 0.25, cy - ry * 0.35, rx * 0.45, ry * 0.35).fill({ color: 0xe6dac0, alpha: 0.42 });
+      }
+      weed(g, 20, 0, 12, 5);
+      weed(g, -20, 0, 10, -4, 0x8a7a30);
+      break;
+    }
+    case 'kelplantern': {
+      // Tall woven brass cage lantern on a stone plinth, casting warm golden light.
+      g.rect(-14, -8, 28, 8).fill({ color: 0x5c5850 });
+      g.rect(-3, -34, 6, 26).fill({ color: 0x7c5e2c });
+      g.roundRect(-12, -52, 24, 24, 6).fill({ color: 0xffd066, alpha: 0.85 }).stroke({ color: 0x9c7634, width: 2.4 });
+      g.moveTo(0, -52).lineTo(0, -28).stroke({ color: 0x7c5e2c, width: 1.8 });
+      g.moveTo(-12, -40).lineTo(12, -40).stroke({ color: 0x7c5e2c, width: 1.6 });
+      g.poly([-14, -52, 0, -60, 14, -52]).fill({ color: 0x6e5226 });
+      glow = new Graphics();
+      glow.circle(0, -40, 38).fill({ color: 0xffc254, alpha: 0.28 });
+      glow.circle(0, -40, 18).fill({ color: 0xffe49c, alpha: 0.48 });
+      break;
+    }
   }
   return { view, glow };
 }

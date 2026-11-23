@@ -4,6 +4,18 @@ The live branch includes the Fulmar foothold, Codex Phases 1–11D the Phase 12 
 
 Play link: https://colinhill88-hub.github.io/fathomlight/ (live; first successful deploy 2026-11-14)
 
+### Kestrel Supply Buoy — Research Exchange & Survey Credits (Colin, Nov 23, 2026)
+
+Added an end-to-end creature offloading and reward loop inspired by Dave the Diver's catch-and-sell rhythm, tailored to Fathomlight's cozy research world:
+- **Floating Supply Buoy EX-1 (`src/world/supplyBuoy.ts`):** tethered just east of the base (`x = 2060`, clear of the build grid, Linnea, and the Choir portal), bobbing with a glowing Kestrel-lime beacon. Swim or drive KS-1 up to it and press Collect (`C`) to open the **Research Exchange**.
+- **Dispatching surplus creatures (`src/game/exchange.ts`, `src/ui/exchange.ts`):** send creatures from your **Reserve** or **any tank** to partner marine sanctuaries for **Survey Credits (`SC`)**, scaled by rarity and stage (common adult `15 SC`, uncommon `35 SC`, rare `75 SC`, radiant `120–165 SC`, heirloom `220 SC`, Choir-touched `350 SC`; young pay half). Includes a one-tap **"Send duplicate commons"** button that protects breeding pairs (keeps ≥2 per species and ≥1 of every look) and never touches rare, radiant, heirloom, Choir-touched, or Linnea's requested creatures. Rare/special creatures ask for a second tap before sending.
+- **Exchange Store:**
+  - **8 exclusive tank decorations** (`src/world/tankDecor.ts`, `src/game/collection.ts`): *Pebble cairn*, *Glass float cluster*, *Sunken anchor*, *Ship's bell*, *Coral archway*, *Brass astrolabe*, *Lumen bell jar* (glows), and *Kelp lantern* (glows).
+  - **Rich Kelp Tonic (`45 SC`):** apply to any tank for 15 minutes of 1.6× faster breeding and boosted rare-trait odds (`tankData.tonicUntil` in `src/game/creatures.ts`).
+  - **Base supplies & Echo whorls:** Brass fittings ×4, Hull plating ×4, Glowing bloom ×1, Echo whorl ×1.
+  - **Mystery Rare Eggs (`110 SC`):** rare-odds egg for any discovered species, delivered to the Creature room.
+- **Save-safe:** optional fields `credits` on `SaveData` and `tonicUntil` on `TankData` only.
+
 ### Tank backdrops & UI/UX polish pass (Colin, Nov 23, 2026; local working tree)
 
 Upgraded both the creature tanks and every menu/HUD surface to a cohesive Outpost Kestrel look:
