@@ -151,7 +151,7 @@ import { an, book, claimBookRewards, matchesRequest, hatchTier, kindName, record
 import { keepOldNames, creatureName, creaturesIn, releaseFromJar as releaseJar, jarRoom, newCreature, putInJar, takeFromJar, payCost, PLANT_ORDER, PLANTS, SPECIES, SPECIES_ORDER, tankCapacity, tankNumber, tickCare, wildAllowed, WILD_CAP } from './game/creatures';
 import { creatureMilestone, creatureSiteHint, fieldResearch, type CreatureSite } from './game/discovery';
 import { HatchPanel } from './ui/hatch';
-import { isRare, traitsOf, traitText, wildTraits } from './game/traits';
+import { traitsOf, traitText, wildTraits } from './game/traits';
 import { RatesPanel } from './ui/rates';
 import { Factory, FARM_TRAY, FEEDER_MASH_CAP, HOPPER_CAP, machineData, PRESS_COPPER_CAP, PRESS_PLATE_CAP, PRESS_SCRAP_CAP, whorlMult, whorlsFree } from './game/factory';
 import { LinesView } from './world/linegfx';
@@ -674,7 +674,10 @@ async function boot(): Promise<void> {
     const t = traitText(c.species, tr);
     const firstHatch = !save.tips.includes('hatched1');
     const wanted = (save.requests?.active ?? []).some((q) => matchesRequest(q, c.species, tr));
-    const meaningful = forceShow || firstHatch || tier !== 'reveal' || isRare(tr) || wanted;
+    // Only interrupt for genuinely NEW book entries (new kind, colour, pattern, radiant or form),
+    // Linnea's active requests, or your very first hatch — never for repeat rare/radiant babies.
+    const bookNew = news.newKind || news.newColour || news.newPattern || news.newRadiant || news.newForms.length > 0;
+    const meaningful = forceShow || firstHatch || bookNew || wanted;
     if (firstHatch) save.tips.push('hatched1');
     if (meaningful) {
       if (tier !== 'reveal') {
@@ -2104,9 +2107,8 @@ async function boot(): Promise<void> {
         const firstTip = `grown:${ev.c.species}`;
         const firstOfSpecies = !save.tips.includes(firstTip);
         const tr = ev.c.traits ?? traitsOf(ev.c);
-        const special = !!tr.radiant || !!tr.heirloom || !!tr.choir;
         const wanted = (save.requests?.active ?? []).some((q) => matchesRequest(q, ev.c.species, tr));
-        if (firstOfSpecies || ability || special || wanted) {
+        if (firstOfSpecies || ability || wanted) {
           if (firstOfSpecies) save.tips.push(firstTip);
           grant(notable('creature', 'Fully grown', `${creatureName(ev.c)} the ${name.toLowerCase()}`, ability ? 'It has a new ability.' : 'Watch for its mature glow.', 'life'));
           hud.toast(`${who} in ${where} is fully grown. ${ability || 'Look for its mature glow pattern and what it leaves in the tray.'}`, 'big');
