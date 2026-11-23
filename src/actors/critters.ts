@@ -290,7 +290,12 @@ export class Critter {
     } else if (sp === 'ray') {
       const g = new Graphics();
       if (p === 1) for (const [x, y, rad] of [[-12, -1, 1.4], [-6, 2, 1.1], [-2, -3, 1.5], [4, 1, 1.2], [-15, 3, 0.9], [8, -3, 0.9]] as const) g.circle(x, y, rad).fill({ color: 0xfff0c0 });
-      else g.ellipse(0, 0, 19, 6.6).stroke({ color: 0xfff0c0, width: 0.8, alpha: 0.9 });
+      else {
+        // Luminous ring markings nestled across the ray's dappled back.
+        for (const [x, y, rx, ry] of [[-9, -2.5, 3.2, 2.2], [-1.5, -4.5, 3.8, 2.5], [6, -2.5, 3, 2], [-3.5, 1.5, 2.8, 1.9], [3.5, 0.8, 2.5, 1.7]] as const) {
+          g.ellipse(x, y, rx, ry).stroke({ color: 0xfff0c0, width: 1.1, alpha: 0.92 });
+        }
+      }
       this.emissive.addChild(g);
       this.parts.dots = g;
     } else if (sp === 'crab') {
