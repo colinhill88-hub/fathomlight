@@ -1,5 +1,6 @@
-import { Container, Graphics } from 'pixi.js';
+import { Container, Graphics, Sprite } from 'pixi.js';
 import type { DecorId } from '../game/state';
+import { getPropArt } from '../art/propArt';
 
 /*
  * Phase 20/21: aquarium decorations, drawn in code in the game's painterly way:
@@ -31,6 +32,24 @@ export function drawDecor(id: DecorId): { view: Container; glow?: Graphics } {
   // A soft contact shadow on the sand.
   g.ellipse(0, 0, 30, 4.5).fill({ color: SHADE, alpha: 0.35 });
   let glow: Graphics | undefined;
+  const painted = getPropArt().decor[id];
+  if (painted) {
+    const spr = new Sprite(painted);
+    spr.anchor.set(0.5, 0.96);
+    const target = id === 'coralarch' || id === 'arch' || id === 'driftwood' ? 68 : 56;
+    const sc = target / Math.max(1, painted.width, painted.height);
+    spr.scale.set(sc);
+    spr.position.set(0, 1);
+    view.addChild(spr);
+    if (id === 'lantern' || id === 'kelplantern' || id === 'belljar') {
+      glow = new Graphics();
+      const gy = -(painted.height * sc) * 0.45;
+      const col = id === 'belljar' ? 0xd8ff7a : 0xffd078;
+      glow.circle(0, gy, 32).fill({ color: col, alpha: 0.24 });
+      glow.circle(0, gy, 15).fill({ color: 0xfff0b8, alpha: 0.42 });
+    }
+    return { view, glow };
+  }
   switch (id) {
     case 'arch': {
       // Two weathered pillars and a lintel of reef stone, with a dark opening to swim through.
