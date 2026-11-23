@@ -5981,6 +5981,78 @@ body.on-foot #btn-dart {
   border-radius: 12px;
 }
 
+/* ---- Pinned Field Kit Book detail inspector (always visible when clicking a fish) ---- */
+.bk-detail {
+  position: sticky;
+  top: 0;
+  z-index: 4;
+  display: grid;
+  grid-template-columns: 76px 1fr;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 10px;
+  padding: 9px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(201, 162, 74, 0.55);
+  border-left: 3px solid var(--ui-brass-hi);
+  background: linear-gradient(160deg, rgba(16, 44, 52, 0.97), rgba(7, 20, 27, 0.98));
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(242, 212, 136, 0.22);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  animation: ui-panel-in 0.18s var(--ui-ease) both;
+}
+
+.bk-detail-pic {
+  width: 76px;
+  height: 58px;
+  border-radius: 9px;
+  display: grid;
+  place-items: center;
+  background: radial-gradient(ellipse at 50% 60%, rgba(84, 150, 146, 0.45), rgba(6, 18, 24, 0.88));
+  border: 1px solid rgba(188, 226, 218, 0.22);
+  overflow: hidden;
+}
+
+.bk-detail-pic.radiant {
+  border-color: #e8c25a;
+  box-shadow: 0 0 12px rgba(255, 210, 110, 0.4);
+}
+
+.bk-detail-pic img.snap {
+  width: 70px;
+  height: 52px;
+  object-fit: contain;
+}
+
+.bk-detail-pic img.shadow {
+  filter: brightness(0) opacity(0.55);
+}
+
+.bk-detail-body {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.bk-detail-body b {
+  font-size: 14.5px;
+  color: #ffe8a8;
+}
+
+.bk-mine button {
+  border-color: rgba(201, 162, 74, 0.5);
+  background: rgba(201, 162, 74, 0.14);
+  color: #ffe8a8;
+}
+
+@media (hover: hover) {
+  .bk-mine button:hover {
+    border-color: #f6dc96;
+    background: rgba(201, 162, 74, 0.28);
+  }
+}
+
 /* ---- Compact iPhone landscape protection ---- */
 @media (max-height: 440px) {
   #care-panel,

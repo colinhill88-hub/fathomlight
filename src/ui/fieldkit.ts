@@ -359,13 +359,16 @@ export class FieldKit {
       const { colour, pattern } = this.cell;
       const e = b[kindKey(sp, colour, pattern)];
       const mine = allKept(s).filter((c) => c.species === sp && c.stage !== 'egg' && (c.traits?.colour ?? -1) === colour && (c.traits?.pattern ?? -1) === pattern);
+      const pic = e
+        ? snapImg(sp, { colour, pattern, radiant: !!e.radiant }, '', 'grown')
+        : snapImg(sp, { colour: 0, pattern: 0 }, 'shadow', 'grown');
       detail = e
-        ? `<div class="bk-detail"><b>${esc(kindName(sp, colour, pattern))}</b><span>${e.src === 'bred' ? `First bred (generation ${e.gen})` : 'First kept from the wild'}${e.radiant ? ' · a radiant one has hatched' : ''}</span><div class="bk-mine">${
-            mine.length ? mine.map((c) => `<button type="button" data-act="bk-card" data-id="${c.id}">${esc(creatureName(c))}${c.traits?.radiant ? ' ✦' : ''}</button>`).join('') : '<small>None kept right now.</small>'
-          }</div></div>`
-        : `<div class="bk-detail"><b>??? · ${COLOURS[sp][colour].toLowerCase()}, ${PATTERNS[sp][pattern]}</b><span>${
+        ? `<div class="bk-detail"><div class="bk-detail-pic${e.radiant ? ' radiant' : ''}">${pic}</div><div class="bk-detail-body"><b>${esc(kindName(sp, colour, pattern))}</b><span>${e.src === 'bred' ? `First bred (generation ${e.gen})` : 'First kept from the wild'}${e.radiant ? ' · a radiant one has hatched' : ''}</span><div class="bk-mine">${
+            mine.length ? mine.map((c) => `<button type="button" data-act="bk-card" data-id="${c.id}">${esc(creatureName(c))}${c.traits?.radiant ? ' ✦' : ''} →</button>`).join('') : '<small>None kept right now.</small>'
+          }</div></div></div>`
+        : `<div class="bk-detail"><div class="bk-detail-pic">${pic}</div><div class="bk-detail-body"><b>??? · ${COLOURS[sp][colour].toLowerCase()}, ${PATTERNS[sp][pattern]}</b><span>${
             colour === RARE_COLOUR || pattern >= WILD_PATTERNS ? 'Never seen in the wild: only breeding brings it out. Content, well-kept parents make it more likely.' : 'Seen in the wild, or bred from parents that carry it.'
-          }</span></div>`;
+          }</span></div></div>`;
     }
     // Phase 22: the rare forms row (sizes, shapes, heirloom lines and, after contact, the Choir's touch).
     const contact = !!s.sanctum?.contact;
@@ -392,9 +395,12 @@ export class FieldKit {
         heirloom: 'About 1 in 100 hatchings, and only from the 4th generation of breeding. Once a line has one, it is passed down often.',
         choir: contact ? 'About 1 in 150 hatchings now the Choir knows you. Its light runs in families.' : 'Something only the deep can give. Keep going.',
       };
-      detail = `<div class="bk-detail"><b>${f === 'choir' && !contact && !e ? '???' : esc(formName(sp, f))} <em class="rtag ${formTier(f) === 'uncommon' ? 'unc' : formTier(f) === 'rare' ? 'rare' : f}">${formTier(f)}</em></b><span>${e ? `${e.src === 'bred' ? `First bred (generation ${e.gen})` : 'First kept from the wild'}. ` : ''}${how[f]} Great care makes it up to twice as likely.</span>${
-        e ? `<div class="bk-mine">${mine.length ? mine.map((c) => `<button type="button" data-act="bk-card" data-id="${c.id}">${esc(creatureName(c))}</button>`).join('') : '<small>None kept right now.</small>'}</div>` : ''
-      }</div>`;
+      const fpic = e
+        ? snapImg(sp, formLook(f), '', 'grown')
+        : snapImg(sp, formLook(f === 'choir' ? 'tiny' : f), 'shadow', 'grown');
+      detail = `<div class="bk-detail"><div class="bk-detail-pic">${fpic}</div><div class="bk-detail-body"><b>${f === 'choir' && !contact && !e ? '???' : esc(formName(sp, f))} <em class="rtag ${formTier(f) === 'uncommon' ? 'unc' : formTier(f) === 'rare' ? 'rare' : f}">${formTier(f)}</em></b><span>${e ? `${e.src === 'bred' ? `First bred (generation ${e.gen})` : 'First kept from the wild'}. ` : ''}${how[f]} Great care makes it up to twice as likely.</span>${
+        e ? `<div class="bk-mine">${mine.length ? mine.map((c) => `<button type="button" data-act="bk-card" data-id="${c.id}">${esc(creatureName(c))} →</button>`).join('') : '<small>None kept right now.</small>'}</div>` : ''
+      }</div></div>`;
     }
     const reqs = s.requests?.active ?? [];
     const requests = reqs.length
@@ -409,9 +415,9 @@ export class FieldKit {
       <nav class="bk-pages">${pages}</nav>
       <section class="bk-page">
         <header><b>${SPECIES[sp].name}</b><span>${pg.filled}/12 kinds${pg.radiant ? ` · ${pg.radiant} radiant` : ''}</span></header>
+        ${detail}
         <div class="bk-grid">${head}${rows}</div>
         ${forms}
-        ${detail}
         ${requests}
         ${earned}
       </section>
