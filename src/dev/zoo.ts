@@ -1,5 +1,6 @@
 import { Application, BlurFilter, Container, Graphics } from 'pixi.js';
 import { Critter } from '../actors/critters';
+import { loadCreatureArt } from '../art/creatureArt';
 import { SPECIES, SPECIES_ORDER } from '../game/creatures';
 import type { SpeciesId } from '../game/state';
 import { COLOURS, PATTERNS, SHAPES, type Traits } from '../game/traits';
@@ -33,6 +34,7 @@ if (q.has('kinds')) {
 }
 const app = new Application();
 await app.init({ background: 0x0a2730, antialias: true, resizeTo: window, resolution: Math.min(2, devicePixelRatio) });
+if (q.get('art') !== 'procedural') await loadCreatureArt(true);
 document.body.prepend(app.canvas);
 const water = new Graphics();
 const world = new Container();

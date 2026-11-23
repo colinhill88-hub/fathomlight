@@ -1,4 +1,5 @@
-import { Container, FillGradient, Graphics, Point } from 'pixi.js';
+import { Container, FillGradient, Graphics, Point, Sprite } from 'pixi.js';
+import { getCreatureArt } from '../art/creatureArt';
 import { approach, batchAll, clamp } from './animkit';
 import type { Stroke } from './shoreCreatureRigs';
 
@@ -25,6 +26,7 @@ export class DappleRayRig {
   readonly stroke: Stroke = { x: 0, y: 0, vx: -38, vy: 32, radius: 42, strength: 0 };
   private readonly wings = [new Container(), new Container()];
   private readonly tips = [new Container(), new Container()];
+  private readonly paintedBody?: Container;
   private readonly tail: Container[] = [];
   private readonly segmentLength: number;
   private readonly wingReach: number;
@@ -109,7 +111,20 @@ export class DappleRayRig {
         .circle(x + 0.5, y - 0.5, r).fill(0x262c27)
         .circle(x + 1.1, y - 1.1, 0.67).fill(0xece1c2);
     }
-    this.view.addChild(this.wings[0], this.wings[1], spine);
+    const painted = getCreatureArt().ray;
+    if (painted) {
+      const box = new Container();
+      const sp = new Sprite(painted);
+      sp.anchor.set(0.5, 0.5);
+      sp.position.set(2, 0);
+      sp.width = young ? 44 : 58;
+      sp.height = young ? 28 : 37;
+      box.addChild(sp);
+      this.paintedBody = box;
+      this.view.addChild(box);
+    } else {
+      this.view.addChild(this.wings[0], this.wings[1], spine);
+    }
     batchAll(this.view);
     this.update(0, 0, false, Infinity, 0, 0);
   }
@@ -129,6 +144,10 @@ export class DappleRayRig {
       root.scale.y = (far ? -1 : 1) * (far ? 0.58 : 0.91) * span * (0.83 + wingbeat * 0.23);
       root.rotation = (wingbeat * 0.17 + (far ? -this.bank : this.bank) * 0.27) * span;
       this.tips[i].rotation = (Math.sin(this.phase - (far ? 1.62 : 0.94)) * 0.32 + current * 0.21) * span;
+    }
+    if (this.paintedBody) {
+      this.paintedBody.scale.y = 1 + stroke * 0.08 * span;
+      this.paintedBody.rotation = this.bank * 0.32 + stroke * 0.05 * span;
     }
     const near = this.wings[1];
     const outer = this.tips[1];

@@ -1,4 +1,5 @@
-import { Container, FillGradient, Graphics, Point } from 'pixi.js';
+import { Container, FillGradient, Graphics, Point, Sprite } from 'pixi.js';
+import { getCreatureArt } from '../art/creatureArt';
 import { approach, batchAll, clamp } from './animkit';
 import type { Stroke } from './shoreCreatureRigs';
 
@@ -132,7 +133,18 @@ export class GlowfinRig {
       this.veil.addChild(v);
       this.paddle.addChildAt(this.veil, 0);
     }
-    this.body.addChild(this.far, this.wrist, this.sail, hull, this.near, this.stalk);
+    const painted = getCreatureArt().glowfin;
+    let hullNode: Container = hull;
+    if (painted) {
+      const sp = new Sprite(painted);
+      sp.anchor.set(0.5, 0.5);
+      sp.position.set((back + 23) * 0.5, (brow + 14.5) * 0.5);
+      sp.width = 24 - back;
+      sp.height = 15.5 - brow;
+      sp.tint = color.body;
+      hullNode = sp;
+    }
+    this.body.addChild(this.far, this.wrist, this.sail, hullNode, this.near, this.stalk);
     batchAll(this.body);
     this.update(0, 0, 0);
   }

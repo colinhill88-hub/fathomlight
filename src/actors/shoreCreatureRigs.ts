@@ -1,4 +1,5 @@
-import { Container, Graphics } from 'pixi.js';
+import { Container, Graphics, Sprite } from 'pixi.js';
+import { getCreatureArt } from '../art/creatureArt';
 
 export interface Stroke {
   x: number;
@@ -89,7 +90,17 @@ export class PuffcapRig extends ShoreRig {
       this.ribbons.push({ root, tip, baseX: root.x });
     }
     this.view.addChild(this.bell);
-    this.bell.addChild(cup);
+    const painted = getCreatureArt().puffcap;
+    if (painted) {
+      const sp = new Sprite(painted);
+      sp.anchor.set(0.5, 0.5);
+      sp.position.set(0, (-height * 1.15 + 14) * 0.5);
+      sp.width = radius * 2.08;
+      sp.height = height * 1.24 + 14.5;
+      this.bell.addChild(sp);
+    } else {
+      this.bell.addChild(cup);
+    }
     if (shape === 1) {
       // Lace rim: a second, finer frill of scallops round the bell's edge.
       const lace = new Graphics();

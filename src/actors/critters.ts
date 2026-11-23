@@ -1,4 +1,5 @@
 import { Container, FillGradient, Graphics } from 'pixi.js';
+import { getCreatureArt } from '../art/creatureArt';
 import { mulberry32 } from '../rng';
 import type { SpeciesId } from '../game/state';
 import { SIZE_SCALE, traitsOf, type Traits } from '../game/traits';
@@ -179,7 +180,7 @@ export class Critter {
     else if (species === 'snail') this.drawSnail();
     else this.drawRay(living);
     if (stage !== 'egg' && !this.shoreRig) this.drawPattern();
-    if (stage !== 'egg' && living) this.drawShade();
+    if (stage !== 'egg' && living && !getCreatureArt()[species]) this.drawShade();
     if (stage !== 'egg' && (this.traits.heirloom || this.traits.choir)) this.drawMarks();
     if (stage !== 'egg' && this.traits.radiant) {
       // Radiant: a wider, brighter glow, and a soft aura around the whole body.

@@ -139,6 +139,7 @@ import { BuildMode } from './ui/build';
 import { Wildlife } from './world/wildlife';
 import { TankLife } from './world/tanklife';
 import { loadTankArt } from './art/tankArt';
+import { loadCreatureArt } from './art/creatureArt';
 import { SupplyBuoy } from './world/supplyBuoy';
 import { ExchangePanel } from './ui/exchange';
 import { Escort } from './actors/escort';
@@ -307,6 +308,7 @@ async function boot(): Promise<void> {
     visualMode('shelf') ? loadWreckShelfMidground() : undefined,
     visualMode('worldArt') ? loadWorldArt(fidelity) : undefined,
     useShallowsArt && visualMode('worldArt') ? loadTankArt(fidelity) : undefined,
+    useShallowsArt && visualMode('worldArt') && livingCreatures ? loadCreatureArt(fidelity) : undefined,
   ]);
   const zoneBackdrop = new ZoneBackdrop(forestMidground, shelfMidground, worldArt);
   zoneBackdrop.build();

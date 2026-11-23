@@ -4,6 +4,14 @@ The live branch includes the Fulmar foothold, Codex Phases 1–11D the Phase 12 
 
 Play link: https://colinhill88-hub.github.io/fathomlight/ (live; first successful deploy 2026-11-14)
 
+### Painted creature textures — Shallows trio (Colin, Nov 23, 2026)
+
+Wired `src/art/creatureArt.ts` (`loadCreatureArt` with automatic 4-corner white background cutout, soft anti-aliased edge feathering, and tight bounding-box crop) and installed the first 3 painted `.webp` creature body textures (`src/art/creatures/glowfin.webp`, `puffcap.webp`, `ray.webp`, ~43 KB total, logged in `docs/art/SOURCES.md`):
+- **Glowfin (`src/actors/glowfinRig.ts`):** painted 3D body sprite tinted by colour variant, with the existing animated tail paddle, pectoral flippers, lure stalk, sail fin, and veil tail moving around it.
+- **Puffcap (`src/actors/shoreCreatureRigs.ts`):** painted 3D translucent dome bell on `this.bell`, with the 5 jointed flowing tentacles, lace rim, and crown animating beneath it.
+- **Dapple ray (`src/actors/dappleRayRig.ts`):** painted 3D gliding body with subtle vertical breathing undulation and banking tilt, with the 5-joint whip tail and rare tail plume trailing behind it.
+- **Baked shading:** `Critter` skips `drawShade()` for textured species so their painted volume shines cleanly, while keeping tank shadows, depth fog, glowing patterns, heirlooms, Choir-touched forms, and `?art=procedural` fallback. Loaded in both `src/main.ts` and `src/dev/zoo.ts` (`zoo.html`).
+
 ### Kestrel Supply Buoy — Research Exchange & Survey Credits (Colin, Nov 23, 2026)
 
 Added an end-to-end creature offloading and reward loop inspired by Dave the Diver's catch-and-sell rhythm, tailored to Fathomlight's cozy research world:
