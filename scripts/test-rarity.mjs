@@ -240,4 +240,98 @@ export async function runRarityChecks(server) {
     assert.equal(songMod.companion(save), pip, 'A raised creature in the jar joins the song');
     assert.match(songMod.companionWord(pip).name, /Glowfin · /);
   }
+
+  // ---- Colin (after Session B): the Creature room, slower breeding, bigger tanks ----
+  {
+    const { BaseLayout } = await server.ssrLoadModule('/src/game/base.ts');
+    assert.equal(care.BREED_SECONDS, 600, 'A pair lays every 10 minutes');
+    assert.equal(care.GROW_SECONDS, 720, 'Young take 12 minutes to grow');
+    assert.deepEqual([care.tankCapacity(new BaseLayout([{ id: 1, kind: 'tank', gx: 0, gy: 0, rot: 0 }]), 1), care.TANK_LEVELS.gtank], [12, [24, 36, 60]], 'Tanks hold three times as many');
+    assert.equal(care.crowding(6, 12), 1, 'Half full: full speed');
+    assert.ok(Math.abs(care.crowding(9, 12) - 0.625) < 1e-9, 'Three quarters full: slower');
+    assert.equal(care.crowding(12, 12), 0.25, 'Full: a quarter of the speed');
+    const world = () => {
+      const layout = new BaseLayout([
+        { id: 1, kind: 'tank', gx: 0, gy: 0, rot: 0 },
+        { id: 2, kind: 'gtank', gx: 4, gy: 0, rot: 0 },
+        { id: 3, kind: 'hatch', gx: 9, gy: 0, rot: 0 },
+      ]);
+      for (const id of [1, 2, 3]) layout.powered.add(id);
+      layout.powerRate = () => 1; // as if the base had plenty of power
+      const save = state.freshSave(0, 0);
+      save.tankData[1] = { water: 1, plant: 'coral' };
+      save.tankData[2] = { water: 1, plant: 'grass' };
+      return { save, layout };
+    };
+    const young = (save, species, from) => {
+      const c = { id: save.nextCreatureId++, species, tank: -1, stage: 'young', growth: 0, fed: 1, comfort: 0.5, sickness: 0, make: 0, traits: { colour: 0, pattern: 0, gen: 2 }, from };
+      save.nursery.push(c);
+      return c;
+    };
+    {
+      const { save, layout } = world();
+      const c = young(save, 'glowfin', 2);
+      assert.equal(care.settleYoung(save, layout, c), 2, "It swims to its parents' tank first");
+      assert.equal(save.nursery.length, 0);
+      assert.ok(save.creatures.includes(c));
+      const d = young(save, 'ray');
+      assert.equal(care.settleYoung(save, layout, d), 2, 'Otherwise to a tank with its favourite plant');
+      // Never in with a creature it clashes with: glowfins and puffcaps sting each other.
+      care.newCreature(save, 'puffcap', 'grown', 1);
+      care.newCreature(save, 'puffcap', 'grown', 2);
+      const e = young(save, 'glowfin', 1);
+      assert.equal(care.settleYoung(save, layout, e), 'reserve', 'No tank suits it: it rests in the reserve');
+      assert.equal(e.tank, -2);
+    }
+    {
+      // No reserve (no Creature room built), nowhere suitable: it waits in the cradle.
+      const layout = new BaseLayout([{ id: 1, kind: 'tank', gx: 0, gy: 0, rot: 0 }]);
+      layout.powered.add(1);
+      const save = state.freshSave(0, 0);
+      save.tankData[1] = { water: 1, plant: 'coral' };
+      while (care.creaturesIn(save, 1).length < 12) care.newCreature(save, 'snail', 'grown', 1);
+      const c = young(save, 'snail', 1);
+      assert.equal(care.settleYoung(save, layout, c), null, 'Every tank full and no reserve: it waits');
+      assert.ok(save.nursery.includes(c));
+    }
+    {
+      // Hatching in the Creature room settles it at once, unless switched off.
+      const { save, layout } = world();
+      const egg = { id: save.nextCreatureId++, species: 'ray', tank: -1, stage: 'egg', growth: 0.999, fed: 1, comfort: 0.5, sickness: 0, make: 0, traits: { colour: 0, pattern: 0, gen: 2 }, from: 2 };
+      save.nursery.push(egg);
+      const ev = care.tickCare(save, layout, 5).find((x) => x.type === 'nursery-hatched');
+      assert.equal(ev?.home, 2, 'A hatchling swims home by itself');
+      assert.equal(save.nursery.length, 0);
+      const { save: s2, layout: l2 } = world();
+      s2.autoSettle = false;
+      const egg2 = { ...egg, id: 77, stage: 'egg', growth: 0.999, tank: -1 };
+      s2.nursery.push(egg2);
+      const ev2 = care.tickCare(s2, l2, 5).find((x) => x.type === 'nursery-hatched');
+      assert.equal(ev2?.home, null, 'Switched off: it waits for you, as before');
+      assert.equal(s2.nursery.length, 1);
+    }
+    {
+      // A crowded tank lays more slowly than a roomy one.
+      const lays = (fill) => {
+        const { save, layout } = world();
+        const [a, b] = [care.newCreature(save, 'glowfin', 'grown', 1), care.newCreature(save, 'glowfin', 'grown', 1)];
+        while (care.creaturesIn(save, 1).length < fill) care.newCreature(save, 'snail', 'egg', 1);
+        let t = 0;
+        while (!save.nursery.length && t < 4000) {
+          for (const x of save.creatures) x.fed = 1;
+          for (const x of [a, b]) x.comfort = 1;
+          save.tankData[1].water = 1;
+          care.tickCare(save, layout, 5);
+          t += 5;
+        }
+        return t;
+      };
+      const roomy = lays(2);
+      const packed = lays(12);
+      assert.ok(roomy >= 590 && roomy <= 700, `A happy pair lays in about 10 minutes (${roomy} s)`);
+      assert.ok(packed > roomy * 3, `A full tank lays much more slowly (${packed} s vs ${roomy} s)`);
+    }
+    // The shoal bonus is capped, so a tank of 24 does not make 4x as much each.
+    assert.equal(care.SHOAL_MAX, 1.05);
+  }
 }

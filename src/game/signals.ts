@@ -97,6 +97,6 @@ export function signalStatus(save: SaveData, layout: BaseLayout): string {
   if (have < f.need)
     return `Signal array: the next fragment needs ${f.need} different glow patterns among your grown creatures (you have ${have}). Breed for new patterns.`;
   if (f.bred && bredWords(save) < f.bred)
-    return `Signal array: this fragment answers only to patterns the base has made itself: ${f.bred} different pattern${f.bred > 1 ? 's' : ''} among grown creatures bred at the Hatchery (you have ${bredWords(save)}).`;
+    return `Signal array: this fragment answers only to patterns the base has made itself: ${f.bred} different pattern${f.bred > 1 ? 's' : ''} among grown creatures bred at the Creature room (you have ${bredWords(save)}).`;
   return `Signal array: decoding fragment ${FRAGMENTS.indexOf(f) + 1} · ${Math.round(save.signals.progress * 100)}% · about ${Math.ceil((1 - save.signals.progress) * DECODE_SECONDS)} s`;
 }

@@ -1,4 +1,4 @@
-import { Container, Graphics } from 'pixi.js';
+import { Container, FillGradient, Graphics } from 'pixi.js';
 import { mulberry32 } from '../rng';
 import type { SpeciesId } from '../game/state';
 import { SIZE_SCALE, traitsOf, type Traits } from '../game/traits';
@@ -68,6 +68,25 @@ const CORE: Partial<Record<SpeciesId, { x: number; y: number; w: number; h: numb
   eel: { x: 0, y: 0, w: 44, h: 13 },
   horse: { x: 0, y: -2, w: 16, h: 30 },
 };
+
+/**
+ * Colin (after Session B): depth. Two soft radial gradients shared by every creature: a shadow
+ * on the underside and a light on top, so flat-coloured bodies read as round. They fade to
+ * nothing at their edges, so they never show as a hard shape past the body.
+ */
+let shadeGradients: { under: FillGradient; over: FillGradient } | null = null;
+function shades(): { under: FillGradient; over: FillGradient } {
+  return (shadeGradients ??= {
+    under: new FillGradient({
+      type: 'radial', center: { x: 0.5, y: 0.5 }, innerRadius: 0, outerCenter: { x: 0.5, y: 0.5 }, outerRadius: 0.5, textureSpace: 'local',
+      colorStops: [{ offset: 0, color: 'rgba(8, 18, 30, 0.42)' }, { offset: 0.55, color: 'rgba(8, 18, 30, 0.22)' }, { offset: 1, color: 'rgba(8, 18, 30, 0)' }],
+    }),
+    over: new FillGradient({
+      type: 'radial', center: { x: 0.5, y: 0.5 }, innerRadius: 0, outerCenter: { x: 0.5, y: 0.5 }, outerRadius: 0.5, textureSpace: 'local',
+      colorStops: [{ offset: 0, color: 'rgba(255, 250, 235, 0.32)' }, { offset: 0.5, color: 'rgba(255, 250, 235, 0.12)' }, { offset: 1, color: 'rgba(255, 250, 235, 0)' }],
+    }),
+  });
+}
 
 /** Blend two 0xRRGGBB colours (0 = a, 1 = b). */
 function lerpColour(a: number, b: number, k: number): number {
@@ -160,6 +179,7 @@ export class Critter {
     else if (species === 'snail') this.drawSnail();
     else this.drawRay(living);
     if (stage !== 'egg' && !this.shoreRig) this.drawPattern();
+    if (stage !== 'egg' && living) this.drawShade();
     if (stage !== 'egg' && (this.traits.heirloom || this.traits.choir)) this.drawMarks();
     if (stage !== 'egg' && this.traits.radiant) {
       // Radiant: a wider, brighter glow, and a soft aura around the whole body.
@@ -175,6 +195,28 @@ export class Critter {
    * exception to the colour rule): shimmering bands of cyan, violet and magenta over its
    * body, and a halo that slowly turns through them.
    */
+  /** Colin (after Session B): shading for depth, over the core of the body (see `shades`). */
+  private drawShade(): void {
+    const core = CORE[this.species] ?? { x: 0, y: 0, w: 36, h: 24 };
+    const k = this.stage === 'young' ? 0.7 : 1;
+    const cx = core.x * k;
+    const cy = core.y * k;
+    const w = core.w * k;
+    const h = core.h * k;
+    const { under, over } = shades();
+    const g = new Graphics();
+    // The underside in shadow (light comes from the surface above)...
+    g.ellipse(cx, cy + h * 0.32, w * 0.62, h * 0.5).fill(under);
+    // ...and a soft light across the top of the back.
+    g.ellipse(cx - w * 0.06, cy - h * 0.3, w * 0.46, h * 0.32).fill(over);
+    this.body.addChild(g);
+  }
+
+  /**
+   * Colin (after Session B): how far back in its tank it swims (0 front .. 1 back). Further
+   * back it is drawn bluer and dimmer, as if through more water (the tank sets it, and its size).
+   */
+  fog = 0;
   private heirloomMarks?: Graphics;
   private choirMarks?: Graphics;
   private choirAura?: Graphics;
@@ -853,7 +895,12 @@ export class Critter {
     // Sick creatures turn pale and grey.
     const grey = Math.round(255 - sick * 90);
     const tint = (grey << 16) | (Math.round(grey * 1.0) << 8) | Math.min(255, grey + 10);
-    this.body.tint = sick > 0.01 ? mulTint(tint, this.tint) : this.tint;
+    let bodyTint = sick > 0.01 ? mulTint(tint, this.tint) : this.tint;
+    if (this.fog > 0.01) {
+      bodyTint = mulTint(bodyTint, lerpColour(0xffffff, 0x86aab8, this.fog));
+      this.emissive.alpha = this.glow.alpha = 1 - this.fog * 0.35;
+    }
+    this.body.tint = bodyTint;
     if (this.aura) this.aura.alpha = 0.35 * vig * (0.75 + 0.25 * Math.sin(t * 1.1));
     if (this.heirloomMarks) {
       this.heirloomMarks.alpha = (0.55 + 0.35 * Math.sin(t * 0.9)) * (0.4 + 0.6 * vig);

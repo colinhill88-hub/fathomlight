@@ -78,3 +78,28 @@ And a halo: *a soft round glow that blends from cyan to violet to magenta, very 
 > A painted backdrop for the inside of a small aquarium tank seen from the front: soft blue-green water, a far wall of warm sandy reef rock with small corals and seagrass tufts, gentle light shafts from above, no fish, no glass edges, wide and shallow composition. [shared style line, without the creature words]
 
 Make one per plant (branch coral, ribbon kelp, seagrass, bladder kelp, lumen moss) so a tank's backdrop matches its plant.
+
+---
+
+## 7. Hand-off to Codex: painted textures with depth (Colin, Nov 23, 2026)
+
+Colin wants the creatures to look less flat. **Done in code first** (this pull request): a soft shadow on each creature's underside and light on its back (`drawShade` in `src/actors/critters.ts`), a shadow on the tank sand under each creature, and depth inside the tanks (creatures further back are smaller, bluer and dimmer, and drawn behind; `z` and `fog` in `src/world/tanklife.ts`). The painted textures below are the next step, for **Codex** (or any tool with image generation).
+
+**Sizes have changed:** in the tanks creatures are now drawn at `TANK_SIZE = 0.5` (about 59% of before), so most are only **30–70 px wide on a phone**. Paint at 4× that (128–256 px per part) and save `.webp`. Giants are 1.38×, tiny ones 0.68×.
+
+**What to make, per species** (colours as in the zoo, `zoo.html`):
+1. **A colour texture for each rig part** (the parts listed in sections 1–3; e.g. glowfin hull, tail paddle, pectoral fins, lure stalk), painted **with the shading baked in**: lit from above, a darker underside, soft ambient occlusion where parts meet, a thin warm rim light along the top edge, and painterly scale or skin texture. Side view, transparent background, each part on its own so it can move on its joint.
+2. **Optional: a normal map for each part** (a "depth map": an image that tells the game which way each spot faces), in the standard purple-blue tangent-space style, same size and outline as the colour texture. The game has no normal-map lighting for creatures yet; adding it is a code task for the same session (see below).
+3. **The glow sheets** stay separate, on black (sections 1c, 2b, 4, 5).
+
+**Prompt to add to every part** (after the shared style line): *with soft painted volume: lit from above with a gentle warm rim light along the top edge, a darker cool underside, soft shadow where parts overlap, subtle painted texture, no hard outlines, no cast shadow on the background.*
+
+**For the normal maps:** *a tangent-space normal map of this exact shape, matching its outline, smooth rounded volume, flat (128,128,255) background where transparent.*
+
+**How to wire them in (the code side, for the same Codex session):**
+- Put files in `src/art/creatures/<species>/<part>.webp` (and `<part>.normal.webp`), and log every one in `docs/art/SOURCES.md`.
+- Each rig builds its parts as `Graphics`; swap each part's `Graphics` for a `Sprite` of its texture **inside the same joint `Container`**, at the same anchor, so the existing animation drives it unchanged. Keep the code drawing as the fallback when a texture is missing or with `?art=procedural`.
+- Colours: either paint each colour variant, or paint the common one in greys and keep the existing tint (`BODY_TINTS` in `critters.ts`; the new species use `EEL_LOOKS` and `HORSE_LOOKS`).
+- With textures in, turn off `drawShade` for that species (the shading is baked in). Keep the tank shadows and depth fog.
+- Normal maps would need a small lighting step for the creature layer (the world's lighting is in `src/fx/lighting.ts`). Only do it if it stays smooth on an iPhone with 60 creatures on screen; otherwise the baked shading is enough.
+- Test with `zoo.html`, a crowded tank (24+ creatures) on the iPhone, and the book's portraits (`src/ui/creatureSnap.ts` renders the same rigs).

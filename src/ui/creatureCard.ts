@@ -138,8 +138,8 @@ export class CreatureCard {
       return p ? `Lives in ${pieceCode(layout, p)}` : 'In a tank';
     }
     if (save.reserve?.includes(c)) return 'Resting in the reserve';
-    if (save.nursery.includes(c)) return 'In a Hatchery cradle';
-    if (save.gifts?.includes(c)) return 'A rare egg waiting at the Hatchery';
+    if (save.nursery.includes(c)) return 'In a Creature room cradle';
+    if (save.gifts?.includes(c)) return 'A rare egg waiting at the Creature room';
     if (save.jar?.keep === c || save.jar2?.keep === c) return 'Carried in the specimen jar';
     return '';
   }

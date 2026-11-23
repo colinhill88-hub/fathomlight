@@ -4,7 +4,7 @@ Nov 21, 2026 · planned with Colin after Phase 14 (reward moments, PR #36)
 
 This is the agreed plan for work that is **not built yet**. Nothing here is implemented unless [Progress](../PROGRESS.md) says so. Read the [development handoff](AI_DEVELOPMENT_HANDOFF.md) before starting any of it, whichever AI tool you are. When a phase ships, move its entry into PROGRESS.md and mark it done here. Do not delete it.
 
-The order below is Colin's agreed phasing. **Phases 20 and 21 (Session A) are built and merged** (PR #50). **Phases 22 and 23 (Session B) are built** on a branch with a pull request (Nov 22, 2026). Phases 15, 16 and 17 are built and merged. **Phase 18 is built** (on a branch with a pull request for Colin). **Phase 19 is agreed and ready to build** (planned with Colin on Nov 21, 2026, after Phase 16), each with a session prompt in `docs/prompts/`. Later items need a design pass with Colin before code. Ask him the open questions listed with each item.
+The order below is Colin's agreed phasing. **Phases 20 and 21 (Session A) are built and merged** (PR #50). **Phases 22 and 23 (Session B) are built and merged** (PR #51, Nov 22, 2026); the Creature room follow-up is on a new pull request. Phases 15, 16 and 17 are built and merged. **Phase 18 is built** (on a branch with a pull request for Colin). **Phase 19 is agreed and ready to build** (planned with Colin on Nov 21, 2026, after Phase 16), each with a session prompt in `docs/prompts/`. Later items need a design pass with Colin before code. Ask him the open questions listed with each item.
 
 ## Colin's decisions (Nov 21, 2026)
 
@@ -78,6 +78,14 @@ The order below is Colin's agreed phasing. **Phases 20 and 21 (Session A) are bu
     - **performance:** keep it smooth on the iPhone with several tanks on screen (only tanks in view animate fully).
   - **Kestrel is a boy (he/him).** Some earlier documentation and code comments called Kestrel "she"; they are corrected in this pull request. Use he/him for Kestrel everywhere. (Linnea is "she"; the Corvina and the Fulmar are "her", as ships traditionally are.)
 - **Session B (Colin, Nov 22, 2026, during the session):** he approved the two new species from zoo screenshots: the **kiln eel** (trench) and the **chime seahorse** (the sanctum's edge), names and looks as drawn.
+- **The Creature room and smaller creatures (Colin, Nov 23, 2026, after playing Session B; built on a new pull request after PR #51 merged):**
+  - **The problem:** with about six breeding pairs the Hatchery (4 cradles) filled up fast, and walking room to room in a big base to manage creatures felt disconnected.
+  - **The Hatchery becomes the Creature room** (option A): one console with a **Tanks** tab showing every tank (who lives there, contentment, water, plant, who is laying) where you can feed, clean, move any creature to a tank or the reserve, and open cards. **Only while standing in the room** (Colin: coming home should matter), not from the Field kit.
+  - **Young swim home by themselves** (option B): when one hatches it goes to its parents' tank, or another that suits it, or the reserve; it only waits in a cradle if nothing suits. A switch on the console turns this off.
+  - **Smaller creatures, much bigger tanks:** creatures in tanks drawn at about 59% of before (Colin: at least 65%, maybe more); tanks hold about three times as many (Colin: triple or quadruple): small 12 (extended 18), Grand 24 (36), display aquarium 60.
+  - **Slower pace:** a pair lays every 10 minutes (was 6), crowded tanks lay more slowly (a full tank at a quarter of the speed), young take 12 minutes to grow (was 8).
+  - **Depth:** code shading first (underside shadow and top light, shadows on the sand, depth inside the tanks), then **Codex** makes painted textures with baked shading (and optional normal maps); the prompt is section 7 of `docs/art/prompts/phases-22-23-creatures.md`.
+  - **Choices the session made** (Colin can change them): smaller creatures dirty water a third as much and eat about 30% less (so a full tank fouls about as fast as before and a young one can still grow between visits); the shoal bonus stops growing at seven tank-mates (so a tank of 24 doesn't make four times as much each); creatures in the wild keep their size.
 - **What's next (Colin, after Phase 19 merged):** make creature care and breeding the heart of the game (Dave the Diver is the inspiration for how satisfying that loop feels), with more rare and unique creatures tied into the Choir encounter. Then premium polish. Combat gets more sections and tuning later, through playtesting. The plan is Phases 20–24 below; each needs a short design check with Colin first (the open questions are listed with each).
 
 ## Phase 15: quality of life and the Field kit (built, PR #38)
@@ -266,7 +274,7 @@ The original brief follows.
   - how strongly care should change the odds;
   - whether requests have time limits (suggested: none, to stay cozy).
 
-## Phase 22: more ways to be rare. **Built in Session B** (pull request; see PROGRESS.md). Design answered: see "Colin's decisions (Nov 22, 2026)".
+## Phase 22: more ways to be rare. **Built in Session B** (merged, PR #51; see PROGRESS.md). Design answered: see "Colin's decisions (Nov 22, 2026)".
 
 **Done:** size (tiny, giant), two new fin or shell shapes per species, heirloom lines (from the 4th generation), tiered rarity (uncommon 1 in 8, rare 1 in 25, heirloom 1 in 100, Choir-touched 1 in 150; great care doubles each), the book's rare forms row, planner odds, and two new species with their own rare forms: the kiln eel (trench floor) and the chime seahorse (the sanctum's antechamber). Choices the session made (Colin can change them):
 - tiny and giant are looks only (no change to what a creature makes);
@@ -292,7 +300,7 @@ The original brief follows.
   - whether to add species (how many, and where);
   - how rare "rare" should feel (one in ten hatchings, one in fifty).
 
-## Phase 23: creatures and the Choir. **Built in Session B** (pull request; see PROGRESS.md). Design answered: see "Colin's decisions (Nov 22, 2026)".
+## Phase 23: creatures and the Choir. **Built in Session B** (merged, PR #51; see PROGRESS.md). Design answered: see "Colin's decisions (Nov 22, 2026)".
 
 **Done:** Choir-touched creatures (after contact, 1 in 150, in the Choir's cyan, violet and magenta), the Choir singing back every pattern in your book in your creatures' colours, four tiers of richness (colours, circling lights, harmony, a held chord, sparkles and shimmers) and a special line for an outstanding collection, and the optional jar companion with its own moment. Choices the session made (Colin can change them):
 - after first contact the plinth in the heart lets you **sing with the Choir again** (no gifts, no credits), so a later collection, Choir-touched creatures and a companion can still be heard;
@@ -349,7 +357,7 @@ The original brief follows.
   - Panels that sort, filter, move and "care for all".
   - Living tanks: natural swimming with wakes, ripples and bubbles when creatures surface, and richer tank art (generated images allowed). If Session A runs long, this part can move to Session B.
   - Prompt: [`prompts/phases-20-21-creature-care.md`](prompts/phases-20-21-creature-care.md).
-- **Session B: Phases 22 and 23. Built (pull request, Nov 22, 2026).**
+- **Session B: Phases 22 and 23. Built and merged (PR #51, Nov 22, 2026).**
   - Size, shape and heirloom traits and the tiered rarity.
   - The two new species.
   - Choir-touched creatures.

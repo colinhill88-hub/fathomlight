@@ -45,7 +45,7 @@ try {
   habitat.tankData[1] = { water: 1, plant: 'lumen' };
   const snail = care.newCreature(habitat, 'snail', 'young', 1);
   snail.fed = 1;
-  for (let second = 0; second < 580; second++) care.tickCare(habitat, layout, 1);
+  for (let second = 0; second < 820; second++) care.tickCare(habitat, layout, 1);
   assert.equal(snail.stage, 'grown', 'A prepared solitary habitat supports a full growth cycle between visits');
 
   // A Grand tank is one tall aquarium in living bases: no mezzanine or ladder implies an upper deck.
@@ -343,9 +343,10 @@ try {
 
   // ---- Puffcaps' room to drift scales with the tank (Colin, Nov 22, 2026) ----
   {
-    assert.equal(care.driftRoom(care.TANK_CAPACITY), 2, 'A small tank: two puffcaps drift happily, as before');
-    assert.equal(care.driftRoom(care.GTANK_CAPACITY), 4, 'A Grand tank: four');
-    assert.equal(care.driftRoom(12), 6, 'Bigger tanks hold more');
+    // Colin (after Session B): tanks hold three times as many, so puffcaps get three times the room.
+    assert.equal(care.driftRoom(care.TANK_CAPACITY), 6, 'A small tank: six puffcaps drift happily');
+    assert.equal(care.driftRoom(care.GTANK_CAPACITY), 12, 'A Grand tank: twelve');
+    assert.equal(care.driftRoom(4), 2, 'Half full, as before');
     const comfortOf = (kind, n) => {
       const s = state.freshSave(0, 0);
       const lay = new BaseLayout([{ id: 1, kind, gx: 0, gy: 0, rot: 0 }]);
@@ -355,10 +356,10 @@ try {
       for (let i = 0; i < n; i++) made.push(care.newCreature(s, 'puffcap', 'grown', 1));
       return care.comfortTarget(s, lay, made[0]).notes.find((x) => /drift/.test(x.text));
     };
-    assert.equal(comfortOf('tank', 2).good, true);
-    assert.equal(comfortOf('tank', 3).good, false, 'Three is a crowd in a small tank');
-    assert.equal(comfortOf('gtank', 4).good, true, 'Four puffcaps have room in a Grand tank');
-    assert.equal(comfortOf('gtank', 5).good, false);
+    assert.equal(comfortOf('tank', 6).good, true);
+    assert.equal(comfortOf('tank', 7).good, false, 'Seven is a crowd in a small tank');
+    assert.equal(comfortOf('gtank', 12).good, true, 'Twelve puffcaps have room in a Grand tank');
+    assert.equal(comfortOf('gtank', 13).good, false);
   }
 
   // ---- Phase 19: combat inside the wrecks ----

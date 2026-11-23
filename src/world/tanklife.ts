@@ -36,6 +36,8 @@ interface Swimmer {
   rising: boolean;
   surfaceIn: number;
   wakeIn: number;
+  /** Colin (after Session B): how far back in the tank it swims (0 front .. 1 back). */
+  z: number;
 }
 
 interface Flake {
@@ -68,6 +70,8 @@ interface TankView {
   decorG: Container;
   decorKey: string;
   decorGlow: Container;
+  /** Colin (after Session B): soft shadows on the sand under each creature. */
+  shadowG: Graphics;
   /** Where the sea chest sits (it lets out a bubble now and then). */
   chestX: number | null;
 }
@@ -134,6 +138,13 @@ export interface TankLifeOptions {
   livingCreatures?: boolean;
   livingBases?: boolean;
 }
+
+/**
+ * How big creatures are drawn in the tanks. Colin (after Session B): much smaller than
+ * before (0.85, now about 59% of that), so the occasional giant really looks big and the
+ * tanks, which now hold three times as many, don't look crowded.
+ */
+export const TANK_SIZE = 0.5;
 
 export class TankLife {
   readonly view = new Container();
@@ -203,13 +214,14 @@ export class TankLife {
         const decorG = new Container();
         const decorGlow = new Container();
         this.glow.addChild(decorGlow);
-        root.addChild(decorG, plantG, flakesG, murk, bubblesG);
+        const shadowG = new Graphics();
+        root.addChild(decorG, plantG, shadowG, flakesG, murk, bubblesG);
         if (water) {
           root.addChildAt(water.back, 0);
           root.addChild(water.front);
         }
         this.view.addChild(root);
-        v = { id: t.id, root, plantG, plant: null, murk, glass, flakesG, bubblesG, flakes: [], bubbles: [], box, swimmers: new Map(), murkShown: -1, water, filtered: false, decorG, decorKey: '', decorGlow, chestX: null };
+        v = { id: t.id, root, plantG, plant: null, murk, glass, flakesG, bubblesG, flakes: [], bubbles: [], box, swimmers: new Map(), murkShown: -1, water, filtered: false, decorG, decorKey: '', decorGlow, chestX: null, shadowG };
         this.views.set(t.id, v);
       }
       v.filtered = filtered?.has(t.id) ?? false;
@@ -276,6 +288,9 @@ export class TankLife {
         // New, or it hatched or grew: redraw it.
         if (old) old.critter.destroy();
         const critter = new Critter(c.species, c.stage, c.id, traitsOf(c), this.opts.livingCreatures);
+        // Colin (after Session B): each swims at its own depth; further back, smaller and bluer.
+        const z = c.stage === 'egg' ? 0.2 : (c.id * 0.6180339) % 1;
+        critter.fog = z * 0.6;
         v.root.addChildAt(critter.view, v.root.getChildIndex(v.murk));
         this.emissive.addChild(critter.emissive);
         this.glow.addChild(critter.glow);
@@ -284,8 +299,9 @@ export class TankLife {
           data: c,
           critter,
           stage: c.stage,
-          x: old?.x ?? (c.stage === 'egg' ? eggX : v.box.x + v.box.w / 2),
-          y: old?.y ?? (c.stage === 'egg' ? v.box.y + v.box.h - 10 * this.k : v.box.y + v.box.h / 2),
+          // Colin (after Session B): tanks hold many more, so each starts at its own spot, not all in the middle.
+          x: old?.x ?? (c.stage === 'egg' ? eggX : v.box.x + v.box.w * (0.15 + ((c.id * 0.3819) % 1) * 0.7)),
+          y: old?.y ?? (c.stage === 'egg' ? v.box.y + v.box.h - 10 * this.k : v.box.y + v.box.h * (0.25 + ((c.id * 0.7071) % 1) * 0.55)),
           vx: 0,
           vy: 0,
           tx: 0,
@@ -297,6 +313,7 @@ export class TankLife {
           rising: false,
           surfaceIn: 4 + ((c.id * 7) % 9),
           wakeIn: 0,
+          z,
         };
         if (c.stage === 'egg') {
           s.x = eggX;
@@ -304,6 +321,10 @@ export class TankLife {
         }
         v.swimmers.set(c.id, s);
       }
+      // Colin (after Session B): back ones first, so the front ones swim in front of them.
+      const at = v.root.getChildIndex(v.murk);
+      const order = [...v.swimmers.values()].sort((a, b) => b.z - a.z);
+      for (const sw of order) v.root.setChildIndex(sw.critter.view, Math.min(at, v.root.children.length - 1));
       // Glass goes on top of everything in the tank.
       v.root.addChild(v.glass);
     }
@@ -434,6 +455,7 @@ export class TankLife {
         }
         if (on) bg.circle(b.x + Math.sin(time * 5 + i) * 1.5 * this.k, b.y, b.r).stroke({ color: 0xe8f6f0, width: 0.8 * this.k, alpha: Math.min(1, b.life) * 0.8 });
       }
+      v.shadowG.clear();
       for (const s of v.swimmers.values()) this.move(s, v, dt, time, save, on);
       if (on && this.highlight !== null && v.swimmers.has(this.highlight)) {
         const s = v.swimmers.get(this.highlight)!;
@@ -550,7 +572,13 @@ export class TankLife {
     if (!on) return;
     const fitPuffcap = this.opts.livingCreatures && c.species === 'puffcap' && c.stage !== 'egg';
     const maxHeight = c.stage === 'grown' ? 137 : 62;
-    const size = fitPuffcap ? Math.min(0.85 * this.k, (b.h - 14) / maxHeight) : 0.85 * this.k;
+    const depth = 1 - s.z * 0.28;
+    const size = (fitPuffcap ? Math.min(TANK_SIZE * this.k, (b.h - 14) / maxHeight) : TANK_SIZE * this.k) * depth;
+    // A soft shadow on the sand below it: darker and tighter the nearer the floor.
+    const floor = b.y + b.h - 4 * this.k;
+    const lift = Math.max(0, Math.min(1, (floor - s.y) / (b.h * 0.8)));
+    const sw = (c.stage === 'egg' ? 10 : 16) * this.k * depth * (1 + (c.traits?.size === 'giant' ? 0.4 : c.traits?.size === 'tiny' ? -0.3 : 0));
+    v.shadowG.ellipse(s.x, floor - s.z * 6 * this.k, sw * (1 + lift * 0.6), sw * 0.22).fill({ color: 0x0a1418, alpha: 0.28 * (1 - lift * 0.75) * (1 - s.z * 0.4) });
     const current = v.water?.flow(s.x, s.y, time, v.filtered) ?? 0;
     s.critter.update(dt, time, s.x, s.y, s.vx, s.vy, { vigour: vig, sick, size, current, feeding: s.feeding });
     if (fitPuffcap) s.critter.fitInHabitat(b, 5);

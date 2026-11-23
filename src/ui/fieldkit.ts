@@ -404,7 +404,7 @@ export class FieldKit {
       : '';
     const decor = DECOR_ORDER.filter((d) => (s.decor?.[d] ?? 0) > 0).map((d) => `${DECOR[d].name}${(s.decor?.[d] ?? 0) > 1 ? ` ×${s.decor![d]}` : ''}`);
     const gifts = s.gifts?.length ?? 0;
-    const earned = decor.length || gifts ? `<p class="bk-earned">${decor.length ? `To place at a Habitat console: ${esc(decor.join(', '))}. ` : ''}${gifts ? `${gifts} rare egg${gifts > 1 ? 's' : ''} waiting at the Hatchery.` : ''}</p>` : '';
+    const earned = decor.length || gifts ? `<p class="bk-earned">${decor.length ? `To place at a Habitat console: ${esc(decor.join(', '))}. ` : ''}${gifts ? `${gifts} rare egg${gifts > 1 ? 's' : ''} waiting at the Creature room.` : ''}</p>` : '';
     return `<div class="fk-book">
       <nav class="bk-pages">${pages}</nav>
       <section class="bk-page">

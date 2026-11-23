@@ -1,4 +1,5 @@
 import { BaseLayout, pieceCode } from '../game/base';
+import { careForAll, cleanTank, crowding, feedTank, PLANTS, reserveOpen, tankDataFor, worstNeed } from '../game/creatures';
 import { BREED_SECONDS, carePower, contentment, creatureName, creaturesIn, HATCH_CAP, HATCH_SECONDS, hatcheries, jarRoom, moveCreature, nurseryRoom, nurseryTroughCap, putInJar, pairsIn, RESERVE_CAP, SPECIES, SPECIES_ORDER, tankCapacity, tanks } from '../game/creatures';
 import { CreatureData, SaveData, SpeciesId } from '../game/state';
 import { COLOURS, eggOdds, formText, genText, isRare, PATTERNS, RARE_COLOUR, SHAPES, traitsOf, traitText, WILD_PATTERNS } from '../game/traits';
@@ -47,7 +48,9 @@ export class HatchPanel {
   /** Phase 21: when the pointer last moved over the panel (the live refresh waits, so a tap never lands on a replaced button). */
   private touchedAt = 0;
   /** Phase 21: the panel's tabs, and the planner's picks. */
-  private tab: 'cradles' | 'reserve' | 'planner' = 'cradles';
+  private tab: 'tanks' | 'cradles' | 'reserve' | 'planner' = 'tanks';
+  /** The Creature room's Tanks tab: the creature picked for moving (its quick actions show). */
+  private sel: number | null = null;
   private planSpecies: SpeciesId | null = null;
   private planA: number | null = null;
   private planB: number | null = null;
@@ -83,6 +86,26 @@ export class HatchPanel {
         else this.planB = id;
         this.render(true);
       } else if (act === 'p-pair') this.pairUp();
+      else if (act === 't-sel') {
+        const id = Number(el.dataset.id);
+        this.sel = this.sel === id ? null : id;
+        this.render(true);
+      } else if (act === 't-feed' || act === 't-clean') {
+        const id = Number(el.dataset.id);
+        const why = act === 't-feed' ? feedTank(this.deps.save, id) : cleanTank(this.deps.save, id);
+        this.deps.toast(why ?? (act === 't-feed' ? 'Flakes drift down through the tank.' : 'The scrubber hums; the water clears.'), why ? 'warn' : undefined);
+        this.deps.persist();
+        this.render(true);
+      } else if (act === 't-all') {
+        const r = careForAll(this.deps.save, this.deps.layout);
+        this.deps.toast(r.fed || r.cleaned ? `Fed ${r.fed} tank${r.fed === 1 ? '' : 's'}, cleaned ${r.cleaned}${r.short ? ` (${r.short} hungry: no kelp fibre left)` : ''}.` : r.short ? 'Out of kelp fibre for feeding.' : 'Every tank is fed and clean.', r.short ? 'warn' : undefined);
+        this.deps.persist();
+        this.render(true);
+      } else if (act === 't-auto') {
+        this.deps.save.autoSettle = this.deps.save.autoSettle === false;
+        this.deps.persist();
+        this.render(true);
+      }
       else if (act === 'r-filter') {
         this.resFilter = el.dataset.id as SpeciesId | 'all';
         this.render(true);
@@ -91,7 +114,8 @@ export class HatchPanel {
     this.panel.addEventListener('change', (e) => {
       if (!this.active) return;
       const el = e.target as HTMLSelectElement;
-      if (el.dataset.act === 'r-move' && el.value) {
+      if ((el.dataset.act === 'r-move' || el.dataset.act === 't-move') && el.value) {
+        if (el.dataset.act === 't-move') this.sel = null;
         const why = moveCreature(this.deps.save, this.deps.layout, Number(el.dataset.id), el.value === 'reserve' ? 'reserve' : Number(el.value));
         if (why) this.deps.toast(why, 'warn');
         else this.deps.changed();
@@ -112,7 +136,7 @@ export class HatchPanel {
   private handFeed(): void {
     const { save, layout } = this.deps;
     const cap = nurseryTroughCap(layout);
-    if (cap <= 0) return this.deps.toast('The trough needs a powered Hatchery', 'warn');
+    if (cap <= 0) return this.deps.toast('The trough needs a powered Creature room', 'warn');
     if (troughFull(save.nurseryMash ?? 0, cap)) return this.deps.toast('The trough is full: the young have plenty to eat', 'warn');
     if (save.bag.fibre + save.stored.fibre < 1) return this.deps.toast('Feeding the young takes 1 kelp fibre', 'warn');
     if (save.bag.fibre > 0) save.bag.fibre--;
@@ -246,7 +270,7 @@ export class HatchPanel {
     const full = cap > 0 && troughFull(mash, cap);
     const state = cap <= 0 ? 'off' : full ? 'full' : fibre < 1 ? 'empty' : 'ready';
     const button = {
-      off: ['No power', 'The trough fills only at a powered Hatchery.'],
+      off: ['No power', 'The trough fills only at a powered Creature room.'],
       full: ['Trough full', `The young have plenty of mash. Feeding opens again once the trough is below ${cap - 1} L.`],
       empty: ['Need 1 fibre', 'Hand feeding takes 1 kelp fibre from your bag or storage.'],
       ready: ['Feed <small>1 fibre</small>', `Press 1 kelp fibre into ${MASH_PER_FIBRE} L of mash for the young.`],
@@ -255,6 +279,68 @@ export class HatchPanel {
       ? `No feeding needed: the young eat from it while they wait. A hand feed adds ${MASH_PER_FIBRE} L, so it opens again below ${cap - 1} L.`
       : 'The young get hungry while they wait. A feed pipe from an auto feeder keeps it topped up.';
     return `<div class="trough${full ? ' full' : ''}"><div><b>Trough</b> <span class="lvl">${Math.round(mash)}/${cap} L of mash</span><div class="note">${note}</div></div><button type="button" class="feed" data-act="h-feed" title="${button[1]}" aria-label="${button[0].replace(/<[^>]+>/g, '')}: ${button[1]}"${state === 'ready' ? '' : ' disabled'}>${button[0]}</button></div>`;
+  }
+
+  /**
+   * Colin (after Session B): the Creature room's overview. Every tank in the base at once:
+   * who lives there, how content each is, the water, the plant and who is laying; feed or
+   * clean any tank, move any creature to another tank or the reserve, open its card. It works
+   * only here, at the room's console (Colin: coming home to the base should matter).
+   */
+  private tanksTab(): string {
+    const { save, layout } = this.deps;
+    const list = tanks(layout);
+    if (!list.length) return '<p class="note">No tanks built yet. Build a creature tank and its creatures will show here.</p>';
+    const pct = (v: number) => `${Math.round(v * 100)}%`;
+    const auto = save.autoSettle !== false;
+    const moveTo = (c: CreatureData) => {
+      const opts = list
+        .filter((t) => t.id !== c.tank)
+        .map((t) => {
+          const n = creaturesIn(save, t.id).length;
+          const cap = tankCapacity(layout, t.id, save);
+          return `<option value="${t.id}" ${n >= cap ? 'disabled' : ''}>${pieceCode(layout, t)} (${n}/${cap})</option>`;
+        })
+        .join('');
+      const res = reserveOpen(layout) ? `<option value="reserve" ${(save.reserve?.length ?? 0) >= RESERVE_CAP ? 'disabled' : ''}>Reserve (${save.reserve?.length ?? 0}/${RESERVE_CAP})</option>` : '';
+      return `<select data-act="t-move" data-id="${c.id}" aria-label="Move ${creatureName(c)} to"><option value="">Move to…</option>${opts}${res}</select>`;
+    };
+    const blocks = list
+      .map((t) => {
+        const here = creaturesIn(save, t.id);
+        const cap = tankCapacity(layout, t.id, save);
+        const td = tankDataFor(save, t.id);
+        const eaters = here.filter((c) => c.stage !== 'egg');
+        const hungry = eaters.filter((c) => c.fed < 0.5).length;
+        const unhappy = eaters.filter((c) => worstNeed(save, c).value < 0.5 || c.sickness > 0).length;
+        const pairs = SPECIES_ORDER.map((sp) => [sp, pairsIn(save, t.id, sp)] as const).filter(([, n]) => n > 0);
+        const crowd = crowding(here.length, cap);
+        const notes = [
+          `water ${pct(td.water)}`,
+          td.plant ? PLANTS[td.plant].name.toLowerCase() : 'no plant',
+          hungry ? `<em class="bad">${hungry} hungry</em>` : '',
+          unhappy ? `<em class="bad">${unhappy} need care</em>` : '',
+          pairs.length ? `laying: ${pairs.map(([sp, n]) => `${n} ${SPECIES[sp].name.toLowerCase()} pair${n > 1 ? 's' : ''}`).join(', ')}${crowd < 1 ? ' (slowed: crowded)' : ''}` : '',
+        ].filter(Boolean).join(' · ');
+        const chips = here
+          .map((c) => {
+            const tr = traitsOf(c);
+            const ct = c.stage === 'egg' ? null : contentment(save, c).value;
+            const on = this.sel === c.id;
+            return `<button type="button" class="tchip${on ? ' on' : ''}${ct !== null && ct < 0.5 ? ' low' : ''}" data-act="t-sel" data-id="${c.id}" title="${creatureName(c)}">${snapImg(c.species, tr, 'mini', c.stage === 'egg' ? 'egg' : c.stage === 'young' ? 'young' : 'grown')}<span>${c.stage === 'egg' ? 'egg' : creatureName(c)}</span><small>${ct === null ? '' : pct(ct)}${isRare(tr) ? ' ✦' : ''}</small></button>`;
+          })
+          .join('');
+        const picked = here.find((c) => c.id === this.sel);
+        const acts = picked
+          ? `<div class="row tsel"><b>${picked.stage === 'egg' ? `${SPECIES[picked.species].name} egg` : creatureName(picked)}</b> <small>${traitText(picked.species, traitsOf(picked))}</small>${moveTo(picked)}${picked.stage === 'egg' ? '' : `<button type="button" data-act="h-card" data-id="${picked.id}">Card</button>`}</div>`
+          : '';
+        return `<div class="tblock"><div class="thead"><b>${pieceCode(layout, t)}</b><span>${here.length}/${cap}</span><button type="button" data-act="t-feed" data-id="${t.id}" ${eaters.length ? '' : 'disabled title="Nobody here eats yet"'}>Feed</button><button type="button" data-act="t-clean" data-id="${t.id}" ${td.water >= 0.99 ? 'disabled title="The water is clean"' : ''}>Clean</button></div>
+          <p class="tnote">${notes}</p>${chips ? `<div class="tchips">${chips}</div>` : '<p class="note">Empty.</p>'}${acts}</div>`;
+      })
+      .join('');
+    return `<div class="row tall"><button type="button" class="big" data-act="t-all">Care for all <small>feed and clean every tank</small></button>
+      <button type="button" data-act="t-auto" aria-pressed="${auto}" class="${auto ? 'on' : ''}" title="When on, young swim to a tank that suits them (or the reserve) as soon as they hatch">Young settle in by themselves: ${auto ? 'on' : 'off'}</button></div>
+      <p class="note">Tap a creature to move it or see its card. This console reaches every tank in the base.</p>${blocks}`;
   }
 
   /** Phase 21: the reserve, where creatures rest with no care needed. Filter by species; move to any tank. */
@@ -278,7 +364,7 @@ export class HatchPanel {
       })
       .join('');
     const chips = species.length > 1 ? `<div class="filters"><span>Show:</span>${[['all', 'All'], ...species.map((sp) => [sp, SPECIES[sp].name])].map(([id, l]) => `<button type="button" data-act="r-filter" data-id="${id}" class="${this.resFilter === id ? 'on' : ''}">${l}</button>`).join('')}</div>` : '';
-    return `<p class="note">The reserve is the Hatchery's cool holding bay. Creatures here rest safely: they need no food or cleaning, don't grow or make anything, and aren't on show. Move one in from any Habitat console, and back to any tank from here.</p>${chips}${
+    return `<p class="note">The reserve is the Creature room's cool holding bay. Creatures here rest safely: they need no food or cleaning, don't grow or make anything, and aren't on show. Move one in from the Tanks tab or any Habitat console, and back to any tank from here.</p>${chips}${
       rows ? `<div class="nest">${rows}</div>` : '<p class="note">Nobody is resting here.</p>'
     }`;
   }
@@ -341,7 +427,7 @@ export class HatchPanel {
     if (!this.active || this.pieceId === null) return;
     const { save, layout } = this.deps;
     const piece = layout.pieces.find((p) => p.id === this.pieceId);
-    const code = piece ? pieceCode(layout, piece) : 'Hatchery';
+    const code = piece ? pieceCode(layout, piece) : 'Creature room';
     const cap = HATCH_CAP * Math.max(1, hatcheries(layout).length);
     const powered = piece ? layout.powered.has(piece.id) : false;
     const list = save.nursery;
@@ -366,7 +452,7 @@ export class HatchPanel {
               : 'cooling: no power'
             : c.sickness > 0.02
               ? 'sick with hunger: feed the young, then choose a tank'
-              : `hatched: choose a tank · fed ${Math.round(c.fed * 100)}%`;
+              : `hatched: no tank suits it yet, so choose one · fed ${Math.round(c.fed * 100)}%`;
         const btns = tankList
           .map((tk) => {
             const n = creaturesIn(save, tk.id).length;
@@ -392,11 +478,11 @@ export class HatchPanel {
       }
     const tabBtn = (id: typeof this.tab, label: string) => `<button type="button" data-act="h-tab" data-id="${id}" class="tab${this.tab === id ? ' on' : ''}">${label}</button>`;
     const head = `
-      <div class="care-head"><b>${code} · Hatchery</b><span>${list.length}/${cap} · ${powered ? 'warm' : 'no power'}</span>
+      <div class="care-head"><b>${code === 'Creature room' ? code : `${code} · Creature room`}</b><span>${list.length}/${cap} · ${powered ? 'warm' : 'no power'}</span>
         <button type="button" class="x" data-act="h-close" aria-label="Close">✕</button></div>
-      <div class="tabs h-tabs">${tabBtn('cradles', `Cradles${gifts.length ? ` · ${gifts.length} rare egg${gifts.length > 1 ? 's' : ''}` : ''}`)}${tabBtn('reserve', `Reserve ${save.reserve?.length ?? 0}/${RESERVE_CAP}`)}${tabBtn('planner', 'Planner')}</div>`;
+      <div class="tabs h-tabs">${tabBtn('tanks', 'Tanks')}${tabBtn('cradles', `Cradles${gifts.length ? ` · ${gifts.length} rare egg${gifts.length > 1 ? 's' : ''}` : ''}`)}${tabBtn('reserve', `Reserve ${save.reserve?.length ?? 0}/${RESERVE_CAP}`)}${tabBtn('planner', 'Planner')}</div>`;
     if (this.tab !== 'cradles') {
-      const html = head + (this.tab === 'reserve' ? this.reserveTab() : this.plannerTab());
+      const html = head + (this.tab === 'tanks' ? this.tanksTab() : this.tab === 'reserve' ? this.reserveTab() : this.plannerTab());
       if (!force && performance.now() - this.touchedAt < 1500) return;
     if (force || html !== this.lastHtml) {
         this.lastHtml = html;
@@ -407,7 +493,7 @@ export class HatchPanel {
     const html = `${head}
       <p class="status">${
         laying.length
-          ? `Laying: ${laying.join(', ')}. A pair lays about one egg every ${Math.round(BREED_SECONDS / 60)} minutes.`
+          ? `Laying: ${laying.join(', ')}. A pair lays about one egg every ${Math.round(BREED_SECONDS / 60)} minutes (more slowly in a crowded tank). Young swim to a tank that suits them by themselves.`
           : 'No pairs laying. Two happy, grown creatures of one species in a tank make a breeding pair.'
       }</p>
       ${this.troughRow()}

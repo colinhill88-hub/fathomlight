@@ -911,7 +911,7 @@ export class BaseHooks implements InteriorHooks {
         return `Sealed hatch: ${PIECES[best.other!.kind].name.toLowerCase()} beyond is still a frame`;
       case 'hatch':
         if (!on) return `${code}: no power. The eggs are cooling: join it to a current turbine.`;
-        return { key: 'hatch', label: `Use the Hatchery (${code}): ${nurseryCount(c.nursery())}`, seconds: 0.4, done: () => c.hatchery(p.id) };
+        return { key: 'hatch', label: `Use the Creature room (${code}): ${nurseryCount(c.nursery())}`, seconds: 0.4, done: () => c.hatchery(p.id) };
       case 'farm': {
         const f = c.farmCrop(p.id);
         return { key: 'farm', label: `Change the crop (growing ${f.name})`, seconds: 0.4, done: () => c.farmCycle(p.id) };
@@ -1659,7 +1659,7 @@ export class BaseHooks implements InteriorHooks {
         for (let i = 0; i < 4; i++) rivet(g, kx - 30 + i * 20, bot - 38, 1.6);
         hazard(g, b.ox + 30, bot - 6, b.ow - 170, 6);
         addText(sign(code, kx, bot - 130, 13));
-        addText(sign('HATCHERY', kx, bot - 110, 9, 0xffd890, 0.75));
+        addText(sign('CREATURE ROOM', kx, bot - 110, 9, 0xffd890, 0.75));
         break;
       }
       case 'farm': {

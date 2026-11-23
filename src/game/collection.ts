@@ -249,7 +249,7 @@ export function giveReward(save: SaveData, r: Reward): string {
     return 'Display aquarium plans: the Workshop can build a display refit for a Grand tank';
   }
   giftEgg(save, r.species, r);
-  return `A rare ${SPECIES[r.species].name.toLowerCase()} egg (${kindName(r.species, r.colour, r.pattern, r.radiant)}) waits at the Hatchery`;
+  return `A rare ${SPECIES[r.species].name.toLowerCase()} egg (${kindName(r.species, r.colour, r.pattern, r.radiant)}) waits at the Creature room`;
 }
 
 export interface BookReward {
