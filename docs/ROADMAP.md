@@ -258,7 +258,7 @@ The open questions below were answered at the start of the session (see "Colin's
 - **The display aquarium is a refit** of an extended Grand tank (DR-1 kit), not a new base piece, so it uses the Grand tank's room.
 - **The reserve is part of the Hatchery** (opens once one is built, holds 30).
 - **Hand-feeding is free** (a treat, about once a minute per creature); it builds a bond that fades over about half an hour.
-- **Not done:** generated painted backdrops for the tank interiors (the backdrop pipeline, per-plant theme switching, and multi-layered biome procedural backdrops are now wired in `src/art/tankArt.ts` and `HabitatWater`; dropping generated `.webp` files into `src/art/tanks/` activates them automatically once image-generation capacity is available).
+- **Done (Nov 23, 2026):** generated painted backdrops for every tank interior (`src/art/tanks/{bare,coral,kelp,grass,bladder,lumen}.webp`, wired via `src/art/tankArt.ts` and `HabitatWater.setTheme()`, logged in `docs/art/SOURCES.md`, with `?art=procedural` fallback).
 
 The original brief follows.
 

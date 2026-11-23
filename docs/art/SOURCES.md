@@ -33,7 +33,12 @@ These were made in earlier sessions with other AI tools, which Colin used to gen
 
 | File | What | Tool | Date | Prompt (summary) | Edits |
 | --- | --- | --- | --- | --- | --- |
-| | | | | | |
+| `src/art/tanks/kelp.webp` | Painted ribbon-kelp aquarium tank backdrop | User-generated image (WebP) | 2026-11-23 | Wide 16:9 painterly blue-green aquarium interior with olive-ochre limestone ledges, swaying ribbon kelp, sunlit sandy pebble floor, and warm sunbeams; no fish or borders | None (shipped as `.webp`) |
+| `src/art/tanks/bare.webp` | Painted empty reef aquarium tank backdrop | User-generated image (WebP) | 2026-11-23 | Wide 16:9 painterly blue-green aquarium interior with weathered warm sandy limestone ledges, open deep-teal center, sunlit sandy pebble floor, and warm sunbeams | None (shipped as `.webp`) |
+| `src/art/tanks/coral.webp` | Painted branch-coral aquarium tank backdrop | User-generated image (WebP) | 2026-11-23 | Wide 16:9 painterly sunlit aquarium interior with sandy limestone ledges, rosy-terracotta and peach branching coral clusters, coral-sand pebble floor, and sunbeams | None (shipped as `.webp`) |
+| `src/art/tanks/grass.webp` | Painted seagrass aquarium tank backdrop | User-generated image (WebP) | 2026-11-23 | Wide 16:9 painterly sunlit aquarium interior with terraced limestone ledges carpeted in swaying green seagrass tufts, pale sandy pebble floor, and sunbeams | None (shipped as `.webp`) |
+| `src/art/tanks/bladder.webp` | Painted bladder-kelp aquarium tank backdrop | User-generated image (WebP) | 2026-11-23 | Wide 16:9 painterly dim kelp-forest aquarium interior with mossy olive-slate ledges, amber-brown bladder kelp stalks with golden air bladders, and dappled light | None (shipped as `.webp`) |
+| `src/art/tanks/lumen.webp` | Painted lumen-moss aquarium tank backdrop | User-generated image (WebP) | 2026-11-23 | Wide 16:9 painterly sheltered dark-grotto aquarium interior with wet dark slate ledges cushioned in softly glowing warm yellow-green moss and dark pebble floor | None (shipped as `.webp`) |
 
 ## Phases 20–21 (Session A, Nov 22, 2026)
 
@@ -58,4 +63,4 @@ See every creature in every form at `zoo.html` (on the play link, or with `npm r
 
 ## Tank backdrops & UI polish pass (Nov 23, 2026)
 
-Wired `src/art/tankArt.ts` (`loadTankArt`) and `HabitatWater.setTheme()` so every tank (exterior and walkable interior) automatically displays a per-plant painted backdrop from `src/art/tanks/{bare,coral,kelp,grass,bladder,lumen}.{webp,png}` when present, and falls back to multi-layered biome-themed painterly procedural backdrops (rock ridges, sunlit terraces, distant plant silhouettes, depth haze, and themed sand beds) when files are absent or `?art=procedural` is active. No generated image files were added during this session because the image-generation server returned `503 MODEL_CAPACITY_EXHAUSTED`; drop generated `.webp` plates into `src/art/tanks/` and log them in the table above whenever capacity is available.
+Wired `src/art/tankArt.ts` (`loadTankArt`) and `HabitatWater.setTheme()` so every tank (exterior and walkable interior) automatically displays its matching painted `.webp` backdrop from `src/art/tanks/{bare,coral,kelp,grass,bladder,lumen}.webp` (all 6 installed and logged in the table above), and falls back to multi-layered biome-themed painterly procedural backdrops when `?art=procedural` or `?worldArt=procedural` is active.

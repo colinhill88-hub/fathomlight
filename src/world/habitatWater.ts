@@ -390,9 +390,9 @@ export class HabitatWater {
   private drawSandBed(pal: ThemePalette, overImage: boolean): void {
     const { x, y, w, h } = this.box;
     const sand = this.sand.clear();
+    if (overImage) return;
     const r = seeded(this.seed + 101);
     const top = y + h * 0.89;
-    const sandAlpha = overImage ? 0.68 : 0.9;
     sand.moveTo(x + EDGE, y + h - EDGE);
     for (let i = 0; i <= 14; i++) {
       sand.lineTo(
@@ -400,8 +400,8 @@ export class HabitatWater {
         top + Math.sin(i * 1.5 + this.seed) * h * 0.018 + (r() - 0.5) * h * 0.014,
       );
     }
-    sand.lineTo(x + w - EDGE, y + h - EDGE).closePath().fill({ color: pal.sandTop, alpha: sandAlpha });
-    sand.rect(x + EDGE, top + h * 0.035, w - EDGE * 2, h * 0.075).fill({ color: pal.sandDeep, alpha: overImage ? 0.36 : 0.48 });
+    sand.lineTo(x + w - EDGE, y + h - EDGE).closePath().fill({ color: pal.sandTop, alpha: 0.9 });
+    sand.rect(x + EDGE, top + h * 0.035, w - EDGE * 2, h * 0.075).fill({ color: pal.sandDeep, alpha: 0.48 });
 
     const pebbles = Math.round(w / 9);
     for (let i = 0; i < pebbles; i++) {
@@ -409,7 +409,7 @@ export class HabitatWater {
       const py = top + h * 0.02 + r() * h * 0.072;
       const pr = 0.8 + r() * 2.4;
       const tone = pal.pebbles[Math.floor(r() * 4)];
-      sand.ellipse(px, py, pr * 1.35, pr).fill({ color: tone, alpha: overImage ? 0.78 : 0.92 });
+      sand.ellipse(px, py, pr * 1.35, pr).fill({ color: tone, alpha: 0.92 });
       sand.ellipse(px - pr * 0.3, py - pr * 0.35, pr * 0.5, pr * 0.3).fill({ color: 0xf4ead0, alpha: 0.36 });
     }
   }
