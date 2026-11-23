@@ -715,23 +715,6 @@ async function boot(): Promise<void> {
       audio.setPaused(open);
     },
   });
-  const exchangePanel = new ExchangePanel({
-    save: () => save,
-    layout: () => layout,
-    persist,
-    changed: () => {
-      tankLife.sync(save, layout);
-      baseHooks?.syncTanks();
-    },
-    toast: (text, kind) => hud.toast(text, kind),
-    refreshInventory: () => hud.refreshInventory(),
-    onBuy: (kind, title, line) => {
-      sound.toast('big');
-      grant(notable(kind === 'egg' ? 'egg' : 'piece', 'Exchange order', title, line, 'life'));
-      hud.toast(`${title}: ${line}`, 'big');
-    },
-    onDispatch: () => sound.toast('item'),
-  });
   const padNav = new PadNav();
   let seenClock = 0;
   // Saves from before the zone map: map the zones already reached.
@@ -774,6 +757,23 @@ async function boot(): Promise<void> {
     reward.show(spec);
     if (then) reward.whenClear(then);
   };
+  const exchangePanel = new ExchangePanel({
+    save: () => save,
+    layout: () => layout,
+    persist,
+    changed: () => {
+      tankLife.sync(save, layout);
+      baseHooks?.syncTanks();
+    },
+    toast: (text, kind) => hud.toast(text, kind),
+    refreshInventory: () => hud.refreshInventory(),
+    onBuy: (kind, title, line) => {
+      sound.toast('big');
+      grant(notable(kind === 'egg' ? 'egg' : 'piece', 'Exchange order', title, line, 'life'));
+      hud.toast(`${title}: ${line}`, 'big');
+    },
+    onDispatch: () => sound.toast('item'),
+  });
   {
     const toast = hud.toast.bind(hud);
     hud.toast = (text, kind = 'item') => {

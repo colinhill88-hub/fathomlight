@@ -67,7 +67,7 @@ export class SupplyBuoy {
 
     const stencil = new Text({
       text: 'EX-1',
-      style: { fontFamily: 'monospace', fontSize: 9, fontWeight: '700', fill: 0xf2d488, letterSpacing: 1 },
+      style: { fontFamily: 'monospace', fontSize: 9, fontWeight: 'bold', fill: 0xf2d488, letterSpacing: 1 },
     });
     stencil.anchor.set(0.5);
     stencil.position.set(0, -13);
