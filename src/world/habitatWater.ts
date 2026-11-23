@@ -596,11 +596,13 @@ export class HabitatWater {
     }
     for (const d of this.drops) suspended.circle(d.x, d.y, 1.1).fill({ color: 0xeaf8f0, alpha: 0.8 });
     for (const p of this.ripples) {
+      // Only draw flat surface ripple rings near the waterline (mid-water swimmers use soft wake motes).
+      if (p.y > y + 26) continue;
       const rx = clamp(p.x + p.vx * p.age * 0.38, x + 5, x + w - 5);
       const ry = clamp(p.y + p.vy * p.age * 0.38, y + 5, y + h - 5);
       const radius = Math.min(6 + p.age * 22, rx - x - 2, x + w - rx - 2);
       const height = Math.min(radius * 0.24, ry - y - 2, y + h - ry - 2);
-      surface.ellipse(rx, ry, radius, height).stroke({ color: 0xc1ecd0, width: 1.1, alpha: p.strength * 0.63 * (1 - p.age / RIPPLE_LIFE) });
+      surface.ellipse(rx, ry, radius, height).stroke({ color: 0xc1ecd0, width: 1.1, alpha: p.strength * 0.52 * (1 - p.age / RIPPLE_LIFE) });
     }
   }
 }
