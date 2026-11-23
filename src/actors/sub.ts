@@ -245,6 +245,7 @@ export class Sub {
   private lampLight: Light = { x: 0, y: 0, radius: 520, intensity: 0, color: [1, 0.9, 0.74], coneCos: 0.88, coneSoft: 0.12, haze: 0.3, shadow: true };
   /** The pilot in the cabin, and how far in they are (0 = empty, 1 = seated). */
   private pilot = new Graphics();
+  private pilotE = new Graphics();
   private pilotLevel = 0;
   private cabinLight: Light = { x: 0, y: 0, radius: 150, intensity: 0, color: [1, 0.86, 0.6] };
   private lightLevel = 0;
@@ -263,31 +264,36 @@ export class Sub {
       spr.scale.set(sc);
       spr.position.set(0, -4);
       this.body.addChild(spr);
-      // Draw Kestrel seated inside the painted glass nose canopy!
-      const p = this.pilot;
-      const px = 62;
-      const py = 10;
-      p.roundRect(px - 14, py - 14, 24, 15, 6).fill({ color: PAL.charcoal });
-      p.moveTo(px - 10, py - 10).lineTo(px + 6, py - 10).stroke({ color: PAL.brass, width: 0.9, alpha: 0.7 });
-      p.roundRect(px + 1, py - 9, 20, 5.5, 2.5).fill({ color: 0x7c8487 });
-      p.circle(px + 21, py - 6.2, 2.8).fill({ color: PAL.rust });
-      p.roundRect(px - 10, py - 16, 18, 5, 2.5).fill({ color: 0x9fb2c0 });
-      const hx = px - 1;
-      const hy = py - 24;
-      const k = 0.96;
-      p.circle(hx, hy, 8 * k).fill({ color: PAL.skin });
-      p.moveTo(hx - 8 * k, hy - 1 * k).arc(hx, hy, 8 * k, Math.PI, -0.2).lineTo(hx + 2 * k, hy - 2 * k).closePath().fill({ color: 0x3a2a20 });
-      p.poly([hx + 7 * k, hy - 1 * k, hx + 10.5 * k, hy + 2 * k, hx + 7.5 * k, hy + 3.5 * k]).fill({ color: PAL.skin });
-      p.circle(hx + 4.5 * k, hy - 1 * k, 1.05).fill({ color: 0x1a1410 });
-      p.moveTo(hx + 5 * k, hy + 5 * k).lineTo(hx + 8 * k, hy + 4.6 * k).stroke({ color: 0x5a3a30, width: 0.8 });
-      p.circle(hx + 1, hy, 12).fill({ color: PAL.visor, alpha: 0.28 });
-      p.circle(hx + 1, hy, 12).stroke({ color: 0x6a8a2a, width: 1.2, alpha: 0.8 });
-      p.circle(hx + 5, hy - 4.5, 2.2).fill({ color: 0xffffff, alpha: 0.45 });
+      // Draw Kestrel seated inside the painted glass nose canopy (plus a softly illuminated emissive copy so they stay clearly visible in the dark trench!).
+      const drawSeatedPilot = (p: Graphics, alpha = 1) => {
+        const px = 66;
+        const py = 4;
+        // Soft warm cabin backlight inside the dome behind Kestrel.
+        p.ellipse(px + 6, py - 14, 22, 26).fill({ color: 0xe4ff9e, alpha: 0.16 * alpha });
+        p.roundRect(px - 14, py - 14, 24, 15, 6).fill({ color: 0x3b4448, alpha });
+        p.moveTo(px - 10, py - 10).lineTo(px + 6, py - 10).stroke({ color: 0xd4ad5a, width: 1.1, alpha: 0.85 * alpha });
+        p.roundRect(px + 1, py - 9, 21, 5.5, 2.5).fill({ color: 0x9aa4a8, alpha });
+        p.circle(px + 22, py - 6.2, 2.8).fill({ color: 0xc86442, alpha });
+        p.roundRect(px - 10, py - 16, 18, 5, 2.5).fill({ color: 0xb8ccd8, alpha });
+        const hx = px;
+        const hy = py - 24;
+        const k = 1.08;
+        p.circle(hx, hy, 8 * k).fill({ color: 0xd9a788, alpha });
+        p.moveTo(hx - 8 * k, hy - 1 * k).arc(hx, hy, 8 * k, Math.PI, -0.2).lineTo(hx + 2 * k, hy - 2 * k).closePath().fill({ color: 0x4a3426, alpha });
+        p.poly([hx + 7 * k, hy - 1 * k, hx + 10.5 * k, hy + 2 * k, hx + 7.5 * k, hy + 3.5 * k]).fill({ color: 0xd9a788, alpha });
+        p.circle(hx + 4.5 * k, hy - 1 * k, 1.2).fill({ color: 0x1a1410, alpha });
+        p.moveTo(hx + 5 * k, hy + 5 * k).lineTo(hx + 8 * k, hy + 4.6 * k).stroke({ color: 0x5a3a30, width: 0.9, alpha });
+        p.circle(hx + 1, hy, 13.2).fill({ color: PAL.visor, alpha: 0.24 * alpha });
+        p.circle(hx + 1, hy, 13.2).stroke({ color: 0x9cc846, width: 1.4, alpha: 0.88 * alpha });
+        p.circle(hx + 5.5, hy - 5, 2.5).fill({ color: 0xffffff, alpha: 0.55 * alpha });
+      };
+      drawSeatedPilot(this.pilot, 1);
+      drawSeatedPilot(this.pilotE, 0.78);
       this.body.addChild(this.pilot);
+      this.eBody.addChild(this.pilotE);
       // Soft glass canopy sheen over the pilot so they sit genuinely inside the glass dome.
       const sheen = new Graphics();
-      sheen.ellipse(74, -8, 22, 26).fill({ color: 0xd8f6a0, alpha: 0.14 });
-      sheen.moveTo(64, -30).quadraticCurveTo(84, -22, 92, -4).stroke({ color: 0xffffff, width: 3.2, alpha: 0.3, cap: 'round' });
+      sheen.moveTo(68, -32).quadraticCurveTo(88, -22, 95, -4).stroke({ color: 0xffffff, width: 3.0, alpha: 0.28, cap: 'round' });
       this.body.addChild(sheen);
       this.navLens.circle(94, 24, 5).fill({ color: 0xffe8b0 });
       this.navHalo.circle(94, 24, 18).fill({ color: 0xffd280, alpha: 0.45 });
@@ -817,9 +823,9 @@ export class Sub {
   draw(dt: number, o: { frame: number | null; hull: number; lightsOn: boolean; piloted: boolean; occupied: boolean; reach: { x: number; y: number } | null; welding: boolean }): void {
     // The pilot climbs down into the seat after boarding, and up out of it when leaving.
     this.pilotLevel += ((o.occupied ? 1 : 0) - this.pilotLevel) * Math.min(1, dt * (o.occupied ? 4 : 7));
-    this.pilot.visible = this.pilotLevel > 0.02;
-    this.pilot.alpha = Math.min(1, this.pilotLevel * 1.4);
-    this.pilot.y = (1 - this.pilotLevel) * -26;
+    this.pilot.visible = this.pilotE.visible = this.pilotLevel > 0.02;
+    this.pilot.alpha = this.pilotE.alpha = Math.min(1, this.pilotLevel * 1.4);
+    this.pilot.y = this.pilotE.y = (1 - this.pilotLevel) * -26;
     for (const c of [this.body, this.eBody, this.gBody]) {
       c.scale.set(this.faceAnim, 1);
       c.rotation = this.pitch * Math.sign(this.faceAnim);

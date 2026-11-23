@@ -47,26 +47,30 @@ export function drawHoodedLurker(layer: Layers, denX: number, denY: number, head
   const muzzle = warning ? 21 : lunging ? 39 : 31;
   const lower = lunging ? 31 : warning ? 15 : 5;
   const bend = (Math.sin(time * 2.7) * 10 + flow * 9) * (lunging ? 0.24 : 1);
+  const painted = paintedSprite(layer.view, getCreatureArt().lurker);
+  const count = Math.max(3, Math.min(11, Math.ceil(length / 22)));
+  const neckFill = painted ? 0x262924 : 0x3d4850;
+  const segA = painted ? 0x31342c : 0x556765;
+  const segB = painted ? 0x282b25 : 0x596f6c;
+  const segRim = painted ? 0x565a4e : 0x93a29a;
   g.moveTo(-length - 34, -5).bezierCurveTo(-length * 0.74, -14 + bend, -length * 0.42, -23 - bend, -16, -23)
     .quadraticCurveTo(7, -19, 8, 8).bezierCurveTo(-length * 0.35, 32 - bend, -length * 0.6, 9 + bend, -length - 34, 8)
-    .closePath().fill(0x3d4850);
-  const count = Math.max(3, Math.min(11, Math.ceil(length / 22)));
+    .closePath().fill(neckFill);
   for (let i = count - 1; i >= 0; i--) {
     const u = i / count;
     const x = -15 - u * length;
     const s = (1 - u * 0.64) * (warning ? 1.18 : 1);
     const y = Math.sin(u * 7 + time * 4) * bend * u * (1 - u) * 3;
     g.moveTo(x + 9, y - 21 * s).lineTo(x - 5, y - 29 * s).lineTo(x - 18, y - 8 * s)
-      .lineTo(x - 14, y + 16 * s).lineTo(x + 5, y + 12 * s).closePath().fill(i % 2 ? 0x556765 : 0x596f6c)
+      .lineTo(x - 14, y + 16 * s).lineTo(x + 5, y + 12 * s).closePath().fill(i % 2 ? segA : segB)
       .moveTo(x + 9, y - 19 * s).lineTo(x - 4, y - 25 * s).lineTo(x - 14, y - 7 * s)
-      .stroke({ color: 0x93a29a, width: 2.2, alpha: 0.7 });
+      .stroke({ color: segRim, width: 2.0, alpha: painted ? 0.45 : 0.7 });
   }
-  const painted = paintedSprite(layer.view, getCreatureArt().lurker);
   if (painted) {
-    painted.position.set(head.x - ux * 16, head.y - uy * 16);
+    painted.position.set(head.x - ux * 18, head.y - uy * 18);
     painted.rotation = Math.atan2(uy, ux);
-    painted.width = 96;
-    painted.height = 46;
+    painted.width = 104;
+    painted.height = 48;
     painted.scale.y = Math.abs(painted.scale.y) * (dir < 0 ? -1 : 1);
   } else {
     g.moveTo(-29, 1).quadraticCurveTo(-34, -29 * hood, -4, -32 * hood).lineTo(15, -21)
@@ -106,14 +110,15 @@ export function drawSailJaw(layer: Layers, x: number, y: number, face: number, t
   const gl = origin(layer.glow, x, y, face, 0, face);
   const effort = Math.min(1, speed / 145);
   const wave = Math.sin(t * (2.3 + effort * 2.8)) * (7 + 20 * effort) + flow * 15;
-  const tail = -127 + 13 * effort;
-  const mantle = g.moveTo(-36, -17).quadraticCurveTo(-72, -14, tail + 18, wave)
-    .quadraticCurveTo(-80, 13, -37, 26).fill(0x46585f);
-  mantle.moveTo(tail + 23, wave).quadraticCurveTo(tail + 5, wave - 18, tail - 9, wave - 33 + effort * 8)
-    .lineTo(tail - 6, wave - 5).lineTo(tail - 13, wave + 30 - effort * 8)
-    .quadraticCurveTo(tail + 12, wave + 17, tail + 23, wave).fill(0x688180);
   const painted = paintedSprite(layer.view, getCreatureArt().angler);
+  const tail = painted ? -86 + 6 * effort : -127 + 13 * effort;
   if (painted) {
+    // Tucked dark tail fin flowing directly out of the painted angler's rear tail base.
+    g.moveTo(-64, -10).quadraticCurveTo(-78, -8, tail + 8, wave * 0.45)
+      .quadraticCurveTo(-80, 10, -64, 12).fill(0x232624);
+    g.moveTo(tail + 12, wave * 0.45).quadraticCurveTo(tail - 4, wave * 0.6 - 16, tail - 16, wave * 0.7 - 24 + effort * 6)
+      .lineTo(tail - 11, wave * 0.55).lineTo(tail - 18, wave * 0.7 + 22 - effort * 6)
+      .quadraticCurveTo(tail - 2, wave * 0.6 + 14, tail + 12, wave * 0.45).fill({ color: 0x2c302e, alpha: 0.92 });
     // Generated angler artwork faces left, so invert scale.x to match `face`.
     painted.position.set(x + face * 4, y - 8);
     painted.rotation = Math.sin(t * 2) * 0.04;
@@ -122,6 +127,11 @@ export function drawSailJaw(layer: Layers, x: number, y: number, face: number, t
     painted.scale.x = Math.abs(painted.scale.x) * (face >= 0 ? -1 : 1);
     painted.scale.y = Math.abs(painted.scale.y) * (1 + jaw * 0.08);
   } else {
+    const mantle = g.moveTo(-36, -17).quadraticCurveTo(-72, -14, tail + 18, wave)
+      .quadraticCurveTo(-80, 13, -37, 26).fill(0x46585f);
+    mantle.moveTo(tail + 23, wave).quadraticCurveTo(tail + 5, wave - 18, tail - 9, wave - 33 + effort * 8)
+      .lineTo(tail - 6, wave - 5).lineTo(tail - 13, wave + 30 - effort * 8)
+      .quadraticCurveTo(tail + 12, wave + 17, tail + 23, wave).fill(0x688180);
     g.moveTo(-53, -8).quadraticCurveTo(-59, -37, -17, -55).quadraticCurveTo(22, -68, 54, -36)
       .lineTo(64, -19).lineTo(62, -7).quadraticCurveTo(39, 0, 16, 29).quadraticCurveTo(-30, 48, -53, -8).fill(0x51616b);
     g.moveTo(-47, -17).quadraticCurveTo(-37, -50, -5, -55).quadraticCurveTo(25, -61, 52, -30)
@@ -168,6 +178,7 @@ export function drawRibbonStalker(layer: Layers, trail: Point[], t: number,
   const g = layer.view.clear();
   const e = layer.emissive.clear();
   const gl = layer.glow.clear();
+  const painted = paintedSprite(layer.view, getCreatureArt().stalker);
   const step = striking ? 0.49 : 0.63;
   for (let i = trail.length - 2; i > 0; i--) {
     const a = trail[i];
@@ -179,17 +190,17 @@ export function drawRibbonStalker(layer: Layers, trail: Point[], t: number,
     const ny = dx / length;
     const u = i / (trail.length - 1);
     const wave = Math.sin(t * (striking ? 7.3 : 3.7) - i * step);
-    const span = (6 + 25 * Math.sin(u * Math.PI)) * (striking ? 0.48 : 1) * (0.78 + 0.25 * wave) + flow * 3;
+    const span = (6 + (painted ? 16 : 25) * Math.sin(u * Math.PI)) * (striking ? 0.48 : 1) * (0.78 + 0.25 * wave) + flow * 3;
     const back = trail[i + 1];
     const cx = (a.x + b.x) / 2;
     const cy = (a.y + b.y) / 2;
     g.moveTo(b.x, b.y).quadraticCurveTo(cx + nx * span, cy + ny * span, a.x + nx * (span + 5), a.y + ny * (span + 5))
       .quadraticCurveTo(back.x + nx * span * 0.54, back.y + ny * span * 0.54, back.x, back.y)
-      .fill({ color: i % 2 ? 0xc0c9b6 : 0x839d9b, alpha: 0.77 });
+      .fill({ color: painted ? (i % 2 ? 0x2e332d : 0x232724) : (i % 2 ? 0xc0c9b6 : 0x839d9b), alpha: painted ? 0.68 : 0.77 });
     g.moveTo(b.x, b.y).quadraticCurveTo(a.x - nx * (span * 0.67 + 4), a.y - ny * (span * 0.67 + 4), back.x, back.y)
-      .fill({ color: 0x6b8180, alpha: 0.76 });
-    g.moveTo(b.x, b.y).lineTo(a.x, a.y).stroke({ color: 0xd1c9ae, width: 2 + (1 - u) * 8, cap: 'round' });
-    if (i % 3 === 0) g.moveTo(cx + nx * 4, cy + ny * 4).lineTo(a.x + nx * span * 0.75, a.y + ny * span * 0.75)
+      .fill({ color: painted ? 0x1e2220 : 0x6b8180, alpha: painted ? 0.68 : 0.76 });
+    g.moveTo(b.x, b.y).lineTo(a.x, a.y).stroke({ color: painted ? 0x454a42 : 0xd1c9ae, width: 2 + (1 - u) * (painted ? 6 : 8), cap: 'round' });
+    if (!painted && i % 3 === 0) g.moveTo(cx + nx * 4, cy + ny * 4).lineTo(a.x + nx * span * 0.75, a.y + ny * span * 0.75)
       .stroke({ color: 0xe1debf, width: 1.5, alpha: 0.58 });
   }
   const h = trail[0];
@@ -199,12 +210,11 @@ export function drawRibbonStalker(layer: Layers, trail: Point[], t: number,
   const uy = (h.y - neck.y) / span;
   for (const layer of [g, e, gl]) layer.context.setTransform(ux, uy, -uy, ux, h.x, h.y);
   const gape = striking ? 19 : 3 + (stalking ? Math.sin(t * 2) * 1.5 : 0);
-  const painted = paintedSprite(layer.view, getCreatureArt().stalker);
   if (painted) {
-    painted.position.set(h.x - ux * 10, h.y - uy * 10);
+    painted.position.set(h.x - ux * 16, h.y - uy * 16);
     painted.rotation = Math.atan2(uy, ux);
-    painted.width = 112;
-    painted.height = 52;
+    painted.width = 118;
+    painted.height = 54;
     painted.scale.y = Math.abs(painted.scale.y) * (ux < 0 ? -1 : 1);
   } else {
     g.moveTo(-29, -9).lineTo(-21, -24).quadraticCurveTo(5, -21, 17, -10)
@@ -227,6 +237,7 @@ export function drawTrestleStrider(layer: Layers, feet: Point[], offsets: number
   const g = layer.view.clear();
   const e = layer.emissive.clear();
   const gl = layer.glow.clear();
+  const painted = paintedSprite(layer.view, getCreatureArt().spider);
   const bodyY = y + 7 + Math.sin(time * 1.4) * 3 + reach * 18;
   for (let i = 0; i < feet.length; i++) {
     const off = offsets[i];
@@ -234,26 +245,28 @@ export function drawTrestleStrider(layer: Layers, feet: Point[], offsets: number
     const front = Math.sign(off) === facing && Math.abs(off) > 70;
     const fx = foot.x + (front ? (diver.x - foot.x) * reach * 0.8 : 0);
     const fy = foot.y + (front ? (diver.y - foot.y) * reach * 0.8 : 0);
-    const hx = x + off * 0.33;
+    const hx = x + off * (painted ? 0.24 : 0.33);
     const hy = bodyY + Math.abs(off) * 0.04;
     const kx = hx * 0.32 + fx * 0.68 + off * 0.15;
     const ky = Math.min(hy, fy) - 15 - Math.abs(off) * 0.19 - (front ? reach * 27 : 0);
     const dark = i % 2 === 0;
+    const thighCol = painted ? (dark ? 0x1d2022 : 0x2b2f30) : (dark ? 0x714c43 : 0xa57561);
+    const shinCol = painted ? (dark ? 0x242829 : 0x363b3c) : (dark ? 0x8c5d4c : 0xc28d72);
+    const rimCol = painted ? (dark ? 0x454a48 : 0x5d625e) : (dark ? 0xb38568 : 0xebbd97);
     g.moveTo(hx, hy + 4).quadraticCurveTo(hx + (kx - hx) * 0.4, ky - 13, kx, ky)
-      .stroke({ color: dark ? 0x714c43 : 0xa57561, width: dark ? 7 : 9, cap: 'round' });
+      .stroke({ color: thighCol, width: dark ? 6 : 8, cap: 'round' });
     g.moveTo(kx - 5, ky - 2).quadraticCurveTo(kx, ky - 14, kx + Math.sign(off) * 10, ky)
       .quadraticCurveTo(fx + Math.sign(off) * 10, fy - 24, fx, fy)
-      .quadraticCurveTo(fx + Math.sign(off) * 3, fy - 14, kx - 5, ky - 2).fill(dark ? 0x8c5d4c : 0xc28d72);
+      .quadraticCurveTo(fx + Math.sign(off) * 3, fy - 14, kx - 5, ky - 2).fill(shinCol);
     g.moveTo(kx, ky - 4).quadraticCurveTo((kx + fx) * 0.5 + Math.sign(off) * 10, (ky + fy) * 0.5 - 6, fx, fy)
-      .stroke({ color: dark ? 0xb38568 : 0xebbd97, width: 2.2, alpha: 0.8 });
+      .stroke({ color: rimCol, width: 1.8, alpha: painted ? 0.5 : 0.8 });
   }
   for (const layer of [g, e, gl]) layer.context.setTransform(facing, 0, 0, 1, x, bodyY);
-  const painted = paintedSprite(layer.view, getCreatureArt().spider);
   if (painted) {
-    painted.position.set(x - facing * 4, bodyY - 8);
+    painted.position.set(x - facing * 2, bodyY - 10);
     painted.rotation = 0;
-    painted.width = 124;
-    painted.height = 68;
+    painted.width = 132;
+    painted.height = 72;
     painted.scale.x = Math.abs(painted.scale.x) * (facing >= 0 ? 1 : -1);
   } else {
     g.moveTo(-63, -4).lineTo(-50, -21).lineTo(-38, -31).lineTo(-21, -29).lineTo(-13, -37)
@@ -263,12 +276,12 @@ export function drawTrestleStrider(layer: Layers, feet: Point[], offsets: number
       .poly([-23, -25, -13, -34, 9, -26, 19, 8, -18, 16]).fill(0xb88870)
       .moveTo(9, -25).quadraticCurveTo(35, -24, 42, -6).lineTo(29, 10).lineTo(20, 9).fill(0xcc9c77)
       .moveTo(-46, -15).quadraticCurveTo(-8, -29, 26, -17).stroke({ color: 0xe7c199, width: 3.1, alpha: 0.65 });
+    const hook = 43 + reach * 14;
+    g.moveTo(29, 6).quadraticCurveTo(45, 6, hook + 10, 16).lineTo(hook + 2, 21 + reach * 7)
+      .lineTo(37, 15).fill(0xb88e74)
+      .moveTo(31, -3).quadraticCurveTo(43, -19 - reach * 10, hook + 8, -13 + flow * 6)
+      .stroke({ color: 0x986d59, width: 3, cap: 'round' });
   }
-  const hook = 43 + reach * 14;
-  g.moveTo(29, 6).quadraticCurveTo(45, 6, hook + 10, 16).lineTo(hook + 2, 21 + reach * 7)
-    .lineTo(37, 15).fill(0xb88e74)
-    .moveTo(31, -3).quadraticCurveTo(43, -19 - reach * 10, hook + 8, -13 + flow * 6)
-    .stroke({ color: 0x986d59, width: 3, cap: 'round' });
   for (const [ex, ey] of [[29, -10], [36, -6], [29, -3]]) e.circle(ex, ey, watching ? 2.8 : 1.9).fill(0xffe1a6);
   gl.ellipse(32, -7, 13, 8).fill({ color: 0xffcb8c, alpha: watching ? 0.62 : 0.3 });
   layer.light.intensity = 0;
