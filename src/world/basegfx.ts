@@ -1716,44 +1716,93 @@ function drawWorkshop(n: number, livingBases: boolean): PieceArt {
 }
 
 /** Painted exterior hulls for the 6 hero base modules (fallback to procedural if absent). */
-function drawPaintedHero(kind: PieceKind, n: number): PieceArt | null {
+function drawPaintedHero(kind: PieceKind, n: number, housingOcean: boolean): PieceArt | null {
   const baseArt = getPropArt().base;
   if (kind === 'dome' && baseArt.dome) {
     const W = CELL * 2;
     const H = CELL * 2;
+    const cx = W / 2;
     const body = new Container();
     const spr = new Sprite(baseArt.dome);
     spr.anchor.set(0.5, 1);
     const natH = (W + 8) * (baseArt.dome.height / Math.max(1, baseArt.dome.width));
     spr.width = W + 8;
     spr.height = Math.min(H - 6, natH * 1.28);
-    spr.position.set(W / 2, H - 2);
+    spr.position.set(cx, H - 2);
     body.addChild(spr);
+    // Round brass-and-chrome entrance airlock hatch on the front drum.
+    const hatchG = body.addChild(new Graphics());
+    const ay = H - 36;
+    hatchG.circle(cx, ay, 24).fill({ color: 0x262d30 });
+    hatchG.circle(cx, ay, 22).fill({ color: 0x9c8248 });
+    hatchG.circle(cx, ay, 22).stroke({ color: 0x2a2418, width: 2 });
+    hatchG.circle(cx, ay, 16.5).fill({ color: 0x1a2628 });
+    for (let i = 0; i < 8; i++) {
+      const a = (i / 8) * Math.PI * 2;
+      hatchG.circle(cx + Math.cos(a) * 19.2, ay + Math.sin(a) * 19.2, 1.3).fill({ color: 0x2f2818 });
+    }
+    hatchG.moveTo(cx - 10, ay).lineTo(cx + 10, ay).moveTo(cx, ay - 10).lineTo(cx, ay + 10).stroke({ color: 0xc9b078, width: 2.6, cap: 'round' });
+    hatchG.circle(cx, ay, 4).fill({ color: 0xc9b078 });
     const windows = new Graphics();
     const windowGlow = new Graphics();
-    windows.ellipse(W / 2, H - spr.height * 0.62, W * 0.34, spr.height * 0.22).fill({ color: 0xffe49e, alpha: 0.24 });
-    windowGlow.ellipse(W / 2, H - spr.height * 0.62, W * 0.44, spr.height * 0.32).fill({ color: 0xffd280, alpha: 0.28 });
-    body.addChild(stencil(`HAB-0${n}`, W / 2, H - 16, 7));
-    return { body, windows, windowGlow, lamp: { x: W / 2, y: Math.max(8, H - spr.height - 2) } };
+    windows.ellipse(cx, H - spr.height * 0.62, W * 0.34, spr.height * 0.22).fill({ color: 0xffe49e, alpha: 0.24 });
+    windowGlow.ellipse(cx, H - spr.height * 0.62, W * 0.44, spr.height * 0.32).fill({ color: 0xffd280, alpha: 0.28 });
+    windows.circle(cx, ay, 17.5).stroke({ color: PAL.glass, width: 1.8, alpha: 0.85 });
+    windowGlow.circle(cx, ay, 24).stroke({ color: PAL.glass, width: 5, alpha: 0.3 });
+    body.addChild(stencil(`HAB-0${n}`, cx, H - 68, 7));
+    return { body, windows, windowGlow, lamp: { x: cx, y: Math.max(8, H - spr.height - 2) } };
   }
   if (kind === 'dock' && baseArt.dock) {
     const W = CELL * 3;
     const H = CELL * 2;
+    const cx = W / 2;
     const body = new Container();
-    const spr = new Sprite(baseArt.dock);
-    spr.width = W + 8;
-    spr.height = H - 2;
-    spr.position.set(-4, 2);
-    body.addChild(spr);
+    const g = body.addChild(new Graphics());
     const windows = new Graphics();
     const windowGlow = new Graphics();
-    for (const lx of [W * 0.27, W * 0.73]) {
-      windows.roundRect(lx - 4, H * 0.22, 8, 14, 3).fill({ color: 0xc6f03a, alpha: 0.85 });
-      windowGlow.circle(lx, H * 0.26, 20).fill({ color: 0xc6f03a, alpha: 0.32 });
+    // Open underwater berth below the hall: pillars, braces, clamps, guide lamps, ladder & water ripples.
+    for (const s of [-1, 1]) {
+      const x = cx + s * 143;
+      g.poly([x - 13, 92, x + 13, 92, x + 13 + s * 7, H - 5, x - 13 + s * 7, H - 5]).fill({ color: PAL.steel });
+      g.moveTo(x, 110).lineTo(x + s * 7, H - 8).stroke({ color: 0xb19a73, alpha: 0.75, width: 2 });
+      g.roundRect(x + s * 7 - 22, H - 10, 44, 10, 3).fill({ color: PAL.steelDark });
+      if (housingOcean) drawDockBrace(g, cx, 0, s);
+      else g.moveTo(x + s * 5, H - 33).lineTo(cx + s * 102, 105).stroke({ color: 0x3b484a, width: 8 });
+      const clamp = cx + s * 74;
+      g.poly([clamp - 6, 104, clamp + 6, 104, clamp + 6, 138, clamp - s * 16, 152, clamp - s * 21, 146, clamp - 6, 135]).fill({ color: 0x8a7248 });
+      g.circle(clamp, 138, 4.5).fill({ color: PAL.chrome });
+      for (const y of [152, 194]) {
+        windows.roundRect(x - 5, y, 10, 4, 2).fill(0xffbd72);
+        windowGlow.ellipse(x, y + 2, 12, 10).fill({ color: 0xffb76e, alpha: 0.35 });
+      }
     }
-    windowGlow.ellipse(W / 2, H * 0.76, W * 0.22, H * 0.16).fill({ color: 0xffd280, alpha: 0.22 });
-    body.addChild(stencil(`MP-${n}`, W / 2, 18, 8));
-    return { body, windows, windowGlow, lamp: { x: W / 2 + 44, y: 18 } };
+    // Painted upper moon-pool hall spanning row 1, leaving the lower berth open to the ocean.
+    const spr = new Sprite(baseArt.dock);
+    spr.width = W + 8;
+    spr.height = CELL + 16;
+    spr.position.set(-4, 0);
+    body.addChild(spr);
+    // Shimmering water surface & ripples inside the open moon-pool arch at the waterline.
+    const wg = body.addChild(new Graphics());
+    const poolW = POOL_HALF_WIDTH * 1.15;
+    const waterY = POOL_SURFACE_Y + 6;
+    wg.roundRect(cx - poolW, waterY, poolW * 2, 18, 4).fill({ color: 0x16383e, alpha: 0.72 });
+    wg.rect(cx - poolW + 6, waterY + 1, (poolW - 6) * 2, 2.6).fill({ color: 0x9cd8ca, alpha: 0.65 });
+    wg.ellipse(cx - 26, waterY + 7, 22, 2.2).stroke({ color: 0xbcece0, width: 1.2, alpha: 0.48 });
+    wg.ellipse(cx + 22, waterY + 10, 18, 1.8).stroke({ color: 0xbcece0, width: 1.1, alpha: 0.4 });
+    wg.ellipse(cx, waterY + 14, 28, 2.2).stroke({ color: 0x8cc8bc, width: 1, alpha: 0.35 });
+    // Entry ladder descending into the moon pool water.
+    const ladder = cx + POOL_LADDER_X;
+    for (const x of [ladder - 8, ladder + 8]) wg.moveTo(x, 70).lineTo(x, 126).stroke({ color: 0x94876a, width: 2.8 });
+    for (let y = 74; y < 126; y += 9) wg.moveTo(ladder - 8, y).lineTo(ladder + 8, y).stroke({ color: 0xbba480, width: 2.2 });
+    for (const lx of [W * 0.27, W * 0.73]) {
+      windows.roundRect(lx - 4, 24, 8, 12, 3).fill({ color: 0xc6f03a, alpha: 0.85 });
+      windowGlow.circle(lx, 30, 18).fill({ color: 0xc6f03a, alpha: 0.3 });
+    }
+    windows.rect(cx - poolW + 10, waterY + 1, (poolW - 10) * 2, 2).fill({ color: 0xbfe8dc, alpha: 0.5 });
+    windowGlow.ellipse(cx, waterY + 6, poolW * 0.9, 14).fill({ color: 0x8cd0c4, alpha: 0.24 });
+    body.addChild(stencil(`MP-${n}`, cx, 14, 8));
+    return { body, windows, windowGlow, lamp: { x: cx + 44, y: 14 } };
   }
   if (kind === 'lab' && baseArt.lab) {
     const W = CELL;
@@ -1867,7 +1916,7 @@ function drawPaintedHero(kind: PieceKind, n: number): PieceArt | null {
 /** Draw a piece's art. The same drawing is used for placed pieces and the build ghost. */
 export function drawPiece(kind: PieceKind, n: number, rot: number, seed: number, livingBases = false, housingOcean = livingBases, panorama = false): PieceArt {
   rand = mulberry32(WORLD_SEED ^ (seed * 7919 + 0x1b5e));
-  const painted = drawPaintedHero(kind, n);
+  const painted = drawPaintedHero(kind, n, housingOcean);
   if (painted) return painted;
   if (kind === 'dome') return livingBases ? drawKestrelHabitat(n) : drawDome(n);
   if (kind === 'corridor') return livingBases ? drawPressureCorridor(n, rot, true, panorama) : drawCorridor(n, rot);
