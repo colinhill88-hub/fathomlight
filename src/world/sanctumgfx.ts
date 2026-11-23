@@ -1,5 +1,6 @@
 import { Container, Graphics, Sprite } from 'pixi.js';
 import { materialFill, type WorldArt } from '../art/worldArt';
+import { getPropArt } from '../art/propArt';
 import { mulberry32, WORLD_SEED } from '../rng';
 import { ellBottom, ellTop, groundY, SANCTUM, sanctumShapes, shapesField } from './terrain';
 import { dab, traceField, type PointLight } from './scenery';
@@ -281,14 +282,27 @@ export class SanctumScenery {
     this.lights.push({ x: SANCTUM.ante.x - 120, y: SANCTUM.ante.y, radius: 600, intensity: 0.6, color: [0.45, 0.85, 1] });
 
     // ---- The Choir gates (shown after contact) ----
+    const portalTex = getPropArt().base.portal;
     for (const at of [SANCTUM.gate, SANCTUM.homeGate]) {
       const home = at === SANCTUM.homeGate;
       const x = at.x;
-      const y = home ? at.y - 110 : at.y;
-      const frame = new Graphics();
-      frame.ellipse(x, y, 46, 100).stroke({ color: 0x9a9eb4, width: 10 });
-      frame.ellipse(x, y, 46, 100).stroke({ color: 0x5a5e78, width: 1.4 });
-      if (home) frame.moveTo(x - 20, y + 98).lineTo(x - 30, at.y + 4).lineTo(x + 30, at.y + 4).lineTo(x + 20, y + 98).closePath().fill({ color: 0x6a6e8a });
+      const y = home ? at.y - 108 : at.y;
+      const frame = new Container();
+      if (portalTex) {
+        const spr = new Sprite(portalTex);
+        spr.anchor.set(0.5, 0.98);
+        const sc = 236 / Math.max(1, portalTex.height);
+        spr.scale.set(sc);
+        // Sit the stone pedestal firmly on the ocean floor (embedded slightly so sloped seabed shows no gap).
+        spr.position.set(x, home ? at.y + 12 : at.y + 122);
+        frame.addChild(spr);
+      } else {
+        const fg = new Graphics();
+        fg.ellipse(x, y, 46, 100).stroke({ color: 0x9a9eb4, width: 10 });
+        fg.ellipse(x, y, 46, 100).stroke({ color: 0x5a5e78, width: 1.4 });
+        if (home) fg.moveTo(x - 20, y + 98).lineTo(x - 30, at.y + 4).lineTo(x + 30, at.y + 4).lineTo(x + 20, y + 98).closePath().fill({ color: 0x6a6e8a });
+        frame.addChild(fg);
+      }
       frame.visible = false;
       this.view.addChild(frame);
       const core = new Graphics();
@@ -297,8 +311,8 @@ export class SanctumScenery {
       this.glow.addChild(halo);
       const light: PointLight = { x, y, radius: 600, intensity: 0, color: [0.5, 0.8, 1] };
       this.lights.push(light);
-      this.gates.push({ core, halo, light, x, y });
-      (core as Graphics & { frame?: Graphics }).frame = frame;
+      this.gates.push({ core, halo, light, x, y: home && portalTex ? at.y - 114 : y });
+      (core as Graphics & { frame?: Container }).frame = frame;
     }
 
     // ---- Choir motes: slow ribbons of light drifting in the hall and the pool ----
@@ -331,7 +345,7 @@ export class SanctumScenery {
     this.gateOn = on;
     for (const g of this.gates) {
       g.core.visible = g.halo.visible = on;
-      (g.core as Graphics & { frame?: Graphics }).frame!.visible = on;
+      (g.core as Graphics & { frame?: Container }).frame!.visible = on;
       g.light.intensity = on ? 0.9 : 0;
     }
   }

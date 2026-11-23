@@ -10,7 +10,7 @@ import { keyOutWhiteAndCrop, loadImage } from './creatureArt';
  * Missing files or `?art=procedural` fall back cleanly to the code-drawn art.
  */
 export type VehicleArtKey = 'sub' | 'drone' | 'buoy';
-export type BaseArtKey = 'dome' | 'dock' | 'lab' | 'workshop' | 'nursery' | 'turbine';
+export type BaseArtKey = 'dome' | 'dock' | 'lab' | 'workshop' | 'nursery' | 'turbine' | 'portal';
 export type FoeArtKey = 'tick' | 'drone' | 'keeper';
 
 export interface PropArt {
@@ -57,7 +57,7 @@ async function loadGroup<K extends string>(
 }
 
 const VEHICLE_KEYS: readonly VehicleArtKey[] = ['sub', 'drone', 'buoy'];
-const BASE_KEYS: readonly BaseArtKey[] = ['dome', 'dock', 'lab', 'workshop', 'nursery', 'turbine'];
+const BASE_KEYS: readonly BaseArtKey[] = ['dome', 'dock', 'lab', 'workshop', 'nursery', 'turbine', 'portal'];
 const DECOR_KEYS: readonly DecorId[] = [
   'arch', 'amphora', 'helmet', 'chest', 'driftwood', 'clam', 'lantern', 'wheel',
   'cairn', 'floats', 'anchor', 'bell', 'coralarch', 'astrolabe', 'belljar', 'kelplantern',
