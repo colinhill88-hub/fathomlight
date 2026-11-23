@@ -211,7 +211,17 @@ export class TinkerRig extends ShoreRig {
       this.crest.addChild(fan);
       this.shell.addChild(this.crest);
     }
-    this.shell.addChild(armor);
+    const painted = getCreatureArt().crab;
+    if (painted) {
+      const sp = new Sprite(painted);
+      sp.anchor.set(0.5, 0.5);
+      sp.position.set(-2, (crown + 2) * 0.5);
+      sp.width = young ? 44 : 52;
+      sp.height = young ? 26 : 34;
+      this.shell.addChild(sp);
+    } else {
+      this.shell.addChild(armor);
+    }
     if (shape === 1) {
       // Spiked shell: a row of blunt spines along the top.
       const sp = new Graphics();
@@ -221,9 +231,11 @@ export class TinkerRig extends ShoreRig {
       this.shell.addChild(sp);
     }
     this.eyes = joint(this.shell, 16, -13);
-    for (const [x, y] of [[1, -6], [6, -1]]) {
-      this.eyes.addChild(new Graphics().moveTo(-2, 7).lineTo(x, y).stroke({ color: 0x704553, width: 2.7 })
-        .circle(x, y, young ? 3.5 : 2.8).fill(0xffd894).circle(x + 0.9, y, 1.65).fill(0x282332));
+    if (!painted) {
+      for (const [x, y] of [[1, -6], [6, -1]]) {
+        this.eyes.addChild(new Graphics().moveTo(-2, 7).lineTo(x, y).stroke({ color: 0x704553, width: 2.7 })
+          .circle(x, y, young ? 3.5 : 2.8).fill(0xffd894).circle(x + 0.9, y, 1.65).fill(0x282332));
+      }
     }
     const arm = joint(this.shoulder, 14, -3);
     arm.addChild(new Graphics().moveTo(-2, -1).lineTo(10, -3).lineTo(14, 0).lineTo(9, 5).lineTo(0, 3).fill(0x9c605f));
@@ -285,16 +297,19 @@ export class LanternShrimpRig extends ShoreRig {
 
   constructor(young: boolean, pattern: number, phase: number, shape = 0) {
     super(phase);
+    const painted = getCreatureArt().shrimp;
     const count = young ? 3 : 5;
     let end = joint(this.view, -4, -3);
     for (let i = 0; i < count; i++) {
       const w = 8 - i * 0.6;
       const h = 9 - i * 0.9;
-      end.addChild(new Graphics().moveTo(2, -h - 2).quadraticCurveTo(-w * 0.7, -h - 3, -w - 2, -h * 0.55)
-        .lineTo(-w - 1, h * 0.71).quadraticCurveTo(-3, h + 3, 1, h).fill({ color: 0x8d4c60, alpha: 0.95 })
-        .moveTo(0, -h - 1).quadraticCurveTo(-w - 1, -h - 3, -w, h * 0.37).quadraticCurveTo(-2, h, 0, -h - 1)
-        .fill({ color: 0xe3a99a, alpha: 0.64 }).moveTo(-w + 1.5, -h * 0.71).lineTo(-w + 1, h * 0.59)
-        .stroke({ color: 0xffd6b1, width: 1.35, alpha: 0.85 }));
+      if (!painted) {
+        end.addChild(new Graphics().moveTo(2, -h - 2).quadraticCurveTo(-w * 0.7, -h - 3, -w - 2, -h * 0.55)
+          .lineTo(-w - 1, h * 0.71).quadraticCurveTo(-3, h + 3, 1, h).fill({ color: 0x8d4c60, alpha: 0.95 })
+          .moveTo(0, -h - 1).quadraticCurveTo(-w - 1, -h - 3, -w, h * 0.37).quadraticCurveTo(-2, h, 0, -h - 1)
+          .fill({ color: 0xe3a99a, alpha: 0.64 }).moveTo(-w + 1.5, -h * 0.71).lineTo(-w + 1, h * 0.59)
+          .stroke({ color: 0xffd6b1, width: 1.35, alpha: 0.85 }));
+      }
       this.abdomen.push(end);
       end = joint(end, -w + 1, 1);
     }
@@ -319,11 +334,20 @@ export class LanternShrimpRig extends ShoreRig {
       plume.addChild(g);
     }
     this.view.addChild(this.mask);
-    this.mask.addChild(new Graphics().moveTo(-9, -7).quadraticCurveTo(6, -22, 22, -11).lineTo(34, -10)
-      .lineTo(25, -3).quadraticCurveTo(18, 14, 2, 12).quadraticCurveTo(-10, 8, -9, -7).fill(0x8c4e6c)
-      .moveTo(-7, -7).quadraticCurveTo(7, -20, 22, -10).quadraticCurveTo(10, 0, -4, 4).fill(0xefba9b)
-      .moveTo(1, 10).quadraticCurveTo(13, 12, 20, -2).stroke({ color: 0xffc9a0, width: 2.5 })
-      .circle(23, -11, young ? 4.9 : 3.7).fill(0x342a41).circle(24, -12, young ? 2.4 : 1.75).fill(0xffe2b8));
+    if (painted) {
+      const sp = new Sprite(painted);
+      sp.anchor.set(0.5, 0.5);
+      sp.position.set(-4, -2);
+      sp.width = young ? 48 : 66;
+      sp.height = young ? 28 : 38;
+      this.mask.addChild(sp);
+    } else {
+      this.mask.addChild(new Graphics().moveTo(-9, -7).quadraticCurveTo(6, -22, 22, -11).lineTo(34, -10)
+        .lineTo(25, -3).quadraticCurveTo(18, 14, 2, 12).quadraticCurveTo(-10, 8, -9, -7).fill(0x8c4e6c)
+        .moveTo(-7, -7).quadraticCurveTo(7, -20, 22, -10).quadraticCurveTo(10, 0, -4, 4).fill(0xefba9b)
+        .moveTo(1, 10).quadraticCurveTo(13, 12, 20, -2).stroke({ color: 0xffc9a0, width: 2.5 })
+        .circle(23, -11, young ? 4.9 : 3.7).fill(0x342a41).circle(24, -12, young ? 2.4 : 1.75).fill(0xffe2b8));
+    }
     for (let i = 0; i < 3; i++) {
       const fan = joint(this.mask, 12 - i * 7, 7);
       fan.addChild(new Graphics().moveTo(0, 0).quadraticCurveTo(4, 7, -5, 14).quadraticCurveTo(-10, 8, -2, 0)
@@ -437,7 +461,17 @@ export class CinderRig extends ShoreRig {
       }
       this.shell.addChild(spire);
     }
-    this.shell.addChild(edge);
+    const painted = getCreatureArt().snail;
+    if (painted) {
+      const sp = new Sprite(painted);
+      sp.anchor.set(0.5, 0.5);
+      sp.position.set(-5, -h * 0.48);
+      sp.width = young ? 34 : 52;
+      sp.height = young ? 26 : 46;
+      this.shell.addChild(sp);
+    } else {
+      this.shell.addChild(edge);
+    }
     if (shape === 2) {
       // Fluted shell: flared, wavy flutes along the shell's back edge.
       const fl = new Graphics();

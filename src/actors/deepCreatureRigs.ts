@@ -1,4 +1,5 @@
-import { Container, Graphics } from 'pixi.js';
+import { Container, Graphics, Sprite } from 'pixi.js';
+import { getCreatureArt } from '../art/creatureArt';
 import { ShoreRig, type ShorePose } from './shoreCreatureRigs';
 
 /**
@@ -77,11 +78,24 @@ export class KilnEelRig extends ShoreRig {
       .circle(6 * k, -2.4 * k, (young ? 3.6 : 3.2) * 1.25).fill({ color: 0xc8823a, alpha: 0.9 })
       .circle(6 * k, -2.4 * k, young ? 3.6 : 3.2).fill(0x1c1614)
       .circle(7.2 * k, -3.6 * k, 1.2).fill({ color: 0xfff0d8, alpha: 0.95 });
-    this.head.addChild(h);
+    const paintedEel = getCreatureArt().eel;
+    if (paintedEel) {
+      const sp = new Sprite(paintedEel);
+      sp.anchor.set(0.5, 0.5);
+      sp.position.set(4 * k, 0);
+      sp.width = 24 * k;
+      sp.height = 15.5 * k;
+      sp.tint = L.body;
+      this.head.addChild(sp);
+    } else {
+      this.head.addChild(h);
+    }
     this.jaw = joint(this.head, 9 * k, 2.4 * k);
-    this.jaw.addChild(new Graphics().moveTo(0, 0).quadraticCurveTo(3 * k, 1.4 * k, 5.6 * k, 0.2).stroke({ color: L.dark, width: 1, alpha: 0.8, cap: 'round' }));
-    // Gill frills behind the head.
-    h.moveTo(-1, -3 * k).quadraticCurveTo(-4.5, 0, -1, 3 * k).stroke({ color: L.dark, width: 1.2, alpha: 0.7 });
+    if (!paintedEel) {
+      this.jaw.addChild(new Graphics().moveTo(0, 0).quadraticCurveTo(3 * k, 1.4 * k, 5.6 * k, 0.2).stroke({ color: L.dark, width: 1, alpha: 0.8, cap: 'round' }));
+      // Gill frills behind the head.
+      h.moveTo(-1, -3 * k).quadraticCurveTo(-4.5, 0, -1, 3 * k).stroke({ color: L.dark, width: 1.2, alpha: 0.7 });
+    }
     this.halo.ellipse(0, 0, this.len * 0.62, 14).fill({ color: L.glow, alpha: 0.5 });
     Object.assign(this.stroke, { x: -this.len * 0.58, y: 0, vx: -30, vy: 0, radius: 34 });
     for (let i = 0; i < N; i++) this.sx[i] = this.len * 0.42 - (i / (N - 1)) * this.len;
@@ -225,7 +239,18 @@ export class ChimeHorseRig extends ShoreRig {
     fan.closePath().fill({ color: L.fin, alpha: 0.75 });
     for (let a = 1; a < 8; a += 2) fan.moveTo(0, -6 * k + (a / 8) * 13 * k).lineTo(-Math.sin((a / 8) * Math.PI) * 7.5 * k, -6 * k + (a / 8) * 13 * k).stroke({ color: L.dark, width: 0.6, alpha: 0.5 });
     this.fin.addChild(fan);
-    this.torso.addChild(t);
+    const paintedHorse = getCreatureArt().horse;
+    if (paintedHorse) {
+      const sp = new Sprite(paintedHorse);
+      sp.anchor.set(0.5, 0.5);
+      sp.position.set(2 * k, -5 * k);
+      sp.width = 27 * k;
+      sp.height = 42 * k;
+      sp.tint = L.body;
+      this.torso.addChild(sp);
+    } else {
+      this.torso.addChild(t);
+    }
     // The head: tilted forward on a curved neck, with a long tube snout (longer for shape 1).
     this.head = joint(this.torso, -1 * k, -15 * k);
     const snout = (shape === 1 ? 15 : 9) * k;
@@ -236,7 +261,7 @@ export class ChimeHorseRig extends ShoreRig {
       .moveTo(6 * k, -0.6 * k).lineTo(5.5 * k + snout, -0.8 * k).stroke({ color: L.belly, width: 1.2, alpha: 0.7 })
       .circle(1.5 * k, -3.5 * k, 3 * k).fill({ color: L.belly, alpha: 0.85 })
       .circle(2 * k, -3.6 * k, 2.2 * k).fill(0x1e1a18).circle(2.8 * k, -4.4 * k, 0.8).fill({ color: 0xffffff, alpha: 0.95 });
-    this.head.addChild(hg);
+    if (!paintedHorse) this.head.addChild(hg);
     // The crown (coronet), with pale filaments trailing from it (a long veil for shape 2).
     const coronet = new Graphics();
     for (let i = 0; i < 4; i++) coronet.moveTo((-4 + i * 2) * k, -7 * k).lineTo((-3.4 + i * 2.2) * k, (-11 - (i % 2) * 2) * k).stroke({ color: L.dark, width: 1.3, cap: 'round' });

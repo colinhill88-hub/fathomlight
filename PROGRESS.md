@@ -4,12 +4,14 @@ The live branch includes the Fulmar foothold, Codex Phases 1–11D the Phase 12 
 
 Play link: https://colinhill88-hub.github.io/fathomlight/ (live; first successful deploy 2026-11-14)
 
-### Painted creature textures — Shallows trio (Colin, Nov 23, 2026)
+### Painted creature textures — all 8 keepable species (Colin, Nov 23, 2026)
 
-Wired `src/art/creatureArt.ts` (`loadCreatureArt` with automatic 4-corner white background cutout, soft anti-aliased edge feathering, and tight bounding-box crop) and installed the first 3 painted `.webp` creature body textures (`src/art/creatures/glowfin.webp`, `puffcap.webp`, `ray.webp`, ~43 KB total, logged in `docs/art/SOURCES.md`):
+Wired `src/art/creatureArt.ts` (`loadCreatureArt` with automatic 4-corner white background cutout, soft anti-aliased edge feathering, and tight bounding-box crop) and installed all 8 painted `.webp` creature body textures (`src/art/creatures/{glowfin,puffcap,ray,crab,shrimp,snail,eel,horse}.webp`, ~131 KB total, logged in `docs/art/SOURCES.md`):
 - **Glowfin (`src/actors/glowfinRig.ts`):** painted 3D body sprite tinted by colour variant, with the existing animated tail paddle, pectoral flippers, lure stalk, sail fin, and veil tail moving around it.
 - **Puffcap (`src/actors/shoreCreatureRigs.ts`):** painted 3D translucent dome bell on `this.bell`, with the 5 jointed flowing tentacles, lace rim, and crown animating beneath it.
 - **Dapple ray (`src/actors/dappleRayRig.ts`):** painted 3D gliding body with subtle vertical breathing undulation and banking tilt, with the 5-joint whip tail and rare tail plume trailing behind it.
+- **Tinker crab, Lantern shrimp, Cinder snail (`src/actors/shoreCreatureRigs.ts`):** painted 3D carapace shell, curved translucent shrimp torso, and coiled ribbed snail shell mounted onto their existing animated walking legs, snapping claw, waving antennae/tail fan, and undulating foot/eye-stalks.
+- **Kiln eel & Chime seahorse (`src/actors/deepCreatureRigs.ts`):** painted 3D eel head tracking the live swaying S-wave spine, and painted 3D upright seahorse head & ridged torso paired with the fluttering back fin, 8-joint curling tail, and glowing crown filaments.
 - **Baked shading:** `Critter` skips `drawShade()` for textured species so their painted volume shines cleanly, while keeping tank shadows, depth fog, glowing patterns, heirlooms, Choir-touched forms, and `?art=procedural` fallback. Loaded in both `src/main.ts` and `src/dev/zoo.ts` (`zoo.html`).
 
 ### Kestrel Supply Buoy — Research Exchange & Survey Credits (Colin, Nov 23, 2026)
