@@ -1,5 +1,6 @@
-import { Container, Graphics } from 'pixi.js';
+import { Container, Graphics, Sprite } from 'pixi.js';
 import type { Light } from '../fx/lighting';
+import { getPropArt } from '../art/propArt';
 import { isSolid } from './terrain';
 
 /**
@@ -33,6 +34,7 @@ export class GearFx {
   readonly lights: Light[] = [];
   private flares: Flare[] = [];
   private darts: { x0: number; y0: number; x1: number; y1: number; t: number }[] = [];
+  private dartSprites = new Map<object, Sprite>();
   private sparks: { x: number; y: number; vx: number; vy: number; t: number }[] = [];
   private fx = new Graphics();
   private marks = new Graphics();
@@ -102,16 +104,97 @@ export class GearFx {
       // A thin trail of bubbles above a landed flare.
       if (f.landed) for (let k = 0; k < 3; k++) g.circle(f.x + 6 + Math.sin(time * 3 + k) * 3, f.y - 10 - ((time * 30 + k * 14) % 42), 1.4).fill({ color: 0xffd0b0, alpha: 0.35 * fade });
     }
+    const dartTex = getPropArt().kestrel.stun_dart;
+    const activeDarts = new Set<object>();
     for (const d of [...this.darts]) {
       d.t += dt;
-      const k = Math.min(1, d.t / 0.18);
-      const x = d.x0 + (d.x1 - d.x0) * k;
-      const y = d.y0 + (d.y1 - d.y0) * k;
-      const a = 1 - Math.max(0, (d.t - 0.18) / 0.4);
-      g.moveTo(d.x0, d.y0).lineTo(x, y).stroke({ color: 0xc6f03a, width: 2, alpha: 0.6 * a });
-      g.circle(x, y, 4).fill({ color: 0xf4ffd0, alpha: a });
-      if (k >= 1) g.circle(d.x1, d.y1, 10 + 40 * (d.t - 0.18)).stroke({ color: 0xc6f03a, width: 2, alpha: 0.8 * a });
+      const flight = 0.22;
+      const k = Math.min(1, d.t / flight);
+      const dx = d.x1 - d.x0;
+      const dy = d.y1 - d.y0;
+      const dist = Math.hypot(dx, dy) || 1;
+      const ux = dx / dist;
+      const uy = dy / dist;
+      const px = -uy;
+      const py = ux;
+      const x = d.x0 + dx * k;
+      const y = d.y0 + dy * k;
+      const a = 1 - Math.max(0, (d.t - flight) / 0.45);
+
+      // Brief brass muzzle recoil puff at the launcher when fired.
+      if (d.t < 0.14) {
+        const mk = 1 - d.t / 0.14;
+        g.circle(d.x0, d.y0, 4 + 9 * (1 - mk)).stroke({ color: 0xe8f5a8, width: 1.8, alpha: 0.65 * mk });
+        g.circle(d.x0 + ux * 5, d.y0 + uy * 5, 4.5 * mk).fill({ color: 0xfff6c8, alpha: 0.85 * mk });
+      }
+
+      // Spiraling underwater slipstream & trailing micro-bubbles (replaces the plain green line).
+      const trailStart = Math.max(0, k - 0.55);
+      const steps = 10;
+      for (let i = 0; i < steps; i++) {
+        const f0 = trailStart + ((k - trailStart) * i) / steps;
+        const f1 = trailStart + ((k - trailStart) * (i + 1)) / steps;
+        const w0 = Math.sin(f0 * 26 - d.t * 28) * 3.4 * (1 - f0 * 0.4);
+        const w1 = Math.sin(f1 * 26 - d.t * 28) * 3.4 * (1 - f1 * 0.4);
+        const fadeSeg = (i / steps) * a;
+        g.moveTo(d.x0 + dx * f0 + px * w0, d.y0 + dy * f0 + py * w0)
+          .lineTo(d.x0 + dx * f1 + px * w1, d.y0 + dy * f1 + py * w1)
+          .stroke({ color: 0xd4f478, width: 1.8, alpha: 0.52 * fadeSeg, cap: 'round' });
+        if (i % 2 === 0) {
+          g.circle(d.x0 + dx * f0 - px * w0 * 0.8, d.y0 + dy * f0 - py * w0 * 0.8, 1.3).fill({ color: 0xe6f8d8, alpha: 0.45 * fadeSeg });
+        }
+      }
+
+      // Flying stun-dart projectile (painted stun_dart sprite when loaded, else sleek brass-tipped dart).
+      if (k < 1) {
+        if (dartTex) {
+          activeDarts.add(d);
+          let spr = this.dartSprites.get(d);
+          if (!spr) {
+            spr = new Sprite(dartTex);
+            spr.anchor.set(0.6, 0.5);
+            this.emissive.addChild(spr);
+            this.dartSprites.set(d, spr);
+          }
+          spr.scale.set(24 / Math.max(1, dartTex.width));
+          spr.position.set(x, y);
+          spr.rotation = Math.atan2(uy, ux);
+        } else {
+          g.poly([
+            x + ux * 9, y + uy * 9,
+            x - ux * 5 + px * 2.5, y - uy * 5 + py * 2.5,
+            x - ux * 10 + px * 4.5, y - uy * 10 + py * 4.5,
+            x - ux * 7, y - uy * 7,
+            x - ux * 10 - px * 4.5, y - uy * 10 - py * 4.5,
+            x - ux * 5 - px * 2.5, y - uy * 5 - py * 2.5,
+          ]).fill({ color: 0xd4b05c }).stroke({ color: 0x261d10, width: 0.9 });
+          g.circle(x + ux * 7, y + uy * 7, 2.4).fill({ color: 0xf4ffd0 });
+        }
+      } else {
+        // Impact shock-rings + 6 crackling golden-lime static arcs around the stunned predator.
+        const imp = d.t - flight;
+        const r1 = 10 + 48 * imp;
+        const r2 = 6 + 30 * imp;
+        g.circle(d.x1, d.y1, r1).stroke({ color: 0xc6f03a, width: 2.2, alpha: 0.85 * a });
+        g.circle(d.x1, d.y1, r2).stroke({ color: 0xfff4b0, width: 1.4, alpha: 0.7 * a });
+        for (let i = 0; i < 6; i++) {
+          const ang = (i / 6) * Math.PI * 2 + imp * 5;
+          const midR = r2 * 0.78;
+          const outR = r1 * 1.08;
+          const jag = (i % 2 ? 1 : -1) * 0.22;
+          g.moveTo(d.x1 + Math.cos(ang) * 6, d.y1 + Math.sin(ang) * 6)
+            .lineTo(d.x1 + Math.cos(ang + jag) * midR, d.y1 + Math.sin(ang + jag) * midR)
+            .lineTo(d.x1 + Math.cos(ang) * outR, d.y1 + Math.sin(ang) * outR)
+            .stroke({ color: i % 2 ? 0xfff6c0 : 0xc6f03a, width: 1.5, alpha: 0.85 * a, cap: 'round' });
+        }
+      }
       if (a <= 0) this.darts = this.darts.filter((q) => q !== d);
+    }
+    for (const [d, spr] of this.dartSprites) {
+      if (!activeDarts.has(d)) {
+        spr.destroy();
+        this.dartSprites.delete(d);
+      }
     }
     for (const sp of [...this.sparks]) {
       sp.t += dt;

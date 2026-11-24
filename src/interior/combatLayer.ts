@@ -56,6 +56,7 @@ export class CombatLayer implements InteriorCombat {
   private time = 0;
   private foeLayer: Container | null = null;
   private foeSprites = new Map<Foe, Sprite>();
+  private shotSprites = new Map<object, Sprite>();
 
   constructor(
     private readonly interior: Interior,
@@ -71,6 +72,8 @@ export class CombatLayer implements InteriorCombat {
   private clearFoeSprites(): void {
     for (const s of this.foeSprites.values()) s.destroy();
     this.foeSprites.clear();
+    for (const s of this.shotSprites.values()) s.destroy();
+    this.shotSprites.clear();
   }
 
   /** A fresh visit: every small machine is back, the keeper too unless beaten; no lamps lit yet. */
@@ -319,26 +322,76 @@ export class CombatLayer implements InteriorCombat {
       em.moveTo(wv.x - wv.dir * 40, wv.y - 1).lineTo(wv.x + wv.dir * 6, wv.y - 1).stroke({ color: GOLD, width: 3, alpha: 0.8 * k });
       glow.ellipse(wv.x, wv.y - 8, 26, 12).fill({ color: 0xff8a2a, alpha: 0.4 * k });
     }
-    // Rivets (gold, hot) and bolts (red-hot), with short trails.
+    // Rivets (hot brass bolts — painted rivet_bolt sprite when loaded) and enemy bolts, with ember trails.
+    const boltTex = getPropArt().kestrel.rivet_bolt;
+    const activeShots = new Set<object>();
     for (const s of this.field.shots) {
       const sp = Math.hypot(s.vx, s.vy) || 1;
       const ux = s.vx / sp;
       const uy = s.vy / sp;
+      const ang = Math.atan2(uy, ux);
       const mine = s.from === 'kestrel';
       const col = mine ? (s.returned ? LIME : GOLD) : RED;
-      em.moveTo(s.x - ux * (mine ? 18 : 24), s.y - uy * (mine ? 18 : 24)).lineTo(s.x, s.y).stroke({ color: col, width: mine ? 2.6 : 3.6, alpha: 0.95, cap: 'round' });
-      em.circle(s.x, s.y, mine ? 2.2 : 3.4).fill({ color: 0xfff4d8 });
-      glow.circle(s.x, s.y, mine ? 10 : 16).fill({ color: col, alpha: 0.45 });
+      // Layered hot ember wake behind every projectile.
+      const tailLen = mine ? 24 : 28;
+      em.moveTo(s.x - ux * tailLen, s.y - uy * tailLen).lineTo(s.x - ux * 3, s.y - uy * 3)
+        .stroke({ color: col, width: mine ? 3.8 : 4.6, alpha: 0.42, cap: 'round' });
+      em.moveTo(s.x - ux * (tailLen * 0.6), s.y - uy * (tailLen * 0.6)).lineTo(s.x, s.y)
+        .stroke({ color: 0xfff2c8, width: mine ? 1.8 : 2.2, alpha: 0.88, cap: 'round' });
+      if (mine && boltTex && this.foeLayer) {
+        activeShots.add(s);
+        let spr = this.shotSprites.get(s);
+        if (!spr) {
+          spr = new Sprite(boltTex);
+          spr.anchor.set(0.65, 0.5);
+          this.foeLayer.addChild(spr);
+          this.shotSprites.set(s, spr);
+        }
+        spr.scale.set(18 / Math.max(1, boltTex.width));
+        spr.position.set(s.x, s.y);
+        spr.rotation = ang;
+        spr.tint = s.returned ? 0xdcff72 : 0xffffff;
+      } else {
+        // Tapered brass bolt silhouette fallback (or enemy plasma bolt).
+        const px = -uy;
+        const py = ux;
+        em.poly([
+          s.x + ux * 5, s.y + uy * 5,
+          s.x - ux * 5 + px * 2.4, s.y - uy * 5 + py * 2.4,
+          s.x - ux * 7, s.y - uy * 7,
+          s.x - ux * 5 - px * 2.4, s.y - uy * 5 - py * 2.4,
+        ]).fill({ color: mine ? 0xf4d27a : 0xff7050 }).stroke({ color: 0x241b10, width: 0.9 });
+        em.circle(s.x + ux * 2, s.y + uy * 2, mine ? 1.8 : 2.6).fill({ color: 0xfff8dc });
+      }
+      glow.circle(s.x, s.y, mine ? 12 : 17).fill({ color: col, alpha: 0.42 });
     }
+    for (const [s, spr] of this.shotSprites) {
+      if (!activeShots.has(s)) {
+        spr.destroy();
+        this.shotSprites.delete(s);
+      }
+    }
+    // Crisp multi-ray starburst muzzle blast when firing RD-1.
     if (this.flashT > 0) {
       const k = this.flashT / 0.07;
-      em.circle(this.flashAt.x, this.flashAt.y, 7 * k + 3).fill({ color: LIME, alpha: 0.9 * k });
-      glow.circle(this.flashAt.x, this.flashAt.y, 26 * k).fill({ color: LIME, alpha: 0.5 * k });
+      const fx = this.flashAt.x;
+      const fy = this.flashAt.y;
+      for (let i = 0; i < 5; i++) {
+        const a = (i / 5) * Math.PI * 2 + 0.3;
+        const r = (9 + (i % 2) * 7) * k;
+        em.moveTo(fx, fy).lineTo(fx + Math.cos(a) * r, fy + Math.sin(a) * r)
+          .stroke({ color: i % 2 ? 0xfff4c8 : LIME, width: 2.2 * k, alpha: 0.9 * k, cap: 'round' });
+      }
+      em.circle(fx, fy, 6.5 * k + 2.5).fill({ color: 0xfff6d8, alpha: 0.95 * k });
+      glow.circle(fx, fy, 30 * k).fill({ color: LIME, alpha: 0.55 * k });
     }
     for (const s of this.sparks) {
       const a = Math.min(1, s.life / (s.max * 0.5));
       if (s.chunk) back.rect(s.x - s.size / 2, s.y - s.size / 2, s.size, s.size * 0.7).fill({ color: s.color, alpha: a });
-      else em.moveTo(s.x, s.y).lineTo(s.x - s.vx * 0.02, s.y - s.vy * 0.02).stroke({ color: s.color, width: s.size, alpha: a });
+      else {
+        em.moveTo(s.x, s.y).lineTo(s.x - s.vx * 0.028, s.y - s.vy * 0.028).stroke({ color: s.color, width: s.size * 1.15, alpha: a, cap: 'round' });
+        em.circle(s.x, s.y, s.size * 0.55).fill({ color: 0xfff8e0, alpha: a * 0.85 });
+      }
     }
   }
 

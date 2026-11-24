@@ -22,7 +22,7 @@ export type KestrelArtKey =
   | 'thigh' | 'shin' | 'fin' | 'fin_walk' | 'boot' | 'fin_blade'
   | 'joint_shoulder' | 'joint_knee'
   | 'jar' | 'thruster' | 'thruster_mk2' | 'harpoon'
-  | 'rivet' | 'dart' | 'flare' | 'resonator' | 'magboots' | 'satchel'
+  | 'rivet' | 'rivet_bolt' | 'dart' | 'stun_dart' | 'flare' | 'resonator' | 'magboots' | 'satchel'
   | 'lamp' | 'hose';
 export type WreckArtKey = 'fulmar' | 'corvina';
 export type InteriorArtKey =
@@ -132,7 +132,7 @@ const KESTREL_KEYS: readonly KestrelArtKey[] = [
   'thigh', 'shin', 'fin', 'fin_walk', 'boot', 'fin_blade',
   'joint_shoulder', 'joint_knee',
   'jar', 'thruster', 'thruster_mk2', 'harpoon',
-  'rivet', 'dart', 'flare', 'resonator', 'magboots', 'satchel',
+  'rivet', 'rivet_bolt', 'dart', 'stun_dart', 'flare', 'resonator', 'magboots', 'satchel',
   'lamp', 'hose',
 ];
 const VEHICLE_KEYS: readonly VehicleArtKey[] = ['sub', 'drone', 'buoy', 'buoy_anchor'];

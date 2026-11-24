@@ -833,18 +833,6 @@ export class Drone {
         }
       }
       const wg = this.wakeG.clear();
-      // Subtle translucent prop-wash cone right behind the spinning blades while moving.
-      if (running && spd > 18) {
-        const wash = Math.min(1, spd / 160);
-        const [p0x, p0y] = this.toWorld(-23, -1);
-        const [p1x, p1y] = this.toWorld(-34 - wash * 14, -1 - 4.5 - wash * 3);
-        const [p2x, p2y] = this.toWorld(-34 - wash * 14, -1 + 4.5 + wash * 3);
-        wg.poly([
-          p0x - this.view.x, p0y - this.view.y,
-          p1x - this.view.x, p1y - this.view.y,
-          p2x - this.view.x, p2y - this.view.y,
-        ]).fill({ color: 0xd4efe6, alpha: 0.14 * wash });
-      }
       for (let i = this.wakeBubbles.length - 1; i >= 0; i--) {
         const b = this.wakeBubbles[i];
         b.life += dt;
