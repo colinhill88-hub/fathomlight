@@ -244,8 +244,8 @@ export class Sub {
   private armAngles = { upper: 2.85, fore: -2.9 };
   private lampLight: Light = { x: 0, y: 0, radius: 520, intensity: 0, color: [1, 0.9, 0.74], coneCos: 0.88, coneSoft: 0.12, haze: 0.3, shadow: true };
   /** The pilot in the cabin, and how far in they are (0 = empty, 1 = seated). */
-  private pilot = new Graphics();
-  private pilotE = new Graphics();
+  private pilot = new Container();
+  private pilotE = new Container();
   private pilotLevel = 0;
   private cabinLight: Light = { x: 0, y: 0, radius: 150, intensity: 0, color: [1, 0.86, 0.6] };
   private lightLevel = 0;
@@ -264,31 +264,58 @@ export class Sub {
       spr.scale.set(sc);
       spr.position.set(0, -4);
       this.body.addChild(spr);
-      // Draw Kestrel seated inside the painted glass nose canopy (plus a softly illuminated emissive copy so they stay clearly visible in the dark trench!).
-      const drawSeatedPilot = (p: Graphics, alpha = 1) => {
-        const px = 66;
-        const py = 4;
-        // Soft warm cabin backlight inside the dome behind Kestrel.
-        p.ellipse(px + 6, py - 14, 22, 26).fill({ color: 0xe4ff9e, alpha: 0.16 * alpha });
-        p.roundRect(px - 14, py - 14, 24, 15, 6).fill({ color: 0x3b4448, alpha });
-        p.moveTo(px - 10, py - 10).lineTo(px + 6, py - 10).stroke({ color: 0xd4ad5a, width: 1.1, alpha: 0.85 * alpha });
-        p.roundRect(px + 1, py - 9, 21, 5.5, 2.5).fill({ color: 0x9aa4a8, alpha });
-        p.circle(px + 22, py - 6.2, 2.8).fill({ color: 0xc86442, alpha });
-        p.roundRect(px - 10, py - 16, 18, 5, 2.5).fill({ color: 0xb8ccd8, alpha });
-        const hx = px;
-        const hy = py - 24;
-        const k = 1.08;
-        p.circle(hx, hy, 8 * k).fill({ color: 0xd9a788, alpha });
-        p.moveTo(hx - 8 * k, hy - 1 * k).arc(hx, hy, 8 * k, Math.PI, -0.2).lineTo(hx + 2 * k, hy - 2 * k).closePath().fill({ color: 0x4a3426, alpha });
-        p.poly([hx + 7 * k, hy - 1 * k, hx + 10.5 * k, hy + 2 * k, hx + 7.5 * k, hy + 3.5 * k]).fill({ color: 0xd9a788, alpha });
-        p.circle(hx + 4.5 * k, hy - 1 * k, 1.2).fill({ color: 0x1a1410, alpha });
-        p.moveTo(hx + 5 * k, hy + 5 * k).lineTo(hx + 8 * k, hy + 4.6 * k).stroke({ color: 0x5a3a30, width: 0.9, alpha });
-        p.circle(hx + 1, hy, 13.2).fill({ color: PAL.visor, alpha: 0.24 * alpha });
-        p.circle(hx + 1, hy, 13.2).stroke({ color: 0x9cc846, width: 1.4, alpha: 0.88 * alpha });
-        p.circle(hx + 5.5, hy - 5, 2.5).fill({ color: 0xffffff, alpha: 0.55 * alpha });
-      };
-      drawSeatedPilot(this.pilot, 1);
-      drawSeatedPilot(this.pilotE, 0.78);
+      // Mount the real painted Kestrel (head + torso) inside the glass nose canopy!
+      const kArt = getPropArt().kestrel;
+      if (kArt.head) {
+        const buildPaintedPilot = (target: Container, alpha = 1) => {
+          const back = new Graphics();
+          back.ellipse(68, -12, 20, 24).fill({ color: 0xe4ff9e, alpha: 0.14 * alpha });
+          target.addChild(back);
+          if (kArt.torso) {
+            const tSpr = new Sprite(kArt.torso);
+            tSpr.anchor.set(0.5, 0.5);
+            const tsc = 24 / Math.max(1, kArt.torso.height);
+            tSpr.scale.set(tsc);
+            tSpr.position.set(62, 1);
+            tSpr.alpha = alpha;
+            target.addChild(tSpr);
+          }
+          const hSpr = new Sprite(kArt.head!);
+          hSpr.anchor.set(0.5, 0.5);
+          const hsc = 30 / Math.max(1, kArt.head!.height);
+          hSpr.scale.set(hsc);
+          hSpr.position.set(65, -18);
+          hSpr.alpha = alpha;
+          target.addChild(hSpr);
+        };
+        buildPaintedPilot(this.pilot, 1);
+        buildPaintedPilot(this.pilotE, 0.55);
+      } else {
+        const drawSeatedPilot = (target: Container, alpha = 1) => {
+          const p = target.addChild(new Graphics());
+          const px = 66;
+          const py = 4;
+          p.ellipse(px + 6, py - 14, 22, 26).fill({ color: 0xe4ff9e, alpha: 0.16 * alpha });
+          p.roundRect(px - 14, py - 14, 24, 15, 6).fill({ color: 0x3b4448, alpha });
+          p.moveTo(px - 10, py - 10).lineTo(px + 6, py - 10).stroke({ color: 0xd4ad5a, width: 1.1, alpha: 0.85 * alpha });
+          p.roundRect(px + 1, py - 9, 21, 5.5, 2.5).fill({ color: 0x9aa4a8, alpha });
+          p.circle(px + 22, py - 6.2, 2.8).fill({ color: 0xc86442, alpha });
+          p.roundRect(px - 10, py - 16, 18, 5, 2.5).fill({ color: 0xb8ccd8, alpha });
+          const hx = px;
+          const hy = py - 24;
+          const k = 1.08;
+          p.circle(hx, hy, 8 * k).fill({ color: 0xd9a788, alpha });
+          p.moveTo(hx - 8 * k, hy - 1 * k).arc(hx, hy, 8 * k, Math.PI, -0.2).lineTo(hx + 2 * k, hy - 2 * k).closePath().fill({ color: 0x4a3426, alpha });
+          p.poly([hx + 7 * k, hy - 1 * k, hx + 10.5 * k, hy + 2 * k, hx + 7.5 * k, hy + 3.5 * k]).fill({ color: 0xd9a788, alpha });
+          p.circle(hx + 4.5 * k, hy - 1 * k, 1.2).fill({ color: 0x1a1410, alpha });
+          p.moveTo(hx + 5 * k, hy + 5 * k).lineTo(hx + 8 * k, hy + 4.6 * k).stroke({ color: 0x5a3a30, width: 0.9, alpha });
+          p.circle(hx + 1, hy, 13.2).fill({ color: PAL.visor, alpha: 0.24 * alpha });
+          p.circle(hx + 1, hy, 13.2).stroke({ color: 0x9cc846, width: 1.4, alpha: 0.88 * alpha });
+          p.circle(hx + 5.5, hy - 5, 2.5).fill({ color: 0xffffff, alpha: 0.55 * alpha });
+        };
+        drawSeatedPilot(this.pilot, 1);
+        drawSeatedPilot(this.pilotE, 0.78);
+      }
       this.body.addChild(this.pilot);
       this.eBody.addChild(this.pilotE);
       // Soft glass canopy sheen over the pilot so they sit genuinely inside the glass dome.
@@ -436,7 +463,7 @@ export class Sub {
     g.roundRect(x - 26, y - 30, 9, 29, 3).fill({ color: 0x4a1c18 });
     g.roundRect(x - 26, y - 30, 3, 29, 1).fill({ color: 0xffffff, alpha: 0.1 });
     this.body.addChild(g);
-    g = this.pilot;
+    g = this.pilot.addChild(new Graphics());
     g.roundRect(x - 16, y - 13, 24, 13, 6).fill({ color: PAL.charcoal });
     g.moveTo(x - 12, y - 9).lineTo(x + 5, y - 9).stroke({ color: PAL.brass, width: 0.7, alpha: 0.6 });
     g.roundRect(x - 1, y - 8, 21, 5, 2.5).fill({ color: 0x7c8487 });
