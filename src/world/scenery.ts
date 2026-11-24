@@ -485,36 +485,85 @@ function drawBeacon(g: Graphics, x: number, y: number): { lampX: number; lampY: 
 }
 
 /**
- * The Kestrel site marker: a weighted steel crate on the sand with a rope
- * rising to an orange-red buoy at the surface. This is where the crew will
- * lay out the base in milestone 3.
+ * The Kestrel site marker: a weighted mooring anchor block on the sand with a
+ * heavy linked iron & brass chain rising to the vintage red-and-cream Kestrel
+ * marker buoy at the surface.
  */
-function drawSiteMarker(g: Graphics, x: number): void {
+function drawSiteMarker(g: Graphics, x: number, layer: Container): void {
   const y = gy(x) + 4;
-  // Crate.
-  g.roundRect(x - 34, y - 34, 68, 36, 3).fill({ color: 0x5b6467 });
-  g.roundRect(x - 34, y - 34, 68, 5, 2).fill({ color: 0xffffff, alpha: 0.14 });
-  g.rect(x - 34, y - 20, 68, 4).fill({ color: 0x3b4448 });
-  g.rect(x - 12, y - 34, 4, 36).fill({ color: 0x3b4448 });
-  g.rect(x + 10, y - 34, 4, 36).fill({ color: 0x3b4448 });
-  g.rect(x - 34, y - 14, 22, 12).fill({ color: 0xc29b45, alpha: 0.9 });
-  for (let i = 0; i < 4; i++) g.rect(x - 32 + i * 6, y - 14, 3, 12).fill({ color: 0x232524, alpha: 0.85 });
-  rivetsRow(g, x - 30, y - 28, 6, 12);
-  rustStreaks(g, x - 32, x + 32, y - 30, 9, 18);
-  for (let i = 0; i < 18; i++) dab(g, x + R(-38, 38), y - R(0, 8), R(3, 9), R(2, 4), PAL.algae, 0.7);
-  // Shackle and rope to the surface.
-  g.circle(x, y - 40, 5).stroke({ color: 0x3b4448, width: 2.5 });
-  g.moveTo(x, y - 44);
-  const top = 6;
-  for (let k = 1; k <= 20; k++) {
-    const t = k / 20;
-    g.lineTo(x + Math.sin(t * Math.PI) * 14, y - 44 + (top - (y - 44)) * t);
+  const anchorTex = getPropArt().vehicles.buoy_anchor;
+  const ringY = anchorTex ? y - 40 : y - 40;
+  if (anchorTex) {
+    const sp = new Sprite(anchorTex);
+    sp.anchor.set(0.5, 1);
+    sp.scale.set(76 / Math.max(1, anchorTex.width));
+    sp.position.set(x, y + 3);
+    layer.addChild(sp);
+  } else {
+    // Procedural fallback crate.
+    g.roundRect(x - 34, y - 34, 68, 36, 3).fill({ color: 0x5b6467 });
+    g.roundRect(x - 34, y - 34, 68, 5, 2).fill({ color: 0xffffff, alpha: 0.14 });
+    g.rect(x - 34, y - 20, 68, 4).fill({ color: 0x3b4448 });
+    g.rect(x - 12, y - 34, 4, 36).fill({ color: 0x3b4448 });
+    g.rect(x + 10, y - 34, 4, 36).fill({ color: 0x3b4448 });
+    g.rect(x - 34, y - 14, 22, 12).fill({ color: 0xc29b45, alpha: 0.9 });
+    for (let i = 0; i < 4; i++) g.rect(x - 32 + i * 6, y - 14, 3, 12).fill({ color: 0x232524, alpha: 0.85 });
+    rivetsRow(g, x - 30, y - 28, 6, 12);
+    rustStreaks(g, x - 32, x + 32, y - 30, 9, 18);
+    for (let i = 0; i < 18; i++) dab(g, x + R(-38, 38), y - R(0, 8), R(3, 9), R(2, 4), PAL.algae, 0.7);
+    g.circle(x, y - 40, 5).stroke({ color: 0x3b4448, width: 2.5 });
   }
-  g.stroke({ color: 0x8c7c5a, width: 2 });
+  // Heavy linked cast-iron & tarnished-brass mooring chain up to the buoy's bottom ring.
+  const topY = getPropArt().landmarks.mooring_buoy ? 24 : 16;
+  const topX = x + 2;
+  const botY = ringY - 2;
+  const steps = Math.max(18, Math.round(Math.abs(botY - topY) / 11));
+  const pt = (t: number): [number, number] => [
+    x + (topX - x) * t + Math.sin(t * Math.PI) * 14,
+    botY + (topY - botY) * t,
+  ];
+  for (let k = 0; k < steps; k++) {
+    const [x0, y0] = pt(k / steps);
+    const [x1, y1] = pt((k + 1) / steps);
+    const mx = (x0 + x1) * 0.5;
+    const my = (y0 + y1) * 0.5;
+    const len = Math.hypot(x1 - x0, y1 - y0);
+    if (k % 2 === 0) {
+      // Face-on oval forged link.
+      g.ellipse(mx, my, 3.1, len * 0.62).stroke({ color: 0x1a1e20, width: 2.8 });
+      g.ellipse(mx, my, 3.1, len * 0.62).stroke({ color: 0x7c6b48, width: 1.4 });
+    } else {
+      // Edge-on forged bar link.
+      g.moveTo(x0, y0).lineTo(x1, y1).stroke({ color: 0x1a1e20, width: 3.4, cap: 'round' });
+      g.moveTo(x0, y0).lineTo(x1, y1).stroke({ color: 0x9c885a, width: 1.5, cap: 'round' });
+    }
+  }
+  // Interlocking tarnished-brass D-shackles clasping both the anchor ring and the buoy ring.
+  for (const [sx, sy] of [[x, botY], [topX, topY]] as const) {
+    g.ellipse(sx, sy, 4.2, 5.2).stroke({ color: 0x1b150c, width: 3.2 });
+    g.ellipse(sx, sy, 4.2, 5.2).stroke({ color: 0xb8964c, width: 1.6 });
+  }
 }
 
 /** The surface buoy itself (separate so it can bob). */
 function drawBuoy(c: Container): void {
+  const tex = getPropArt().landmarks.mooring_buoy;
+  if (tex) {
+    const sp = new Sprite(tex);
+    sp.anchor.set(0.5, 0.62);
+    sp.scale.set(66 / Math.max(1, tex.height));
+    c.addChild(sp);
+    const label = new Text({
+      text: 'KESTREL',
+      style: { fontFamily: 'Courier New, monospace', fontSize: 5.5, fontWeight: 'bold', fill: 0x2b2014 },
+      resolution: 6,
+    });
+    label.anchor.set(0.5);
+    label.position.set(0, -1.5);
+    label.alpha = 0.78;
+    c.addChild(label);
+    return;
+  }
   const g = c.addChild(new Graphics());
   g.ellipse(0, 0, 22, 15).fill({ color: 0xa8402e });
   g.ellipse(0, -5, 18, 7).fill({ color: 0xc8604a, alpha: 0.6 });
@@ -907,7 +956,7 @@ export class Scenery {
     }
 
     // Kestrel site marker and buoy.
-    drawSiteMarker(decorAt(BUOY_X), BUOY_X);
+    drawSiteMarker(decorAt(BUOY_X), BUOY_X, decorLayer);
     drawBuoy(this.buoy);
     this.buoy.position.set(BUOY_X + 2, 4);
     this.view.addChild(this.buoy);
