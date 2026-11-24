@@ -669,18 +669,20 @@ export class BeltJar {
   private key = '';
   constructor() {
     const g = new Graphics();
-    // Clip and strap from the belt.
-    g.rect(-1.2, -5, 2.4, 5.5).fill({ color: C.red });
-    g.circle(0, 0, 1.8).stroke({ color: C.chrome, width: 1 });
-    // The jar: glass with a chrome lid and band.
-    g.roundRect(-4.6, 2.6, 9.2, 11.4, 3).fill({ color: 0x2e5a62, alpha: 0.55 });
+    // Weathered leather/terracotta belt strap and dark brass clip.
+    g.rect(-1.2, -5, 2.4, 5.5).fill({ color: 0x6e3a28 });
+    g.circle(0, 0, 1.8).stroke({ color: 0x8a7040, width: 1.1 });
+    // Smoky hand-blown glass jar with dark ink contour.
+    g.roundRect(-4.4, 2.6, 8.8, 10.8, 2.8).fill({ color: 0x203a3e, alpha: 0.68 });
     this.view.addChild(g, this.content);
     const front = new Graphics();
-    front.roundRect(-4.6, 2.6, 9.2, 11.4, 3).stroke({ color: 0xc8eef2, width: 0.8, alpha: 0.85 });
-    front.rect(-3.4, 4.2, 1.1, 7.5).fill({ color: 0xffffff, alpha: 0.38 });
-    front.roundRect(-5.2, 0.4, 10.4, 3, 1.2).fill({ color: C.chromeMid });
-    front.rect(-5.2, 0.4, 10.4, 1).fill({ color: C.chromeHi, alpha: 0.7 });
-    front.rect(-4.6, 9.6, 9.2, 1.2).fill({ color: C.accent, alpha: 0.8 });
+    front.roundRect(-4.4, 2.6, 8.8, 10.8, 2.8).stroke({ color: 0x162224, width: 1.1, alpha: 0.9 });
+    front.roundRect(-3.8, 3.2, 7.6, 9.6, 2.2).stroke({ color: 0x8ea89c, width: 0.65, alpha: 0.45 });
+    front.rect(-3.1, 4.4, 0.9, 6.8).fill({ color: 0xdce8dc, alpha: 0.24 });
+    // Tarnished brass screw lid and retaining band.
+    front.roundRect(-5, 0.4, 10, 3, 1.2).fill({ color: 0x8e723c }).stroke({ color: 0x241e14, width: 0.8 });
+    front.rect(-4.2, 0.9, 8.4, 0.8).fill({ color: 0xcab072, alpha: 0.65 });
+    front.rect(-4.4, 9.4, 8.8, 1.4).fill({ color: 0x7c6232, alpha: 0.9 });
     this.view.addChild(front);
     this.view.visible = false;
   }

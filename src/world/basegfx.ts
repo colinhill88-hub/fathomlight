@@ -1720,6 +1720,7 @@ function drawPaintedHero(kind: PieceKind, n: number, rot: number, housingOcean: 
   const baseArt = getPropArt().base;
   if (kind === 'corridor' && baseArt.corridor) {
     const c = CELL / 2;
+    const vert = rot % 2 === 1;
     const body = new Container();
     const spr = new Sprite(baseArt.corridor);
     spr.anchor.set(0.5, 0.5);
@@ -1727,14 +1728,17 @@ function drawPaintedHero(kind: PieceKind, n: number, rot: number, housingOcean: 
     spr.width = CELL + 4;
     spr.height = Math.min(CELL - 12, Math.max(TUBE + 12, natH));
     spr.position.set(c, c);
-    if (rot % 2 === 1) spr.rotation = Math.PI / 2;
+    if (vert) spr.rotation = Math.PI / 2;
     body.addChild(spr);
     const windows = new Graphics();
     const windowGlow = new Graphics();
-    windows.circle(c, c, 10.5).fill({ color: PAL.glass, alpha: 0.55 });
-    windowGlow.circle(c, c, 22).fill({ color: PAL.glass, alpha: 0.34 });
-    const lamp = rot % 2 === 0 ? { x: CELL - 26, y: c - 24 } : { x: c + 24, y: CELL - 26 };
-    body.addChild(stencil(`C-${String(n).padStart(2, '0')}`, rot % 2 === 0 ? c + 28 : c - 22, rot % 2 === 0 ? c + 26 : c + 30, 6, rot % 2 === 0 ? 0 : -Math.PI / 2));
+    // Match corridor.jpg's slightly below-centre brass porthole (rotates left when vertical).
+    const px = vert ? c - 4 : c;
+    const py = vert ? c : c + 4;
+    windows.circle(px, py, 8.5).fill({ color: PAL.glass, alpha: 0.45 });
+    windowGlow.circle(px, py, 18).fill({ color: PAL.glass, alpha: 0.28 });
+    const lamp = vert ? { x: c + 14, y: CELL - 24 } : { x: CELL - 24, y: c - 14 };
+    body.addChild(stencil(`C-${String(n).padStart(2, '0')}`, vert ? c - 20 : c + 26, vert ? c + 28 : c + 24, 6, vert ? -Math.PI / 2 : 0));
     return { body, windows, windowGlow, lamp };
   }
   if (kind === 'shaft' && baseArt.corridor) {
@@ -1757,11 +1761,11 @@ function drawPaintedHero(kind: PieceKind, n: number, rot: number, housingOcean: 
       spr.position.set(c, cy);
       spr.rotation = Math.PI / 2;
       body.addChild(spr);
-      windows.circle(c, cy, 10.5).fill({ color: PAL.glass, alpha: 0.55 });
-      windowGlow.circle(c, cy, 22).fill({ color: PAL.glass, alpha: 0.34 });
+      windows.circle(c - 4, cy, 8.5).fill({ color: PAL.glass, alpha: 0.45 });
+      windowGlow.circle(c - 4, cy, 18).fill({ color: PAL.glass, alpha: 0.28 });
     }
-    body.addChild(stencil(`S-${String(n).padStart(2, '0')}`, c - 22, CELL + c + 30, 6, -Math.PI / 2));
-    return { body, windows, windowGlow, lamp: { x: c + 24, y: CELL * 3 - 26 } };
+    body.addChild(stencil(`S-${String(n).padStart(2, '0')}`, c - 20, CELL + c + 28, 6, -Math.PI / 2));
+    return { body, windows, windowGlow, lamp: { x: c + 14, y: CELL * 3 - 24 } };
   }
   if (kind === 'dome' && baseArt.dome) {
     const W = CELL * 2;
@@ -1790,12 +1794,12 @@ function drawPaintedHero(kind: PieceKind, n: number, rot: number, housingOcean: 
     hatchG.circle(cx, ay, 4).fill({ color: 0xc9b078 });
     const windows = new Graphics();
     const windowGlow = new Graphics();
-    windows.ellipse(cx, H - spr.height * 0.62, W * 0.34, spr.height * 0.22).fill({ color: 0xffe49e, alpha: 0.24 });
-    windowGlow.ellipse(cx, H - spr.height * 0.62, W * 0.44, spr.height * 0.32).fill({ color: 0xffd280, alpha: 0.28 });
+    windows.ellipse(cx, H - spr.height * 0.62, W * 0.32, spr.height * 0.2).fill({ color: 0xffe49e, alpha: 0.22 });
+    windowGlow.ellipse(cx, H - spr.height * 0.62, W * 0.42, spr.height * 0.28).fill({ color: 0xffd280, alpha: 0.24 });
     windows.circle(cx, ay, 17.5).stroke({ color: PAL.glass, width: 1.8, alpha: 0.85 });
     windowGlow.circle(cx, ay, 24).stroke({ color: PAL.glass, width: 5, alpha: 0.3 });
     body.addChild(stencil(`HAB-0${n}`, cx, H - 68, 7));
-    return { body, windows, windowGlow, lamp: { x: cx, y: Math.max(8, H - spr.height - 2) } };
+    return { body, windows, windowGlow, lamp: { x: cx, y: Math.max(12, H - spr.height + 6) } };
   }
   if (kind === 'dock' && baseArt.dock) {
     const W = CELL * 3;
@@ -1840,14 +1844,14 @@ function drawPaintedHero(kind: PieceKind, n: number, rot: number, housingOcean: 
     const ladder = cx + POOL_LADDER_X;
     for (const x of [ladder - 8, ladder + 8]) wg.moveTo(x, 70).lineTo(x, 126).stroke({ color: 0x94876a, width: 2.8 });
     for (let y = 74; y < 126; y += 9) wg.moveTo(ladder - 8, y).lineTo(ladder + 8, y).stroke({ color: 0xbba480, width: 2.2 });
-    for (const lx of [W * 0.27, W * 0.73]) {
-      windows.roundRect(lx - 4, 24, 8, 12, 3).fill({ color: 0xc6f03a, alpha: 0.85 });
-      windowGlow.circle(lx, 30, 18).fill({ color: 0xc6f03a, alpha: 0.3 });
+    for (const lx of [W * 0.272, W * 0.728]) {
+      windows.roundRect(lx - 3.5, 25, 7, 11, 2.5).fill({ color: 0xc6f03a, alpha: 0.75 });
+      windowGlow.circle(lx, 30, 13).fill({ color: 0xc6f03a, alpha: 0.25 });
     }
     windows.rect(cx - poolW + 10, waterY + 1, (poolW - 10) * 2, 2).fill({ color: 0xbfe8dc, alpha: 0.5 });
     windowGlow.ellipse(cx, waterY + 6, poolW * 0.9, 14).fill({ color: 0x8cd0c4, alpha: 0.24 });
     body.addChild(stencil(`MP-${n}`, cx, 14, 8));
-    return { body, windows, windowGlow, lamp: { x: cx + 44, y: 14 } };
+    return { body, windows, windowGlow, lamp: { x: cx + 52, y: 16 } };
   }
   if (kind === 'lab' && baseArt.lab) {
     const W = CELL;
@@ -1863,15 +1867,17 @@ function drawPaintedHero(kind: PieceKind, n: number, rot: number, housingOcean: 
     body.addChild(spr);
     const windows = new Graphics();
     const windowGlow = new Graphics();
-    windows.circle(W * 0.34, H * 0.56, 13).fill({ color: 0xffda94, alpha: 0.32 });
-    windows.circle(W * 0.66, H * 0.56, 13).fill({ color: 0xd8f48c, alpha: 0.32 });
-    windowGlow.circle(W * 0.34, H * 0.56, 22).fill({ color: 0xffcf78, alpha: 0.22 });
-    windowGlow.circle(W * 0.66, H * 0.56, 22).fill({ color: 0xc6f03a, alpha: 0.2 });
-    const scan = new Graphics().rect(0, 0, 14, 1.8).fill({ color: 0xffffff, alpha: 0.85 });
-    scan.position.set(W * 0.66 - 7, H * 0.5);
+    // Aligned to lab.webp's two round observation portholes.
+    const py = H * 0.63;
+    windows.circle(W * 0.35, py, 10.5).fill({ color: 0xffda94, alpha: 0.28 });
+    windows.circle(W * 0.65, py, 10.5).fill({ color: 0xd8f48c, alpha: 0.28 });
+    windowGlow.circle(W * 0.35, py, 18).fill({ color: 0xffcf78, alpha: 0.2 });
+    windowGlow.circle(W * 0.65, py, 18).fill({ color: 0xc6f03a, alpha: 0.18 });
+    const scan = new Graphics().rect(0, 0, 12, 1.6).fill({ color: 0xffffff, alpha: 0.8 });
+    scan.position.set(W * 0.65 - 6, py - 5);
     windows.addChild(scan);
     body.addChild(stencil(`LAB-${n}`, W / 2, H - 12, 6));
-    return { body, windows, windowGlow, lamp: { x: 22, y: 26 }, station: { bar: scan, y0: H * 0.5, h: 12 } };
+    return { body, windows, windowGlow, lamp: { x: 22, y: 38 }, station: { bar: scan, y0: py - 5, h: 10 } };
   }
   if (kind === 'workshop' && baseArt.workshop) {
     const W = CELL * 2;
@@ -1884,15 +1890,15 @@ function drawPaintedHero(kind: PieceKind, n: number, rot: number, housingOcean: 
     body.addChild(spr);
     const windows = new Graphics();
     const windowGlow = new Graphics();
-    windows.roundRect(W / 2 - 14, H / 2 - 10, 28, 20, 4).fill({ color: 0xffd278, alpha: 0.35 });
-    windowGlow.circle(W / 2, H / 2, 36).fill({ color: 0xffb84a, alpha: 0.28 });
+    windows.roundRect(W / 2 - 12, H * 0.54 - 9, 24, 18, 4).fill({ color: 0xffd278, alpha: 0.3 });
+    windowGlow.circle(W / 2, H * 0.54, 32).fill({ color: 0xffb84a, alpha: 0.24 });
     const torch = new Graphics().circle(0, 0, 2.4).fill({ color: 0xfff0c0 });
     windows.addChild(torch);
     const arm = new Container();
-    arm.position.set(W / 2, H / 2 - 14);
+    arm.position.set(W / 2, H * 0.54 - 14);
     body.addChild(arm);
     body.addChild(stencil(`WS-${n}`, W / 2, 14, 7));
-    return { body, windows, windowGlow, lamp: { x: W - 22, y: 20 }, station: { arm, torch, armAt: { x: W / 2, y: H / 2 - 14 } } };
+    return { body, windows, windowGlow, lamp: { x: W - 30, y: 18 }, station: { arm, torch, armAt: { x: W / 2, y: H * 0.54 - 14 } } };
   }
   if ((kind === 'tank' || kind === 'gtank') && baseArt.nursery) {
     const grand = kind === 'gtank';
@@ -1907,10 +1913,10 @@ function drawPaintedHero(kind: PieceKind, n: number, rot: number, housingOcean: 
     body.addChild(spr);
     const windows = new Graphics();
     const windowGlow = new Graphics();
-    windows.roundRect(I.x + 10, I.y + 1, I.w - 20, 3, 1.5).fill({ color: 0xfff1d0, alpha: 0.8 });
-    windowGlow.roundRect(I.x + 2, I.y, I.w - 4, I.h * 0.45, 4).fill({ color: PAL.warm, alpha: 0.16 });
+    windows.roundRect(I.x + 10, I.y + 1, I.w - 20, 3, 1.5).fill({ color: 0xfff1d0, alpha: 0.72 });
+    windowGlow.roundRect(I.x + 2, I.y, I.w - 4, I.h * 0.42, 4).fill({ color: PAL.warm, alpha: 0.14 });
     body.addChild(stencil(grand ? `GT-${n}` : `TK-${n}`, W / 2, H - 8, 6));
-    return { body, windows, windowGlow, lamp: { x: W - 22, y: 12 } };
+    return { body, windows, windowGlow, lamp: { x: W - 30, y: 14 } };
   }
   if (kind === 'turbine' && baseArt.turbine) {
     const W = CELL;
@@ -1931,20 +1937,23 @@ function drawPaintedHero(kind: PieceKind, n: number, rot: number, housingOcean: 
     g.roundRect(18, 6, W - 36, 12, 6).fill({ color: PAL.steelDark });
     g.rect(22, 16, 6, H - 28).fill({ color: 0xffffff, alpha: 0.08 });
     g.rect(W - 28, 16, 6, H - 28).fill({ color: PAL.steelDeep, alpha: 0.4 });
-    // Brass horizontal collar bands + gold power spine.
+    // Brass horizontal collar bands + segmented gold power spine (stops cleanly above & below the painted turbine!).
     g.rect(18, 52, W - 36, 4).fill({ color: 0x9c7b38 });
     g.rect(18, H - 56, W - 36, 4).fill({ color: 0x9c7b38 });
-    g.rect(cx - 3, 20, 6, H - 40).fill({ color: 0xb08020 });
-    windows.rect(cx - 2, 20, 4, H - 40).fill({ color: 0xffc040, alpha: 0.85 });
-    windowGlow.rect(cx - 5, 20, 10, H - 40).fill({ color: 0xffb030, alpha: 0.3 });
+    g.rect(cx - 3, 20, 6, 34).fill({ color: 0xb08020 });
+    g.rect(cx - 3, H - 54, 6, 34).fill({ color: 0xb08020 });
+    windows.rect(cx - 2, 20, 4, 34).fill({ color: 0xffc040, alpha: 0.8 });
+    windows.rect(cx - 2, H - 54, 4, 34).fill({ color: 0xffc040, alpha: 0.8 });
+    windowGlow.rect(cx - 5, 20, 10, 34).fill({ color: 0xffb030, alpha: 0.26 });
+    windowGlow.rect(cx - 5, H - 54, 10, 34).fill({ color: 0xffb030, alpha: 0.26 });
     // Glowing lime intake/exhaust vent grilles in the upper & lower housings.
     for (const vy of [22, H - 48]) {
       g.roundRect(26, vy, W - 52, 24, 3).fill({ color: PAL.steelDeep });
       for (let k = 0; k < 4; k++) {
         g.rect(29, vy + 3 + k * 5.2, W - 58, 2.8).fill({ color: 0x4a6a14 });
-        windows.rect(29, vy + 3 + k * 5.2, W - 58, 2.8).fill({ color: PAL.glass, alpha: 0.78 });
+        windows.rect(29, vy + 3 + k * 5.2, W - 58, 2.8).fill({ color: PAL.glass, alpha: 0.72 });
       }
-      windowGlow.rect(26, vy, W - 52, 24).fill({ color: PAL.glass, alpha: 0.28 });
+      windowGlow.rect(26, vy, W - 52, 24).fill({ color: PAL.glass, alpha: 0.24 });
     }
     rivets(g, 24, 14, W - 24, 14, 6);
     rivets(g, 24, H - 12, W - 24, H - 12, 6);
@@ -1973,8 +1982,8 @@ function drawPaintedHero(kind: PieceKind, n: number, rot: number, housingOcean: 
     rg.circle(0, 0, 2).fill({ color: PAL.steelDeep });
     rotor.position.set(cx, hubY - 3);
     body.addChild(rotor);
-    windows.circle(cx, hubY + natH * 0.36, 3.2).fill({ color: 0xffc84a, alpha: 0.9 });
-    windowGlow.circle(cx, hubY + natH * 0.36, 14).fill({ color: 0xffb830, alpha: 0.4 });
+    windows.circle(cx, hubY + natH * 0.37, 2.8).fill({ color: 0xffc84a, alpha: 0.85 });
+    windowGlow.circle(cx, hubY + natH * 0.37, 11).fill({ color: 0xffb830, alpha: 0.32 });
     body.addChild(stencil(`CT-${n}`, cx, 14, 6));
     return { body, rotor, windows, windowGlow, lamp: { x: W - 26, y: 14 } };
   }

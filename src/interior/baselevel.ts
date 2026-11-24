@@ -393,6 +393,7 @@ export class BaseHooks implements InteriorHooks {
   private screens: Light[] = [];
   private tanks: { room: Room; x: number; y: number; w: number; h: number }[] = [];
   private turbines: { x: number; y: number; r: number; id: number }[] = [];
+  private storageCrates = new Map<number, Sprite[]>();
   /**
    * Milestone 9 (Colin, after the interior art pass): the tanks indoors show
    * the very same creatures and plants as the tanks outside, swimming the
@@ -961,6 +962,7 @@ export class BaseHooks implements InteriorHooks {
     const rand = mulberry32(WORLD_SEED ^ 0x5eba5e);
     if (phase === 'back') {
       this.screens = [];
+      this.storageCrates.clear();
       this.roomFixtures.clear();
       this.ocean?.clear();
       for (const child of this.habitatForeground.removeChildren()) child.destroy();
@@ -1360,18 +1362,26 @@ export class BaseHooks implements InteriorHooks {
         hazard(g, b.ox + b.ow - 56, bot - 6, 40, 6);
         const crateTex = getPropArt().interior.crate;
         if (crateTex) {
-          for (let k = 0; k < 3; k++) {
-            const sy = bot - 40 - k * 46;
-            const slots = k === 0 ? [0.24, 0.76] : [0.28, 0.56, 0.78];
-            for (const f of slots) {
+          const crates: Sprite[] = [];
+          const perShelf = 5;
+          const x0 = b.ox + 34;
+          const usableW = Math.max(40, b.ow - 102);
+          const slotW = usableW / perShelf;
+          for (let shelf = 0; shelf < 3; shelf++) {
+            const sy = bot - 40 - shelf * 46;
+            for (let col = 0; col < perShelf; col++) {
               const spr = new Sprite(crateTex);
               spr.anchor.set(0.5, 0.98);
-              const sc = (k === 2 ? 32 : 36) / Math.max(1, crateTex.height);
+              const maxH = shelf === 2 ? 32 : 35;
+              const sc = Math.min(maxH / Math.max(1, crateTex.height), (slotW - 4) / Math.max(1, crateTex.width));
               spr.scale.set(sc);
-              spr.position.set(b.ox + b.ow * f, sy + 1);
+              spr.position.set(x0 + slotW * (col + 0.5), sy + 1);
+              spr.visible = false;
               g.addChild(spr);
+              crates.push(spr);
             }
           }
+          this.storageCrates.set(id, crates);
         }
         if (r.kind === 'sorter') addText(sign('SORTING BAYS', b.ox + b.ow - 90, b.oy + 26, 9, 0xc6f03a, 0.7));
         break;
@@ -1928,16 +1938,25 @@ export class BaseHooks implements InteriorHooks {
         const px = b.ox + b.ow - 90;
         const f0 = b.floor(0);
         for (let i = 0; i < 5; i++) de.rect(px - 36 + i * 16, f0 - 90 + Math.sin(time * 2 + i) * 4, 10, 30).fill({ color: COL.lime, alpha: 0.18 });
-      } else if ((r.kind === 'storage' || r.kind === 'sorter') && on) {
-        // Crates on the racks, filling with what's stored.
-        const n = Math.round(c.storedFrac() * 24);
-        for (let k = 0; k < Math.min(24, n); k++) {
-          const shelf = Math.floor(k / 8);
-          const x = b.ox + 26 + (k % 8) * ((b.ow - 52) / 8);
-          d.roundRect(x, bot - 40 - shelf * 46 - 30, (b.ow - 52) / 8 - 4, 30, 3).fill({ color: [0x5a4a38, 0x6e5440, 0x8a8a7a, 0x4a6a4a][k % 4] });
+      } else if (r.kind === 'storage' || r.kind === 'sorter') {
+        // Painted crates fill the racks cleanly as storage fills; procedural rectangles only when crate art is absent.
+        const frac = c.storedFrac();
+        const paintedCrates = this.storageCrates.get(id);
+        if (paintedCrates) {
+          const shown = frac > 0 ? Math.max(1, Math.round(frac * paintedCrates.length)) : 0;
+          for (let k = 0; k < paintedCrates.length; k++) paintedCrates[k].visible = k < shown;
+        } else if (on) {
+          const n = Math.round(frac * 24);
+          for (let k = 0; k < Math.min(24, n); k++) {
+            const shelf = Math.floor(k / 8);
+            const x = b.ox + 26 + (k % 8) * ((b.ow - 52) / 8);
+            d.roundRect(x, bot - 40 - shelf * 46 - 30, (b.ow - 52) / 8 - 4, 30, 3).fill({ color: [0x5a4a38, 0x6e5440, 0x8a8a7a, 0x4a6a4a][k % 4] });
+          }
         }
-        de.rect(b.ox + b.ow - 50, b.oy + 50, 20, 60).fill({ color: 0x0c1418 });
-        de.rect(b.ox + b.ow - 48, b.oy + 108 - 56 * c.storedFrac(), 16, 56 * c.storedFrac()).fill({ color: COL.lime, alpha: 0.85 });
+        if (on) {
+          de.rect(b.ox + b.ow - 50, b.oy + 50, 20, 60).fill({ color: 0x0c1418 });
+          de.rect(b.ox + b.ow - 48, b.oy + 108 - 56 * frac, 16, 56 * frac).fill({ color: COL.lime, alpha: 0.85 });
+        }
       } else if (r.kind === 'tank' || r.kind === 'gtank') {
         this.drawTank(r, d, de, time, on);
       } else if (r.kind === 'filter' && on) {

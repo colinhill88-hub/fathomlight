@@ -160,16 +160,23 @@ export function kestrelHand(compact = false, detailed = false): Container {
 }
 
 export function kestrelFin(standing: boolean, tip: boolean, compact = false, detailed = false): Container {
-  const paintedFin = !standing ? getPropArt().kestrel.fin : undefined;
+  const paintedFin = getPropArt().kestrel.fin;
   if (paintedFin) {
     const c = new Container();
     if (!tip) {
-      // Mount the sleek painted flipper blade on the ankle joint (tip stays empty so there's no double blade).
+      // Mount the painted flipper blade on the ankle joint (tip stays empty so there's no double blade).
       const spr = new Sprite(paintedFin);
-      spr.anchor.set(0.12, 0.5);
-      const sc = 36 / Math.max(1, paintedFin.width);
-      spr.scale.set(sc);
-      spr.position.set(-2, 0);
+      if (standing) {
+        spr.anchor.set(0.22, 0.72);
+        const sc = 24 / Math.max(1, paintedFin.width);
+        spr.scale.set(sc);
+        spr.position.set(-1, 4.5);
+      } else {
+        spr.anchor.set(0.12, 0.5);
+        const sc = 36 / Math.max(1, paintedFin.width);
+        spr.scale.set(sc);
+        spr.position.set(-2, 0);
+      }
       c.addChild(spr);
     }
     return c;

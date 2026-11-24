@@ -1,8 +1,9 @@
-import { Container, Graphics, type Texture } from 'pixi.js';
+import { Container, Graphics, Sprite, type Texture } from 'pixi.js';
 import { mulberry32 } from '../rng';
 import { BRASS, BeltJar, C, drawGuardPlate, drawRivetDriver, choirColour, drawResonatorBracer, drawResonatorHoop, FULL_KIT, JarLook, KitLook, PSUIT2_TINT, PSUIT_TINT, accentBand, buildDiveBag, kitKey, mulColour, playerHelmet, playerPart, buildShoulderLamp, chromeBands, coiledHose, etching, rimEdge, rivets, scratches, segment, suitMaterialLayer } from './diver';
 import { Glance, Spring, approach, batchAll, breathShape, clamp, smoothstep } from './animkit';
 import { KestrelExpression, kestrelFin, kestrelHand, kestrelLimb, kestrelTorso } from './kestrelArt';
+import { getPropArt } from '../art/propArt';
 
 /**
  * The explorer on foot (after milestone 8 part 2: dry interiors with
@@ -298,6 +299,25 @@ function buildTorso(texture?: Texture) {
  * furthest out. Origin where the pack meets the back.
  */
 function drawPack(g: Graphics, kit: KitLook, hoop: Graphics): void {
+  const paintedPack = getPropArt().kestrel.pack;
+  if (paintedPack) {
+    let spr = g.children.find((c): c is Sprite => c instanceof Sprite && c.label === 'painted-pack');
+    if (!spr) {
+      spr = new Sprite(paintedPack);
+      spr.label = 'painted-pack';
+      spr.anchor.set(0.5, 0.5);
+      spr.rotation = -Math.PI / 2;
+      g.addChild(spr);
+    }
+    spr.visible = true;
+    const sc = 40 / Math.max(1, paintedPack.width);
+    spr.scale.set(sc);
+    spr.position.set(-10, -2);
+    if (kit.resonator) drawResonatorHoop(hoop, -11, -30, 6.5, 1);
+    return;
+  }
+  const existing = g.children.find((c) => c.label === 'painted-pack');
+  if (existing) existing.visible = false;
   const n = Math.min(4, kit.tanks);
   const tank = (tx: number, y0: number, y1: number, shade: number) => {
     const h = y1 - y0;
@@ -342,6 +362,26 @@ function drawPackSpear(g: Graphics, kit: KitLook): void {
 
 /** The hip thruster on foot (as the diver's): none, TH-1, or the twin-nozzle TH-2. Torso space. */
 function drawWalkerThruster(g: Graphics, level: number): void {
+  if (getPropArt().kestrel.pack) {
+    if (level === 1) {
+      g.roundRect(-20, -7.5, 12.5, 8.5, 3).fill({ color: 0x3b4442 }).stroke({ color: 0x161d1c, width: 0.9 });
+      g.roundRect(-19, -6.8, 10.5, 2, 1).fill({ color: 0x8e9a90, alpha: 0.4 });
+      g.rect(-13.5, -7.5, 2.2, 8.5).fill({ color: 0x8f723b });
+      g.roundRect(-23.5, -6.5, 4.5, 6.5, 1.4).fill({ color: 0x262d2c });
+      g.circle(NOZZLE_X - 0.5, NOZZLE_Y, 2.4).fill({ color: 0x9ec03e, alpha: 0.85 });
+    } else if (level === 2) {
+      g.poly([-19, -8.5, -13, -12, -10, -12, -13, -8.5]).fill({ color: 0x8f723b });
+      g.poly([-19, 1.5, -13, 5, -10, 5, -13, 1.5]).fill({ color: 0x8f723b });
+      g.roundRect(-21, -9, 14.5, 11, 3.5).fill({ color: 0x36403e }).stroke({ color: 0x161d1c, width: 0.9 });
+      g.roundRect(-20, -8.2, 12.5, 2.2, 1).fill({ color: 0x8e9a90, alpha: 0.4 });
+      g.rect(-14, -9, 2.4, 11).fill({ color: 0x9e7d40 });
+      for (const y of [-6.2, -0.8]) {
+        g.roundRect(-24.5, y - 2.6, 4.5, 5.2, 1.4).fill({ color: 0x262d2c });
+        g.circle(NOZZLE_X - 1, y, 2).fill({ color: 0x9ec03e, alpha: 0.9 });
+      }
+    }
+    return;
+  }
   if (level === 1) {
     g.roundRect(-20, -8, 13, 9, 3.5).fill({ color: 0xd8dde0 });
     g.roundRect(-19, -7.4, 11, 2.4, 1.2).fill({ color: 0xffffff, alpha: 0.6 });
@@ -614,9 +654,19 @@ export class Walker {
       if (c) c.visible = false;
     }
     this.helmet.addChild(hel);
-    // Coiled hose: from the tank valves, up past the side of the helmet, down to the chest port.
-    coiledHose(this.hose, compact ? [[-19, -32], [-20, -42], [11, -42], [PORT_X, PORT_Y]]
-      : [[-15, -42], [-17, -57], [17, -50], [PORT_X, PORT_Y]], 3);
+    // Breathing hose: subtle weathered rubber hose when painted pack is loaded, coiled stripes otherwise.
+    if (getPropArt().kestrel.pack) {
+      const pts: [number, number][] = compact
+        ? [[-18, -32], [-18, -39], [6, -39], [PORT_X, PORT_Y]]
+        : [[-15, -36], [-15, -45], [10, -42], [PORT_X, PORT_Y]];
+      this.hose.moveTo(pts[0][0], pts[0][1]).bezierCurveTo(pts[1][0], pts[1][1], pts[2][0], pts[2][1], pts[3][0], pts[3][1])
+        .stroke({ color: 0x1e2624, width: 3.4, cap: 'round' });
+      this.hose.moveTo(pts[0][0], pts[0][1]).bezierCurveTo(pts[1][0], pts[1][1], pts[2][0], pts[2][1], pts[3][0], pts[3][1])
+        .stroke({ color: 0x48524a, width: 1.6, cap: 'round', alpha: 0.75 });
+    } else {
+      coiledHose(this.hose, compact ? [[-19, -32], [-20, -42], [11, -42], [PORT_X, PORT_Y]]
+        : [[-15, -42], [-17, -57], [17, -50], [PORT_X, PORT_Y]], 3);
+    }
     this.hose.pivot.set(PORT_X, PORT_Y);
     // Shoulder lamp (the diver's), on the chest strap, pointing forward.
     const lamp = buildShoulderLamp();
@@ -797,7 +847,7 @@ export class Walker {
     this.kitShown = key;
     const k = this.kit;
     drawPack(this.packG.clear(), k, this.hoopG.clear());
-    if (this.compact) {
+    if (this.compact && !getPropArt().kestrel.pack) {
       this.packG.moveTo(-18, -9).quadraticCurveTo(-24, 5, -17, 16).lineTo(-8, 15)
         .quadraticCurveTo(-3, 3, -10, -10).closePath().fill(0x30474a);
       this.packG.moveTo(-16, -6).quadraticCurveTo(-20, 4, -15, 13)
