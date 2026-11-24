@@ -36,7 +36,6 @@ import {
   BRACKETS,
   caveFloor,
   caveField,
-  ellTop,
   KC,
   KC_BOUNDS,
   inLightless,
@@ -127,16 +126,32 @@ const geology: readonly [number, number, Material][] = [
 ];
 
 function groundPaint(g: Graphics, art: WorldArt, x0: number, x1: number): void {
-  for (const [start, end, key] of geology) {
+  for (const [rawStart, rawEnd, key] of geology) {
     const texture = art.materials[key];
+    // Overlap adjacent biome geology bands by 160 units and feather smoothly across 260 units to eliminate vertical seams.
+    const start = rawStart - 160;
+    const end = rawEnd + 160;
     if (!texture || start >= x1 || end <= x0) continue;
-    // Fade the rock treatments where their ranges meet and retain the procedural sand below.
-    const stops = [start, start + 28, start + 57, start + 90, end - 90, end - 57, end - 28, end];
+    const fade = Math.min(260, (end - start) * 0.35);
+    const steps = 6;
+    const stops: number[] = [];
+    const alphas: number[] = [];
+    for (let i = 0; i < steps; i++) {
+      stops.push(start + (fade * i) / steps);
+      alphas.push(0.72 * smooth((i + 0.5) / steps));
+    }
+    stops.push(start + fade, end - fade);
+    alphas.push(0.72);
+    for (let i = 1; i <= steps; i++) {
+      stops.push(end - fade + (fade * i) / steps);
+      alphas.push(0.72 * (1 - smooth((i - 0.5) / steps)));
+    }
     for (let i = 1; i < stops.length; i++) {
       const left = Math.max(x0, stops[i - 1]);
       const right = Math.min(x1, stops[i]);
       if (right <= left) continue;
-      const opacity = [0.17, 0.38, 0.58, 0.76, 0.58, 0.38, 0.17][i - 1];
+      const opacity = alphas[i - 1];
+      if (opacity < 0.02) continue;
       const points = [left, WORLD_H + 300, left, gy(left) + 0.5];
       for (let x = (Math.floor(left / 10) + 1) * 10; x < right; x += 10) points.push(x, gy(x) + 0.5);
       points.push(right, gy(right) + 0.5, right, WORLD_H + 300);
@@ -209,6 +224,23 @@ function rockFade(color: number, from: number, to: number): FillGradient {
   });
 }
 
+function rockFadeBoth(color: number, x0: number, x1: number, span: number): FillGradient {
+  const f = Math.min(0.45, span / Math.max(1, x1 - x0));
+  return new FillGradient({
+    start: { x: x0, y: 0 },
+    end: { x: x1, y: 0 },
+    textureSpace: 'global',
+    colorStops: [
+      { offset: 0, color: new Color(color).setAlpha(0) },
+      { offset: f * 0.45, color: new Color(color).setAlpha(0.55) },
+      { offset: f, color: new Color(color).setAlpha(1) },
+      { offset: 1 - f, color: new Color(color).setAlpha(1) },
+      { offset: 1 - f * 0.45, color: new Color(color).setAlpha(0.55) },
+      { offset: 1, color: new Color(color).setAlpha(0) },
+    ],
+  });
+}
+
 /** Paints rock texture into an outline: shaded base, dabs, cracks, algae on top. */
 function paintRock(
   g: Graphics,
@@ -217,6 +249,7 @@ function paintRock(
   detail: number,
   featherFrom?: number,
   material?: Texture,
+  featherBothSpan?: number,
 ): void {
   let minX = Infinity;
   let maxX = -Infinity;
@@ -228,11 +261,24 @@ function paintRock(
     minY = Math.min(minY, y);
     maxY = Math.max(maxY, y);
   }
-  const baseFade = featherFrom === undefined ? null : rockFade(PAL.rock, featherFrom, maxX);
-  const rimFade = featherFrom === undefined ? null : rockFade(PAL.rockLight, featherFrom, maxX);
-  const coverage = featherFrom === undefined
-    ? () => 1
-    : (x: number) => 1 - smooth((x - featherFrom) / (maxX - featherFrom));
+  const baseFade =
+    featherBothSpan !== undefined
+      ? rockFadeBoth(PAL.rock, minX, maxX, featherBothSpan)
+      : featherFrom === undefined
+        ? null
+        : rockFade(PAL.rock, featherFrom, maxX);
+  const rimFade =
+    featherBothSpan !== undefined
+      ? rockFadeBoth(PAL.rockLight, minX, maxX, featherBothSpan)
+      : featherFrom === undefined
+        ? null
+        : rockFade(PAL.rockLight, featherFrom, maxX);
+  const coverage =
+    featherBothSpan !== undefined
+      ? (x: number) => smooth((x - minX) / featherBothSpan) * (1 - smooth((x - (maxX - featherBothSpan)) / featherBothSpan))
+      : featherFrom === undefined
+        ? () => 1
+        : (x: number) => 1 - smooth((x - featherFrom) / (maxX - featherFrom));
   if (baseFade && rimFade) {
     g.once('destroyed', () => {
       baseFade.destroy();
@@ -336,16 +382,17 @@ export function traceField(g: Graphics, fn: (x: number, y: number) => number, X0
   }
 }
 
-/** A rock patch that follows the ground line and tapers into the sand at both ends. */
+/** A rock patch that follows the ground line and tapers smoothly into the sand at both ends. */
 function rockPatch(g: Graphics, x0: number, x1: number, thick: number, d: number, material?: Texture): void {
   const pts: [number, number][] = [];
   for (let x = x0; x <= x1; x += 8) pts.push([x, gy(x) - 1]);
   for (let x = x1; x >= x0; x -= 16) {
     const t = (x - x0) / (x1 - x0);
-    const k = Math.pow(Math.sin(Math.PI * t), 1.5);
+    const k = Math.pow(Math.sin(Math.PI * t), 2.1);
     pts.push([x, gy(x) + 4 + thick * k + Math.sin(x * 0.05) * 6 * k]);
   }
-  paintRock(g, pts, (x) => (x >= x0 && x <= x1 ? gy(x) : NaN), d, undefined, material);
+  const feather = Math.min(260, (x1 - x0) * 0.28);
+  paintRock(g, pts, (x) => (x >= x0 && x <= x1 ? gy(x) : NaN), d, undefined, material, feather);
 }
 
 function ledgeTop(x: number): number {
@@ -788,6 +835,8 @@ export class Scenery {
   private kcWallCut = new Graphics();
   private kcBrackets: { core: Graphics; halo: Graphics; light: PointLight; lit: boolean }[] = [];
   private kcSurge = new Graphics();
+  private pocketWater = new Graphics();
+  private pocketSpans: { x0: number; x1: number; waterY: number }[] = [];
   private kcLitShown = '';
 
   /** Milestone 10: the trench's own art. */
@@ -861,7 +910,7 @@ export class Scenery {
     rock(4950, 5810, (g) => rockPatch(g, 4950, 5810, 700, detail * 0.8, this.art?.materials.grotto));
     rock(6370, 7100, (g) => rockPatch(g, 6370, 7100, 900, detail * 0.8, this.art?.materials.grotto));
     rock(8280, 10400, (g) => rockPatch(g, 8280, 10400, 1300, detail * 0.8, this.art?.materials.grotto));
-    rock(5690, 6880, (g) => paintRock(g, LEDGE, ledgeTop, detail, undefined, this.art?.materials.grotto));
+    rock(5690, 6880, (g) => paintRock(g, LEDGE, ledgeTop, detail, undefined, this.art?.materials.grotto, 140));
     rock(5300, 6560, (g) => {
       for (let i = 0; i < 14; i++) {
         const x = R(5300, 6550);
@@ -1388,8 +1437,8 @@ export class Scenery {
       const plate = this.art?.plates.caves;
       if (paint) traceField(g, (x, y) => field(x, y) + 2, KC_BOUNDS.x0, KC_BOUNDS.x1, 740, 1980, 8,
         materialFill(paint, 0x151e21, 0.64, 1480, 620));
-      if (plate) traceField(g, (x, y) => field(x, y) + 4, 14940, 18640, 880, 1950, 12,
-        materialFill(plate, 0x151e21, 0.64, 3700, 1070, 14940, 880));
+      if (plate) traceField(g, (x, y) => field(x, y) + 4, 14940, KC_BOUNDS.x1, 880, 1960, 12,
+        materialFill(plate, 0x151e21, 0.64, KC_BOUNDS.x1 - 14940, 1080, 14940, 880));
       // Brushed texture on the back wall.
       for (let i = 0; i < Math.round(900 * detail); i++) {
         const x = R(KC_BOUNDS.x0, KC_BOUNDS.x1);
@@ -1414,17 +1463,61 @@ export class Scenery {
           was = open;
         }
       }
-      // Pillars of rock in the black chamber.
+      // Karst stalactite & stalagmite formations in the black chamber (organic fluted spires instead of ovals).
       for (const p of KC_PILLARS) {
+        // Sculpt an hourglass karst column: flared ceiling & floor roots, craggy pinched waist, hanging/rising spires.
         const pts: [number, number][] = [];
-        for (let k = 0; k < 28; k++) {
-          const a = (k / 28) * Math.PI * 2;
-          pts.push([p.x + Math.cos(a) * p.rx * R(0.92, 1.06), p.y + Math.sin(a) * p.ry * R(0.95, 1.04)]);
+        const steps = 16;
+        const yTop = p.y - p.ry * 1.12;
+        const yBot = p.y + p.ry * 1.12;
+        // Right flank from top to bottom.
+        for (let i = 0; i <= steps; i++) {
+          const t = i / steps;
+          const yy = yTop + (yBot - yTop) * t;
+          const waist = 0.42 + 0.62 * Math.pow(Math.abs(t * 2 - 1), 1.35);
+          const jag = 0.82 + 0.34 * Math.sin(i * 2.7 + p.x * 0.01) + R(-0.08, 0.08);
+          pts.push([p.x + p.rx * waist * jag, yy]);
         }
-        paintRock(g, pts, (x) => (Math.abs(x - p.x) < p.rx ? ellTop(p, x) : NaN), 0.6, undefined, this.art?.materials.cave);
+        // Bottom ragged stalagmite base teeth.
+        for (let i = 3; i >= -3; i--) {
+          const bx = p.x + (i / 3.5) * p.rx * 0.9;
+          pts.push([bx, yBot + R(-8, 14)]);
+        }
+        // Left flank from bottom to top.
+        for (let i = steps; i >= 0; i--) {
+          const t = i / steps;
+          const yy = yTop + (yBot - yTop) * t;
+          const waist = 0.42 + 0.62 * Math.pow(Math.abs(t * 2 - 1), 1.35);
+          const jag = 0.82 + 0.34 * Math.cos(i * 2.4 + p.y * 0.01) + R(-0.08, 0.08);
+          pts.push([p.x - p.rx * waist * jag, yy]);
+        }
+        paintRock(g, pts, (x) => (Math.abs(x - p.x) < p.rx * 0.9 ? yTop + 12 : NaN), 0.5, undefined, this.art?.materials.cave);
+        // Hanging karst stalactite icicles sprouting from the upper shoulders & rising stalagmites at the base.
+        for (let s = 0; s < 5; s++) {
+          const sx = p.x + R(-p.rx * 0.72, p.rx * 0.72);
+          const sy = yTop + R(8, p.ry * 0.48);
+          const sw = R(5, 11);
+          const sh = R(24, 58);
+          g.poly([sx - sw, sy, sx + sw, sy, sx + R(-2, 2), sy + sh]).fill({ color: 0x2a373c, alpha: 0.92 });
+          g.moveTo(sx - sw * 0.3, sy + 2).lineTo(sx, sy + sh - 4).stroke({ color: 0x52676b, width: 1.2, alpha: 0.45 });
+        }
+        for (let s = 0; s < 5; s++) {
+          const sx = p.x + R(-p.rx * 0.75, p.rx * 0.75);
+          const sy = yBot - R(4, p.ry * 0.35);
+          const sw = R(6, 13);
+          const sh = R(22, 54);
+          g.poly([sx - sw, sy + sh * 0.3, sx + sw, sy + sh * 0.3, sx + R(-2, 2), sy - sh]).fill({ color: 0x263237, alpha: 0.92 });
+          g.moveTo(sx - sw * 0.25, sy + 4).lineTo(sx, sy - sh + 5).stroke({ color: 0x4d6266, width: 1.2, alpha: 0.42 });
+        }
+        // Vertical mineral calcite drip flutes along the limestone column.
+        for (let f = -2; f <= 2; f++) {
+          const fx = p.x + f * (p.rx * 0.2);
+          g.moveTo(fx, yTop + 20)
+            .quadraticCurveTo(fx + R(-6, 6), p.y, fx + R(-4, 4), yBot - 20)
+            .stroke({ color: f % 2 === 0 ? 0x45585c : 0x162024, width: R(1.2, 2.4), alpha: 0.42 });
+        }
       }
-      // Air pockets: trapped air filling the roof down to a waterline. Traced from the
-      // caves' own shape, so the air follows the real roof (after milestone 8 part 1).
+      // Air pockets: trapped air filling the roof down to a live-rippling waterline.
       for (const ap of AIR_POCKETS) {
         const e = ap.shape as { x: number; y: number; rx: number; ry: number };
         const x0 = e.x - e.rx - 10;
@@ -1432,16 +1525,17 @@ export class Scenery {
         const airField = (x: number, y: number) => Math.max(field(x, y), y - ap.waterY);
         traceField(g, airField, x0, x1, ap.waterY - 260, ap.waterY + 8, 6, 0x34494d, 0.9);
         traceField(g, (x, y) => Math.max(field(x, y) + 10, y - ap.waterY + 8), x0, x1, ap.waterY - 260, ap.waterY + 8, 6, 0x45625f, 0.5);
-        // The water surface, rippling, only where there is water under the air.
-        let open = false;
-        for (let x = x0; x < x1; x += 5) {
+        // Record open water spans for live high-fidelity wave rendering in update().
+        let spanStart: number | null = null;
+        for (let x = x0; x <= x1; x += 6) {
           const ok = field(x, ap.waterY + 3) < -2 && field(x, ap.waterY - 3) < -2;
-          const y = ap.waterY + Math.sin(x * 0.21) * 1.3;
-          if (ok && !open) g.moveTo(x, y);
-          else if (ok) g.lineTo(x, y);
-          open = ok;
+          if (ok && spanStart === null) spanStart = x;
+          else if (!ok && spanStart !== null) {
+            this.pocketSpans.push({ x0: spanStart, x1: x - 6, waterY: ap.waterY });
+            spanStart = null;
+          }
         }
-        g.stroke({ color: 0xc8e0d8, width: 2, alpha: 0.65 });
+        if (spanStart !== null) this.pocketSpans.push({ x0: spanStart, x1, waterY: ap.waterY });
         // Droplets clinging to the roof.
         for (let k = 0; k < 18; k++) {
           const x = R(x0, x1);
@@ -1494,14 +1588,55 @@ export class Scenery {
         }
       }
       {
+        // Vintage marine cast-iron & tarnished-brass tow-rope winch reel with braided hemp coil.
         const x = KC_FINDS.towcoil.x;
         const y = floor('towcoil');
-        g.rect(x - 30, y - 6, 60, 6).fill({ color: 0x4a4038 });
-        g.rect(x - 26, y - 40, 5, 36).fill({ color: 0x5a4a3e });
-        g.rect(x + 21, y - 40, 5, 36).fill({ color: 0x5a4a3e });
-        g.ellipse(x, y - 24, 22, 15).fill({ color: 0xb89a5a });
-        for (let k = 0; k < 7; k++) g.ellipse(x, y - 24, 22 - k * 2.4, 15 - k * 1.7).stroke({ color: 0x7a6436, width: 1, alpha: 0.7 });
-        g.moveTo(x + 18, y - 14).quadraticCurveTo(x + 40, y, x + 62, y - 2).stroke({ color: 0xb89a5a, width: 2.5 });
+        // Seabed shadow & bolted cast-iron baseplate.
+        g.ellipse(x, y + 2, 38, 6).fill({ color: 0x101618, alpha: 0.55 });
+        g.roundRect(x - 34, y - 8, 68, 9, 2.5).fill({ color: 0x353b3e });
+        g.rect(x - 34, y - 8, 68, 2.2).fill({ color: 0x6c7579, alpha: 0.75 });
+        for (const bx of [-28, -14, 14, 28]) g.circle(x + bx, y - 3.5, 1.8).fill({ color: 0xa48542 });
+        // Back A-frame iron stanchions.
+        g.poly([x - 28, y - 8, x - 21, y - 42, x - 16, y - 42, x - 18, y - 8]).fill({ color: 0x2c3235 });
+        g.poly([x + 28, y - 8, x + 21, y - 42, x + 16, y - 42, x + 18, y - 8]).fill({ color: 0x2c3235 });
+        // Back brass drum flange.
+        g.roundRect(x - 21, y - 42, 4, 32, 2).fill({ color: 0x8f7136 });
+        g.roundRect(x + 17, y - 42, 4, 32, 2).fill({ color: 0x8f7136 });
+        // Coiled hemp rope drum: layered shaded rope turns with twisted strand texture.
+        g.roundRect(x - 18, y - 39, 36, 26, 7).fill({ color: 0x8d713d });
+        g.roundRect(x - 18, y - 39, 36, 10, 5).fill({ color: 0xc2a462, alpha: 0.72 });
+        g.roundRect(x - 18, y - 20, 36, 7, 4).fill({ color: 0x4c3a1d, alpha: 0.65 });
+        for (let rx = x - 15; rx <= x + 15; rx += 4.2) {
+          g.moveTo(rx, y - 39).lineTo(rx, y - 13).stroke({ color: 0x5c4824, width: 1.5, alpha: 0.8 });
+          g.moveTo(rx + 1.4, y - 38).lineTo(rx + 1.4, y - 15).stroke({ color: 0xd9bc78, width: 1.1, alpha: 0.55 });
+          // Diagonal hemp twist ticks.
+          for (let ry = y - 36; ry <= y - 16; ry += 5) {
+            g.moveTo(rx - 1, ry).lineTo(rx + 2, ry + 2.5).stroke({ color: 0x4f3d1e, width: 0.9, alpha: 0.65 });
+          }
+        }
+        // Front riveted iron A-frame struts & brass axle bearing caps.
+        g.poly([x - 30, y - 8, x - 24, y - 41, x - 19, y - 41, x - 21, y - 8]).fill({ color: 0x474f53 });
+        g.poly([x + 30, y - 8, x + 24, y - 41, x + 19, y - 41, x + 21, y - 8]).fill({ color: 0x474f53 });
+        for (const sx of [-21.5, 21.5]) {
+          g.circle(x + sx, y - 26, 5.2).fill({ color: 0x3b4043 }).stroke({ color: 0xc9a24a, width: 1.5 });
+          g.circle(x + sx, y - 26, 2).fill({ color: 0xe6c87a });
+        }
+        // Side brass hand-crank wheel on the right axle.
+        g.circle(x + 29, y - 26, 8.5).stroke({ color: 0xb89347, width: 2.2 });
+        for (let a = 0; a < 4; a++) {
+          const ang = a * (Math.PI / 2) + 0.4;
+          g.moveTo(x + 29, y - 26).lineTo(x + 29 + Math.cos(ang) * 8, y - 26 + Math.sin(ang) * 8).stroke({ color: 0x8f7136, width: 1.3 });
+        }
+        // Trailing braided hemp tow-line draped across the cave floor + brass mooring shackle.
+        g.moveTo(x + 14, y - 15)
+          .bezierCurveTo(x + 30, y - 2, x + 46, y + 3, x + 64, y - 3)
+          .stroke({ color: 0x4d3b1d, width: 5, cap: 'round' });
+        g.moveTo(x + 14, y - 15)
+          .bezierCurveTo(x + 30, y - 2, x + 46, y + 3, x + 64, y - 3)
+          .stroke({ color: 0xc2a462, width: 3, cap: 'round' });
+        // Brass eye-splice & shackle at the rope's loose end.
+        g.circle(x + 67, y - 3, 4).stroke({ color: 0xc9a24a, width: 1.8 });
+        rustStreaks(g, x - 26, x + 26, y - 28, 4, 10);
       }
       {
         // After milestone 12: the nursery log's crate, with a warm egg stencilled on its lid.
@@ -1597,23 +1732,72 @@ export class Scenery {
       this.mossGlows.push({ core, halo, light, phase: rand() * 6 });
     }
 
-    // The kelp wall: old holdfasts and stalks grown into a solid tangle across the side passage.
+    // The kelp wall: organic tangled holdfasts, weaving vines, serrated fronds, and amber gas bladders.
     {
       const w = this.kcWall;
       const W = KELP_WALL;
-      for (let i = 0; i < 70; i++) {
-        // Only inside the passage, so the tangle doesn't spill over the rock.
-        let x = R(W.x0 + 10, W.x1 - 10);
-        for (let k = 0; k < 20 && caveField(x, (W.y0 + W.y1) / 2) > -8; k++) x = R(W.x0 + 10, W.x1 - 10);
-        const y0 = R(W.y0 - 18, W.y0 + 6);
+      const midY = (W.y0 + W.y1) / 2;
+      // 1. Deep shadowed background kelp canopy filling the gap organically.
+      for (let i = 0; i < 38; i++) {
+        let x = R(W.x0 + 6, W.x1 - 6);
+        for (let k = 0; k < 16 && caveField(x, midY) > -6; k++) x = R(W.x0 + 6, W.x1 - 6);
+        const y0 = R(W.y0 - 24, W.y0 + 10);
+        const y1 = R(W.y1 - 10, W.y1 + 22);
+        const cx1 = x + R(-24, 24);
+        const cx2 = x + R(-24, 24);
         w.moveTo(x, y0)
-          .quadraticCurveTo(x + R(-12, 12), (W.y0 + W.y1) / 2, x + R(-8, 8), R(W.y1 - 6, W.y1 + 16))
-          .stroke({ color: rand() < 0.5 ? 0x5a5e34 : 0x6a6a3a, width: R(4, 9), alpha: 0.95, cap: 'round' });
+          .bezierCurveTo(cx1, y0 + (y1 - y0) * 0.35, cx2, y0 + (y1 - y0) * 0.68, x + R(-14, 14), y1)
+          .stroke({ color: i % 2 === 0 ? 0x263522 : 0x314026, width: R(4, 8), alpha: 0.92, cap: 'round' });
       }
-      for (let i = 0; i < 30; i++) {
-        const x = R(W.x0 + 10, W.x1 - 10);
-        const y = R(W.y0, W.y1);
-        if (caveField(x, y) < -4) w.circle(x, y, R(4, 9)).fill({ color: 0x4f5530, alpha: 0.9 });
+      // 2. Intertwined diagonal & S-curve mid-layer kelp vines + serrated leaf blades.
+      const leafCols = [0x3c4f28, 0x4b5e2e, 0x5c6b32, 0x2f4324];
+      for (let i = 0; i < 48; i++) {
+        let x = R(W.x0 + 8, W.x1 - 8);
+        for (let k = 0; k < 14 && caveField(x, midY) > -6; k++) x = R(W.x0 + 8, W.x1 - 8);
+        const y0 = R(W.y0 - 18, W.y0 + 8);
+        const y1 = R(W.y1 - 8, W.y1 + 18);
+        const bend = R(-28, 28);
+        const col = leafCols[i % leafCols.length];
+        w.moveTo(x, y0)
+          .bezierCurveTo(x + bend, y0 + (y1 - y0) * 0.33, x - bend * 0.7, y0 + (y1 - y0) * 0.66, x + R(-10, 10), y1)
+          .stroke({ color: col, width: R(2.2, 4.8), alpha: 0.94, cap: 'round' });
+        // Organic tapered kelp blades branching off each vine.
+        const blades = 3 + (i % 3);
+        for (let b = 0; b < blades; b++) {
+          const t = (b + 0.5) / blades;
+          const bx = x + bend * Math.sin(t * Math.PI) * 0.45;
+          const by = y0 + (y1 - y0) * t;
+          if (caveField(bx, by) > -4) continue;
+          const side = (i + b) % 2 === 0 ? 1 : -1;
+          const len = R(18, 34);
+          const wid = R(5, 9);
+          w.moveTo(bx, by)
+            .quadraticCurveTo(bx + side * len * 0.55, by - wid, bx + side * len, by + R(-6, 10))
+            .quadraticCurveTo(bx + side * len * 0.5, by + wid * 0.85, bx, by + 2)
+            .closePath()
+            .fill({ color: leafCols[(i + b + 1) % leafCols.length], alpha: 0.86 });
+          // Midrib highlight vein along the blade.
+          w.moveTo(bx, by + 1).lineTo(bx + side * len * 0.78, by + R(-3, 6))
+            .stroke({ color: 0x7b8842, width: 0.9, alpha: 0.55 });
+        }
+      }
+      // 3. Gnarled root holdfasts gripping top & bottom rock + amber gas bladders.
+      for (let i = 0; i < 22; i++) {
+        const x = R(W.x0 + 8, W.x1 - 8);
+        const y = R(W.y0 + 6, W.y1 - 6);
+        if (caveField(x, y) > -6) continue;
+        // Translucent amber kelp gas bladder (pneumatocyst).
+        w.ellipse(x, y, R(3.2, 5.4), R(2.4, 4.2)).fill({ color: 0x8d8f3c, alpha: 0.9 });
+        w.circle(x - 1, y - 1, R(1.1, 1.8)).fill({ color: 0xc9c868, alpha: 0.7 });
+      }
+      for (const anchorY of [W.y0 - 4, W.y1 + 4]) {
+        for (let i = 0; i < 14; i++) {
+          const rx = R(W.x0 + 6, W.x1 - 6);
+          const dir = anchorY < midY ? 1 : -1;
+          w.moveTo(rx, anchorY)
+            .quadraticCurveTo(rx + R(-12, 12), anchorY + dir * R(10, 22), rx + R(-18, 18), anchorY + dir * R(4, 14))
+            .stroke({ color: 0x3b3d24, width: R(2, 4), alpha: 0.85, cap: 'round' });
+        }
       }
       // Once cut: only a few charred stubs cling to the passage walls, so the way down is clear.
       const c = this.kcWallCut;
@@ -1654,8 +1838,9 @@ export class Scenery {
     this.scanPoints.blackwater.push({ x: KC.dark.x - KC.dark.rx + 90, y: KC.dark.y });
     this.scanPoints.surge.push({ x: 16150, y: 1190 });
     // Streaks of cold water through the squeeze (they brighten while it surges).
-    decorLayer.addChild(this.kcSurge);
+    decorLayer.addChild(this.kcSurge, this.pocketWater);
     this.slices.push({ obj: this.kcSurge, x0: KC.squeeze.x1 - 300, x1: KC.squeeze.x2 + 300 });
+    this.slices.push({ obj: this.pocketWater, x0: KC_BOUNDS.x0, x1: KC_BOUNDS.x1 });
     decorLayer.addChild(this.kcDark);
     this.slices.push({ obj: this.kcDark, x0: 17300, x1: 18900 });
     this.buildBlackWater();
@@ -2396,6 +2581,46 @@ export class Scenery {
   /** viewX0..viewX1 is the part of the world the camera can see. */
   update(time: number, diverX: number, diverY: number, diverVX: number, viewX0: number, viewX1: number, motion?: WaterMotion, dt = 1 / 60, diverVY = 0): void {
     for (const s of this.slices) s.obj.visible = s.x1 > viewX0 && s.x0 < viewX1;
+    // Live multi-wave cave air-pocket water surface matching the ocean surface's ripple fidelity.
+    if (this.pocketWater.visible && this.pocketSpans.length) {
+      const pw = this.pocketWater.clear();
+      for (const sp of this.pocketSpans) {
+        if (sp.x1 < viewX0 - 40 || sp.x0 > viewX1 + 40) continue;
+        const wy = sp.waterY;
+        const nearDiver = Math.abs(diverY - wy) < 75 && diverX > sp.x0 - 40 && diverX < sp.x1 + 40;
+        const wakeAmp = nearDiver ? Math.min(4.5, (Math.abs(diverVX) + Math.abs(diverVY)) * 0.014 + 1.2) : 0;
+        const waveAt = (x: number) => {
+          let w =
+            Math.sin(x * 0.031 + time * 2.1) * 2.2 +
+            Math.sin(x * 0.074 - time * 3.1) * 1.05 +
+            Math.sin(x * 0.145 + time * 4.4) * 0.45;
+          if (nearDiver) {
+            const dx = x - diverX;
+            w += Math.sin(dx * 0.11 - time * 7.5) * wakeAmp * Math.exp(-(dx * dx) / 3600);
+          }
+          return wy + w;
+        };
+        // 1. Translucent underwater refraction meniscus band just below the surface.
+        pw.moveTo(sp.x0, wy + 12);
+        for (let x = sp.x0; x <= sp.x1; x += 6) pw.lineTo(x, waveAt(x));
+        pw.lineTo(sp.x1, wy + 12).closePath().fill({ color: 0x6ea8a2, alpha: 0.22 });
+        // 2. Soft underside turquoise shimmer wave.
+        pw.moveTo(sp.x0, waveAt(sp.x0) + 3);
+        for (let x = sp.x0 + 6; x <= sp.x1; x += 6) pw.lineTo(x, waveAt(x) + 3);
+        pw.stroke({ color: 0x89c4bc, width: 3.2, alpha: 0.34, cap: 'round' });
+        // 3. Crisp bright surface foam & specular meniscus crest.
+        pw.moveTo(sp.x0, waveAt(sp.x0));
+        for (let x = sp.x0 + 5; x <= sp.x1; x += 5) pw.lineTo(x, waveAt(x));
+        pw.stroke({ color: 0xd8f0ea, width: 1.9, alpha: 0.85, cap: 'round' });
+        // 4. Dancing specular ripple glints on wave crests.
+        for (let x = sp.x0 + 10; x < sp.x1 - 10; x += 28) {
+          const gx = x + Math.sin(time * 1.4 + x * 0.05) * 6;
+          const gy2 = waveAt(gx);
+          pw.moveTo(gx - 5, gy2 - 0.5).lineTo(gx + 5, gy2 - 0.5)
+            .stroke({ color: 0xf4fffc, width: 1.1, alpha: 0.45 + 0.3 * Math.sin(time * 3.8 + x * 0.13) });
+        }
+      }
+    }
     this.trench.update(time, viewX0, viewX1, motion, diverX, diverY);
     for (const a of this.shelfAnimals) {
       a.view.visible = a.x > viewX0 - 100 && a.x < viewX1 + 100;

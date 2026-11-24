@@ -2,6 +2,7 @@ import { Container, Graphics, Sprite } from 'pixi.js';
 import { mulberry32 } from '../rng';
 import type { SaveData } from '../game/state';
 import { LODES, lodeWait, lodeY } from '../game/lodes';
+import { groundY } from './terrain';
 import { getPropArt } from '../art/propArt';
 
 export * from '../game/lodes';
@@ -24,25 +25,45 @@ export class LodeArt {
       const spent = new Graphics();
       const glint = new Graphics();
       if (paintedLode) {
-        const sc = 168 / Math.max(1, paintedLode.width);
+        const sc = 172 / Math.max(1, paintedLode.width);
+        const slope = Math.max(-0.24, Math.min(0.24, Math.atan2(groundY(l.x + 36) - groundY(l.x - 36), 72)));
         const rSpr = new Sprite(paintedLode);
-        rSpr.anchor.set(0.5, 0.88);
+        rSpr.anchor.set(0.5, 0.86);
         rSpr.scale.set(sc);
-        rSpr.position.set(l.x, y + 6);
+        rSpr.position.set(l.x, y + 14);
+        rSpr.rotation = slope;
         ready.addChild(rSpr);
 
         const sSpr = new Sprite(paintedLode);
-        sSpr.anchor.set(0.5, 0.88);
+        sSpr.anchor.set(0.5, 0.86);
         sSpr.scale.set(sc * 0.94, sc * 0.82);
-        sSpr.position.set(l.x, y + 8);
+        sSpr.position.set(l.x, y + 16);
+        sSpr.rotation = slope;
         sSpr.tint = 0x565a5e;
         sSpr.alpha = 0.84;
         spent.addChild(sSpr);
 
-        for (let i = 0; i < 6; i++) {
-          glint.circle(l.x + R(-42, 42), y - R(16, 42), R(2, 3.2)).fill({ color: l.color, alpha: 0.9 });
+        // Soft contoured seabed silt skirt & pebbles over the base so the lode roots organically with zero flat line.
+        for (const host of [ready, spent]) {
+          const skirt = new Graphics();
+          skirt.moveTo(l.x - 86, groundY(l.x - 86) + 12);
+          for (let dx = -86; dx <= 86; dx += 14) {
+            skirt.lineTo(l.x + dx, groundY(l.x + dx) - 4 + Math.sin(dx * 0.12 + l.x) * 3.5);
+          }
+          skirt.lineTo(l.x + 86, groundY(l.x + 86) + 16).lineTo(l.x - 86, groundY(l.x - 86) + 16).closePath()
+            .fill({ color: 0x162425, alpha: 0.96 });
+          for (let p = 0; p < 9; p++) {
+            const px = l.x + R(-72, 72);
+            const py = groundY(px) + R(-4, 5);
+            skirt.ellipse(px, py, R(7, 16), R(3.5, 6.5)).fill({ color: p % 2 === 0 ? 0x203231 : 0x182728, alpha: 0.92 });
+          }
+          host.addChild(skirt);
         }
-        glint.ellipse(l.x, y - 22, 58, 22).fill({ color: l.color, alpha: 0.1 });
+
+        for (let i = 0; i < 6; i++) {
+          glint.circle(l.x + R(-42, 42), y - R(12, 38), R(2, 3.2)).fill({ color: l.color, alpha: 0.9 });
+        }
+        glint.ellipse(l.x, y - 18, 58, 22).fill({ color: l.color, alpha: 0.1 });
       } else {
         // A knuckle of dark host rock standing out of the bed.
         for (const g of [ready, spent]) {

@@ -183,10 +183,26 @@ export class DiveWatch {
     else this.shownFrac += (targetFrac - this.shownFrac) * (1 - Math.exp(-10 * dt));
     const frac = this.shownFrac;
 
-    // 1. Housing: hand-painted vintage brass bezel (or procedural brass fallback).
+    // 1. Housing: hand-painted vintage brass bezel clipped cleanly to a silky-smooth circle (or procedural fallback).
     const dialR = R * 0.675;
     if (this.bezel) {
-      c.drawImage(this.bezel, 0, 0, S, S);
+      c.save();
+      c.beginPath();
+      c.arc(cx, cy, R - 1.4, 0, Math.PI * 2);
+      c.clip();
+      c.drawImage(this.bezel, -1.2, -1.2, S + 2.4, S + 2.4);
+      c.restore();
+      // Smooth anti-aliased dark-bronze outer rim bevel to eliminate any cutout stair-stepping.
+      c.strokeStyle = 'rgba(26, 20, 11, 0.82)';
+      c.lineWidth = 1.6;
+      c.beginPath();
+      c.arc(cx, cy, R - 1.4, 0, Math.PI * 2);
+      c.stroke();
+      c.strokeStyle = 'rgba(220, 188, 118, 0.28)';
+      c.lineWidth = 0.9;
+      c.beginPath();
+      c.arc(cx, cy, R - 2.4, -Math.PI * 0.85, -Math.PI * 0.15);
+      c.stroke();
     } else {
       let g = c.createLinearGradient(0, 0, S, S);
       g.addColorStop(0, '#c8a65a');
@@ -216,27 +232,27 @@ export class DiveWatch {
     c.arc(cx, cy, dialR, 0, Math.PI * 2);
     c.fill();
 
-    // 2. Engraved vintage minute/pressure tick ring inside the enamel dial.
-    const tickOuter = dialR * 0.965;
-    for (let i = 0; i < 60; i++) {
-      const a = (i / 60) * Math.PI * 2 - Math.PI / 2;
-      const major = i % 5 === 0;
-      const r0 = tickOuter - (major ? S * 0.038 : S * 0.02);
-      c.strokeStyle = major ? 'rgba(212,177,104,0.68)' : 'rgba(223,236,203,0.26)';
-      c.lineWidth = major ? 1.35 : 0.7;
+    // 2. Clean 12-hour vintage brass tick marks inside the enamel dial.
+    const tickOuter = dialR * 0.96;
+    for (let i = 0; i < 12; i++) {
+      const a = (i / 12) * Math.PI * 2 - Math.PI / 2;
+      const major = i % 3 === 0;
+      const r0 = tickOuter - (major ? S * 0.036 : S * 0.022);
+      c.strokeStyle = major ? 'rgba(212,177,104,0.72)' : 'rgba(223,236,203,0.28)';
+      c.lineWidth = major ? 1.4 : 0.8;
       c.beginPath();
       c.moveTo(cx + Math.cos(a) * r0, cy + Math.sin(a) * r0);
       c.lineTo(cx + Math.cos(a) * tickOuter, cy + Math.sin(a) * tickOuter);
       c.stroke();
     }
 
-    // 3. Luminous O₂ pressure arc + live moving mechanical brass pointer needle.
+    // 3. Single clean luminous O₂ pressure arc + sleek brass pointer needle.
     const low = targetFrac < 0.35;
     const critical = targetFrac < 0.15;
     const pulse = critical ? 0.55 + 0.45 * Math.sin(now / 120) : 1;
     const col = critical ? RED : low ? AMBER : LUME;
-    const arcR = dialR * 0.865;
-    const arcW = Math.max(3.6, S * 0.036);
+    const arcR = dialR * 0.855;
+    const arcW = Math.max(3.6, S * 0.035);
     c.lineCap = 'round';
     c.lineWidth = arcW;
     c.strokeStyle = 'rgba(255,255,255,0.07)';
@@ -248,7 +264,7 @@ export class DiveWatch {
       c.globalAlpha = pulse;
       c.strokeStyle = col;
       c.shadowColor = col;
-      c.shadowBlur = critical ? 9 : 4;
+      c.shadowBlur = critical ? 9 : 3.5;
       c.beginPath();
       c.arc(cx, cy, arcR, -Math.PI / 2, o2End);
       c.stroke();
@@ -256,46 +272,31 @@ export class DiveWatch {
       c.globalAlpha = 1;
     }
 
-    // Tiny vintage brass index triangle at 12 o'clock.
-    c.fillStyle = BRASS;
-    c.beginPath();
-    c.moveTo(cx, cy - tickOuter - 0.5);
-    c.lineTo(cx - 3.2, cy - tickOuter + 4.5);
-    c.lineTo(cx + 3.2, cy - tickOuter + 4.5);
-    c.closePath();
-    c.fill();
-
     // Moving mechanical brass O₂ pointer riding smoothly on the arc's leading edge.
     {
       c.save();
       c.translate(cx, cy);
       c.rotate(o2End);
-      const tipX = tickOuter + 0.5;
-      const baseX = arcR - arcW * 1.15;
+      const tipX = tickOuter;
+      const baseX = arcR - arcW * 1.1;
       c.fillStyle = BRASS;
       c.strokeStyle = '#1b1409';
-      c.lineWidth = 1;
+      c.lineWidth = 0.9;
       c.beginPath();
       c.moveTo(tipX, 0);
-      c.lineTo(baseX, -3.4);
-      c.lineTo(baseX + 2.2, 0);
-      c.lineTo(baseX, 3.4);
+      c.lineTo(baseX, -3.1);
+      c.lineTo(baseX + 2, 0);
+      c.lineTo(baseX, 3.1);
       c.closePath();
       c.fill();
       c.stroke();
-      // Glowing radium pip inside the brass pointer.
-      c.fillStyle = col;
-      c.beginPath();
-      c.arc((tipX + baseX) * 0.52, 0, 1.45, 0, Math.PI * 2);
-      c.fill();
       c.restore();
     }
 
-    // 4. Twin curved inner sub-gauges (Suit Integrity top, Dive Bag Load bottom).
+    // 4. Contextual inner sub-gauges (only shown when suit is damaged or bag carries weight).
     const subR = dialR * 0.725;
-    const subW = Math.max(2.4, S * 0.022);
-    // Suit integrity arc across top (10 to 2 o'clock).
-    {
+    const subW = Math.max(2.2, S * 0.02);
+    if (suit < 0.995) {
       const s0 = Math.PI * 1.22;
       const s1 = Math.PI * 1.78;
       c.lineWidth = subW;
@@ -313,52 +314,25 @@ export class DiveWatch {
         c.globalAlpha = 1;
       }
     }
-    // Dive bag weight arc across bottom (8 to 4 o'clock).
     const wf = Math.max(0, Math.min(1, bag.kg / bag.max));
     const over = bag.kg > bag.rated + 0.01;
     const full = bag.kg >= bag.max - 0.01;
-    const a0 = Math.PI * 0.78;
-    const a1 = Math.PI * 0.22;
-    const span = a0 - a1;
-    c.lineWidth = subW;
-    c.strokeStyle = 'rgba(212,177,104,0.14)';
-    c.beginPath();
-    c.arc(cx, cy, subR, a1, a0);
-    c.stroke();
-    if (wf > 0.002) {
+    if (bag.kg > 0.01) {
+      const a0 = Math.PI * 0.78;
+      const a1 = Math.PI * 0.22;
+      const span = a0 - a1;
+      c.lineWidth = subW;
+      c.strokeStyle = 'rgba(212,177,104,0.14)';
+      c.beginPath();
+      c.arc(cx, cy, subR, a1, a0);
+      c.stroke();
       const wcol = full ? RED : over ? AMBER : LUME;
       c.strokeStyle = wcol;
-      c.globalAlpha = 0.92;
+      c.globalAlpha = 0.9;
       c.beginPath();
       c.arc(cx, cy, subR, a0 - wf * span, a0);
       c.stroke();
       c.globalAlpha = 1;
-    }
-    // Brass rated-load notch tick.
-    const ta = a0 - (bag.rated / bag.max) * span;
-    c.strokeStyle = BRASS;
-    c.lineWidth = 1.4;
-    c.beginPath();
-    c.moveTo(cx + Math.cos(ta) * (subR - 3), cy + Math.sin(ta) * (subR - 3));
-    c.lineTo(cx + Math.cos(ta) * (subR + 3), cy + Math.sin(ta) * (subR + 3));
-    c.stroke();
-
-    // 5. Live sweeping seconds hand pip (glides once a minute while submerged, with soft phosphor trail).
-    if (!atSurface) {
-      const sa = ((diveTime % 60) / 60) * Math.PI * 2 - Math.PI / 2;
-      const sweepR = dialR * 0.79;
-      c.strokeStyle = 'rgba(230,240,204,0.28)';
-      c.lineWidth = 1.6;
-      c.beginPath();
-      c.arc(cx, cy, sweepR, sa - 0.32, sa);
-      c.stroke();
-      c.fillStyle = LUME;
-      c.shadowColor = LUME;
-      c.shadowBlur = 4;
-      c.beginPath();
-      c.arc(cx + Math.cos(sa) * sweepR, cy + Math.sin(sa) * sweepR, 2, 0, Math.PI * 2);
-      c.fill();
-      c.shadowBlur = 0;
     }
 
     // 6. Crisp vintage instrument readouts centered in the enamel dial.

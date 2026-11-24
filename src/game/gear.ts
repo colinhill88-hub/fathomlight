@@ -309,6 +309,14 @@ export const RESEARCH: Record<BlueprintId, ResearchDef> = {
     scans: ['contact'],
     seconds: 1,
   },
+  rivet2: {
+    id: 'rivet2',
+    name: 'Auto-rivet carbine RD-2 blueprint',
+    text: "Decoded from the Corvina Hull Keeper's salvaged pneumatic actuator core: a heavy drum-fed automatic rivet carbine that cycles twice as fast and hits harder while Shoot is held.",
+    finds: ['keepercore'],
+    scans: [],
+    seconds: 80,
+  },
   resonator: {
     id: 'resonator',
     name: 'Alien resonator blueprint',
@@ -319,7 +327,7 @@ export const RESEARCH: Record<BlueprintId, ResearchDef> = {
   },
 };
 // (Milestone 11: the Choir lantern is given at first contact, never decoded in a Lab, so it isn't in RESEARCH_ORDER.)
-export const RESEARCH_ORDER: BlueprintId[] = ['light', 'satchel', 'gtank', 'tankkit', 'sorter', 'relay', 'welder', 'tow', 'flare', 'visor', 'dash', 'cutter', 'hatch', 'recomp', 'crane', 'sonar', 'thermal', 'boots', 'dart', 'rivet', 'booster', 'ballast', 'tractor', 'sdome', 'habitat', 'psuit', 'revive', 'plating', 'psuit2', 'cowl', 'drill', 'signal', 'resonator'];
+export const RESEARCH_ORDER: BlueprintId[] = ['light', 'satchel', 'gtank', 'tankkit', 'sorter', 'relay', 'welder', 'tow', 'flare', 'visor', 'dash', 'cutter', 'hatch', 'recomp', 'crane', 'sonar', 'thermal', 'boots', 'dart', 'rivet', 'rivet2', 'booster', 'ballast', 'tractor', 'sdome', 'habitat', 'psuit', 'revive', 'plating', 'psuit2', 'cowl', 'drill', 'signal', 'resonator'];
 /** Blueprints that unlock a base piece (build card) instead of Workshop gear. */
 export const PIECE_BLUEPRINTS: Partial<Record<BlueprintId, string>> = { gtank: 'gtank', sorter: 'sorter', recomp: 'recomp', crane: 'crane', revive: 'revive', signal: 'signal', thermal: 'thermal', lantern: 'lantern', hatch: 'hatch' };
 /** Milestone 10: blueprints that are fitted elsewhere (the dock) or built later, not in the Workshop. */
@@ -508,6 +516,15 @@ export const GEAR: Record<GearId, GearDef> = {
     cost: { brass: 3, copper: 4, quartz: 2 },
     seconds: 60,
   },
+  rivet2: {
+    id: 'rivet2',
+    name: 'Auto-rivet carbine',
+    code: 'RD-2',
+    job: 'Upgrades the forearm Rivet driver with a drum-fed automatic actuator: hold Shoot (X, RT, or the Shoot button) for rapid full-auto fire, faster bolts, and heavier punch against deep-wreck machines and stalkers.',
+    blueprint: 'rivet2',
+    cost: { brass: 4, plate: 3, ore: 3, quartz: 2 },
+    seconds: 75,
+  },
   cowl: {
     id: 'cowl',
     name: 'Heat-shield cowl',
@@ -521,11 +538,12 @@ export const GEAR: Record<GearId, GearDef> = {
 /** Milestone 11 (Colin's choice): the resonator can only be tuned once all four fragments are decoded. */
 export function gearBlocker(save: SaveData, id: GearId): string | null {
   if (id === 'dash' && save.kit.thruster < 2) return 'It fits the TH-2 thruster head. Find that first.';
+  if (id === 'rivet2' && !hasGear(save, 'rivet')) return 'Upgrades the Rivet driver RD-1. Build that first.';
   if (id === 'resonator' && save.signals.decoded.length < 4)
     return `It can only be tuned to the Choir's song once the Signal array has decoded all four fragments (${save.signals.decoded.length} of 4 so far).`;
   return null;
 }
-export const GEAR_ORDER: GearId[] = ['light', 'satchel', 'cutter', 'tow', 'welder', 'relay', 'tankkit', 'displaykit', 'flare', 'visor', 'dash', 'sonar', 'boots', 'dart', 'rivet', 'psuit', 'psuit2', 'cowl', 'resonator'];
+export const GEAR_ORDER: GearId[] = ['light', 'satchel', 'cutter', 'tow', 'welder', 'relay', 'tankkit', 'displaykit', 'flare', 'visor', 'dash', 'sonar', 'boots', 'dart', 'rivet', 'rivet2', 'psuit', 'psuit2', 'cowl', 'resonator'];
 /** Gear that is a kit you can build again and again (it isn't kept in save.gear). */
 export const KIT_GEAR: GearId[] = ['relay', 'tankkit', 'displaykit'];
 
@@ -542,6 +560,7 @@ export const FINDS: Record<FindId, { name: string; text: string }> = {
   ps2plans: { name: 'PS-2 suit drawings', text: "Drawings from a Fulmar cargo pod in the cleft: her divers' deep suit." },
   resonplans: { name: 'Resonator drawings', text: "The Fulmar crew's drawings for a device that sings the Choir's patterns back." },
   rivetplans: { name: 'Rivet driver drawings', text: "Oilcloth drawings from the Corvina's bosun's locker: a forearm rivet driver with a fold-out guard." },
+  keepercore: { name: 'Hull Keeper actuator core', text: "The high-pressure pneumatic drive core salvaged from the Corvina's Hull Keeper. A Lab can adapt it into a full-auto rivet carbine." },
   nurserylog: { name: 'Kestrel nursery log', text: 'A waterproof log from a sealed crate behind the kelp wall in the caves: how the first crew bred creatures in warm cradles.' },
 };
 

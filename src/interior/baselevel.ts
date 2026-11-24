@@ -393,7 +393,7 @@ export class BaseHooks implements InteriorHooks {
   private screens: Light[] = [];
   private tanks: { room: Room; x: number; y: number; w: number; h: number }[] = [];
   private turbines: { x: number; y: number; r: number; id: number }[] = [];
-  private storageCrates = new Map<number, Sprite[]>();
+  private storageCrates = new Map<number, Container[]>();
   /**
    * Milestone 9 (Colin, after the interior art pass): the tanks indoors show
    * the very same creatures and plants as the tanks outside, swimming the
@@ -548,8 +548,18 @@ export class BaseHooks implements InteriorHooks {
   }
 
   private syncCrops(time: number): void {
+    const hasTroughArt = !!getPropArt().interior.farm_trough;
     for (const r of this.level.rooms) {
       if (r.kind !== 'farm') continue;
+      if (hasTroughArt) {
+        // Painted farm_trough planters already depict lush kelp & foliage; skip the procedural zigzag ribbons.
+        const old = this.crops.get(r.piece.id);
+        if (old) {
+          old.plants.forEach((p) => p.destroy({ children: true }));
+          this.crops.delete(r.piece.id);
+        }
+        continue;
+      }
       const f = this.ctx.farmCrop(r.piece.id);
       const plant: PlantId = f.grow === 'fibre' ? 'kelp' : f.grow === 'resin' ? 'bladder' : f.grow;
       let cr = this.crops.get(r.piece.id);
@@ -792,8 +802,9 @@ export class BaseHooks implements InteriorHooks {
         add(b.cx, b.bottom, 'station', 110);
         break;
       case 'dock':
-        add(b.cx, b.floor(0), 'dock', 80);
-        if (this.ctx.subDocked(id)) add(b.cx - 150, b.floor(0), 'board', 70);
+        // Dock controls cleanly on the far left of the catwalk; boarding KS-1 sits right over the sub hatch/ladder.
+        add(b.ox + 96, b.floor(0), 'dock', 68);
+        if (this.ctx.subDocked(id)) add(b.cx + 16, b.floor(0), 'board', 72);
         break;
       case 'recomp':
         add(b.ox + b.ow * 0.62, b.bottom, 'recomp', 70);
@@ -1491,25 +1502,50 @@ export class BaseHooks implements InteriorHooks {
         g.moveTo(b.ox + 24, bot - 46).lineTo(b.ox + 70, bot - 132).moveTo(b.ox + b.ow - 24, bot - 46).lineTo(b.ox + b.ow - 70, bot - 132).stroke({ color: 0x263032, width: 2, alpha: 0.65 });
         hazard(g, b.ox + 16, bot - 6, 40, 6);
         hazard(g, b.ox + b.ow - 56, bot - 6, 40, 6);
-        const crateTex = getPropArt().interior.crate;
-        if (crateTex) {
-          const crates: Sprite[] = [];
+        // Clean Kestrel-spec brushed dark-steel & tarnished-brass waterproof supply cases on the racks.
+        {
+          const crates: Container[] = [];
           const perShelf = 5;
           const x0 = b.ox + 34;
           const usableW = Math.max(40, b.ow - 102);
           const slotW = usableW / perShelf;
+          const bodyCols = [0x334044, 0x3b463e, 0x434038];
+          const bandCols = [0x9e7d3a, 0x7b8f54, 0xb89347];
           for (let shelf = 0; shelf < 3; shelf++) {
             const sy = bot - 40 - shelf * 46;
+            const ch = shelf === 2 ? 28 : 31;
+            const cw = Math.min(44, slotW - 8);
             for (let col = 0; col < perShelf; col++) {
-              const spr = new Sprite(crateTex);
-              spr.anchor.set(0.5, 0.98);
-              const maxH = shelf === 2 ? 32 : 35;
-              const sc = Math.min(maxH / Math.max(1, crateTex.height), (slotW - 4) / Math.max(1, crateTex.width));
-              spr.scale.set(sc);
-              spr.position.set(x0 + slotW * (col + 0.5), sy + 1);
-              spr.visible = false;
-              g.addChild(spr);
-              crates.push(spr);
+              const cx = x0 + slotW * (col + 0.5);
+              const idx = shelf * perShelf + col;
+              const cg = new Graphics();
+              const colBody = bodyCols[idx % bodyCols.length];
+              const colBand = bandCols[idx % bandCols.length];
+              // Shelf contact shadow.
+              cg.rect(-cw / 2 - 1, -2, cw + 2, 3).fill({ color: 0x0c1214, alpha: 0.55 });
+              // Brushed dark-steel case body + dark bevel border.
+              cg.roundRect(-cw / 2, -ch, cw, ch, 3).fill({ color: colBody }).stroke({ color: 0x1b2326, width: 1.2 });
+              // Subtle top lid bevel & specular highlight.
+              cg.roundRect(-cw / 2 + 1, -ch + 1, cw - 2, 7, 2).fill({ color: 0x556469, alpha: 0.55 });
+              cg.rect(-cw / 2 + 1, -ch + 7.5, cw - 2, 1.4).fill({ color: 0x182022, alpha: 0.85 });
+              // Molded reinforcement ribs.
+              for (const rx of [-cw * 0.24, 0, cw * 0.24]) {
+                cg.rect(rx - 1.2, -ch + 11, 2.4, ch - 15).fill({ color: 0x242e31, alpha: 0.7 });
+              }
+              // Stencilled cargo stripe & twin tarnished-brass clasps.
+              cg.rect(-cw / 2 + 3, -ch + 12, cw - 6, 3).fill({ color: colBand, alpha: 0.78 });
+              for (const lx of [-cw * 0.28, cw * 0.28]) {
+                cg.roundRect(lx - 2.2, -ch + 5.5, 4.4, 6, 1).fill({ color: 0xc9a24a }).stroke({ color: 0x2a2010, width: 0.8 });
+              }
+              // Recessed brass corner bumpers.
+              for (const sx of [-1, 1]) {
+                cg.rect(sx > 0 ? cw / 2 - 4 : -cw / 2, -ch, 4, 4).fill({ color: 0x9e7d3a, alpha: 0.8 });
+                cg.rect(sx > 0 ? cw / 2 - 4 : -cw / 2, -4, 4, 4).fill({ color: 0x9e7d3a, alpha: 0.8 });
+              }
+              cg.position.set(cx, sy);
+              cg.visible = false;
+              g.addChild(cg);
+              crates.push(cg);
             }
           }
           this.storageCrates.set(id, crates);
@@ -1795,20 +1831,21 @@ export class BaseHooks implements InteriorHooks {
             g.roundRect(x, f0 - 22, 36, 10, 3).fill(0x574e3b);
             e.roundRect(x + 4, f0 - 19, 28, 3.5, 1.5).fill({ color: 0xf6c991, alpha: 0.7 });
           }
+          const dockConX = b.ox + 96;
           const dockConTex = getPropArt().interior.hatch_console ?? getPropArt().interior.console_habitat;
           if (dockConTex) {
             const spr = new Sprite(dockConTex);
             spr.anchor.set(0.5, 1);
             spr.scale.set(86 / Math.max(1, dockConTex.height));
-            spr.position.set(b.cx, f0 + 2);
+            spr.position.set(dockConX, f0 + 2);
             this.roomFixtures.addChild(spr);
           } else {
-            g.roundRect(b.cx - 24, f0 - 66, 48, 66, 4).fill({ color: 0x354244 }).stroke({ color: 0x8f723c, width: 1.8 });
-            g.roundRect(b.cx - 17, f0 - 58, 34, 22, 3).fill({ color: 0x162b22 }).stroke({ color: 0x8f723c, width: 1.2 });
+            g.roundRect(dockConX - 24, f0 - 66, 48, 66, 4).fill({ color: 0x354244 }).stroke({ color: 0x8f723c, width: 1.8 });
+            g.roundRect(dockConX - 17, f0 - 58, 34, 22, 3).fill({ color: 0x162b22 }).stroke({ color: 0x8f723c, width: 1.2 });
           }
-          addText(sign('DOCK CONTROLS', b.cx, f0 - 92, 10, 0xe5c397, 0.9));
+          addText(sign('DOCK CONTROLS', dockConX, f0 - 92, 10, 0xe5c397, 0.9));
           addText(sign('↓ SWIM LADDER', ladder + T / 2, f0 - 15, 9, 0xffd7a1, 0.92));
-          addText(sign('KS-1 BERTH', b.cx - 289, f0 - 49, 10, 0xb3c6bd, 0.78));
+          addText(sign('KS-1 BERTH', b.cx - 46, f0 - 49, 10, 0xb3c6bd, 0.78));
           break;
         }
         g.rect(b.ox, f0 - 40, b.ow, 4).fill({ color: COL.chrome });
@@ -1863,7 +1900,6 @@ export class BaseHooks implements InteriorHooks {
       case 'workshop': {
         const fixtures = this.ctx.panorama ? this.roomFixtures : g;
         const wsBenchTex = getPropArt().interior.workshop_bench;
-        fixtures.rect(b.cx - 10, b.oy, 20, 30).fill({ color: COL.chromeDark });
         if (wsBenchTex) {
           const spr = new Sprite(wsBenchTex);
           spr.anchor.set(0.5, 1);
@@ -1871,6 +1907,7 @@ export class BaseHooks implements InteriorHooks {
           spr.position.set(b.cx, bot);
           fixtures.addChild(spr);
         } else {
+          fixtures.rect(b.cx - 10, b.oy, 20, 30).fill({ color: COL.chromeDark });
           // A fabricator bench with a robot arm (it works in animate), and tool racks.
           fixtures.roundRect(b.cx - 140, bot - 44, 280, 44, 6).fill({ color: COL.wallDark });
           fixtures.rect(b.cx - 140, bot - 44, 280, 4).fill({ color: COL.chrome });
@@ -2004,16 +2041,27 @@ export class BaseHooks implements InteriorHooks {
           this.screens.push({ x: b.cx, y: ty - 40, radius: b.ow * 0.5, intensity: 0.5, color: [0.75, 1, 0.45], zone: id } as Light);
         }
         for (const x of [b.ox + 104, b.ox + b.ow - 116]) g.rect(x, b.oy + 30, 12, bot - b.oy - 30).fill({ color: COL.chromeDark });
-        // Seed console (left) and the tray hatch (right).
+        // Seed console (left) and riveted dark-steel & brass harvest tray bin (right).
         const sx = b.ox + 56;
-        g.roundRect(sx - 34, bot - 84, 68, 84, 6).fill({ color: COL.wallDark });
-        g.roundRect(sx - 26, bot - 76, 52, 30, 3).fill({ color: 0x0c1418 });
-        addText(sign('CROP', sx, bot - 96, 9, 0xc6f03a, 0.75));
+        g.roundRect(sx - 34, bot - 84, 68, 84, 5).fill({ color: 0x263032 }).stroke({ color: 0x9e7d3a, width: 1.5 });
+        g.roundRect(sx - 26, bot - 76, 52, 30, 3).fill({ color: 0x0c1418 }).stroke({ color: 0x4a5a5e, width: 1 });
+        for (let i = 0; i < 3; i++) rivet(g, sx - 22 + i * 22, bot - 12, 1.3);
+        addText(sign('CROP', sx, bot - 96, 9, 0xc6f03a, 0.8));
         const tx = b.ox + b.ow - 56;
-        g.roundRect(tx - 34, bot - 64, 68, 64, 6).fill({ color: COL.chrome });
-        g.roundRect(tx - 28, bot - 58, 56, 34, 4).fill({ color: COL.wallDark });
-        for (let i = 0; i < 4; i++) rivet(g, tx - 26 + i * 17, bot - 14, 1.4);
-        addText(sign('TRAY', tx, bot - 76, 9, 0xd8dde0, 0.6));
+        // Heavy riveted harvest chute & slatted collection bin matching the base's dark-steel/brass aesthetic.
+        g.roundRect(tx - 34, bot - 66, 68, 66, 5).fill({ color: 0x2b3438 }).stroke({ color: 0x9e7d3a, width: 1.8 });
+        g.rect(tx - 34, bot - 66, 68, 6).fill({ color: 0xb89347, alpha: 0.85 });
+        g.roundRect(tx - 28, bot - 57, 56, 34, 3).fill({ color: 0x10181b }).stroke({ color: 0x5c686d, width: 1.2 });
+        // Brass corner brackets & vertical reinforcement ribs on the lower apron.
+        for (const cx2 of [tx - 31, tx + 27]) g.rect(cx2, bot - 62, 4, 58).fill({ color: 0x3f4a4e });
+        for (let i = 0; i < 4; i++) {
+          const rx = tx - 24 + i * 16;
+          g.rect(rx - 1.5, bot - 20, 3, 14).fill({ color: 0x1c2427 });
+          rivet(g, rx, bot - 6, 1.3);
+        }
+        // Subtle brass nameplate above the harvest bin.
+        g.roundRect(tx - 20, bot - 82, 40, 12, 2).fill({ color: 0x262f32 }).stroke({ color: 0x9e7d3a, width: 1 });
+        addText(sign('TRAY', tx, bot - 76, 8.5, 0xe2c374, 0.92));
         hazard(g, b.ox + 110, bot - 6, b.ow - 220, 6);
         break;
       }
@@ -2251,10 +2299,10 @@ export class BaseHooks implements InteriorHooks {
           const cy = b.oy + 22 + Math.cos(time * 1.7 + k * 1.9) * 5;
           d.ellipse(cx, cy, 24 + Math.sin(time * 2.1 + k) * 6, 4.5).fill({ color: 0xa8e0d4, alpha: 0.09 + 0.04 * Math.sin(time * 2.3 + k) });
         }
-        // Subtle live status pulse on the painted Dock Control console at (b.cx, f0).
+        // Subtle live status pulse on the painted Dock Control console at (b.ox + 96, f0).
         const f0 = b.floor(0);
         const docked = c.subDocked(id);
-        d.circle(b.cx + 16, f0 - 54, 2.8).fill({ color: on ? (docked ? 0x9ef0b8 : 0xffc860) : 0x6b5638, alpha: on ? 0.72 + 0.22 * Math.sin(time * 2.8) : 0.45 });
+        d.circle(b.ox + 112, f0 - 54, 2.8).fill({ color: on ? (docked ? 0x9ef0b8 : 0xffc860) : 0x6b5638, alpha: on ? 0.72 + 0.22 * Math.sin(time * 2.8) : 0.45 });
       }
       if (r.kind === 'dock' && c.subDocked(id)) {
         // KS-1 berthed in the moon pool: painted sub.webp when available, procedural silhouette otherwise.
@@ -2548,22 +2596,38 @@ export class BaseHooks implements InteriorHooks {
         }
       } else if (r.kind === 'workshop') {
         const busy = on && c.stationBusy(id);
-        const a = busy ? Math.sin(time * 3) * 0.6 : 0.2;
-        const ax = b.cx;
-        const ay = b.oy + 30;
-        const ex = ax + Math.sin(a) * 60;
-        const ey = ay + Math.cos(a) * 60;
-        const tx = ex + Math.sin(a * 1.6 + 1) * 46;
-        const ty = ey + Math.cos(a * 1.6 + 1) * 46;
-        d.moveTo(ax, ay).lineTo(ex, ey).stroke({ color: COL.chrome, width: 9, cap: 'round' });
-        d.moveTo(ex, ey).lineTo(tx, ty).stroke({ color: COL.white, width: 7, cap: 'round' });
-        d.circle(ex, ey, 7).fill({ color: COL.chromeDark });
-        if (busy && Math.sin(time * 17) > 0.2) {
-          de.circle(tx, ty + 4, 5).fill({ color: 0xfff0b0 });
-          for (let k = 0; k < 4; k++) {
-            const sp = ((time * 4.5 + k * 0.27) % 1);
-            const ang = -0.7 + k * 0.48 + Math.sin(time * 9 + k) * 0.2;
-            de.circle(tx + Math.cos(ang) * sp * 22, ty + 4 + Math.sin(ang) * sp * 16 + sp * sp * 14, 1.4).fill({ color: 0xffc662, alpha: 1 - sp });
+        if (getPropArt().interior.workshop_bench) {
+          // Cohesive live VFX on the painted workbench: warm acetylene torch flame & welding sparks while building.
+          if (busy) {
+            const tx = b.cx + 38;
+            const ty = bot - 66;
+            const flick = 0.72 + 0.28 * Math.sin(time * 27);
+            de.circle(tx, ty, 5.5 * flick).fill({ color: 0xffd070, alpha: 0.75 });
+            de.circle(tx, ty, 2.8 * flick).fill({ color: 0xfff8dc, alpha: 0.95 });
+            for (let k = 0; k < 5; k++) {
+              const sp = (time * 3.8 + k * 0.21) % 1;
+              const ang = -2.3 + k * 0.38 + Math.sin(time * 11 + k) * 0.18;
+              de.circle(tx + Math.cos(ang) * sp * 26, ty + Math.sin(ang) * sp * 18 + sp * sp * 18, 1.35).fill({ color: 0xffbe54, alpha: 1 - sp });
+            }
+          }
+        } else {
+          const a = busy ? Math.sin(time * 3) * 0.6 : 0.2;
+          const ax = b.cx;
+          const ay = b.oy + 30;
+          const ex = ax + Math.sin(a) * 60;
+          const ey = ay + Math.cos(a) * 60;
+          const tx = ex + Math.sin(a * 1.6 + 1) * 46;
+          const ty = ey + Math.cos(a * 1.6 + 1) * 46;
+          d.moveTo(ax, ay).lineTo(ex, ey).stroke({ color: COL.chrome, width: 9, cap: 'round' });
+          d.moveTo(ex, ey).lineTo(tx, ty).stroke({ color: COL.white, width: 7, cap: 'round' });
+          d.circle(ex, ey, 7).fill({ color: COL.chromeDark });
+          if (busy && Math.sin(time * 17) > 0.2) {
+            de.circle(tx, ty + 4, 5).fill({ color: 0xfff0b0 });
+            for (let k = 0; k < 4; k++) {
+              const sp = ((time * 4.5 + k * 0.27) % 1);
+              const ang = -0.7 + k * 0.48 + Math.sin(time * 9 + k) * 0.2;
+              de.circle(tx + Math.cos(ang) * sp * 22, ty + 4 + Math.sin(ang) * sp * 16 + sp * sp * 14, 1.4).fill({ color: 0xffc662, alpha: 1 - sp });
+            }
           }
         }
       } else if (r.kind === 'dome' && on) {

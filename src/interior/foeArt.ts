@@ -27,7 +27,7 @@ const RED = 0xff3a22;
 const HOT = 0xffc23a;
 
 export function drawFoe(f: Foe, g: Graphics, e: Graphics, gl: Graphics, time: number): void {
-  if (f.kind === 'tick') drawTick(f, g, e, gl, time);
+  if (f.kind === 'tick' || f.kind === 'spider') drawTick(f, g, e, gl, time);
   else if (f.kind === 'drone') drawDrone(f, g, e, gl, time);
   else drawKeeper(f, g, e, gl, time);
 }
@@ -38,15 +38,17 @@ export function drawFoe(f: Foe, g: Graphics, e: Graphics, gl: Graphics, time: nu
  */
 export function drawFoeFx(f: Foe, e: Graphics, gl: Graphics, time: number): void {
   const s = f.face;
-  if (f.kind === 'tick') {
+  if (f.kind === 'tick' || f.kind === 'spider') {
     if (f.dead) return;
     const tell = f.state === 'tell' ? Math.min(1, f.t / TICK.tell) : 0;
     const flipped = f.state === 'flipped';
-    const ex = f.x + 15 * s;
-    const ey = f.y - (flipped ? 8 : 14);
+    const ex = f.x + (f.kind === 'spider' ? 18 : 15) * s;
+    const ey = f.y - (flipped ? 8 : f.kind === 'spider' ? 18 : 14);
+    const col = f.kind === 'spider' ? HOT : RED;
     const hot = flipped ? 0.25 : 0.65 + tell * 0.35 + (f.state === 'lunge' ? 0.35 : 0);
-    e.circle(ex, ey, 2.4 + tell * 1.6).fill({ color: RED, alpha: Math.min(1, hot) });
-    if (tell > 0 || f.state === 'lunge') gl.circle(ex, ey, 11 + tell * 14).fill({ color: RED, alpha: 0.35 + 0.3 * tell });
+    e.circle(ex, ey, 2.4 + tell * 1.6).fill({ color: col, alpha: Math.min(1, hot) });
+    if (f.kind === 'spider') e.circle(ex - 4 * s, ey - 3, 1.6 + tell).fill({ color: RED, alpha: Math.min(1, hot) });
+    if (tell > 0 || f.state === 'lunge') gl.circle(ex, ey, 11 + tell * 14).fill({ color: col, alpha: 0.35 + 0.3 * tell });
     return;
   }
   if (f.kind === 'drone') {

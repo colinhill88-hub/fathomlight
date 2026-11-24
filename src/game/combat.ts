@@ -18,14 +18,14 @@ import type { SaveData } from './state';
  * room door again without touching anything else.
  */
 
-export type FoeKind = 'tick' | 'drone' | 'keeper';
+export type FoeKind = 'tick' | 'drone' | 'keeper' | 'spider';
 
 /** The switch. Off: the engine room door stays shut and no foe is ever made. */
 export function combatOn(search: string = typeof location !== 'undefined' ? location.search : ''): boolean {
   return new URLSearchParams(search).get('combat') !== 'off';
 }
 
-/** The Rivet driver RD-1 on Kestrel's forearm. */
+/** The Rivet driver RD-1 on Kestrel's forearm, and the upgraded RD-2 Automatic Rivet Carbine. */
 export const RIVET = {
   /** Seconds between shots. */
   cooldown: 0.3,
@@ -36,6 +36,12 @@ export const RIVET = {
   /** Soft aim: the nearest foe in front within this angle (radians) of level is aimed at. */
   aimCone: 0.75,
   damage: 1,
+};
+export const RIVET_MK2 = {
+  cooldown: 0.145,
+  speed: 1520,
+  range: 860,
+  damage: 1.5,
 };
 
 /** Bracing behind the guard plate (hold Down). */
@@ -61,10 +67,11 @@ export const DAMAGE: Record<string, number> = {
   touch: 0.1,
 };
 
-export const FOE_HP: Record<FoeKind, number> = { tick: 2, drone: 2, keeper: 5 };
+export const FOE_HP: Record<FoeKind, number> = { tick: 2, drone: 2, keeper: 5, spider: 3 };
 
 /** Timings of each foe's moves (seconds) and speeds (units/s). */
 export const TICK = { sight: 360, speed: 150, tell: 0.55, lunge: 0.42, lungeSpeed: 640, lungeHop: 230, flipped: 1.1, rest: 0.6, height: 26, halfW: 16, climb: 680 };
+export const SPIDER = { sight: 460, speed: 215, tell: 0.42, lunge: 0.36, lungeSpeed: 740, lungeHop: 290, flipped: 0.9, rest: 0.45, height: 32, halfW: 20, climb: 760 };
 export const DRONE = { sight: 640, hover: 150, keepNear: 240, keepFar: 430, speed: 120, track: 0.75, lock: 0.4, boltSpeed: 720, cool: 1.1, rest: 1.4, halfW: 18 };
 export const KEEPER = { sight: 700, speed: 62, slamRange: 170, chargeRange: 640, windSlam: 0.95, windCharge: 0.85, chargeSpeed: 540, chargeMax: 1.3, waveSpeed: 430, waveLife: 1.7, waveHeight: 30, stuck: 1.7, stagger: 2.4, rest: 0.9, halfW: 42, height: 118 };
 

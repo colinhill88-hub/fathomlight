@@ -318,11 +318,11 @@ export interface SubData {
 }
 
 /** Milestone 7: gear built in the Workshop (rules in src/game/gear.ts). */
-export type GearId = 'tankkit' | 'displaykit' | 'light' | 'cutter' | 'tow' | 'welder' | 'relay' | 'sonar' | 'psuit' | 'psuit2' | 'resonator' | 'dart' | 'flare' | 'boots' | 'satchel' | 'cowl' | 'visor' | 'dash' | 'rivet';
+export type GearId = 'tankkit' | 'displaykit' | 'light' | 'cutter' | 'tow' | 'welder' | 'relay' | 'sonar' | 'psuit' | 'psuit2' | 'resonator' | 'dart' | 'flare' | 'boots' | 'satchel' | 'cowl' | 'visor' | 'dash' | 'rivet' | 'rivet2';
 /** Blueprints the Lab decodes. Each one lets the Workshop build something, or unlocks a base piece. */
-export type BlueprintId = 'tankkit' | 'display' | 'light' | 'cutter' | 'tow' | 'welder' | 'relay' | 'gtank' | 'sorter' | 'sonar' | 'psuit' | 'recomp' | 'crane' | 'revive' | 'psuit2' | 'plating' | 'signal' | 'resonator' | 'lantern' | 'thermal' | 'hatch' | 'dart' | 'flare' | 'boots' | 'satchel' | 'cowl' | 'visor' | 'dash' | 'booster' | 'sdome' | 'tractor' | 'ballast' | 'habitat' | 'drill' | 'rivet';
+export type BlueprintId = 'tankkit' | 'display' | 'light' | 'cutter' | 'tow' | 'welder' | 'relay' | 'gtank' | 'sorter' | 'sonar' | 'psuit' | 'recomp' | 'crane' | 'revive' | 'psuit2' | 'plating' | 'signal' | 'resonator' | 'lantern' | 'thermal' | 'hatch' | 'dart' | 'flare' | 'boots' | 'satchel' | 'cowl' | 'visor' | 'dash' | 'booster' | 'sdome' | 'tractor' | 'ballast' | 'habitat' | 'drill' | 'rivet' | 'rivet2';
 /** Data finds the diver brings back to the Lab (they weigh nothing). */
-export type FindId = 'recorder' | 'relaylog' | 'weldchip' | 'towcoil' | 'cache' | 'sonardata' | 'suitplans' | 'poolplans' | 'hulllogs' | 'ps2plans' | 'resonplans' | 'nurserylog' | 'rivetplans';
+export type FindId = 'recorder' | 'relaylog' | 'weldchip' | 'towcoil' | 'cache' | 'sonardata' | 'suitplans' | 'poolplans' | 'hulllogs' | 'ps2plans' | 'resonplans' | 'nurserylog' | 'rivetplans' | 'keepercore';
 /** What a Lab or Workshop is busy with. */
 export interface StationJob {
   /** 'research:light' or 'build:light'. */

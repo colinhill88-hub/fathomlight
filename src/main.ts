@@ -106,7 +106,7 @@ import {
   BUOY_X,
 } from './world/terrain';
 import { DeepHunters } from './actors/deep';
-import { FULMAR_MAP, FULMAR_OPTS } from './interior/fulmar';
+import { FULMAR_MAP, FULMAR_OPTS, fulmarLayout } from './interior/fulmar';
 import { hasArray, FRAGMENTS, nextFragment, signalStatus, tickSignals } from './game/signals';
 import {
   bagHasRoom,
@@ -168,7 +168,7 @@ import { Interior, InteriorEvent } from './interior/interior';
 import { CORVINA_MAP, CORVINA_OPTS } from './interior/corvina';
 import { ENGINE_MAP, ENGINE_OPTS, engineLayout } from './interior/engineRoom';
 import { CombatLayer } from './interior/combatLayer';
-import { KEEPER_BEATEN, WAKE_SUIT, afterHit, combatOn, engineDoorOpen, mendSuit } from './game/combat';
+import { KEEPER_BEATEN, WAKE_SUIT, afterHit, combatOn, engineDoorOpen, keeperBeaten, mendSuit } from './game/combat';
 import { BaseCtx, BaseHooks, OCEAN_POOL_DEPTH, baseSignature, buildBaseLevel } from './interior/baselevel';
 import { SCAN_ENTRIES } from './game/scanner';
 import { CHOIR_AT, ChoirForm, HEART_MAP, heartOptions, PLINTH_AT } from './interior/sanctum';
@@ -293,6 +293,10 @@ async function boot(): Promise<void> {
   // Opened passages count from the very first frame, so a diver saved inside one isn't pushed out (after milestone 12).
   hidden.open = !!save.hiddenOpen;
   seam.open = !!save.seamOpen;
+  // Retroactive unlock: saves that already beat the Corvina Hull Keeper receive its Auto-Core for the RD-2 upgrade.
+  if (keeperBeaten(save.corvina.engine) && !save.finds.includes('keepercore') && !save.blueprints.includes('rivet2') && !hasGear(save, 'rivet2')) {
+    save.finds.push('keepercore');
+  }
   if (BENCH) seedBenchSave(save);
 
   const visualMode = (flag: string, approved = 'painted') => (urlq.get(flag) ?? approved) === approved;
@@ -1032,10 +1036,12 @@ async function boot(): Promise<void> {
     e.preventDefault();
   });
   /** Climbing into the sub (after milestone 7b): seconds to swim to the hatch, then to sink through it. */
-  let boarding: { t: number; x0: number; y0: number } | null = null;
+  let boarding: { t: number; x0: number; y0: number; bubbled?: boolean } | null = null;
   let boardFade = 1;
-  const BOARD_SWIM = 0.6;
-  const BOARD_IN = 0.45;
+  const BOARD_SWIM = 0.52;
+  const BOARD_IN = 0.42;
+  /** Climbing down the Moon Pool ladder into a docked KS-1 from inside the base. */
+  let poolBoard: { t: number; x0: number; y0: number; lx: number; topY: number; botY: number; cued?: boolean } | null = null;
   /** How far from the claw the sub's grabber arm can take a material (a diver's hand reaches 72). */
   const GRAB_REACH = 150;
   // Milestone 7 part 2: the kelp caves.
@@ -1415,6 +1421,7 @@ async function boot(): Promise<void> {
       dash: hasGear(save, 'dash'),
       dart: hasGear(save, 'dart'),
       rivet: hasGear(save, 'rivet'),
+      rivet2: hasGear(save, 'rivet2'),
     };
   }
   let noThrusterAt = -99;
@@ -2003,7 +2010,9 @@ async function boot(): Promise<void> {
                   ? `${g.name} ${g.code} built! Its hoop rides on your pack and its bracer on your arm, humming in colours nothing on the reef makes. The fourth fragment said: down and east, past the trench floor. Look for a door at the floor's far end.`
                   : ev.id === 'rivet'
                     ? `${g.name} ${g.code} built and strapped to your forearm, its guard plate folded along the barrel. It only works on foot. The welded engine room door in the Corvina's hold can be forced now.`
-                    : `${g.name} ${g.code} built!`,
+                    : ev.id === 'rivet2'
+                      ? `${g.name} ${g.code} built and strapped to your forearm! Hold Shoot to fire automatic bursts of heavier, faster rivets — built for the deeper decks of the Fulmar.`
+                      : `${g.name} ${g.code} built!`,
           'big',
         );
       }
@@ -2695,19 +2704,36 @@ async function boot(): Promise<void> {
     const pool = swimmingPool && moonpoolOf(swimmingPool);
     if (aboard || boarding) diver.cancelSurfaceReaction();
     if (boarding) {
-      // Climbing into the sub: swim to the hatch, then down through it.
+      // Climbing into KS-1 from the water: actively swim up to the conning hatch, pop the lid open with bubbles, then drop in feet-first.
       boarding.t += dt;
       const hatch = sub.hatchPoint();
-      const a = smooth(boarding.t / BOARD_SWIM);
-      const b = smooth((boarding.t - BOARD_SWIM) / BOARD_IN);
-      diver.x = boarding.x0 + (hatch.x - boarding.x0) * a;
-      diver.y = boarding.y0 + (hatch.y - boarding.y0) * a + b * 36;
+      const a = smooth(Math.min(1, boarding.t / BOARD_SWIM));
+      const b = smooth(Math.max(0, (boarding.t - BOARD_SWIM) / BOARD_IN));
+      const nx = boarding.x0 + (hatch.x - boarding.x0) * a;
+      const ny = boarding.y0 + (hatch.y - boarding.y0) * a + b * 42;
+      const dx = hatch.x - boarding.x0;
+      const dy = hatch.y - boarding.y0;
+      const len = Math.max(1, Math.hypot(dx, dy));
+      // Drive the diver's swim kick animation while approaching the hatch, then vertical descent into the hatch.
+      diver.update(dt, b > 0 ? 0 : (dx / len) * 0.75, b > 0 ? 0.85 : (dy / len) * 0.75, false, false, true);
+      diver.x = nx;
+      diver.y = ny;
       diver.vx = diver.vy = 0;
       diver.surfaced = false;
+      // Swing the conning-hatch lid open as Kestrel arrives, then shut as she drops inside.
+      sub.hatchOpen = b < 0.75 ? smooth(Math.min(1, boarding.t / 0.25)) : 1 - smooth((b - 0.75) / 0.25);
+      if (boarding.t >= BOARD_SWIM && !boarding.bubbled) {
+        boarding.bubbled = true;
+        subBubbles.puff(hatch.x, hatch.y + 8, 0, -55, 10);
+        sound.hatchCue(true);
+      }
+      diver.view.scale.set(1 - b * 0.28);
       boardFade = 1 - b;
       if (boarding.t >= BOARD_SWIM + BOARD_IN) {
         boarding = null;
         boardFade = 1;
+        sub.hatchOpen = 0;
+        diver.view.scale.set(1);
         if (blackout === 0) boardSub(false);
       }
     } else if (grapple && !aboard) {
@@ -4089,9 +4115,17 @@ async function boot(): Promise<void> {
     camCX += (lookX - camCX) * k;
     camCY += (lookY - camCY) * k;
     if (!build.active) {
-      // Keep the camera inside the world (a little sky is allowed at the top, enough to see a splash).
+      // Gently lift the camera toward the open sky when near the surface and zoomed out,
+      // instead of wasting the lower half of the viewport on solid black rock below the seabed.
+      if (!care.active && !dockUI.active && !station.active && lookY < 420) {
+        const zoomOut = Math.max(0, (viewH - VIEW_H) / VIEW_H);
+        const nearSurf = Math.max(0, 1 - Math.max(0, lookY) / 420);
+        camCY += (lookY - zoomOut * nearSurf * 170 - camCY) * (1 - Math.exp(-3.2 * dt));
+      }
+      // Keep the camera inside the world, allowing generous sky headroom when zoomed out near the surface.
       camCX = viewW >= WORLD_SPAN ? WORLD_X0 + WORLD_SPAN / 2 : Math.max(WORLD_X0 + viewW / 2, Math.min(WORLD_W - viewW / 2, camCX));
-      camCY = Math.max(viewH / 2 - (care.active ? 0 : 110), Math.min(WORLD_H - viewH / 2, camCY));
+      const skyAllowance = care.active ? 0 : Math.max(165, viewH * 0.44);
+      camCY = Math.max(viewH / 2 - skyAllowance, Math.min(WORLD_H - viewH / 2, camCY));
     }
     // A jolt when the sub hits rock.
     shake = Math.max(0, shake - dt * 2.5);
@@ -4508,8 +4542,11 @@ async function boot(): Promise<void> {
       keeperBeaten: () => {
         const sec = (save.corvina.engine ??= { taken: [] });
         if (!sec.taken.includes(KEEPER_BEATEN)) sec.taken.push(KEEPER_BEATEN);
-        grant(major('gear', 'Wreck cleared', 'The hull keeper is down', 'Its store behind the shutter is open.'));
-        setTimeout(() => hud.toast("The hull keeper shudders, its core gutters out, and it folds over its own shield. Somewhere a relay clicks and the store's shutter grinds up. Its small machines will patch themselves together again, but the keeper won't.", 'big'), 2400);
+        if (!save.finds.includes('keepercore') && !save.blueprints.includes('rivet2') && !hasGear(save, 'rivet2')) {
+          save.finds.push('keepercore');
+        }
+        grant(major('gear', 'Wreck cleared', 'The hull keeper is down', 'Its store is open — and you recovered its auto-core (decode in a Lab for the RD-2).'));
+        setTimeout(() => hud.toast("The hull keeper shudders, its core gutters out, and it folds over its own shield. You pry free its rotary auto-core — a Lab can decode it into an automatic RD-2 carbine. Somewhere a relay clicks and the store's shutter grinds up.", 'big'), 2400);
         persist();
       },
     });
@@ -4520,6 +4557,7 @@ async function boot(): Promise<void> {
     engineVisitTaken = [];
     combat = engineHooks();
     combat.armed = hasGear(save, 'rivet');
+    combat.rapid = hasGear(save, 'rivet2');
     interior.enter(ENGINE_MAP, { breakers: [], taken: [...save.corvina.engine.taken] }, null, {
       ...ENGINE_OPTS,
       ambient: [0.24, 0.22, 0.2],
@@ -4549,21 +4587,78 @@ async function boot(): Promise<void> {
     sound.hatchCue(false);
   }
 
-  // ---- Milestone 10: the Fulmar deep station, on foot ----
+  // ---- Milestone 10 + Fulmar combat expansion: the Fulmar deep station, on foot ----
+  const fulmarLay = fulmarLayout(FULMAR_MAP);
+  /** Per-visit repeatable salvage crates taken in the Fulmar (respawn on every fresh visit). */
+  let fulmarVisitTaken: string[] = [];
+  function fulmarHooks(): CombatLayer {
+    return new CombatLayer(interior, fulmarLay, () => save.fulmar, {
+      cue: (c, x, _y, kind) => {
+        sound.foe(c, x - interior.walker.x);
+        if (c === 'down') {
+          const bounty = kind === 'drone' ? 22 : kind === 'spider' ? 18 : 12;
+          save.credits = Math.max(0, Math.floor(save.credits ?? 0)) + bounty;
+          const finished = recordContractEvent(save, 'foes', 1);
+          const label = kind === 'spider' ? 'Abyssal spider driven off' : 'Machine scrapped';
+          hud.toast(finished ? `${label} (+${bounty} SC) · Field Contract ready at EX-1!` : `${label} (+${bounty} SC)`, finished ? 'big' : 'item');
+          persist();
+        }
+      },
+      hurt: (attack, result) => {
+        if (result === 'hit') {
+          if (!consumeSuitShield()) {
+            save.suit = afterHit(save.suit, attack, result);
+            suitCalm = 0;
+            hud.suitHit();
+            sound.suitHit();
+          }
+          if (save.suit <= 0 && knockout === 0) {
+            knockout = 0.0001;
+            knockedWoke = false;
+          }
+        }
+        if (result === 'perfect' && !save.tips.includes('perfectbrace')) {
+          save.tips.push('perfectbrace');
+          hud.toast('A perfect brace! Raise the guard just as a hit lands and it knocks the attacker back (a drone\'s bolt flies home).', 'big');
+        }
+      },
+      lamp: () => {
+        sound.safeLamp();
+        if (!save.tips.includes('safelamp')) {
+          save.tips.push('safelamp');
+          hud.toast('A safe lamp lights as you pass. If your suit gives way in here, you wake beside the last one you lit, with everything you carry.', 'big');
+        }
+      },
+      keeperBeaten: () => {},
+    });
+  }
   function enterFulmar(): void {
-    interior.enter(FULMAR_MAP, { breakers: save.fulmar.breakers, taken: save.fulmar.taken }, null, FULMAR_OPTS,
+    fulmarVisitTaken = [];
+    combat = combatOn() ? fulmarHooks() : null;
+    if (combat) {
+      combat.armed = hasGear(save, 'rivet');
+      combat.rapid = hasGear(save, 'rivet2');
+    }
+    interior.enter(FULMAR_MAP, { breakers: save.fulmar.breakers, taken: [...save.fulmar.taken] }, null, {
+      ...FULMAR_OPTS,
+      combat: combat ?? undefined,
+    },
       oceanCapture?.source({ x: FULMAR.mainX1 - 320, y: FULMAR_HATCH.y - 383, sx: 0.52, sy: 0.78 }));
     inside = 'fulmar';
+    knockout = 0;
     goOnFoot();
     sound.hatchCue(true);
     if (!save.tips.includes('fulmarin'))
       setTimeout(() => {
         save.tips.push('fulmarin');
-        hud.toast("Inside the Fulmar. Dry, cold, and dark: her power is off. Somewhere aboard there must be breakers. Listen to the hull creak.", 'big');
+        hud.toast("Inside the Fulmar. Dry, cold, and dark: her power is off, and something skitters in the lower decks. Find her breakers — and keep your Rivet driver ready.", 'big');
       }, 900);
     persist();
   }
   function exitFulmar(): void {
+    combat = null;
+    interior.walker.guard = interior.walker.aiming = 0;
+    interior.walker.view.alpha = 1;
     interior.leave();
     inside = null;
     backToWater();
@@ -4723,6 +4818,18 @@ async function boot(): Promise<void> {
     boardSub: () => {
       if (!save.sub || save.sub.hull <= 0) {
         hud.toast('The hull is breached. Repair it at the dock panel before taking it out.', 'warn');
+        return;
+      }
+      const lad = save.sub.dock != null ? baseHooks?.moonpoolLadder(save.sub.dock) : null;
+      if (inside === 'base' && lad) {
+        poolBoard = {
+          t: 0,
+          x0: interior.walker.x,
+          y0: interior.walker.y,
+          lx: lad.x,
+          topY: interior.walker.y,
+          botY: lad.y + 68,
+        };
         return;
       }
       interior.leave();
@@ -5068,7 +5175,7 @@ async function boot(): Promise<void> {
       brace: false,
       boots: !outside || aboard || !hasGear(save, 'boots') ? null : bootsNear ? 'offer' : 'own',
       ladder: interior.active && interior.nearLadder,
-      combat: inside === 'engine' && hasGear(save, 'rivet'),
+      combat: (inside === 'engine' || inside === 'fulmar') && hasGear(save, 'rivet'),
       zoom: zoomFree(),
       moving: Math.hypot(s.moveX, s.moveY) > 0.2 || s.boost || s.jumpHeld,
     });
@@ -5283,15 +5390,16 @@ async function boot(): Promise<void> {
     const paused = hud.reading || zoneMap.open;
     // The interior reads her state straight from the save, so they never drift apart.
     if (inside === 'corvina') interior.syncState(save.corvina.breakers, save.corvina.taken ?? []);
-    if (inside === 'fulmar') interior.syncState(save.fulmar.breakers, save.fulmar.taken);
+    if (inside === 'fulmar') interior.syncState(save.fulmar.breakers, [...save.fulmar.taken, ...fulmarVisitTaken]);
     if (inside === 'sanctum') interior.syncState([], save.sanctum.taken);
     if (inside === 'engine') interior.syncState([], [...(save.corvina.engine ??= { taken: [] }).taken, ...engineVisitTaken]);
-    // Phase 19: the fight. Shoot fires the Rivet driver; the Shoot button shows only here, once it's built.
+    // Phase 19: the fight. Shoot fires the Rivet driver (RD-2 fires full-auto while held).
     if (combat) {
       combat.armed = hasGear(save, 'rivet');
-      if (s.shoot && !paused && knockout === 0) combat.shoot();
+      combat.rapid = hasGear(save, 'rivet2');
+      if ((s.shoot || (combat.rapid && s.shootHeld)) && !paused && knockout === 0) combat.shoot();
     }
-    shootBtn.hidden = !(inside === 'engine' && hasGear(save, 'rivet'));
+    shootBtn.hidden = !((inside === 'engine' || inside === 'fulmar') && hasGear(save, 'rivet'));
     if (inside === 'base' && baseHooks && baseHooks.level.signature !== baseSignature(layout)) {
       // A piece finished or was taken down while you were inside: rebuild the rooms around you.
       const level = buildBaseLevel(layout, livingBases);
@@ -5350,7 +5458,7 @@ async function boot(): Promise<void> {
       mateCritter.update(dt, time, mx, my, toward * (8 + g * 20), 0, { vigour: 0.6 + g * 0.4, sick: 0, size: Math.max(0.05, k) * 1.9, notice: g });
       mateCritter.glow.alpha = 0.6 + g * 0.8;
     }
-    const frozen = care.active || hatchPanel.active || station.active || contact.active || knockout > 0;
+    const frozen = care.active || hatchPanel.active || station.active || contact.active || knockout > 0 || !!poolBoard;
     const poolAt = livingBases && inside === 'base' ? baseHooks?.moonpoolAt(interior.walker.x, interior.walker.y) : undefined;
     // The resonator sings at the song-lock, and while you answer the Choir.
     {
@@ -5359,12 +5467,53 @@ async function boot(): Promise<void> {
     }
     const evs: InteriorEvent[] = interior.update(
       dt,
-      frozen ? { moveX: 0, moveY: 0, jump: false, collect: false, lamp: false } : {
+      frozen ? { moveX: 0, moveY: 0, jump: false, collect: false, lamp: false, sealVisor: !!poolBoard } : {
         moveX: s.moveX, moveY: s.moveY, jump: s.jumpHeld, sprint: s.sprint, collect: s.collect, lamp: s.lamp,
         sealVisor: !!poolAt && (s.moveY > 0.5 || interior.pos.climbing),
       },
       paused,
     );
+    // Moon Pool climb-down animation into docked KS-1: walk to the ladder, climb down the rungs into the sub hatch.
+    if (poolBoard && inside === 'base' && !paused) {
+      poolBoard.t += dt;
+      const WALK_T = 0.24;
+      const CLIMB_T = 0.54;
+      if (poolBoard.t < WALK_T) {
+        const u = smooth(poolBoard.t / WALK_T);
+        const dir = Math.sign(poolBoard.lx - poolBoard.x0) || 1;
+        interior.walker.face = dir;
+        interior.walker.pose = 'walk';
+        interior.walker.onGround = true;
+        interior.walker.vx = dir * 130;
+        interior.walker.x = poolBoard.x0 + (poolBoard.lx - poolBoard.x0) * u;
+        interior.walker.y = poolBoard.topY;
+      } else {
+        const p = smooth(Math.min(1, (poolBoard.t - WALK_T) / CLIMB_T));
+        interior.walker.pose = 'climb';
+        interior.walker.onGround = false;
+        interior.walker.vx = 0;
+        interior.walker.vy = 180;
+        interior.walker.climbPhase += dt * 8.5;
+        interior.walker.x = poolBoard.lx;
+        interior.walker.y = poolBoard.topY + (poolBoard.botY - poolBoard.topY) * p;
+        if (p > 0.45 && !poolBoard.cued) {
+          poolBoard.cued = true;
+          sound.hatchCue(true);
+        }
+        interior.walker.view.alpha = p > 0.52 ? Math.max(0, 1 - (p - 0.52) / 0.48) : 1;
+      }
+      interior.walker.update(dt);
+      if (poolBoard.t >= WALK_T + CLIMB_T) {
+        poolBoard = null;
+        interior.walker.view.alpha = 1;
+        interior.leave();
+        inside = null;
+        backToWater();
+        boardSub(false);
+        persist();
+        return;
+      }
+    }
     if (livingBases && inside === 'base' && !paused && !frozen && s.moveY > 0.5) {
       const dock = baseHooks?.moonpoolAt(interior.walker.x, interior.walker.y);
       const ladder = dock && baseHooks?.moonpoolLadder(dock.id);
@@ -5476,6 +5625,26 @@ async function boot(): Promise<void> {
         );
         persist();
       } else if (e.type === 'find' && inside === 'fulmar') {
+        if (e.id === '1' || e.id === '2' || e.id === '3') {
+          // Repeatable Fulmar Deep Salvage Crate: respawns on every fresh visit, feeds EX-1 & base storage.
+          if (!fulmarVisitTaken.includes(e.id)) fulmarVisitTaken.push(e.id);
+          save.credits = Math.max(0, Math.floor(save.credits ?? 0)) + 50;
+          const loot = e.id === '1' ? 'brass' : e.id === '2' ? 'plate' : 'bloom';
+          save.stored[loot] = (save.stored[loot] ?? 0) + 1;
+          if (e.id === '3') save.stored.plate = (save.stored.plate ?? 0) + 1;
+          const lootText = e.id === '3' ? '1 glowing bloom & 1 hull plating' : `1 ${MATERIALS[loot].name.toLowerCase()}`;
+          const finished = recordContractEvent(save, 'salvage', 1);
+          hud.refreshInventory();
+          hud.toast(
+            finished
+              ? `Deep salvage crate: +50 SC & ${lootText} · Field Contract ready at EX-1!`
+              : `Deep salvage crate: +50 SC & ${lootText} sent to base storage.`,
+            'big',
+          );
+          persist();
+          continue;
+        }
+        if (!save.fulmar.taken.includes(e.id)) save.fulmar.taken.push(e.id);
         grant(
           e.id === '4' || e.id === '5'
             ? notable('fragment', 'Signal found', 'Pattern spool', 'A Signal array could read it.', 'choir')

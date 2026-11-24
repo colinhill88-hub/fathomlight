@@ -4,6 +4,7 @@ import type { Walker } from '../actors/walker';
 import { HURT_GRACE, KEEPER, TICK, foesFor, type FoeKind, type FoeSpawn, type HitResult, type SectionSave } from '../game/combat';
 import { FoeField, type Foe, type FoeCue, type FoeEvent, type Hero } from '../game/foes';
 import { drawFoe, drawFoeFx } from './foeArt';
+import { getCreatureArt } from '../art/creatureArt';
 import { getPropArt } from '../art/propArt';
 import type { Interior, InteriorCombat, InteriorEvent, InteriorInput } from './interior';
 
@@ -49,6 +50,8 @@ export class CombatLayer implements InteriorCombat {
   grace = 0;
   /** The weapon is owned (bracing needs its guard plate). */
   armed = true;
+  /** True when the upgraded RD-2 Automatic Rivet Carbine is equipped. */
+  rapid = false;
   private lit: boolean[];
   private sparks: Spark[] = [];
   private flashT = 0;
@@ -100,6 +103,7 @@ export class CombatLayer implements InteriorCombat {
   }
 
   shoot(): void {
+    this.field.rapid = this.rapid;
     if (this.armed) this.field.shoot();
   }
 
@@ -145,9 +149,9 @@ export class CombatLayer implements InteriorCombat {
         if (e.cue === 'keeperDown') this.hooks.keeperBeaten();
       }
     }
-    // Safe lamps light as he passes.
+    // Safe lamps light as he passes (same deck).
     this.layout.lamps.forEach((l, i) => {
-      if (!this.lit[i] && Math.abs(w.x - l.x) < 50) {
+      if (!this.lit[i] && Math.abs(w.x - l.x) < 50 && Math.abs(w.y - l.y) < 120) {
         this.lit[i] = true;
         if (i > 0) this.hooks.lamp(i);
       }
@@ -235,8 +239,8 @@ export class CombatLayer implements InteriorCombat {
 
   draw(back: Graphics, front: Graphics, em: Graphics, glow: Graphics, time: number): void {
     void front;
-    // The keeper store's shutter: down and rusted until the keeper is beaten, then raised.
-    this.drawShutter(back, em, glow);
+    // The keeper store's shutter (only in sections that have a Hull Keeper boss).
+    if (this.layout.spawns.some((s) => s.kind === 'keeper')) this.drawShutter(back, em, glow);
     // Safe lamps: dim amber, then lime once passed.
     this.layout.lamps.forEach((l, i) => {
       const lx = l.x;
@@ -253,8 +257,9 @@ export class CombatLayer implements InteriorCombat {
       back.parent.addChildAt(this.foeLayer, idx + 1);
     }
     const activeFoes = new Set<Foe>();
+    const spiderTex = getCreatureArt().spider;
     for (const f of this.field.foes) {
-      const tex = foeArt[f.kind];
+      const tex = f.kind === 'spider' ? spiderTex : foeArt[f.kind];
       if (tex && this.foeLayer) {
         if (f.dead && f.kind !== 'keeper') {
           const old = this.foeSprites.get(f);
@@ -271,16 +276,16 @@ export class CombatLayer implements InteriorCombat {
           this.foeLayer.addChild(spr);
           this.foeSprites.set(f, spr);
         }
-        if (f.kind === 'tick') {
+        if (f.kind === 'tick' || f.kind === 'spider') {
           const flipped = f.state === 'flipped';
           const tell = f.state === 'tell' ? Math.min(1, f.t / TICK.tell) : 0;
           const jitter = tell > 0 ? Math.sin(time * 70) * 1.8 * tell : 0;
-          const bob = !flipped && Math.abs(f.vx) > 20 ? Math.abs(Math.sin(time * 18)) * 3 : 0;
-          const sc = 52 / Math.max(1, tex.width);
+          const bob = !flipped && Math.abs(f.vx) > 20 ? Math.abs(Math.sin(time * (f.kind === 'spider' ? 22 : 18))) * (f.kind === 'spider' ? 4 : 3) : 0;
+          const sc = (f.kind === 'spider' ? 68 : 52) / Math.max(1, tex.width);
           spr.anchor.set(0.5, flipped ? 0.2 : 0.92);
           spr.scale.set(sc * f.face, flipped ? -sc : sc * (1 - tell * 0.14));
-          spr.position.set(f.x + jitter, f.y - bob - (f.state === 'lunge' ? 4 : 0));
-          spr.rotation = flipped ? Math.sin(time * 16) * 0.08 : f.state === 'lunge' ? -0.14 * f.face : 0;
+          spr.position.set(f.x + jitter, f.y - bob - (f.state === 'lunge' ? 5 : 0));
+          spr.rotation = flipped ? Math.sin(time * 16) * 0.08 : f.state === 'lunge' ? -0.16 * f.face : 0;
         } else if (f.kind === 'drone') {
           const reel = f.state === 'reel';
           const sc = 64 / Math.max(1, tex.width);
@@ -347,7 +352,7 @@ export class CombatLayer implements InteriorCombat {
           this.foeLayer.addChild(spr);
           this.shotSprites.set(s, spr);
         }
-        spr.scale.set(18 / Math.max(1, boltTex.width));
+        spr.scale.set((this.rapid ? 22 : 18) / Math.max(1, boltTex.width));
         spr.position.set(s.x, s.y);
         spr.rotation = ang;
         spr.tint = s.returned ? 0xdcff72 : 0xffffff;

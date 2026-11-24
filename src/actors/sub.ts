@@ -250,6 +250,9 @@ export class Sub {
   private pilot = new Container();
   private pilotE = new Container();
   private pilotLevel = 0;
+  /** Animated top conning-hatch lid (0 = closed, 1 = swung open while Kestrel climbs in/out). */
+  hatchOpen = 0;
+  private hatchLid = new Graphics();
   private cabinLight: Light = { x: 0, y: 0, radius: 150, intensity: 0, color: [1, 0.86, 0.6] };
   private lightLevel = 0;
   private wasFrame = false;
@@ -267,60 +270,82 @@ export class Sub {
       spr.scale.set(sc);
       spr.position.set(0, -4);
       this.body.addChild(this.prop, spr);
-      // Mount the real painted Kestrel (head + torso) inside the glass nose canopy!
+      // Mount the real painted Kestrel (head + torso) strictly masked inside the glass nose canopy!
       const kArt = getPropArt().kestrel;
+      const buildCanopyMask = () => {
+        const m = new Graphics();
+        // Exact interior dome contour above the lower brass cockpit sill (y <= 1) so Kestrel never clips outside.
+        m.moveTo(46, 1)
+          .lineTo(46, -24)
+          .quadraticCurveTo(60, -37, 82, -33)
+          .quadraticCurveTo(99, -24, 98, -2)
+          .quadraticCurveTo(80, 4, 46, 1)
+          .closePath()
+          .fill({ color: 0xffffff });
+        return m;
+      };
       if (kArt.head) {
         const buildPaintedPilot = (target: Container, alpha = 1) => {
           const back = new Graphics();
-          back.ellipse(68, -12, 20, 24).fill({ color: 0xe4ff9e, alpha: 0.14 * alpha });
+          back.ellipse(70, -14, 18, 20).fill({ color: 0xe4ff9e, alpha: 0.14 * alpha });
           target.addChild(back);
           if (kArt.torso) {
             const tSpr = new Sprite(kArt.torso);
             tSpr.anchor.set(0.5, 0.5);
-            const tsc = 24 / Math.max(1, kArt.torso.height);
+            const tsc = 20 / Math.max(1, kArt.torso.height);
             tSpr.scale.set(tsc);
-            tSpr.position.set(62, 1);
+            tSpr.position.set(65, -1);
             tSpr.alpha = alpha;
             target.addChild(tSpr);
           }
           const hSpr = new Sprite(kArt.head!);
           hSpr.anchor.set(0.5, 0.5);
-          const hsc = 30 / Math.max(1, kArt.head!.height);
+          const hsc = 26 / Math.max(1, kArt.head!.height);
           hSpr.scale.set(hsc);
-          hSpr.position.set(65, -18);
+          hSpr.position.set(68, -16);
           hSpr.alpha = alpha;
           target.addChild(hSpr);
         };
         buildPaintedPilot(this.pilot, 1);
-        buildPaintedPilot(this.pilotE, 0.55);
+        buildPaintedPilot(this.pilotE, 0.52);
       } else {
         const drawSeatedPilot = (target: Container, alpha = 1) => {
           const p = target.addChild(new Graphics());
           const px = 66;
-          const py = 4;
-          p.ellipse(px + 6, py - 14, 22, 26).fill({ color: 0xe4ff9e, alpha: 0.16 * alpha });
-          p.roundRect(px - 14, py - 14, 24, 15, 6).fill({ color: 0x3b4448, alpha });
+          const py = 2;
+          p.ellipse(px + 6, py - 14, 20, 22).fill({ color: 0xe4ff9e, alpha: 0.16 * alpha });
+          p.roundRect(px - 14, py - 14, 24, 14, 6).fill({ color: 0x3b4448, alpha });
           p.moveTo(px - 10, py - 10).lineTo(px + 6, py - 10).stroke({ color: 0xd4ad5a, width: 1.1, alpha: 0.85 * alpha });
           p.roundRect(px + 1, py - 9, 21, 5.5, 2.5).fill({ color: 0x9aa4a8, alpha });
           p.circle(px + 22, py - 6.2, 2.8).fill({ color: 0xc86442, alpha });
           p.roundRect(px - 10, py - 16, 18, 5, 2.5).fill({ color: 0xb8ccd8, alpha });
           const hx = px;
-          const hy = py - 24;
-          const k = 1.08;
+          const hy = py - 22;
+          const k = 1.02;
           p.circle(hx, hy, 8 * k).fill({ color: 0xd9a788, alpha });
           p.moveTo(hx - 8 * k, hy - 1 * k).arc(hx, hy, 8 * k, Math.PI, -0.2).lineTo(hx + 2 * k, hy - 2 * k).closePath().fill({ color: 0x4a3426, alpha });
           p.poly([hx + 7 * k, hy - 1 * k, hx + 10.5 * k, hy + 2 * k, hx + 7.5 * k, hy + 3.5 * k]).fill({ color: 0xd9a788, alpha });
           p.circle(hx + 4.5 * k, hy - 1 * k, 1.2).fill({ color: 0x1a1410, alpha });
           p.moveTo(hx + 5 * k, hy + 5 * k).lineTo(hx + 8 * k, hy + 4.6 * k).stroke({ color: 0x5a3a30, width: 0.9, alpha });
-          p.circle(hx + 1, hy, 13.2).fill({ color: PAL.visor, alpha: 0.24 * alpha });
-          p.circle(hx + 1, hy, 13.2).stroke({ color: 0x9cc846, width: 1.4, alpha: 0.88 * alpha });
+          p.circle(hx + 1, hy, 12.2).fill({ color: PAL.visor, alpha: 0.24 * alpha });
+          p.circle(hx + 1, hy, 12.2).stroke({ color: 0x9cc846, width: 1.4, alpha: 0.88 * alpha });
           p.circle(hx + 5.5, hy - 5, 2.5).fill({ color: 0xffffff, alpha: 0.55 * alpha });
         };
         drawSeatedPilot(this.pilot, 1);
-        drawSeatedPilot(this.pilotE, 0.78);
+        drawSeatedPilot(this.pilotE, 0.72);
       }
-      this.body.addChild(this.pilot);
-      this.eBody.addChild(this.pilotE);
+      const pMask = buildCanopyMask();
+      const pEMask = buildCanopyMask();
+      this.pilot.mask = pMask;
+      this.pilotE.mask = pEMask;
+      this.body.addChild(pMask, this.pilot);
+      this.eBody.addChild(pEMask, this.pilotE);
+      // Hinged brass conning-hatch lid on top of KS-1 (swings up during boarding/exit).
+      this.hatchLid.roundRect(-2, -5, 26, 6, 2.5).fill({ color: 0x3b4347 }).stroke({ color: 0xb89347, width: 1.4 });
+      this.hatchLid.circle(20, -2, 1.8).fill({ color: 0xe6c87a });
+      this.hatchLid.position.set(-10, -45);
+      this.hatchLid.visible = false;
+      this.body.addChild(this.hatchLid);
       // Soft glass canopy sheen over the pilot so they sit genuinely inside the glass dome.
       const sheen = new Graphics();
       sheen.moveTo(68, -32).quadraticCurveTo(88, -22, 95, -4).stroke({ color: 0xffffff, width: 3.0, alpha: 0.28, cap: 'round' });
@@ -505,50 +530,89 @@ export class Sub {
   }
 
   private drawModules(): void {
-    // Cargo: a sleek pod clamped under the bow half of the keel.
+    const IRON = 0x343d41;
+    const IRON_DARK = 0x20272a;
+    const IRON_HI = 0x677479;
+    const BRASS_M = 0xb59146;
+    const BRASS_HI = 0xe2c374;
+    const BRASS_DK = 0x6c5324;
+    const INK = 0x151b1e;
+
+    // 1. Cargo bay: weathered riveted gunmetal & tarnished-brass belly pressure pod tucked cleanly aft of the arm.
     const c = new Graphics();
-    c.roundRect(-4, HY1 - 2, 78, 14, 7).fill({ color: PAL.hullDark });
-    c.roundRect(-2, HY1 - 1, 74, 3.5, 2).fill({ color: PAL.hullHi, alpha: 0.6 });
-    for (const cx of [6, 58]) {
-      c.roundRect(cx, HY1 - 4, 6, 18, 2.5).fill({ color: PAL.chrome });
-      c.rect(cx + 1, HY1 - 3, 1.5, 16).fill({ color: PAL.chromeHi, alpha: 0.6 });
+    const cx0 = -64;
+    const cy0 = HY1 + 2;
+    const cw = 72;
+    const ch = 15;
+    // Recessed hull shadow behind the cargo pod.
+    c.roundRect(cx0 - 1, cy0 - 2, cw + 2, ch + 3, 6).fill({ color: INK, alpha: 0.45 });
+    // Riveted gunmetal drum body.
+    c.roundRect(cx0, cy0, cw, ch, 6).fill({ color: IRON }).stroke({ color: INK, width: 1.5 });
+    c.roundRect(cx0 + 2, cy0 + 1.5, cw - 4, 4.5, 2.5).fill({ color: IRON_HI, alpha: 0.42 });
+    c.roundRect(cx0 + 2, cy0 + ch - 4.5, cw - 4, 3, 2).fill({ color: IRON_DARK, alpha: 0.65 });
+    // Tarnished-brass keel clamping straps with bolt heads.
+    for (const sx of [cx0 + 11, cx0 + cw - 17]) {
+      c.roundRect(sx, cy0 - 3, 6.5, ch + 5, 2).fill({ color: BRASS_M }).stroke({ color: INK, width: 1.1 });
+      c.rect(sx + 1.2, cy0 - 2, 1.8, ch + 3).fill({ color: BRASS_HI, alpha: 0.65 });
+      c.circle(sx + 3.2, cy0 + 2.5, 1.1).fill({ color: BRASS_DK });
+      c.circle(sx + 3.2, cy0 + ch - 2.5, 1.1).fill({ color: BRASS_DK });
     }
-    goldLine(c, [[14, HY1 + 6], [36, HY1 + 6], [40, HY1 + 3], [54, HY1 + 3]], 1.1);
-    const cs = stencil('CARGO', 34, HY1 + 8, 3.6);
+    // Recessed side hatch seam & brass latch clasps.
+    c.roundRect(cx0 + 21, cy0 + 3, cw - 42, ch - 6, 2).stroke({ color: IRON_DARK, width: 1.1 });
+    c.rect(cx0 + cw / 2 - 4, cy0 + 5, 8, 5).fill({ color: BRASS_M }).stroke({ color: INK, width: 0.8 });
+    rivets(c, cx0 + 22, cy0 + 2.2, cx0 + cw - 22, cy0 + 2.2, 4);
+    const cs = stencil('CARGO', cx0 + cw / 2, cy0 + ch - 3.6, 3.2);
     this.stencils.push(cs);
     this.cargoG.addChild(c, cs);
     this.body.addChild(this.cargoG);
 
-    // Floodlights: twin light bars along the bow, above and below the eye.
+    // 2. Floodlights: twin vintage brass-bezel marine searchlight canisters above & below the bow dome.
     const f = new Graphics();
-    for (const [lx, ly, w] of [
-      [HX1 - 44, -14, 30],
-      [HX1 - 40, 18, 26],
+    for (const [lx, ly, rad] of [
+      [52, -35, 5.5],
+      [84, 21, 5.2],
     ] as const) {
-      f.roundRect(lx, ly - 3, w + 6, 8, 3.5).fill({ color: PAL.hullDark });
-      f.roundRect(lx, ly - 3, w + 6, 2, 1).fill({ color: PAL.chrome, alpha: 0.8 });
-      this.floodLens.roundRect(lx + 3, ly - 0.5, w, 3, 1.5).fill({ color: 0xfffaf0 });
-      this.floodHalo.ellipse(lx + w + 4, ly + 1, 20, 9).fill({ color: 0xf4ffe0, alpha: 0.8 });
+      // Bolted iron mounting bracket.
+      f.roundRect(lx - 10, ly - rad * 0.75, 12, rad * 1.5, 2.5).fill({ color: IRON_DARK }).stroke({ color: INK, width: 1.2 });
+      // Tapered gunmetal lamp housing.
+      f.roundRect(lx - 4, ly - rad, 13, rad * 2, 3).fill({ color: IRON }).stroke({ color: INK, width: 1.3 });
+      f.rect(lx - 2, ly - rad + 1.2, 9, 2.2).fill({ color: IRON_HI, alpha: 0.55 });
+      // Tarnished-brass lens bezel ring & guard bars.
+      f.roundRect(lx + 7, ly - rad - 1, 4.5, rad * 2 + 2, 1.5).fill({ color: BRASS_M }).stroke({ color: INK, width: 1.1 });
+      f.rect(lx + 8, ly - rad, 1.4, rad * 2).fill({ color: BRASS_HI, alpha: 0.7 });
+      this.floodLens.ellipse(lx + 11.5, ly, 2.4, rad * 0.78).fill({ color: 0xfff6d8 });
+      this.floodHalo.ellipse(lx + 18, ly, 18, rad * 1.9).fill({ color: 0xffebb0, alpha: 0.65 });
     }
     this.lightsG.addChild(f);
     this.lightsE.addChild(this.floodLens);
     this.lightsGlow.addChild(this.floodHalo);
     this.body.addChild(this.lightsG);
 
-    // Grabber arm: a chrome shoulder, charcoal segments with gold lines, a chrome claw.
+    // 3. Grabber arm: articulated tarnished-brass & weathered-iron hydraulic manipulator arm.
     const sh = new Graphics();
-    sh.roundRect(SHOULDER.x - 11, SHOULDER.y - 7, 22, 13, 5).fill({ color: PAL.hullDark });
-    sh.circle(SHOULDER.x, SHOULDER.y, 5.5).fill({ color: PAL.chrome });
-    sh.circle(SHOULDER.x, SHOULDER.y, 2).fill({ color: PAL.hullDeep });
+    // Bolted cast-iron & brass shoulder turret housing.
+    sh.roundRect(SHOULDER.x - 12, SHOULDER.y - 7, 24, 14, 5).fill({ color: IRON }).stroke({ color: INK, width: 1.4 });
+    sh.roundRect(SHOULDER.x - 10, SHOULDER.y - 5.5, 20, 3.5, 2).fill({ color: IRON_HI, alpha: 0.45 });
+    sh.circle(SHOULDER.x, SHOULDER.y, 6.2).fill({ color: BRASS_M }).stroke({ color: INK, width: 1.3 });
+    sh.circle(SHOULDER.x, SHOULDER.y, 2.6).fill({ color: IRON_DARK });
+    sh.circle(SHOULDER.x - 1.4, SHOULDER.y - 1.4, 1.2).fill({ color: BRASS_HI, alpha: 0.8 });
+    // Upper hydraulic boom segment.
     const up = new Graphics();
-    up.roundRect(-3, -4, UPPER + 4, 8, 3).fill({ color: PAL.hullHi });
-    up.rect(2, -1, UPPER - 4, 1.4).fill({ color: 0xd8a830 });
-    up.circle(UPPER, 0, 4).fill({ color: PAL.chrome });
+    up.roundRect(-3, -4.5, UPPER + 5, 9, 3.5).fill({ color: IRON }).stroke({ color: INK, width: 1.3 });
+    up.roundRect(-1, -3.5, UPPER + 1, 2.4, 1.2).fill({ color: IRON_HI, alpha: 0.5 });
+    // Parallel brass hydraulic actuator cylinder along the boom.
+    up.roundRect(4, 1.4, UPPER - 9, 3.4, 1.5).fill({ color: BRASS_M }).stroke({ color: INK, width: 0.9 });
+    up.rect(6, 2.1, UPPER - 13, 1).fill({ color: BRASS_HI, alpha: 0.7 });
+    // Riveted brass elbow joint.
+    up.circle(UPPER, 0, 4.8).fill({ color: BRASS_M }).stroke({ color: INK, width: 1.2 });
+    up.circle(UPPER, 0, 1.8).fill({ color: IRON_DARK });
     this.upperG.addChild(up);
+    // Forearm piston segment.
     const fo = new Graphics();
-    fo.roundRect(-2, -3, FORE + 2, 6, 2.5).fill({ color: PAL.hullHi });
-    fo.rect(2, -0.6, FORE - 4, 1.2).fill({ color: 0xd8a830 });
-    fo.circle(0, 0, 2).fill({ color: PAL.hullDeep });
+    fo.roundRect(-2, -3.5, FORE + 3, 7, 2.8).fill({ color: IRON }).stroke({ color: INK, width: 1.2 });
+    fo.roundRect(0, -2.5, FORE - 1, 1.8, 0.9).fill({ color: IRON_HI, alpha: 0.48 });
+    fo.roundRect(3, 0.8, FORE - 7, 2.4, 1).fill({ color: BRASS_M }).stroke({ color: INK, width: 0.8 });
+    fo.circle(0, 0, 2.2).fill({ color: IRON_DARK });
     this.foreG.addChild(fo, this.claw);
     this.claw.position.set(FORE, 0);
     this.drawClaw(0);
@@ -561,12 +625,17 @@ export class Sub {
 
   private drawClaw(open: number): void {
     const g = this.claw.clear();
-    g.roundRect(-2, -4, 6, 8, 2).fill({ color: PAL.steelDark });
-    const a = 0.25 + open * 0.55;
+    // Brass wrist cuff & articulated curved bronze pincer jaws.
+    g.roundRect(-3, -4.5, 7, 9, 2.2).fill({ color: 0xb59146 }).stroke({ color: 0x151b1e, width: 1.2 });
+    g.circle(1, 0, 1.5).fill({ color: 0x20272a });
+    const a = 0.28 + open * 0.52;
     for (const s of [-1, 1]) {
-      const x1 = 4 + Math.cos(a * s) * 8;
-      const y1 = Math.sin(a * s) * 8;
-      g.moveTo(3, s * 2).lineTo(x1, y1).lineTo(x1 + 5, y1 - s * 3).stroke({ color: PAL.steelLight, width: 2.2, cap: 'round', join: 'round' });
+      const x1 = 4 + Math.cos(a * s) * 8.5;
+      const y1 = Math.sin(a * s) * 8.5;
+      g.moveTo(3, s * 2.2).lineTo(x1, y1).lineTo(x1 + 5.5, y1 - s * 3.2)
+        .stroke({ color: 0x151b1e, width: 4.2, cap: 'round', join: 'round' });
+      g.moveTo(3, s * 2.2).lineTo(x1, y1).lineTo(x1 + 5.5, y1 - s * 3.2)
+        .stroke({ color: 0xc9a554, width: 2.3, cap: 'round', join: 'round' });
     }
   }
 
@@ -650,65 +719,83 @@ export class Sub {
   private choirG = new Graphics();
   private choirE = new Graphics();
 
-  /** After milestone 12: draw the new modules and hull tiers once. */
+  /** After milestone 12: draw the new modules and hull tiers once, styled in riveted gunmetal & tarnished brass. */
   private drawExtras(): void {
-    // Hull tiers first, under the modules: riveted brass plates over the sides...
+    const IRON = 0x343d41;
+    const IRON_DARK = 0x20272a;
+    const IRON_HI = 0x677479;
+    const BRASS_M = 0xb59146;
+    const BRASS_HI = 0xe2c374;
+    const INK = 0x151b1e;
+
+    // 1. Deep hull plating: riveted antique-brass armour plates bolted along the hull waist.
     const pl = this.platingG;
-    for (const [x0, w] of [[-86, 26], [-56, 30], [-22, 28], [10, 30], [44, 26]] as const) {
-      pl.roundRect(x0, -14, w, 18, 2).fill({ color: 0x7e6430, alpha: 0.75 });
-      pl.roundRect(x0, -14, w, 3, 1.5).fill({ color: 0xd8b868, alpha: 0.35 });
-      rivets(pl, x0 + 3, -9, x0 + w - 3, -9, 3);
-      rivets(pl, x0 + 3, 1, x0 + w - 3, 1, 3);
+    for (const [x0, w] of [[-76, 26], [-46, 28], [-14, 28], [18, 24]] as const) {
+      pl.roundRect(x0, -16, w, 17, 2.5).fill({ color: 0x866832, alpha: 0.82 }).stroke({ color: INK, width: 1.2 });
+      pl.roundRect(x0 + 1, -15, w - 2, 3, 1.2).fill({ color: BRASS_HI, alpha: 0.45 });
+      pl.roundRect(x0 + 1, -2.5, w - 2, 2.5, 1).fill({ color: 0x3c2c12, alpha: 0.5 });
+      rivets(pl, x0 + 3.5, -12, x0 + w - 3.5, -12, 3);
+      rivets(pl, x0 + 3.5, -3, x0 + w - 3.5, -3, 3);
     }
     // ...and after contact, pale Choir stone along the spine and keel, set with the Choir's colours.
     const ch = this.choirG;
-    ch.poly([-90, -20, -50, -32, 0, -31, 30, -26, 0, -27, -50, -28]).fill({ color: 0xc8cce0, alpha: 0.9 });
-    ch.poly([-60, 30, 0, 36, 60, 32, 0, 33]).fill({ color: 0xc8cce0, alpha: 0.9 });
-    for (const [x, y, c] of [[-60, -27, 0x5ff0ff], [-30, -29, 0xa27cff], [0, -29, 0xff5ad8], [-20, 33, 0x5ff0ff], [20, 33, 0xa27cff]] as const) {
+    ch.poly([-86, -22, -46, -34, 0, -33, 30, -28, 0, -29, -46, -30]).fill({ color: 0xc8cce0, alpha: 0.9 });
+    ch.poly([-56, 32, 0, 38, 56, 34, 0, 35]).fill({ color: 0xc8cce0, alpha: 0.9 });
+    for (const [x, y, c] of [[-56, -29, 0x5ff0ff], [-28, -31, 0xa27cff], [0, -31, 0xff5ad8], [-18, 35, 0x5ff0ff], [18, 35, 0xa27cff]] as const) {
       this.choirE.circle(x, y, 2.2).fill({ color: c, alpha: 0.95 });
       this.choirE.circle(x, y, 6).fill({ color: c, alpha: 0.25 });
     }
-    // Afterburner: a second ring nozzle above the main one.
+    // 2. Afterburner: riveted gunmetal & brass auxiliary hydro-jet turbine mounted above the stern thruster.
     const b = this.boosterG;
-    b.roundRect(HX0 - 12, -38, 30, 18, 8).fill({ color: PAL.hullDark });
-    b.roundRect(HX0 - 12, -38, 30, 4, 2).fill({ color: PAL.hullHi, alpha: 0.6 });
-    b.roundRect(HX0 - 14, -40, 5, 22, 2.5).fill({ color: PAL.chrome });
-    b.ellipse(HX0 - 15, -29, 4, 8).fill({ color: 0x0a0e10 });
-    this.boosterE.ellipse(HX0 - 15, -29, 3, 6.5).stroke({ color: PAL.lime, width: 1.8 });
-    // Ballast pod: twin trim tanks strapped under the keel.
+    b.roundRect(HX0 + 2, -36, 32, 16, 6).fill({ color: IRON }).stroke({ color: INK, width: 1.4 });
+    b.roundRect(HX0 + 4, -34.5, 28, 4, 2).fill({ color: IRON_HI, alpha: 0.5 });
+    b.roundRect(HX0, -38, 6, 20, 2.5).fill({ color: BRASS_M }).stroke({ color: INK, width: 1.2 });
+    b.rect(HX0 + 1.5, -36.5, 1.6, 17).fill({ color: BRASS_HI, alpha: 0.65 });
+    b.roundRect(HX0 + 20, -36, 4.5, 16, 1.5).fill({ color: BRASS_M }).stroke({ color: INK, width: 0.9 });
+    b.ellipse(HX0 - 1, -28, 3.8, 7.5).fill({ color: 0x0a0e10 });
+    this.boosterE.ellipse(HX0 - 1, -28, 2.8, 6).stroke({ color: PAL.lime, width: 1.8 });
+    // 3. Ballast trim pod: twin riveted brass-banded pressure cylinders tucked under the lower keel.
     const bl = this.ballastG;
-    for (const x0 of [-70, 4]) {
-      bl.roundRect(x0, HY1 + 14, 52, 11, 5.5).fill({ color: PAL.hullHi });
-      bl.roundRect(x0 + 2, HY1 + 15, 48, 3, 1.5).fill({ color: 0xffffff, alpha: 0.12 });
-      for (const sx of [x0 + 10, x0 + 40]) bl.rect(sx, HY1 + 12, 3, 15).fill({ color: PAL.chrome });
-      bl.rect(x0 + 22, HY1 + 17, 8, 5).fill({ color: 0xa8402e });
+    for (const x0 of [-68, -4]) {
+      bl.roundRect(x0, HY1 + 15, 48, 11, 5.5).fill({ color: IRON }).stroke({ color: INK, width: 1.3 });
+      bl.roundRect(x0 + 2, HY1 + 16.5, 44, 3, 1.5).fill({ color: IRON_HI, alpha: 0.45 });
+      for (const sx of [x0 + 9, x0 + 36]) {
+        bl.roundRect(sx, HY1 + 13.5, 4, 14, 1.5).fill({ color: BRASS_M }).stroke({ color: INK, width: 0.9 });
+      }
+      bl.roundRect(x0 + 20, HY1 + 17.5, 8, 5.5, 1.5).fill({ color: 0x9e3e2c }).stroke({ color: INK, width: 0.8 });
     }
-    // Tractor beam: a lime emitter lens in the chin.
+    // 4. Tractor beam: heavy brass-ringed parabolic emitter bell under the bow chin.
     const tr = this.tractorG;
-    tr.roundRect(84, 18, 22, 12, 5).fill({ color: PAL.hullDark });
-    tr.circle(98, 24, 5).fill({ color: PAL.chrome });
-    this.tractorE.circle(98, 24, 3.4).fill({ color: PAL.lime });
-    this.tractorE.circle(98, 24, 8).fill({ color: PAL.lime, alpha: 0.3 });
-    // Sonar dome: a small glass dome on the back, behind the hatch, with a sweep inside.
+    tr.roundRect(76, 17, 22, 13, 4.5).fill({ color: IRON }).stroke({ color: INK, width: 1.3 });
+    tr.roundRect(92, 15.5, 6, 16, 2).fill({ color: BRASS_M }).stroke({ color: INK, width: 1.1 });
+    tr.circle(99, 23.5, 5.5).fill({ color: IRON_DARK }).stroke({ color: BRASS_M, width: 1.6 });
+    this.tractorE.circle(99, 23.5, 3.6).fill({ color: PAL.lime });
+    this.tractorE.circle(99, 23.5, 8.5).fill({ color: PAL.lime, alpha: 0.3 });
+    // 5. Sonar dome: vintage brass-caged glass bathysphere turret on the upper rear hull.
     const d = this.domeG;
-    d.roundRect(-46, HY0 - 8, 24, 6, 2).fill({ color: PAL.chrome });
-    d.moveTo(-44, HY0 - 7).arc(-34, HY0 - 7, 10, Math.PI, 0).closePath().fill({ color: 0x0e1a1c, alpha: 0.9 });
-    d.moveTo(-44, HY0 - 7).arc(-34, HY0 - 7, 10, Math.PI, 0).stroke({ color: PAL.chrome, width: 1.4 });
-    // Habitat pod: a pressurised cabin on the back between the fin and the canopy, with lit ports.
+    d.roundRect(-52, HY0 - 15, 28, 7, 2.5).fill({ color: BRASS_M }).stroke({ color: INK, width: 1.3 });
+    d.rect(-50, HY0 - 14, 24, 2).fill({ color: BRASS_HI, alpha: 0.6 });
+    d.moveTo(-49, HY0 - 14).arc(-38, HY0 - 14, 11, Math.PI, 0).closePath().fill({ color: 0x102224, alpha: 0.92 });
+    d.moveTo(-49, HY0 - 14).arc(-38, HY0 - 14, 11, Math.PI, 0).stroke({ color: BRASS_M, width: 1.8 });
+    d.moveTo(-38, HY0 - 25).lineTo(-38, HY0 - 14).stroke({ color: BRASS_M, width: 1.2, alpha: 0.8 });
+    // 6. Habitat pod: riveted steel & brass dorsal observation cabin with warm brass-rimmed portholes.
     const h = this.habitatG;
-    h.roundRect(-82, HY0 - 22, 52, 20, 9).fill({ color: PAL.hullHi });
-    h.roundRect(-80, HY0 - 21, 48, 5, 2.5).fill({ color: 0xffffff, alpha: 0.1 });
-    h.rect(-56, HY0 - 22, 2, 20).fill({ color: 0xb08a2a });
-    for (const px of [-72, -44]) {
-      h.circle(px, HY0 - 12, 4.5).fill({ color: PAL.chrome });
-      h.circle(px, HY0 - 12, 3).fill({ color: 0x0c1012 });
-      this.habitatE.circle(px, HY0 - 12, 2.6).fill({ color: 0xffd98a, alpha: 0.9 });
+    h.roundRect(-82, HY0 - 27, 54, 21, 8).fill({ color: IRON }).stroke({ color: INK, width: 1.5 });
+    h.roundRect(-80, HY0 - 25.5, 50, 5, 2.5).fill({ color: IRON_HI, alpha: 0.42 });
+    h.roundRect(-57, HY0 - 27, 4, 21, 1).fill({ color: BRASS_M }).stroke({ color: INK, width: 0.9 });
+    rivets(h, -76, HY0 - 23, -34, HY0 - 23, 5);
+    for (const px of [-70, -42]) {
+      h.circle(px, HY0 - 16, 5.4).fill({ color: BRASS_M }).stroke({ color: INK, width: 1.2 });
+      h.circle(px, HY0 - 16, 3.4).fill({ color: 0x0c1012 });
+      this.habitatE.circle(px, HY0 - 16, 3).fill({ color: 0xffd98a, alpha: 0.92 });
     }
-    // Drill nose: a chrome cone with cutting flutes, past the bow.
+    // 7. Mineral drill nose: forged gunmetal & brass spiral auger drill head bolted to the lower bow.
     const dr = this.drillG;
-    dr.poly([HX1 + 2, -6, HX1 + 40, 5, HX1 + 2, 16]).fill({ color: PAL.chrome });
-    dr.poly([HX1 + 2, -6, HX1 + 40, 5, HX1 + 8, 2]).fill({ color: PAL.chromeHi, alpha: 0.6 });
-    dr.roundRect(HX1 - 4, -8, 9, 26, 3).fill({ color: PAL.hullDark });
+    dr.roundRect(HX1 - 8, -8, 12, 26, 3.5).fill({ color: IRON_DARK }).stroke({ color: INK, width: 1.4 });
+    dr.roundRect(HX1 - 3, -9, 6, 28, 2).fill({ color: BRASS_M }).stroke({ color: INK, width: 1.2 });
+    dr.rect(HX1 - 1.5, -7.5, 1.8, 25).fill({ color: BRASS_HI, alpha: 0.65 });
+    dr.poly([HX1 + 3, -6.5, HX1 + 42, 5, HX1 + 3, 16.5]).fill({ color: 0x5c686e }).stroke({ color: INK, width: 1.4 });
+    dr.poly([HX1 + 3, -6.5, HX1 + 42, 5, HX1 + 10, 2]).fill({ color: 0x9aa6ac, alpha: 0.55 });
     dr.addChild(this.drillSpin);
     this.body.addChild(pl, ch, b, bl, tr, d, h, dr);
     this.eBody.addChild(this.choirE, this.boosterE, this.tractorE, this.domeE, this.habitatE);
@@ -718,8 +805,9 @@ export class Sub {
   private hasFlood = false;
 
   /** Where the claw tip is (world), for collecting. */
-  /** The hatch on top of the dome, where the diver climbs in and out. */
+  /** The hatch on top of the hull/dome, where the diver climbs in and out. */
   hatchPoint(): { x: number; y: number } {
+    if (getPropArt().vehicles.sub) return { x: this.x + this.face * 4, y: this.y - 52 };
     return { x: this.x + this.face * DOME.x, y: this.y + DOME.y - DOME.r - 26 };
   }
 
@@ -856,6 +944,10 @@ export class Sub {
     this.pilot.visible = this.pilotE.visible = this.pilotLevel > 0.02;
     this.pilot.alpha = this.pilotE.alpha = Math.min(1, this.pilotLevel * 1.4);
     this.pilot.y = this.pilotE.y = (1 - this.pilotLevel) * -26;
+    if (this.hatchLid.parent) {
+      this.hatchLid.visible = this.hatchOpen > 0.02;
+      this.hatchLid.rotation = -this.hatchOpen * 1.35;
+    }
     for (const c of [this.body, this.eBody, this.gBody]) {
       c.scale.set(this.faceAnim, 1);
       c.rotation = this.pitch * Math.sign(this.faceAnim);

@@ -1827,7 +1827,7 @@ export class Interior {
       width = r.width;
       shaftTop = Math.min(r.y0, r.y1) - 3 * T - 40;
     }
-    // Gates: steel bars sliding up into the frame.
+    // Gates: riveted cast-iron & tarnished-brass diamond lattice sliding up into a heavy lintel.
     if (ups.length === 2)
       ups.forEach((u) => {
         const open = r ? (r.gate0 && Math.abs(r.gate0.y - u.y) < 2 ? this.gateOpen[0] : r.gate1 && Math.abs(r.gate1.y - u.y) < 2 ? this.gateOpen[1] : 0) : 0;
@@ -1839,12 +1839,43 @@ export class Interior {
           de.rect(gx + 8, top, T - 16, h).fill({ color: 0x5ff0ff, alpha: 0.35 });
           de.rect(gx + 18, top, 4, h).fill({ color: 0xe8fbff, alpha: 0.6 });
         } else {
-          for (let b = 0; b < 4; b++) f.rect(gx + 6 + b * 8, top, 3, h).fill({ color: 0x8a8e90 });
-          f.rect(gx + 2, top + h - 5, T - 4, 5).fill({ color: 0xc9a24a });
+          // Overhead gate lintel & side tracks.
+          f.rect(gx, top - 6, T, 8).fill({ color: 0x3b4043 });
+          f.rect(gx, top - 6, T, 2).fill({ color: 0xb89448, alpha: 0.85 });
+          f.rect(gx + 1, top + 2, 3, 3 * T - 2).fill({ color: 0x2c3134 });
+          f.rect(gx + T - 4, top + 2, 3, 3 * T - 2).fill({ color: 0x2c3134 });
+          if (h > 4) {
+            // Subtle dark-iron gate backing + vertical pickets.
+            f.rect(gx + 4, top, T - 8, h).fill({ color: 0x1c2225, alpha: 0.36 });
+            for (let b = 0; b < 4; b++) {
+              const bx = gx + 7 + b * 8;
+              f.rect(bx, top, 2.6, h).fill({ color: 0x6f777c });
+              f.rect(bx, top, 0.9, h).fill({ color: 0xa2acb2, alpha: 0.65 });
+            }
+            // Cross-braced brass scissor-gate lattice.
+            const step = 22;
+            for (let yy = top + 6; yy < top + h - 8; yy += step) {
+              const y2 = Math.min(top + h - 6, yy + step);
+              f.moveTo(gx + 6, yy).lineTo(gx + T - 6, y2).stroke({ color: 0x9b7a38, width: 1.3, alpha: 0.72 });
+              f.moveTo(gx + T - 6, yy).lineTo(gx + 6, y2).stroke({ color: 0x9b7a38, width: 1.3, alpha: 0.72 });
+            }
+            // Heavy brass-trimmed bottom bumper bar with rivets.
+            f.rect(gx + 2, top + h - 7, T - 4, 7).fill({ color: 0x4b473e });
+            f.rect(gx + 2, top + h - 7, T - 4, 2.2).fill({ color: 0xc9a24a });
+            f.circle(gx + 7, top + h - 3, 1.3).fill({ color: 0xd9b664 });
+            f.circle(gx + T - 7, top + h - 3, 1.3).fill({ color: 0xd9b664 });
+          }
         }
-        // The call panel's lamp: green when the car waits here.
+        // Call panel housing + glowing status jewel (green when waiting here, amber when elsewhere).
         const here = this.carY !== null && Math.abs(this.carY - u.y) < 2;
-        de.circle(u.x - T / 2 + 12, u.y - 26, 3).fill({ color: !this.power ? 0x3a2020 : here ? 0x9ae070 : 0xd8902e });
+        const lampCol = !this.power ? 0x3a2020 : here ? 0x9ae070 : 0xd8902e;
+        if (!this.sanctum) {
+          d.roundRect(u.x - T / 2 + 5, u.y - 36, 14, 22, 2.5).fill({ color: 0x363b3e });
+          d.roundRect(u.x - T / 2 + 5, u.y - 36, 14, 22, 2.5).stroke({ color: 0x9e7d3a, width: 1.2 });
+          d.circle(u.x - T / 2 + 12, u.y - 19, 2.2).fill({ color: 0xb89448 });
+        }
+        if (this.power) de.circle(u.x - T / 2 + 12, u.y - 28, 6.5).fill({ color: lampCol, alpha: 0.22 });
+        de.circle(u.x - T / 2 + 12, u.y - 28, 3).fill({ color: lampCol });
       });
     if (carX === null) {
       this.carLight.intensity = 0;
@@ -1865,27 +1896,107 @@ export class Interior {
       this.carLight.intensity = 0.6 + 0.6 * this.carLit;
       return;
     }
-    // The cable up to the head of the shaft.
-    d.moveTo(carX, shaftTop).lineTo(carX, top - 6).stroke({ color: 0x8e979c, width: 2 });
-    // Back of the car: a dark cage wall with ribs, the roof and the floor.
-    d.rect(carX - half, top, width, ch).fill({ color: 0x2c3234, alpha: 0.92 });
-    for (let x = carX - half + 10; x < carX + half - 4; x += 14) d.rect(x, top + 8, 2, ch - 14).fill({ color: 0x3e4648 });
-    d.rect(carX - half - 3, top - 8, width + 6, 9).fill({ color: 0x5a554c });
-    d.rect(carX - half - 3, top - 8, width + 6, 2).fill({ color: 0xc9a24a, alpha: 0.8 });
-    d.roundRect(carX - 10, top - 16, 20, 9, 3).fill({ color: 0x3a3e40 });
-    // In front of the walker: the floor plate, the side posts and a waist-high rail.
-    f.rect(carX - half - 3, floorY - 6, width + 6, 9).fill({ color: 0x6a6e70 });
-    f.rect(carX - half - 3, floorY - 6, width + 6, 2).fill({ color: 0x9aa0a2 });
-    f.rect(carX - half - 3, top - 4, 5, ch + 2).fill({ color: 0x6a6e70 });
-    f.rect(carX + half - 2, top - 4, 5, ch + 2).fill({ color: 0x6a6e70 });
-    f.rect(carX - half, floorY - 46, width, 3).fill({ color: 0x8a8e90, alpha: 0.9 });
-    // The car's lamp: on while riding.
+    // Shaft guide rails & wall brackets behind the car.
+    const railBot = floorY + 22;
+    for (const side of [-1, 1]) {
+      const rx = carX + side * (half + 4);
+      d.rect(rx - 2.5, shaftTop, 5, railBot - shaftTop).fill({ color: 0x2c3337, alpha: 0.9 });
+      d.rect(rx - 0.8, shaftTop, 1.6, railBot - shaftTop).fill({ color: 0x677278, alpha: 0.75 });
+      for (let by = shaftTop + 20; by < railBot; by += 48) {
+        d.rect(rx - 5, by - 2, 10, 4).fill({ color: 0x444b4f });
+        d.circle(rx, by, 1.2).fill({ color: 0x8e989e });
+      }
+    }
+    // Overhead hoist headframe & twin spinning brass pulley sheaves.
+    const sheaveY = shaftTop + 10;
+    d.rect(carX - half - 6, shaftTop - 4, width + 12, 8).fill({ color: 0x3b4043 });
+    d.rect(carX - half - 6, shaftTop - 4, width + 12, 2).fill({ color: 0xa48542, alpha: 0.75 });
+    const sheaveAng = floorY * 0.045;
+    for (const sx of [carX - 11, carX + 11]) {
+      d.circle(sx, sheaveY, 9.5).fill({ color: 0x32373a });
+      d.circle(sx, sheaveY, 9.5).stroke({ color: 0xb89347, width: 2.2 });
+      for (let sp = 0; sp < 4; sp++) {
+        const a = sheaveAng + sp * (Math.PI / 2);
+        d.moveTo(sx, sheaveY).lineTo(sx + Math.cos(a) * 7.5, sheaveY + Math.sin(a) * 7.5).stroke({ color: 0x8f7337, width: 1.4 });
+      }
+      d.circle(sx, sheaveY, 2.4).fill({ color: 0xd4b05c });
+    }
+    // Twin braided steel hoist cables down to the roof shackles.
+    for (const cx of [carX - 11, carX + 11]) {
+      d.moveTo(cx, sheaveY + 8).lineTo(cx, top - 16).stroke({ color: 0x4c5458, width: 3 });
+      d.moveTo(cx - 0.6, sheaveY + 8).lineTo(cx - 0.6, top - 16).stroke({ color: 0x9aa4aa, width: 1.1 });
+    }
+    // Back of the car: riveted cast-iron lower wainscot + upper brass diamond lattice.
+    const wainscotH = Math.round(ch * 0.44);
+    const wainscotY = floorY - wainscotH;
+    d.rect(carX - half, top, width, ch).fill({ color: 0x202629, alpha: 0.92 });
+    // Upper brass diamond safety mesh.
+    const meshStep = 18;
+    for (let mx = carX - half; mx < carX + half; mx += meshStep) {
+      d.moveTo(mx, top + 4).lineTo(Math.min(carX + half, mx + meshStep), wainscotY).stroke({ color: 0x6f5a30, width: 1.1, alpha: 0.55 });
+      d.moveTo(Math.min(carX + half, mx + meshStep), top + 4).lineTo(mx, wainscotY).stroke({ color: 0x6f5a30, width: 1.1, alpha: 0.55 });
+    }
+    // Vertical brass cage ribs.
+    for (let x = carX - half + 14; x < carX + half - 6; x += 18) {
+      d.rect(x, top + 4, 2.2, ch - 10).fill({ color: 0x434b4e });
+      d.rect(x + 0.5, top + 4, 0.8, ch - 10).fill({ color: 0x8e743c, alpha: 0.55 });
+    }
+    // Lower riveted cast-iron wainscot plate + brass belt rail.
+    d.rect(carX - half, wainscotY, width, wainscotH).fill({ color: 0x2c3337, alpha: 0.96 });
+    d.rect(carX - half + 4, wainscotY + 6, width - 8, wainscotH - 12).stroke({ color: 0x465056, width: 1.2 });
+    d.rect(carX - half, wainscotY - 2, width, 4).fill({ color: 0x9e7d3a });
+    for (let rx = carX - half + 8; rx < carX + half - 4; rx += 14) {
+      d.circle(rx, wainscotY + 9, 1.3).fill({ color: 0x6d777d });
+      d.circle(rx, floorY - 10, 1.3).fill({ color: 0x6d777d });
+    }
+    // Arched riveted canopy roof, brass cornice, and twin shock-spring hoist shackles.
+    d.roundRect(carX - half - 4, top - 11, width + 8, 13, 3).fill({ color: 0x3b4043 });
+    d.rect(carX - half - 4, top - 11, width + 8, 3).fill({ color: 0xc9a24a, alpha: 0.9 });
+    d.rect(carX - half - 2, top - 1, width + 4, 2.4).fill({ color: 0x8b6c30 });
+    for (let rx = carX - half + 4; rx < carX + half; rx += 14) {
+      d.circle(rx, top - 5, 1.4).fill({ color: 0x8f999f });
+    }
+    // Hoist crosshead beam & spring shackles.
+    d.roundRect(carX - 18, top - 20, 36, 10, 3).fill({ color: 0x363b3e });
+    d.roundRect(carX - 18, top - 20, 36, 10, 3).stroke({ color: 0x9e7d3a, width: 1.4 });
+    d.circle(carX - 11, top - 15, 2.2).fill({ color: 0xd4b05c });
+    d.circle(carX + 11, top - 15, 2.2).fill({ color: 0xd4b05c });
+    // Foreground: heavy riveted deck apron with hazard stripes, flanged iron posts, brass waist rail.
+    f.rect(carX - half - 4, floorY - 7, width + 8, 12).fill({ color: 0x4b5155 });
+    f.rect(carX - half - 4, floorY - 7, width + 8, 2.4).fill({ color: 0xc9a24a });
+    // Industrial hazard chevrons along the under-deck apron.
+    for (let hx = carX - half; hx < carX + half - 6; hx += 14) {
+      f.poly([hx, floorY + 5, hx + 6, floorY + 5, hx + 10, floorY - 2, hx + 4, floorY - 2]).fill({ color: 0xb6892e, alpha: 0.65 });
+    }
+    // Left & right flanged corner stanchions with brass rivets.
+    for (const sx of [carX - half - 4, carX + half - 2]) {
+      f.rect(sx, top - 6, 6, ch + 5).fill({ color: 0x454c50 });
+      f.rect(sx + 1, top - 6, 1.5, ch + 5).fill({ color: 0x869096, alpha: 0.7 });
+      for (let ry = top + 4; ry < floorY - 8; ry += 18) {
+        f.circle(sx + 3, ry, 1.3).fill({ color: 0xc9a24a });
+      }
+    }
+    // Ornate tarnished-brass waist handrail + turned posts.
+    const railY = floorY - 46;
+    f.rect(carX - half + 1, railY, width - 2, 4).fill({ color: 0xb89347 });
+    f.rect(carX - half + 1, railY, width - 2, 1.4).fill({ color: 0xe6c87a, alpha: 0.85 });
+    for (const px of [carX - half + 18, carX, carX + half - 18]) {
+      f.rect(px - 1.4, railY + 4, 2.8, 39).fill({ color: 0x7e6430 });
+      f.circle(px, railY + 2, 2.6).fill({ color: 0xd4b05c });
+    }
+    // Overhead brass cage lantern dome (glows warm tungsten while riding).
     const lit = this.power || !!this.hooks ? this.carLit : 0;
-    de.roundRect(carX - 7, top - 3, 14, 4, 1.5).fill({ color: lit > 0.05 ? 0xfff0c8 : 0x4a4e50, alpha: 0.4 + 0.6 * lit });
+    d.roundRect(carX - 9, top + 1, 18, 5, 2).fill({ color: 0x8e7032 });
+    if (lit > 0.05) {
+      de.circle(carX, top + 10, 22).fill({ color: 0xffd78a, alpha: 0.14 * lit });
+      de.circle(carX, top + 9, 10).fill({ color: 0xfff0c8, alpha: 0.35 * lit });
+    }
+    de.ellipse(carX, top + 8, 6.5, 4.5).fill({ color: lit > 0.05 ? 0xfff2cc : 0x4a4e50, alpha: 0.45 + 0.55 * lit });
+    f.ellipse(carX, top + 8, 7, 5).stroke({ color: 0x9e7d3a, width: 1.2 });
     this.carLight.x = carX;
     this.carLight.y = top + 14;
     this.carLight.color = [1, 0.92, 0.7];
-    this.carLight.intensity = 1.2 * lit;
+    this.carLight.intensity = 1.25 * lit;
   }
 
   /** Stop grappling at once (a vent's blast, the bilge, being put somewhere): the harpoon is back on the pack. */

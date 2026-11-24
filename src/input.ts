@@ -56,6 +56,8 @@ export interface InputState {
   boots: boolean;
   /** Phase 19: one frame when Shoot was pressed (X, RT, the Shoot button): fire the Rivet driver. */
   shoot: boolean;
+  /** Held while Shoot is down (for RD-2 full-auto fire). */
+  shootHeld: boolean;
   /** Which kind of control was used last, so on-screen hints can match it. */
   lastDevice: 'touch' | 'keyboard' | 'mouse' | 'gamepad';
 }
@@ -66,7 +68,7 @@ const STICK_RADIUS = 56;
 const DEADZONE = 0.15;
 
 export class Input {
-  readonly state: InputState = { moveX: 0, moveY: 0, boost: false, jumpHeld: false, sprint: false, lamp: false, scan: false, scanTap: false, collect: false, board: false, flare: false, dart: false, haul: false, release: false, kit: false, boots: false, shoot: false, lastDevice: 'keyboard' };
+  readonly state: InputState = { moveX: 0, moveY: 0, boost: false, jumpHeld: false, sprint: false, lamp: false, scan: false, scanTap: false, collect: false, board: false, flare: false, dart: false, haul: false, release: false, kit: false, boots: false, shoot: false, shootHeld: false, lastDevice: 'keyboard' };
 
   private keys = new Set<string>();
   private boostQueued = false;
@@ -85,6 +87,7 @@ export class Input {
   private kitQueued = false;
   private bootsQueued = false;
   private shootQueued = false;
+  private shootButton = false;
 
   // Touch stick.
   private stickId: number | null = null;
@@ -233,7 +236,12 @@ export class Input {
     press('btn-release', () => (this.releaseQueued = true));
     press('kit-btn', () => (this.kitQueued = true));
     press('btn-boots', () => (this.bootsQueued = true));
-    press('btn-shoot', () => (this.shootQueued = true));
+    press('btn-shoot', () => {
+      this.shootQueued = true;
+      this.shootButton = true;
+    });
+    const shootEl = document.getElementById('btn-shoot')!;
+    for (const ev of ['pointerup', 'pointercancel', 'pointerleave']) shootEl.addEventListener(ev, () => (this.shootButton = false));
     // Scan is held, not tapped.
     const scanEl = document.getElementById('btn-scan')!;
     scanEl.addEventListener('pointerdown', (e) => {
@@ -325,6 +333,7 @@ export class Input {
     this.collectTapQueued = false;
     // On foot, Space jumps and Shift sprints (Colin, after the terrain pass). In the water both still boost.
     let jumpHeld = this.boostButton || held('jump');
+    let shootHeld = this.shootButton || held('shoot');
     let sprint = held('sprint') || (this.stickId !== null && this.stickFar);
 
     // Gamepad (first connected pad).
@@ -351,6 +360,7 @@ export class Input {
       if (pressed('kit')) this.kitQueued = true;
       if (pressed('boots')) this.bootsQueued = true;
       if (pressed('shoot')) this.shootQueued = true;
+      if (btn('shoot')) shootHeld = true;
       if (pressed('lamp')) this.lampQueued = true;
       if (btn('scan')) scan = true;
       if (pressed('scan')) this.scanTapQueued = true;
@@ -385,6 +395,7 @@ export class Input {
     this.state.boots = this.bootsQueued;
     this.bootsQueued = false;
     this.state.shoot = this.shootQueued;
+    this.state.shootHeld = shootHeld && !this._suspended;
     this.shootQueued = false;
     // The Field kit toggles even while panels suspend play (so I closes it again).
     this.state.kit = this.kitQueued;

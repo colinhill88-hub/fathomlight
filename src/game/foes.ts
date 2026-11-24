@@ -1,4 +1,4 @@
-import { BRACE, DRONE, FOE_HP, KEEPER, RIVET, TICK, resolveHit, type FoeKind, type FoeSpawn, type HitResult } from './combat';
+import { BRACE, DRONE, FOE_HP, KEEPER, RIVET, RIVET_MK2, SPIDER, TICK, resolveHit, type FoeKind, type FoeSpawn, type HitResult } from './combat';
 
 /**
  * Phase 19: the hull keeper's machines, moving and fighting. Plain numbers
@@ -116,6 +116,7 @@ export function makeFoe(s: FoeSpawn): Foe {
 /** The box a rivet must enter to touch a foe: [x0, y0, x1, y1]. */
 export function foeBox(f: Foe): [number, number, number, number] {
   if (f.kind === 'tick') return [f.x - TICK.halfW, f.y - TICK.height, f.x + TICK.halfW, f.y];
+  if (f.kind === 'spider') return [f.x - SPIDER.halfW, f.y - SPIDER.height, f.x + SPIDER.halfW, f.y];
   if (f.kind === 'drone') return [f.x - DRONE.halfW, f.y - 16, f.x + DRONE.halfW, f.y + 16];
   return [f.x - KEEPER.halfW, f.y - KEEPER.height, f.x + KEEPER.halfW, f.y];
 }
@@ -123,7 +124,7 @@ export function foeBox(f: Foe): [number, number, number, number] {
 /** Can a rivet hurt it right now? (Otherwise it pings off armour.) */
 export function vulnerable(f: Foe): boolean {
   if (f.dead) return false;
-  if (f.kind === 'tick') return true;
+  if (f.kind === 'tick' || f.kind === 'spider') return true;
   if (f.kind === 'drone') return f.state === 'aim' || f.state === 'cool' || f.state === 'reel';
   return f.state === 'stuck' || f.state === 'stagger';
 }
@@ -139,6 +140,8 @@ export class FoeField {
   reached = 0;
   /** Seconds since any awake foe was close (the suit mends after a while). */
   calm = 99;
+  /** True when Kestrel carries the upgraded RD-2 Automatic Rivet Carbine. */
+  rapid = false;
   private cool = 0;
   private queued = 0;
   /** The angle of the last shot (the walker's arm follows it), and how long ago. */
@@ -186,7 +189,7 @@ export class FoeField {
     if (this.queued > 0 && this.cool <= 0) {
       this.fire(hero, ev);
       this.queued = 0;
-      this.cool = RIVET.cooldown;
+      this.cool = this.rapid ? RIVET_MK2.cooldown : RIVET.cooldown;
     }
     let close = false;
     for (const f of this.foes) {
@@ -207,7 +210,7 @@ export class FoeField {
       }
       f.t += dt;
       f.rest = Math.max(0, f.rest - dt);
-      if (f.kind === 'tick') this.tick(f, dt, hero, ev);
+      if (f.kind === 'tick' || f.kind === 'spider') this.tick(f, dt, hero, ev);
       else if (f.kind === 'drone') this.drone(f, dt, hero, ev);
       else this.keeper(f, dt, hero, ev);
       if (awake && Math.abs(f.x - hero.x) < 520) close = true;
@@ -227,8 +230,10 @@ export class FoeField {
   private fire(hero: Hero, ev: FoeEvent[]): void {
     const m = this.muzzle(hero);
     // Soft aim: the nearest foe ahead, within the cone and in sight.
+    const spd = this.rapid ? RIVET_MK2.speed : RIVET.speed;
+    const rng = this.rapid ? RIVET_MK2.range : RIVET.range;
     let best: Foe | null = null;
-    let bestD = RIVET.range;
+    let bestD = rng;
     let ang = hero.face > 0 ? 0 : Math.PI;
     for (const f of this.alive) {
       const b = foeBox(f);
@@ -247,7 +252,7 @@ export class FoeField {
     void best;
     this.aim = ang;
     this.aimT = 0;
-    this.shots.push({ x: m.x, y: m.y, vx: Math.cos(ang) * RIVET.speed, vy: Math.sin(ang) * RIVET.speed, life: RIVET.range / RIVET.speed, from: 'kestrel' });
+    this.shots.push({ x: m.x, y: m.y, vx: Math.cos(ang) * spd, vy: Math.sin(ang) * spd, life: rng / spd, from: 'kestrel' });
     ev.push({ type: 'cue', cue: 'shot', x: m.x, y: m.y });
   }
 
@@ -304,14 +309,14 @@ export class FoeField {
       ev.push({ type: 'cue', cue: 'ping', x: s.x, y: s.y, kind: f.kind });
       return;
     }
-    f.hp -= RIVET.damage;
+    f.hp -= this.rapid ? RIVET_MK2.damage : RIVET.damage;
     f.flash = 1;
     if (f.kind === 'drone' && f.state === 'aim') {
       // A hit mid-charge spoils the shot and knocks it reeling.
       f.state = 'reel';
       f.t = 0;
     }
-    if (f.kind === 'tick') f.vx += Math.sign(s.vx) * 90;
+    if (f.kind === 'tick' || f.kind === 'spider') f.vx += Math.sign(s.vx) * 90;
     if (f.hp <= 0) {
       f.dead = true;
       f.deadT = 0;
@@ -348,7 +353,8 @@ export class FoeField {
   }
 
   private tick(f: Foe, dt: number, hero: Hero, ev: FoeEvent[]): void {
-    const [minX, maxX] = this.bounds(f, TICK.halfW);
+    const cfg = f.kind === 'spider' ? SPIDER : TICK;
+    const [minX, maxX] = this.bounds(f, cfg.halfW);
     const dx = hero.x - f.x;
     switch (f.state) {
       case 'idle':
@@ -360,30 +366,30 @@ export class FoeField {
         f.face = dx >= 0 ? 1 : -1;
         // It keeps its distance in the open, but comes on (and over) when a crate stands between them.
         const open = this.world.clear(f.x, f.y - 12, hero.x, hero.y - 12);
-        const want = !open || Math.abs(dx) > 150 ? f.face * TICK.speed : Math.abs(dx) < 90 ? -f.face * TICK.speed * 0.6 : 0;
+        const want = !open || Math.abs(dx) > 150 ? f.face * cfg.speed : Math.abs(dx) < 90 ? -f.face * cfg.speed * 0.6 : 0;
         f.vx += (want - f.vx) * Math.min(1, dt * 8);
         // Only lunge along a clear floor (never into a crate between them).
-        if (f.rest <= 0 && Math.abs(dx) < 260 && hero.y - f.y > -50 && hero.y - f.y < 100 && f.onGround && this.world.clear(f.x, f.y - 12, hero.x, hero.y - 30)) {
+        if (f.rest <= 0 && Math.abs(dx) < (f.kind === 'spider' ? 320 : 260) && hero.y - f.y > -60 && hero.y - f.y < 100 && f.onGround && this.world.clear(f.x, f.y - 12, hero.x, hero.y - 30)) {
           f.state = 'tell';
           f.t = 0;
           f.vx = 0;
-          ev.push({ type: 'cue', cue: 'tickTell', x: f.x, y: f.y });
+          ev.push({ type: 'cue', cue: 'tickTell', x: f.x, y: f.y, kind: f.kind });
         }
         break;
       }
       case 'tell':
         f.vx = 0;
-        if (f.t >= TICK.tell) {
+        if (f.t >= cfg.tell) {
           f.state = 'lunge';
           f.t = 0;
-          f.vx = f.face * TICK.lungeSpeed;
-          f.vy = -TICK.lungeHop;
+          f.vx = f.face * cfg.lungeSpeed;
+          f.vy = -cfg.lungeHop;
           f.onGround = false;
-          ev.push({ type: 'cue', cue: 'tickLunge', x: f.x, y: f.y });
+          ev.push({ type: 'cue', cue: 'tickLunge', x: f.x, y: f.y, kind: f.kind });
         }
         break;
       case 'lunge':
-        if (hero.grace <= 0 && Math.abs(hero.x - f.x) < TICK.halfW + 12 && hero.y > f.y - TICK.height - 4 && hero.y - (hero.braced ? BRACE.lowHeight : BRACE.height) < f.y) {
+        if (hero.grace <= 0 && Math.abs(hero.x - f.x) < cfg.halfW + 12 && hero.y > f.y - cfg.height - 4 && hero.y - (hero.braced ? BRACE.lowHeight : BRACE.height) < f.y) {
           const r = resolveHit({ attack: 'lunge', braced: hero.braced, braceAge: hero.braceAge, face: hero.face, fromX: f.x, x: hero.x });
           if (r === 'hit') ev.push({ type: 'hurt', attack: 'lunge', result: r, fromX: f.x, push: 300 });
           else {
@@ -397,22 +403,22 @@ export class FoeField {
           f.t = r === 'perfect' ? -BRACE.stun : 0;
           break;
         }
-        if ((f.onGround && f.t > 0.12) || f.t > TICK.lunge * 2) {
+        if ((f.onGround && f.t > 0.12) || f.t > cfg.lunge * 2) {
           f.state = 'flipped';
           f.t = 0;
-          ev.push({ type: 'cue', cue: 'tickLand', x: f.x, y: f.y });
+          ev.push({ type: 'cue', cue: 'tickLand', x: f.x, y: f.y, kind: f.kind });
         }
         break;
       case 'flipped':
         f.vx *= Math.max(0, 1 - dt * 5);
-        if (f.t >= TICK.flipped) {
+        if (f.t >= cfg.flipped) {
           f.state = 'chase';
           f.t = 0;
-          f.rest = TICK.rest;
+          f.rest = cfg.rest;
         }
         break;
     }
-    const blocked = this.walk(f, dt, TICK.halfW, minX, maxX);
+    const blocked = this.walk(f, dt, cfg.halfW, minX, maxX);
     // Chasing into a crate: it scrambles up and over.
     if (blocked && f.state === 'chase' && f.onGround) {
       f.vy = -TICK.climb;

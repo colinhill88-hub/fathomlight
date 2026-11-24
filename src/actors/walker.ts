@@ -1,6 +1,6 @@
 import { Container, Graphics, Sprite, type Texture } from 'pixi.js';
 import { mulberry32 } from '../rng';
-import { BRASS, BeltJar, C, drawGuardPlate, drawRivetDriver, choirColour, drawResonatorBracer, drawResonatorHoop, FULL_KIT, JarLook, KitLook, PSUIT2_TINT, PSUIT_TINT, accentBand, buildDiveBag, kitKey, mulColour, playerHelmet, playerPart, buildShoulderLamp, chromeBands, coiledHose, etching, rimEdge, rivets, scratches, segment, suitMaterialLayer } from './diver';
+import { BRASS, BeltJar, C, drawEchoVisor, drawGuardPlate, drawRivetDriver, choirColour, drawResonatorBracer, drawResonatorHoop, FULL_KIT, JarLook, KitLook, PSUIT2_TINT, PSUIT_TINT, accentBand, buildDiveBag, kitKey, mulColour, playerHelmet, playerPart, buildShoulderLamp, chromeBands, coiledHose, etching, rimEdge, rivets, scratches, segment, suitMaterialLayer } from './diver';
 import { Glance, Spring, approach, batchAll, breathShape, clamp, smoothstep } from './animkit';
 import { KestrelExpression, kestrelFin, kestrelHand, kestrelLimb, kestrelTorso } from './kestrelArt';
 import { getPropArt } from '../art/propArt';
@@ -880,10 +880,9 @@ export class Walker {
     x.poly([-20.5, -14.8, -15, -18, -13.6, -16.6, -19, -12.6]).fill({ color: C.visor });
     x.visible = false;
     this.torso.addChild(sc, x);
-    // The Echo visor band across the glass and the heat cowl round the helmet's base, in the helmet's own space.
+    // The Echo visor bolted to the helmet's brass ear-boss & brow, plus the heat cowl, in the helmet's own space.
     const v = this.visorG;
-    v.moveTo(69.5, -13).quadraticCurveTo(84.5, -17, 94, 0).stroke({ color: C.visor, width: 2.3, alpha: 0.85 });
-    v.circle(94, 0, 1.6).fill({ color: 0xf0ffc0 });
+    drawEchoVisor(v, 0, 0);
     v.visible = false;
     const cw = this.cowlG;
     cw.poly([26, 1, 52.5, -3, 56.5, 8.5, 30, 15.5]).fill({ color: C.chromeDark, alpha: 0.92 });
@@ -951,6 +950,7 @@ export class Walker {
     this.flareG.visible = !!k.flare;
     this.dartG.visible = !!k.dart;
     this.rivetG.visible = this.guardG.visible = !!k.rivet;
+    this.rivetG.scale.set(k.rivet2 ? 1.26 : 1);
     this.satchelG.visible = !!k.satchel;
     this.dashG.visible = !!k.dash && k.thruster >= 1;
     this.visorG.visible = !!k.visor;

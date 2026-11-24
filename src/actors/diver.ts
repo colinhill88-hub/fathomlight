@@ -57,10 +57,12 @@ export interface KitLook {
   dart?: boolean;
   /** Phase 19: the Rivet driver RD-1, strapped to the near forearm. */
   rivet?: boolean;
+  /** Upgraded RD-2 automatic heavy rivet carbine (unlocked after beating the Corvina Hull Keeper). */
+  rivet2?: boolean;
 }
 export const FULL_KIT: KitLook = { tanks: 2, spear: true, jar: true, thruster: 1, psuit: 0, resonator: false };
 export function kitKey(k: KitLook): string {
-  return `${Math.min(4, k.tanks)}${+k.spear}${+k.jar}${k.thruster}${k.psuit}${+!!k.resonator}${+!!k.satchel}${+!!k.flare}${+!!k.visor}${+!!k.boots}${+!!k.cowl}${+!!k.dash}${+!!k.dart}${+!!k.rivet}`;
+  return `${Math.min(4, k.tanks)}${+k.spear}${+k.jar}${k.thruster}${k.psuit}${+!!k.resonator}${+!!k.satchel}${+!!k.flare}${+!!k.visor}${+!!k.boots}${+!!k.cowl}${+!!k.dash}${+!!k.dart}${+!!k.rivet}${+!!k.rivet2}`;
 }
 /** The Choir's own colours (DESIGN.md: only the Choir and its technology show them). */
 export const CHOIR = [0x5ff0ff, 0xa27cff, 0xff5ad8];
@@ -173,6 +175,54 @@ export function drawRivetDriver(g: Graphics, k = 1): Graphics {
   g.rect(s(12), s(-4), s(2.4), s(8.5)).fill({ color: 0xa83a2a });
   // Lime sight lamp at the front of the drum.
   g.circle(s(14.5), s(-12.6), s(1.5)).fill({ color: 0xc6f03a });
+  return g;
+}
+
+/**
+ * Echo Visor: a tarnished-brass hinged sonar rangefinder shield that bolts onto
+ * Kestrel's helmet ear-boss and hugs the upper brow of the glass faceplate.
+ */
+export function drawEchoVisor(g: Graphics, ox = 0, oy = 0): Graphics {
+  const X = (n: number) => n + ox;
+  const Y = (n: number) => n + oy;
+  // Side brass hinge & bolted ear-boss mount on the helmet.
+  g.circle(X(53.5), Y(-5.5), 4.2).fill({ color: 0x3b3326 });
+  g.circle(X(53.5), Y(-5.5), 4.2).stroke({ color: BRASS, width: 1.4 });
+  g.circle(X(53.5), Y(-5.5), 1.6).fill({ color: 0xe2c374 });
+  // Articulated brass mounting arm curving up from the ear-boss to the brow visor.
+  g.moveTo(X(54.5), Y(-7))
+    .quadraticCurveTo(X(58.5), Y(-17), X(66), Y(-21.5))
+    .stroke({ color: 0x3b3326, width: 4.2, cap: 'round' });
+  g.moveTo(X(54.5), Y(-7))
+    .quadraticCurveTo(X(58.5), Y(-17), X(66), Y(-21.5))
+    .stroke({ color: BRASS, width: 2.2, cap: 'round' });
+  // Curved tinted optical visor shield hugging the upper faceplate glass.
+  g.moveTo(X(64.5), Y(-22.5))
+    .quadraticCurveTo(X(76.5), Y(-22), X(82.5), Y(-11.5))
+    .quadraticCurveTo(X(78.5), Y(-8.5), X(74.5), Y(-10.5))
+    .quadraticCurveTo(X(71), Y(-16.5), X(63.5), Y(-17.8))
+    .closePath()
+    .fill({ color: 0x243b2a, alpha: 0.78 });
+  // Subtle emerald-lime optical lens tint + specular highlight inside the visor.
+  g.moveTo(X(65.5), Y(-20.2))
+    .quadraticCurveTo(X(75.5), Y(-19.5), X(80.5), Y(-11.5))
+    .stroke({ color: C.visor, width: 2.1, alpha: 0.65, cap: 'round' });
+  g.moveTo(X(67), Y(-21.2))
+    .quadraticCurveTo(X(74.5), Y(-20.8), X(78.5), Y(-15.5))
+    .stroke({ color: 0xf4ffd8, width: 1.1, alpha: 0.55, cap: 'round' });
+  // Riveted brass brow hood frame clamping the top edge of the visor.
+  g.moveTo(X(63.5), Y(-22.5))
+    .quadraticCurveTo(X(76.5), Y(-22.5), X(83), Y(-11.5))
+    .stroke({ color: 0x2e2618, width: 3.6, cap: 'round' });
+  g.moveTo(X(63.8), Y(-22.5))
+    .quadraticCurveTo(X(76.2), Y(-22.4), X(82.6), Y(-11.8))
+    .stroke({ color: BRASS, width: 2.0, cap: 'round' });
+  // Tiny luminous sonar rangefinder pip tucked at the front corner of the visor.
+  g.circle(X(81.5), Y(-11.5), 1.8).fill({ color: C.visor, alpha: 0.95 });
+  g.circle(X(81.5), Y(-11.5), 0.9).fill({ color: 0xf6ffd8 });
+  // Brass rivets along the brow hood.
+  g.circle(X(67), Y(-21.8), 1.0).fill({ color: 0xf0d588 });
+  g.circle(X(74.5), Y(-20.4), 1.0).fill({ color: 0xf0d588 });
   return g;
 }
 
@@ -1506,6 +1556,7 @@ export class Diver {
     this.flareTube.visible = !!k.flare;
     this.dartPod.visible = !!k.dart;
     this.rivetPod.visible = !!k.rivet;
+    this.rivetPod.scale.set(k.rivet2 ? 1.24 : 1);
     const x = this.extras.clear();
     if (k.dash && k.thruster >= 1) {
       // TH-3: a third, upturned nozzle on the hip thruster.
@@ -1541,9 +1592,8 @@ export class Diver {
       x.poly([12, 0, 40, -4, 41, -1, 13, 3]).fill({ color: C.chromeHi, alpha: 0.6 });
     }
     if (k.visor) {
-      // The Echo visor: a lime band across the front of the glass.
-      x.moveTo(58, -15).quadraticCurveTo(74, -19, 84, -11).stroke({ color: C.visor, width: 2.4, alpha: 0.85 });
-      x.circle(84, -11, 1.6).fill({ color: 0xf0ffc0 });
+      // The Echo visor: riveted brass-hinged optical visor mounted on the helmet brow.
+      drawEchoVisor(x, -11, 2);
     }
     this.psuitTorso.visible = k.psuit > 0;
     for (const b of this.psuitBits) b.visible = k.psuit > 0;

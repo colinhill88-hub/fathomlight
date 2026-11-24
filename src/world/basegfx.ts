@@ -902,11 +902,14 @@ function drawSorter(n: number, livingBases: boolean): PieceArt {
   tubeV(g, CELL - 12, CELL, c, 1);
   const painted = getPropArt().base.sorter;
   if (painted) {
+    // Solid riveted vertical docking necks bridging the top & bottom airlock flanges into the Sorting Pod body.
+    tubeV(g, 0, c - 14, c, 1);
+    tubeV(g, c + 14, CELL, c, 1);
     const spr = new Sprite(painted);
     spr.anchor.set(0.5);
-    const sc = Math.min((CELL - 14) / Math.max(1, painted.width), (CELL - 14) / Math.max(1, painted.height));
+    const sc = Math.min((CELL - 12) / Math.max(1, painted.width), (CELL - 14) / Math.max(1, painted.height));
     spr.scale.set(sc);
-    spr.position.set(c, c + 2);
+    spr.position.set(c, c + 1);
     body.addChild(spr);
     windowGlow.rect(24, 48, CELL - 48, 36).fill({ color: PAL.warm, alpha: 0.14 });
     body.addChild(stencil(`SP-${n}`, c, 20, 6));
