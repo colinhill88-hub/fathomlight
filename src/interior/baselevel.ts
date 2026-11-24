@@ -11,6 +11,7 @@ import { WHORLS_PER_PIECE } from '../game/factory';
 import { ITEM_COLOURS, pointAlong } from '../world/linegfx';
 import { drawPlant, TankLife } from '../world/tanklife';
 import type { TankArt } from '../art/tankArt';
+import { getPropArt } from '../art/propArt';
 import { drawHabitatFrame, drawObservationCrown, drawPressureRib } from '../world/habitatFrame';
 import { HousingOcean } from './housingOcean';
 import { HousingHull } from './housingHull';
@@ -321,7 +322,18 @@ const workBayWall = new FillGradient({
 });
 
 function sign(text: string, x: number, y: number, size = 13, color = 0xd8dde0, alpha = 0.7): Text {
-  const t = new Text({ text, style: { fontFamily: 'Courier New, monospace', fontSize: size, fill: color, fontWeight: 'bold', letterSpacing: 2 }, resolution: 3 });
+  const t = new Text({
+    text,
+    style: {
+      fontFamily: '"Trebuchet MS", "Segoe UI", system-ui, sans-serif',
+      fontSize: size,
+      fill: color,
+      fontWeight: 'bold',
+      letterSpacing: 2.2,
+      dropShadow: { color: 0x051012, alpha: 0.85, blur: 2, distance: 1, angle: Math.PI / 2 },
+    },
+    resolution: 3,
+  });
   t.anchor.set(0.5);
   t.position.set(x, y);
   t.alpha = alpha;
@@ -1346,6 +1358,21 @@ export class BaseHooks implements InteriorHooks {
         g.moveTo(b.ox + 24, bot - 46).lineTo(b.ox + 70, bot - 132).moveTo(b.ox + b.ow - 24, bot - 46).lineTo(b.ox + b.ow - 70, bot - 132).stroke({ color: DC.chromeDark, width: 2, alpha: 0.7 });
         hazard(g, b.ox + 16, bot - 6, 40, 6);
         hazard(g, b.ox + b.ow - 56, bot - 6, 40, 6);
+        const crateTex = getPropArt().interior.crate;
+        if (crateTex) {
+          for (let k = 0; k < 3; k++) {
+            const sy = bot - 40 - k * 46;
+            const slots = k === 0 ? [0.24, 0.76] : [0.28, 0.56, 0.78];
+            for (const f of slots) {
+              const spr = new Sprite(crateTex);
+              spr.anchor.set(0.5, 0.98);
+              const sc = (k === 2 ? 32 : 36) / Math.max(1, crateTex.height);
+              spr.scale.set(sc);
+              spr.position.set(b.ox + b.ow * f, sy + 1);
+              g.addChild(spr);
+            }
+          }
+        }
         if (r.kind === 'sorter') addText(sign('SORTING BAYS', b.ox + b.ow - 90, b.oy + 26, 9, 0xc6f03a, 0.7));
         break;
       }
@@ -1400,18 +1427,39 @@ export class BaseHooks implements InteriorHooks {
             e.roundRect(t.x + 26, t.y - 9, t.w - 52, 2.5, 1.2).fill({ color: 0xffd2a1, alpha: 0.57 });
           }
           const { consoleX, trayX } = habitatStations(b.ox, b.ow);
-          const controls = this.habitatForeground.addChild(new Graphics());
-          // One console on the floor, the only place the habitat is managed from.
           const floor = bot;
-          controls.poly([consoleX - 53, floor - 71, consoleX + 53, floor - 71, consoleX + 42, floor - 35, consoleX - 42, floor - 35]).fill(0x24363b);
-          controls.roundRect(consoleX - 23, floor - 37, 46, 37, 7).fill(0x34494a);
-          controls.roundRect(consoleX - 44, floor - 65, 88, 22, 5).fill(0x0d2e34);
-          controls.moveTo(consoleX - 52, floor - 71).lineTo(consoleX + 52, floor - 71).stroke({ color: 0x789d96, width: 3 });
-          this.habitatForeground.addChild(sign('HABITAT', consoleX, floor - 54, 13, 0xb5e5d9, 0.95));
-          controls.roundRect(trayX - 62, bot - 32, 124, 32, 6).fill(0x513c30);
-          controls.poly([trayX - 69, bot - 39, trayX + 69, bot - 39, trayX + 57, bot - 21, trayX - 57, bot - 21]).fill(0x98714e);
-          controls.roundRect(trayX - 56, bot - 36, 112, 12, 4).fill(0x352b28);
-          this.habitatForeground.addChild(sign('COLLECTION', trayX, bot - 11, 12, 0xffd7a1, 0.95));
+          const interiorArt = getPropArt().interior;
+          if (interiorArt.console_habitat) {
+            const spr = new Sprite(interiorArt.console_habitat);
+            spr.anchor.set(0.5, 0.99);
+            const sc = 92 / Math.max(1, interiorArt.console_habitat.height);
+            spr.scale.set(sc);
+            spr.position.set(consoleX, floor + 2);
+            this.habitatForeground.addChild(spr);
+            this.habitatForeground.addChild(sign('HABITAT', consoleX, floor - 46, 9.5, 0xf2d99a, 0.98));
+          } else {
+            const controls = this.habitatForeground.addChild(new Graphics());
+            controls.poly([consoleX - 53, floor - 71, consoleX + 53, floor - 71, consoleX + 42, floor - 35, consoleX - 42, floor - 35]).fill(0x24363b);
+            controls.roundRect(consoleX - 23, floor - 37, 46, 37, 7).fill(0x34494a);
+            controls.roundRect(consoleX - 44, floor - 65, 88, 22, 5).fill(0x0d2e34);
+            controls.moveTo(consoleX - 52, floor - 71).lineTo(consoleX + 52, floor - 71).stroke({ color: 0x789d96, width: 3 });
+            this.habitatForeground.addChild(sign('HABITAT', consoleX, floor - 54, 13, 0xb5e5d9, 0.95));
+          }
+          if (interiorArt.tray_collection) {
+            const spr = new Sprite(interiorArt.tray_collection);
+            spr.anchor.set(0.5, 0.99);
+            const sc = 140 / Math.max(1, interiorArt.tray_collection.width);
+            spr.scale.set(sc);
+            spr.position.set(trayX, bot + 2);
+            this.habitatForeground.addChild(spr);
+            this.habitatForeground.addChild(sign('COLLECTION', trayX, bot - 28, 9.5, 0xf2d99a, 0.98));
+          } else {
+            const controls = this.habitatForeground.addChild(new Graphics());
+            controls.roundRect(trayX - 62, bot - 32, 124, 32, 6).fill(0x513c30);
+            controls.poly([trayX - 69, bot - 39, trayX + 69, bot - 39, trayX + 57, bot - 21, trayX - 57, bot - 21]).fill(0x98714e);
+            controls.roundRect(trayX - 56, bot - 36, 112, 12, 4).fill(0x352b28);
+            this.habitatForeground.addChild(sign('COLLECTION', trayX, bot - 11, 12, 0xffd7a1, 0.95));
+          }
         }
         this.screens.push({ x: t.x + t.w / 2, y: t.y + t.h * (this.ocean ? 0.33 : 0.5), radius: Math.max(t.w, t.h) * 0.7,
           intensity: this.ocean ? 0.51 : 0.45, color: this.ocean ? [0.65, 0.79, 0.68] : [0.3, 0.75, 0.8] });

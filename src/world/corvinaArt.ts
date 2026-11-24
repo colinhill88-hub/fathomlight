@@ -1,5 +1,6 @@
-import { FillGradient, type Graphics, type Texture } from 'pixi.js';
+import { FillGradient, Sprite, type Graphics, type Texture } from 'pixi.js';
 import { materialFill } from '../art/worldArt';
+import { getPropArt } from '../art/propArt';
 import { corvinaHouse, corvinaHull, CV_HATCH } from './terrain';
 
 export const CORVINA_PALETTE = { stripe: 0x9e573d, seam: 0xb88865, enamel: 0x90a094, shadow: 0x233538 };
@@ -13,6 +14,22 @@ const flank = new FillGradient({
 /** Registered to the collision hull, wheelhouse and existing aft deck hatch. */
 export function drawSurveyWreck(g: Graphics, steel?: Texture): void {
   const hull = corvinaHull();
+  const painted = getPropArt().wrecks.corvina;
+  if (painted) {
+    const xs = hull.map((p) => p[0]);
+    const ys = hull.map((p) => p[1]);
+    const minX = Math.min(...xs);
+    const maxX = Math.max(...xs);
+    const maxY = Math.max(...ys);
+    const spr = new Sprite(painted);
+    spr.anchor.set(0.5, 0.94);
+    const w = (maxX - minX) * 1.06;
+    spr.width = w;
+    spr.height = w * (painted.height / Math.max(1, painted.width));
+    spr.position.set((minX + maxX) * 0.5, maxY + 12);
+    g.addChild(spr);
+    return;
+  }
   const [[a, ay], [b, by], [c, cy], [d, dy], [e, ey]] = hull;
   const house = corvinaHouse();
   g.poly(hull.flat()).fill(flank);

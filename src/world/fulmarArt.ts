@@ -1,5 +1,6 @@
-import { FillGradient, type Graphics, type Texture } from 'pixi.js';
+import { FillGradient, Sprite, type Graphics, type Texture } from 'pixi.js';
 import { materialFill } from '../art/worldArt';
+import { getPropArt } from '../art/propArt';
 import { FULMAR, fulmarTop } from './terrain';
 
 const castSteel = new FillGradient({
@@ -12,6 +13,17 @@ export const FULMAR_PALETTE = { cream: 0x9c9279, orange: 0xa67144, bronze: 0x756
 
 export function drawListeningStation(g: Graphics, pts: number[], floor: number, panel?: Texture): void {
   const { x0, x1, mainX1, domeX } = FULMAR;
+  const painted = getPropArt().wrecks.fulmar;
+  if (painted) {
+    const spr = new Sprite(painted);
+    spr.anchor.set(0.5, 0.96);
+    const w = (x1 - x0) * 1.12;
+    spr.width = w;
+    spr.height = w * (painted.height / Math.max(1, painted.width));
+    spr.position.set((x0 + x1) * 0.5 + 32, floor + 14);
+    g.addChild(spr);
+    return;
+  }
   const p = FULMAR_PALETTE;
   g.poly(pts).fill(castSteel);
   if (panel) g.poly(pts).fill(materialFill(panel, 0x6a695c, 0.35, 1110, 520));

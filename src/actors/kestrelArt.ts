@@ -1,4 +1,5 @@
-import { Container, FillGradient, Graphics } from 'pixi.js';
+import { Container, FillGradient, Graphics, Sprite } from 'pixi.js';
+import { getPropArt } from '../art/propArt';
 
 // Shared materials for the swimmer and walker. Shapes are drawn once and articulated at runtime.
 const ink = 0x18262c;
@@ -26,6 +27,20 @@ const glass = ramp(0x89b8aa, 0x426f70, 0x21383f);
 /** Upright around the pelvis. The swimmer rotates and stretches this same cut into its own proportions. */
 export function kestrelTorso(compact = false, detailed = false): Container {
   const view = new Container();
+  const paintedTorso = getPropArt().kestrel.torso;
+  if (paintedTorso) {
+    const chest = new Container({ label: 'kestrelChest' });
+    chest.pivot.set(0, -12);
+    chest.position.set(0, -12);
+    const spr = new Sprite(paintedTorso);
+    spr.anchor.set(0.5, 0.52);
+    const sc = 56 / Math.max(1, paintedTorso.height);
+    spr.scale.set(sc);
+    spr.position.set(1, -18);
+    chest.addChild(spr);
+    view.addChild(chest);
+    return view;
+  }
   const hips = new Graphics();
   hips.moveTo(-13, -18).quadraticCurveTo(0, -20, 13, -17).lineTo(12, -4)
     .quadraticCurveTo(7, 8, -3, 7).quadraticCurveTo(-14, 5, -14, -5).closePath().fill(fabric);
@@ -195,6 +210,39 @@ function face(detailed: boolean) {
 
 export function kestrelHelmet(opening: boolean, compact = false, detailed = false): Container {
   const view = new Container();
+  const paintedHead = getPropArt().kestrel.head;
+  if (paintedHead) {
+    const head = new Container({ label: 'headRig' });
+    const spr = new Sprite(paintedHead);
+    spr.anchor.set(0.5, 0.52);
+    const sc = (compact ? 64 : 68) / Math.max(1, paintedHead.height);
+    spr.scale.set(sc);
+    spr.position.set(66, -6);
+    // Keep lightweight labeled expression nodes so KestrelExpression stays 100% compatible.
+    const iris = new Container({ label: 'kestrelIris' });
+    const eye = new Container({ label: 'kestrelEye' });
+    eye.addChild(iris);
+    const brow = new Container({ label: 'kestrelBrow' });
+    const lid = new Graphics({ label: 'eyelid' });
+    lid.moveTo(76, -8).quadraticCurveTo(80, -6.5, 84, -8.2).stroke({ color: 0x4a2f22, width: 1.4, cap: 'round' });
+    lid.visible = false;
+    const smile = new Container({ label: 'kestrelSmile' });
+    const gasp = new Container({ label: 'kestrelGasp', alpha: 0 });
+    head.addChild(spr, eye, brow, lid, smile, gasp);
+    const plate = new Graphics({ label: 'plate' });
+    if (opening) {
+      const hingeY = compact ? -24 : -31;
+      plate.pivot.set(65, hingeY);
+      plate.position.set(65, hingeY);
+    }
+    const fog = new Graphics({ label: 'visorFog', alpha: 0 }).ellipse(84, 5, 8, 4.5).fill({ color: 0xe7f4de, alpha: 0.42 });
+    const drops = new Graphics({ label: 'visorDrops', alpha: 0 });
+    for (const [x, y] of [[70, -24], [83, -21], [90, -13], [91, 4], [78, 11]]) {
+      drops.ellipse(x, y, 1.1, 1.6).fill({ color: 0xf8ffe7, alpha: 0.55 });
+    }
+    view.addChild(head, plate, fog, drops);
+    return view;
+  }
   const rear = new Graphics();
   if (compact) {
     rear.moveTo(43, 14).quadraticCurveTo(34, 5, 36, -14).lineTo(39, -24)

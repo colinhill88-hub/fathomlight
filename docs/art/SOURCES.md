@@ -82,6 +82,10 @@ Wired `src/art/tankArt.ts` (`loadTankArt`) and `HabitatWater.setTheme()` so ever
 
 Added `src/art/propArt.ts` (`loadPropArt`), sharing the 4-corner pure-white cutout loader from `src/art/creatureArt.ts`, with `?art=procedural` fallback:
 - Ambient schooling fish (`src/art/creatures/silverbar.webp`): Silverbar (`src/actors/silverbar.ts`, keeping its live wagging forked golden tail).
+- Kestrel hero art (`src/art/kestrel/`): `head.jpg` (weathered brass/charcoal helmet & expressive portrait) and `torso.jpg` (olive-charcoal & brass diving suit torso), wired into `src/actors/kestrelArt.ts` (shared by swimmer, walker, and Field Kit portrait).
+- Exterior wrecks (`src/art/wrecks/`): `fulmar.jpg` (Fulmar Listening Station, `src/world/fulmarArt.ts`) and `corvina.jpg` (Corvina Survey Ship, `src/world/corvinaArt.ts`).
+- Interior base stations & props (`src/art/interior/`): `console_habitat.jpg` (Habitat management lectern), `tray_collection.jpg` (Collection tray stand), and `crate.jpg` (storage salvage crates), wired into `src/interior/baselevel.ts` with engraved brass-plaque signage.
+- Base corridors & shafts (`src/art/base/corridor.jpg`): horizontal/vertical corridors and 3-cell riser shafts (`src/world/basegfx.ts`).
 - Vehicles (`src/art/vehicles/`): `sub.webp` (KS-1 Submersible, `src/actors/sub.ts`), `drone.webp` (KD-1 Build Drone, `src/actors/drone.ts`), `buoy.webp` (EX-1 Supply Buoy, `src/world/supplyBuoy.ts`).
 - Hero base exterior modules & Choir portal (`src/art/base/`): `dome.webp`, `dock.webp`, `lab.webp`, `workshop.webp`, `nursery.webp`, `turbine.webp` (`src/world/basegfx.ts`, keeping live animated lights, scan bar, sparks, turbine rotor, and live interior tanks on top), plus `portal.webp` (Choir Gate / Home Gate, `src/world/sanctumgfx.ts`).
 - Tank decorations — all 16 pieces (`src/art/decor/`): `arch.webp`, `amphora.webp`, `helmet.webp`, `chest.webp`, `driftwood.webp`, `clam.webp`, `lantern.webp`, `wheel.webp`, `cairn.webp`, `floats.webp`, `anchor.webp`, `bell.webp`, `coralarch.webp`, `astrolabe.webp`, `belljar.webp`, `kelplantern.webp` (`src/world/tankDecor.ts`, keeping glow auras on luminous pieces).

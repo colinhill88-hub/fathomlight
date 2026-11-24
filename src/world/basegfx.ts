@@ -1715,9 +1715,54 @@ function drawWorkshop(n: number, livingBases: boolean): PieceArt {
   return { body, windows, windowGlow, lamp: { x: W - 22, y: 30 }, station: { arm, torch, armAt: { x: bx + bw / 2 + 6, y: 42 } } };
 }
 
-/** Painted exterior hulls for the 6 hero base modules (fallback to procedural if absent). */
-function drawPaintedHero(kind: PieceKind, n: number, housingOcean: boolean): PieceArt | null {
+/** Painted exterior hulls for base modules (fallback to procedural if absent). */
+function drawPaintedHero(kind: PieceKind, n: number, rot: number, housingOcean: boolean): PieceArt | null {
   const baseArt = getPropArt().base;
+  if (kind === 'corridor' && baseArt.corridor) {
+    const c = CELL / 2;
+    const body = new Container();
+    const spr = new Sprite(baseArt.corridor);
+    spr.anchor.set(0.5, 0.5);
+    const natH = (CELL + 4) * (baseArt.corridor.height / Math.max(1, baseArt.corridor.width));
+    spr.width = CELL + 4;
+    spr.height = Math.min(CELL - 12, Math.max(TUBE + 12, natH));
+    spr.position.set(c, c);
+    if (rot % 2 === 1) spr.rotation = Math.PI / 2;
+    body.addChild(spr);
+    const windows = new Graphics();
+    const windowGlow = new Graphics();
+    windows.circle(c, c, 10.5).fill({ color: PAL.glass, alpha: 0.55 });
+    windowGlow.circle(c, c, 22).fill({ color: PAL.glass, alpha: 0.34 });
+    const lamp = rot % 2 === 0 ? { x: CELL - 26, y: c - 24 } : { x: c + 24, y: CELL - 26 };
+    body.addChild(stencil(`C-${String(n).padStart(2, '0')}`, rot % 2 === 0 ? c + 28 : c - 22, rot % 2 === 0 ? c + 26 : c + 30, 6, rot % 2 === 0 ? 0 : -Math.PI / 2));
+    return { body, windows, windowGlow, lamp };
+  }
+  if (kind === 'shaft' && baseArt.corridor) {
+    const c = CELL / 2;
+    const body = new Container();
+    const g = body.addChild(new Graphics());
+    tubeH(g, 0, 18, c, 1);
+    tubeH(g, CELL - 18, CELL, c, 1);
+    tubeH(g, 0, 18, CELL * 2 + c, 1);
+    tubeH(g, CELL - 18, CELL, CELL * 2 + c, 1);
+    const windows = new Graphics();
+    const windowGlow = new Graphics();
+    const natH = (CELL + 4) * (baseArt.corridor.height / Math.max(1, baseArt.corridor.width));
+    for (let k = 0; k < 3; k++) {
+      const cy = k * CELL + c;
+      const spr = new Sprite(baseArt.corridor);
+      spr.anchor.set(0.5, 0.5);
+      spr.width = CELL + 4;
+      spr.height = Math.min(CELL - 12, Math.max(TUBE + 12, natH));
+      spr.position.set(c, cy);
+      spr.rotation = Math.PI / 2;
+      body.addChild(spr);
+      windows.circle(c, cy, 10.5).fill({ color: PAL.glass, alpha: 0.55 });
+      windowGlow.circle(c, cy, 22).fill({ color: PAL.glass, alpha: 0.34 });
+    }
+    body.addChild(stencil(`S-${String(n).padStart(2, '0')}`, c - 22, CELL + c + 30, 6, -Math.PI / 2));
+    return { body, windows, windowGlow, lamp: { x: c + 24, y: CELL * 3 - 26 } };
+  }
   if (kind === 'dome' && baseArt.dome) {
     const W = CELL * 2;
     const H = CELL * 2;
@@ -1939,7 +1984,7 @@ function drawPaintedHero(kind: PieceKind, n: number, housingOcean: boolean): Pie
 /** Draw a piece's art. The same drawing is used for placed pieces and the build ghost. */
 export function drawPiece(kind: PieceKind, n: number, rot: number, seed: number, livingBases = false, housingOcean = livingBases, panorama = false): PieceArt {
   rand = mulberry32(WORLD_SEED ^ (seed * 7919 + 0x1b5e));
-  const painted = drawPaintedHero(kind, n, housingOcean);
+  const painted = drawPaintedHero(kind, n, rot, housingOcean);
   if (painted) return painted;
   if (kind === 'dome') return livingBases ? drawKestrelHabitat(n) : drawDome(n);
   if (kind === 'corridor') return livingBases ? drawPressureCorridor(n, rot, true, panorama) : drawCorridor(n, rot);
