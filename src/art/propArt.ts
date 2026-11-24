@@ -29,10 +29,11 @@ export type InteriorArtKey =
   | 'console_habitat' | 'tray_collection' | 'crate'
   | 'airlock' | 'bunk' | 'planner' | 'galley'
   | 'lab_bench' | 'workshop_bench' | 'hatch_cradle' | 'hatch_console'
-  | 'revive_pool' | 'signal_dish' | 'recomp_chamber' | 'farm_trough' | 'filter_vat' | 'crane_cradle'
+  | 'revive_pool' | 'signal_dish' | 'recomp_chamber' | 'farm_trough' | 'filter_vat' | 'crane_cradle' | 'press_frame' | 'press_ram'
   | 'wall_bulkhead' | 'deck_grate' | 'ladder_rung';
 export type PickupArtKey = 'scrap' | 'copper' | 'quartz' | 'fibre' | 'resin' | 'moss' | 'brass' | 'bloom' | 'ore';
 export type BottomArtKey = 'lily' | 'sponge' | 'worm' | 'star' | 'pen';
+export type LandmarkArtKey = 'sled' | 'beacon' | 'lode';
 
 export interface PropArt {
   kestrel: Partial<Record<KestrelArtKey, Texture>>;
@@ -44,6 +45,7 @@ export interface PropArt {
   foes: Partial<Record<FoeArtKey, Texture>>;
   pickups: Partial<Record<PickupArtKey, Texture>>;
   bottom: Partial<Record<BottomArtKey, Texture>>;
+  landmarks: Partial<Record<LandmarkArtKey, Texture>>;
 }
 
 const kestrelFiles = import.meta.glob<string>('./kestrel/*.{webp,jpg,png}', { eager: true, import: 'default', query: '?url&no-inline' });
@@ -55,8 +57,9 @@ const decorFiles = import.meta.glob<string>('./decor/*.{webp,jpg,png}', { eager:
 const foeFiles = import.meta.glob<string>('./foes/*.{webp,jpg,png}', { eager: true, import: 'default', query: '?url&no-inline' });
 const pickupFiles = import.meta.glob<string>('./pickups/*.{webp,jpg,png}', { eager: true, import: 'default', query: '?url&no-inline' });
 const bottomFiles = import.meta.glob<string>('./bottom/*.{webp,jpg,png}', { eager: true, import: 'default', query: '?url&no-inline' });
+const landmarkFiles = import.meta.glob<string>('./landmarks/*.{webp,jpg,png}', { eager: true, import: 'default', query: '?url&no-inline' });
 
-let activePropArt: PropArt = { kestrel: {}, vehicles: {}, base: {}, wrecks: {}, interior: {}, decor: {}, foes: {}, pickups: {}, bottom: {} };
+let activePropArt: PropArt = { kestrel: {}, vehicles: {}, base: {}, wrecks: {}, interior: {}, decor: {}, foes: {}, pickups: {}, bottom: {}, landmarks: {} };
 
 /** Current loaded painted prop textures (empty when `?art=procedural` is active). */
 export function getPropArt(): PropArt {
@@ -146,7 +149,7 @@ const INTERIOR_KEYS: readonly InteriorArtKey[] = [
   'console_habitat', 'tray_collection', 'crate',
   'airlock', 'bunk', 'planner', 'galley',
   'lab_bench', 'workshop_bench', 'hatch_cradle', 'hatch_console',
-  'revive_pool', 'signal_dish', 'recomp_chamber', 'farm_trough', 'filter_vat', 'crane_cradle',
+  'revive_pool', 'signal_dish', 'recomp_chamber', 'farm_trough', 'filter_vat', 'crane_cradle', 'press_frame', 'press_ram',
   'wall_bulkhead', 'deck_grate', 'ladder_rung',
 ];
 const DECOR_KEYS: readonly DecorId[] = [
@@ -156,9 +159,10 @@ const DECOR_KEYS: readonly DecorId[] = [
 const FOE_KEYS: readonly FoeArtKey[] = ['tick', 'drone', 'keeper'];
 const PICKUP_KEYS: readonly PickupArtKey[] = ['scrap', 'copper', 'quartz', 'fibre', 'resin', 'moss', 'brass', 'bloom', 'ore'];
 const BOTTOM_KEYS: readonly BottomArtKey[] = ['lily', 'sponge', 'worm', 'star', 'pen'];
+const LANDMARK_KEYS: readonly LandmarkArtKey[] = ['sled', 'beacon', 'lode'];
 
 export async function loadPropArt(mipmaps = false): Promise<PropArt> {
-  const [kestrel, vehicles, base, wrecks, interior, decor, foes, pickups, bottom] = await Promise.all([
+  const [kestrel, vehicles, base, wrecks, interior, decor, foes, pickups, bottom, landmarks] = await Promise.all([
     loadGroup(kestrelFiles, 'kestrel', KESTREL_KEYS, 320, mipmaps),
     loadGroup(vehicleFiles, 'vehicles', VEHICLE_KEYS, 384, mipmaps),
     loadGroup(baseFiles, 'base', BASE_KEYS, 512, mipmaps),
@@ -168,7 +172,8 @@ export async function loadPropArt(mipmaps = false): Promise<PropArt> {
     loadGroup(foeFiles, 'foes', FOE_KEYS, 320, mipmaps),
     loadGroup(pickupFiles, 'pickups', PICKUP_KEYS, 180, mipmaps),
     loadGroup(bottomFiles, 'bottom', BOTTOM_KEYS, 200, mipmaps),
+    loadGroup(landmarkFiles, 'landmarks', LANDMARK_KEYS, 512, mipmaps),
   ]);
-  activePropArt = { kestrel, vehicles, base, wrecks, interior, decor, foes, pickups, bottom };
+  activePropArt = { kestrel, vehicles, base, wrecks, interior, decor, foes, pickups, bottom, landmarks };
   return activePropArt;
 }

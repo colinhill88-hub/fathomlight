@@ -200,13 +200,22 @@ export function machineData(save: SaveData, id: number): MachineData {
   return m;
 }
 
-/** Where a line leaves or enters a piece: a port on its top. */
+/** Where a line leaves or enters a piece: a port anchored cleanly into its top hopper/rack/manifold. */
 export function portPoint(p: Placed, kind: LineKind, dir: 'in' | 'out'): { x: number; y: number } {
   const r = pieceRect(p);
   const cx = r.x + r.w / 2;
-  if (isTankKind(p.kind)) return { x: cx + (kind === 'pipe' ? 28 : -28), y: r.y + 12 };
-  if (p.kind === 'press') return { x: cx + (dir === 'in' ? -62 : 62), y: r.y + 14 };
-  return { x: cx + (kind === 'belt' ? -22 : 22), y: r.y + 10 };
+  if (isTankKind(p.kind)) return { x: cx + (kind === 'pipe' ? 28 : -28), y: r.y + 15 };
+  if (p.kind === 'press') {
+    return dir === 'in'
+      ? { x: cx - 72, y: r.y + 24 }
+      : { x: cx + 76, y: r.y + 38 };
+  }
+  if (p.kind === 'feeder') {
+    return kind === 'belt'
+      ? { x: cx - 10, y: r.y + 24 }
+      : { x: cx + 24, y: r.y + 16 };
+  }
+  return { x: cx + (kind === 'belt' ? -22 : 22), y: r.y + 18 };
 }
 
 /**

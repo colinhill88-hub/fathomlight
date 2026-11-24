@@ -1,6 +1,6 @@
 import { Container, Graphics, Sprite, Text } from 'pixi.js';
 import { mulberry32, WORLD_SEED } from '../rng';
-import { isSolid, WORLD_W, WORLD_X0 } from '../world/terrain';
+import { groundY, isSolid, WORLD_W, WORLD_X0 } from '../world/terrain';
 import type { Light } from '../fx/lighting';
 import type { SubModule } from '../game/state';
 import { getPropArt } from '../art/propArt';
@@ -209,6 +209,9 @@ export class Sub {
   private faceAnim = 1;
   private time = 0;
   private prop = new Graphics();
+  private wakeG = new Graphics();
+  private wakeClock = 0;
+  private wakePuffs: { x: number; y: number; vx: number; vy: number; r: number; life: number; max: number; silt: boolean }[] = [];
   /** After milestone 12: the thrusters' lime nozzles and exhaust, the lit side line and the fin's edge light. */
   private nozzle = new Graphics();
   private exhaust = new Graphics();
@@ -253,7 +256,7 @@ export class Sub {
 
   constructor() {
     rand = mulberry32(WORLD_SEED ^ 0x5b1);
-    this.view.addChild(this.body);
+    this.view.addChild(this.wakeG, this.body);
     this.emissive.addChild(this.eBody);
     this.glow.addChild(this.gBody);
     const painted = getPropArt().vehicles.sub;
@@ -263,7 +266,7 @@ export class Sub {
       const sc = 248 / Math.max(1, painted.width);
       spr.scale.set(sc);
       spr.position.set(0, -4);
-      this.body.addChild(spr);
+      this.body.addChild(this.prop, spr);
       // Mount the real painted Kestrel (head + torso) inside the glass nose canopy!
       const kArt = getPropArt().kestrel;
       if (kArt.head) {
@@ -896,13 +899,88 @@ export class Sub {
     this.burn += (burn - this.burn) * Math.min(1, dt * 6);
     this.propAngle += dt * (built ? 2 + 26 * this.burn : 0);
     const pg = this.prop.clear();
-    for (const [nx, ny, rh] of [
-      [HX0 - 21, 2, 12],
-      [-105, 36, 5.5],
-    ] as const) {
-      for (let i = 0; i < 4; i++) {
-        const a = this.propAngle + (i / 4) * Math.PI * 2;
-        pg.rect(nx - 1, ny + Math.sin(a) * rh - 1, 2.4, 2.2).fill({ color: Math.cos(a) > 0 ? PAL.chrome : PAL.hullHi });
+    if (getPropArt().vehicles.sub) {
+      // Spinning tarnished-brass stern propeller on the painted KS-1.
+      const px = -124;
+      const py = -2;
+      pg.rect(px - 2, py - 3.5, 10, 7).fill({ color: 0x5c4b28 }).stroke({ color: 0x1b1810, width: 1.2 });
+      for (let i = 0; i < 3; i++) {
+        const a = this.propAngle + (i / 3) * Math.PI * 2;
+        const s = Math.sin(a);
+        const h = Math.max(2.6, Math.abs(s) * 16.5);
+        pg.ellipse(px - 3, py + s * 8.5, 3.2, h * 0.52)
+          .fill({ color: s >= 0 ? 0xc4a054 : 0x7e6432 })
+          .stroke({ color: 0x1b1810, width: 1.1 });
+      }
+      pg.circle(px - 2.5, py, 4.2).fill({ color: 0xdab86c }).stroke({ color: 0x1b1810, width: 1.2 });
+    } else {
+      for (const [nx, ny, rh] of [
+        [HX0 - 21, 2, 12],
+        [-105, 36, 5.5],
+      ] as const) {
+        for (let i = 0; i < 4; i++) {
+          const a = this.propAngle + (i / 4) * Math.PI * 2;
+          pg.rect(nx - 1, ny + Math.sin(a) * rh - 1, 2.4, 2.2).fill({ color: Math.cos(a) > 0 ? PAL.chrome : PAL.hullHi });
+        }
+      }
+    }
+    // Twin-stream stern bubble wake + seabed sand/silt puffs when skimming low over the ocean floor.
+    if (built) {
+      this.wakeClock -= dt;
+      if (this.wakeClock <= 0 && (this.burn > 0.12 || speed > 0.08)) {
+        this.wakeClock = 0.04 + 0.09 * (1 - Math.min(1, this.burn));
+        const wp = this.washPoint();
+        const dir = -this.face;
+        for (const spread of [-6, 6]) {
+          this.wakePuffs.push({
+            x: wp.x + (Math.random() - 0.5) * 6,
+            y: wp.y + spread + (Math.random() - 0.5) * 4,
+            vx: dir * (28 + speed * 85 + (this.thrust > 0 ? 70 : 0)) + (Math.random() - 0.5) * 16,
+            vy: -12 - Math.random() * 18,
+            r: 1.4 + Math.random() * 2.4,
+            life: 0,
+            max: 0.65 + Math.random() * 0.65,
+            silt: false,
+          });
+        }
+        // Kick up soft seabed silt puffs when flying close to the floor.
+        const floorY = groundY(this.x);
+        const clearance = floorY - this.y;
+        if (clearance > 20 && clearance < 95 && speed > 0.12) {
+          this.wakePuffs.push({
+            x: this.x + dir * (20 + Math.random() * 45),
+            y: floorY - 3,
+            vx: dir * (18 + speed * 40) + (Math.random() - 0.5) * 20,
+            vy: -14 - Math.random() * 16,
+            r: 5 + Math.random() * 7,
+            life: 0,
+            max: 0.9 + Math.random() * 0.7,
+            silt: true,
+          });
+        }
+      }
+    }
+    const wg = this.wakeG.clear();
+    for (let i = this.wakePuffs.length - 1; i >= 0; i--) {
+      const p = this.wakePuffs[i];
+      p.life += dt;
+      if (p.life >= p.max) {
+        this.wakePuffs.splice(i, 1);
+        continue;
+      }
+      p.vx *= Math.exp(-dt * (p.silt ? 2.4 : 3.2));
+      p.x += p.vx * dt;
+      p.y += p.vy * dt;
+      const frac = p.life / p.max;
+      const px = p.x - this.view.x;
+      const py = p.y - this.view.y;
+      if (p.silt) {
+        const rr = p.r * (0.8 + frac * 1.1);
+        wg.circle(px, py, rr).fill({ color: 0x7c7458, alpha: (1 - frac) * 0.24 });
+      } else {
+        const a = (1 - frac) * 0.5;
+        wg.circle(px, py, p.r).stroke({ color: 0xd8f4ec, width: 1, alpha: a });
+        wg.circle(px - p.r * 0.3, py - p.r * 0.3, p.r * 0.32).fill({ color: 0xffffff, alpha: a * 0.85 });
       }
     }
     const ex = this.exhaust.clear();

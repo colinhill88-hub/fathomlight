@@ -1675,28 +1675,44 @@ export class BaseHooks implements InteriorHooks {
         break;
       }
       case 'press': {
-        // A big hydraulic frame; the ram moves in animate. Plate rack on the right.
+        // Indoor hydraulic plate press (painted press_frame when loaded; live ram stamps in animate) + riveted plate rack on the right.
         const px = b.ox + 160;
-        g.rect(px - 80, b.oy + 10, 14, bot - b.oy - 10).fill({ color: COL.chromeDark });
-        g.rect(px + 66, b.oy + 10, 14, bot - b.oy - 10).fill({ color: COL.chromeDark });
-        g.rect(px - 86, b.oy + 10, 172, 22).fill({ color: COL.chrome });
-        g.rect(px - 70, bot - 26, 140, 26).fill({ color: COL.wallDark });
-        g.rect(px - 70, bot - 26, 140, 4).fill({ color: COL.gold, alpha: 0.8 });
-        for (let k = 0; k < 4; k++) g.rect(b.ox + b.ow - 170, bot - 20 - k * 30, 130, 4).fill({ color: COL.chrome });
-        // Ribbed columns, two hydraulic cylinders on the crosshead, a bolted bed and a warning stripe.
-        for (const cx of [px - 73, px + 73]) {
-          for (let y = b.oy + 40; y < bot - 30; y += 22) g.rect(cx - 7, y, 14, 2).fill({ color: COL.chrome, alpha: 0.5 });
-          g.rect(cx - 7, b.oy + 32, 2, bot - b.oy - 60).fill({ color: COL.chromeHi, alpha: 0.25 });
+        const pressTex = getPropArt().interior.press_frame;
+        if (pressTex) {
+          const spr = new Sprite(pressTex);
+          spr.anchor.set(0.5, 1);
+          const sc = Math.min(204 / Math.max(1, pressTex.width), (bot - b.oy - 10) / Math.max(1, pressTex.height));
+          spr.scale.set(sc);
+          spr.position.set(px, bot);
+          g.addChild(spr);
+        } else {
+          g.rect(px - 80, b.oy + 10, 14, bot - b.oy - 10).fill({ color: COL.chromeDark });
+          g.rect(px + 66, b.oy + 10, 14, bot - b.oy - 10).fill({ color: COL.chromeDark });
+          g.rect(px - 86, b.oy + 10, 172, 22).fill({ color: COL.chrome });
+          g.rect(px - 70, bot - 26, 140, 26).fill({ color: COL.wallDark });
+          g.rect(px - 70, bot - 26, 140, 4).fill({ color: COL.gold, alpha: 0.8 });
+          for (const cx of [px - 73, px + 73]) {
+            for (let y = b.oy + 40; y < bot - 30; y += 22) g.rect(cx - 7, y, 14, 2).fill({ color: COL.chrome, alpha: 0.5 });
+            g.rect(cx - 7, b.oy + 32, 2, bot - b.oy - 60).fill({ color: COL.chromeHi, alpha: 0.25 });
+          }
+          for (const cx of [px - 40, px + 40]) {
+            g.roundRect(cx - 9, b.oy + 32, 18, 42, 4).fill({ color: COL.chromeDark });
+            g.rect(cx - 9, b.oy + 32, 4, 42).fill({ color: COL.chrome, alpha: 0.5 });
+            g.rect(cx - 11, b.oy + 70, 22, 4).fill({ color: COL.chrome });
+          }
+          bolts(g, px - 82, b.oy + 21, px + 82, b.oy + 21, 20, 1.4);
+          bolts(g, px - 64, bot - 12, px + 64, bot - 12, 16, 1.2);
+          hazard(g, px - 70, bot - 30, 140, 4);
         }
-        for (const cx of [px - 40, px + 40]) {
-          g.roundRect(cx - 9, b.oy + 32, 18, 42, 4).fill({ color: COL.chromeDark });
-          g.rect(cx - 9, b.oy + 32, 4, 42).fill({ color: COL.chrome, alpha: 0.5 });
-          g.rect(cx - 11, b.oy + 70, 22, 4).fill({ color: COL.chrome });
+        // Weathered cast-iron & tarnished-brass plate stacking rack on the right.
+        for (const x of [b.ox + b.ow - 172, b.ox + b.ow - 44]) {
+          g.rect(x, bot - 124, 5, 124).fill({ color: 0x263032 }).stroke({ color: 0x12191b, width: 1 });
         }
-        bolts(g, px - 82, b.oy + 21, px + 82, b.oy + 21, 20, 1.4);
-        bolts(g, px - 64, bot - 12, px + 64, bot - 12, 16, 1.2);
-        hazard(g, px - 70, bot - 30, 140, 4);
-        for (let k = 0; k < 4; k++) g.rect(b.ox + b.ow - 170, bot - 16 - k * 30, 130, 1.5).fill({ color: DC.grime, alpha: 0.7 });
+        for (let k = 0; k < 4; k++) {
+          const sy = bot - 20 - k * 30;
+          g.rect(b.ox + b.ow - 170, sy, 130, 5).fill({ color: 0x3b4646 }).stroke({ color: 0x141b1d, width: 1 });
+          g.rect(b.ox + b.ow - 170, sy, 130, 1.5).fill({ color: 0x8f723c, alpha: 0.72 });
+        }
         break;
       }
       case 'dock': {
@@ -2327,10 +2343,38 @@ export class BaseHooks implements InteriorHooks {
         const px = b.ox + 160;
         const run = on && c.pressing(id);
         const stroke = run ? (Math.sin(time * 2.4) + 1) / 2 : 0;
-        const ramY = b.oy + 32 + stroke * (bot - b.oy - 110);
-        d.rect(px - 10, b.oy + 32, 20, ramY - b.oy - 32).fill({ color: 0x5c6868 }).stroke({ color: 0x141b1d, width: 1.4 });
-        d.roundRect(px - 60, ramY, 120, 40, 4).fill({ color: 0x2a3436 }).stroke({ color: 0x12191b, width: 2 });
-        d.rect(px - 58, ramY + 34, 116, 5).fill({ color: 0xb69244 });
+        const intArt = getPropArt().interior;
+        const hasPressArt = !!intArt.press_frame;
+        const topY = b.oy + (hasPressArt ? 52 : 32);
+        const ramY = topY + stroke * (bot - topY - (hasPressArt ? 68 : 78));
+        const ramTex = intArt.press_ram;
+        if (ramTex) {
+          let rSpr = this.roomFixtures.children.find((ch): ch is Sprite => ch instanceof Sprite && ch.label === `press-ram-${id}`);
+          if (!rSpr) {
+            rSpr = new Sprite(ramTex);
+            rSpr.label = `press-ram-${id}`;
+            rSpr.anchor.set(0.5, 0.96);
+            const sc = 94 / Math.max(1, ramTex.width);
+            rSpr.scale.set(sc);
+            this.roomFixtures.addChild(rSpr);
+          }
+          const beamY = bot - 122;
+          const platenY = bot - 76 + stroke * 34;
+          rSpr.position.set(px, platenY);
+          // Hydraulic steel piston shaft connecting the overhead crossbeam down into the painted ram collar.
+          const shaftTop = beamY;
+          const shaftBot = platenY - rSpr.height * 0.72;
+          if (shaftBot > shaftTop) {
+            d.rect(px - 8, shaftTop, 16, shaftBot - shaftTop).fill({ color: 0x5c6868 }).stroke({ color: 0x141b1d, width: 1.4 });
+            d.rect(px - 4.5, shaftTop, 3.5, shaftBot - shaftTop).fill({ color: 0xb8c4c0, alpha: 0.5 });
+          }
+        } else {
+          const ramW = hasPressArt ? 84 : 120;
+          const ramH = hasPressArt ? 24 : 40;
+          d.rect(px - 8, topY, 16, Math.max(0, ramY - topY)).fill({ color: 0x5c6868 }).stroke({ color: 0x141b1d, width: 1.4 });
+          d.roundRect(px - ramW / 2, ramY, ramW, ramH, 3).fill({ color: 0x2a3436 }).stroke({ color: 0x12191b, width: 1.8 });
+          d.rect(px - ramW / 2 + 2, ramY + ramH - 5, ramW - 4, 4).fill({ color: 0xb69244 });
+        }
         if (run && stroke > 0.95) de.circle(px, bot - 28, 10).fill({ color: 0xffd080, alpha: 0.7 });
       } else if (r.kind === 'lab' && on) {
         const busy = c.stationBusy(id);

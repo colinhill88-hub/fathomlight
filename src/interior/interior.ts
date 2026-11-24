@@ -637,7 +637,14 @@ export class Interior {
     else if (survey) drawSurveyDecks(g, T, PW, PH);
     else if (listening) drawFulmarDecks(g, T, PW, PH);
     else this.drawWreckWalls(g, e, steel, PW, PH, rand);
+    // Blend painted riveted bulkhead texture with warm shipwreck rust patina over wreck walls.
+    const wreckBulkhead = getPropArt().interior.wall_bulkhead;
+    if (wreckBulkhead) {
+      g.rect(0, 0, PW, PH).fill(materialFill(wreckBulkhead, 0x8a6d56, 0.36, 320, 240));
+    }
     this.drawFacilityViews(g, listening ? 'fulmar' : 'corvina');
+    const deckGrate = getPropArt().interior.deck_grate;
+    const crateTex = getPropArt().interior.crate;
     // Tiles retain their exact collision shapes and interaction hardware.
     for (let ty = 0; ty < this.H; ty++) {
       for (let tx = 0; tx < this.W; tx++) {
@@ -647,22 +654,43 @@ export class Interior {
         if (c === '#') {
           const metal = survey ? 0x4c5753 : listening ? 0x444c47 : 0x4a5052;
           g.rect(x, y, T + 0.5, T + 0.5).fill({ color: metal });
-          if (steel) g.rect(x, y, T + 0.5, T + 0.5).fill(materialFill(steel, metal, 0.67, 860, 520));
+          if (wreckBulkhead) g.rect(x, y, T + 0.5, T + 0.5).fill(materialFill(wreckBulkhead, 0x7c6858, 0.65, 220, 165));
+          else if (steel) g.rect(x, y, T + 0.5, T + 0.5).fill(materialFill(steel, metal, 0.67, 860, 520));
           if (!this.solidTileStatic(tx, ty - 1)) {
-            g.rect(x, y, T + 0.5, 6).fill({ color: survey ? 0x8d8b77 : listening ? 0x8c8270 : 0x6e7476 });
-            g.rect(x, y + 6, T + 0.5, 2).fill({ color: 0x2c3234 });
-            for (let k = 6; k < T; k += 12) g.circle(x + k, y + 3, 1.2).fill({ color: 0x2c3234 });
+            if (deckGrate) {
+              g.rect(x, y, T + 0.5, 13).fill(materialFill(deckGrate, 0x7c6e60, 1, 96, 15, 0, y));
+              g.rect(x, y + 12, T + 0.5, 2).fill({ color: 0x161a1c, alpha: 0.85 });
+            } else {
+              g.rect(x, y, T + 0.5, 6).fill({ color: survey ? 0x8d8b77 : listening ? 0x8c8270 : 0x6e7476 });
+              g.rect(x, y + 6, T + 0.5, 2).fill({ color: 0x2c3234 });
+              for (let k = 6; k < T; k += 12) g.circle(x + k, y + 3, 1.2).fill({ color: 0x2c3234 });
+            }
           }
           if (!this.solidTileStatic(tx, ty + 1)) g.rect(x, y + T - 4, T + 0.5, 4).fill({ color: 0x2c3234 });
           if (rand() < 0.15) g.rect(x + R(4, 30), y + 8, 2, R(10, 28)).fill({ color: 0x6a3a22, alpha: 0.5 });
         } else if (c === 'c') {
-          g.roundRect(x + 2, y + 2, T - 4, T - 4, 3).fill({ color: 0x5a4a38 });
-          g.rect(x + 2, y + T / 2 - 2, T - 4, 4).fill({ color: 0x3a3028 });
-          g.moveTo(x + 4, y + 4).lineTo(x + T - 4, y + T - 4).stroke({ color: 0x3a3028, width: 2 });
+          if (crateTex) {
+            const spr = new Sprite(crateTex);
+            spr.anchor.set(0.5, 0.98);
+            const sc = (T - 2) / Math.max(1, Math.max(crateTex.width, crateTex.height));
+            spr.scale.set(sc);
+            spr.position.set(x + T / 2, y + T);
+            spr.tint = 0xbaa892;
+            g.addChild(spr);
+          } else {
+            g.roundRect(x + 2, y + 2, T - 4, T - 4, 3).fill({ color: 0x5a4a38 });
+            g.rect(x + 2, y + T / 2 - 2, T - 4, 4).fill({ color: 0x3a3028 });
+            g.moveTo(x + 4, y + 4).lineTo(x + T - 4, y + T - 4).stroke({ color: 0x3a3028, width: 2 });
+          }
         } else if (c === '=') {
-          g.rect(x, y, T + 0.5, 7).fill({ color: 0x6a6e70 });
-          for (let k = 3; k < T; k += 8) g.rect(x + k, y + 2, 4, 3).fill({ color: 0x23292b });
-          g.rect(x, y + 7, T + 0.5, 2).fill({ color: 0x2c3234 });
+          if (deckGrate) {
+            g.rect(x, y, T + 0.5, 10).fill(materialFill(deckGrate, 0x7a6c5e, 1, 96, 12, 0, y));
+            g.rect(x, y + 9, T + 0.5, 2).fill({ color: 0x161a1c, alpha: 0.85 });
+          } else {
+            g.rect(x, y, T + 0.5, 7).fill({ color: 0x6a6e70 });
+            for (let k = 3; k < T; k += 8) g.rect(x + k, y + 2, 4, 3).fill({ color: 0x23292b });
+            g.rect(x, y + 7, T + 0.5, 2).fill({ color: 0x2c3234 });
+          }
           if (tx % 4 === 0) g.moveTo(x + 4, y + 9).lineTo(x + 4, y + 26).stroke({ color: 0x3b3a36, width: 2 });
         } else if (c === '~') {
           g.rect(x, y, T + 0.5, T + 0.5).fill({ color: 0x0e2a30 });

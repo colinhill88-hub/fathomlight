@@ -1,4 +1,5 @@
 import { Color, Container, FillGradient, Graphics, MeshRope, Point, Renderer, Sprite, Text, Texture, type FillStyle } from 'pixi.js';
+import { getPropArt } from '../art/propArt';
 import { createShallowsSeabed, type ReefTextures } from '../art/shallows';
 import { materialFill, type Material, type WorldArt } from '../art/worldArt';
 import type { WaterMotion } from '../scene/waterMotion';
@@ -441,8 +442,21 @@ export function rustStreaks(g: Graphics, x0: number, x1: number, y: number, n: n
   }
 }
 
-/** The survey beacon on the edge of the drop-off: weathered steel with a red lamp. */
+/** The survey beacon on the edge of the drop-off: painted landmark when loaded, else weathered steel with a red lamp. */
 function drawBeacon(g: Graphics, x: number, y: number): { lampX: number; lampY: number } {
+  const painted = getPropArt().landmarks.beacon;
+  if (painted) {
+    g.moveTo(x + 4, y + 2)
+      .bezierCurveTo(x - 30, y + 14, x - 70, y + 4, x - 120, y + 18)
+      .stroke({ color: 0x222628, width: 3.5 });
+    const spr = new Sprite(painted);
+    spr.anchor.set(0.5, 0.94);
+    const sc = 138 / Math.max(1, painted.height);
+    spr.scale.set(sc);
+    spr.position.set(x, y + 4);
+    g.addChild(spr);
+    return { lampX: x, lampY: y - 120 };
+  }
   const h = 120;
   g.moveTo(x + 4, y + 2)
     .bezierCurveTo(x - 30, y + 14, x - 70, y + 4, x - 120, y + 18)
@@ -523,6 +537,19 @@ function drawBuoy(c: Container): void {
 /** An old survey sled wreck: a rusted frame on two runners, half buried, with a crushed instrument box. */
 function drawSled(g: Graphics, x: number): Text {
   const y = gy(x) + 6;
+  const painted = getPropArt().landmarks.sled;
+  if (painted) {
+    const spr = new Sprite(painted);
+    spr.anchor.set(0.5, 0.9);
+    const sc = 264 / Math.max(1, painted.width);
+    spr.scale.set(sc);
+    spr.position.set(x, y + 4);
+    spr.rotation = -0.055;
+    g.addChild(spr);
+    const label = new Text({ text: '', style: { fontSize: 6 } });
+    label.visible = false;
+    return label;
+  }
   const tilt = (dx: number) => y - dx * 0.06;
   // Runners.
   for (const dy of [0, -6]) {
