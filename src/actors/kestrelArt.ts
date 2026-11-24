@@ -27,7 +27,29 @@ const glass = ramp(0x89b8aa, 0x426f70, 0x21383f);
 /** Upright around the pelvis. The swimmer rotates and stretches this same cut into its own proportions. */
 export function kestrelTorso(compact = false, detailed = false): Container {
   const view = new Container();
-  const paintedTorso = getPropArt().kestrel.torso;
+  const kArt = getPropArt().kestrel;
+  // Split articulated chest + pelvis (unlocks real waist flex, breathing, and hip shift).
+  if (kArt.chest && kArt.pelvis) {
+    const hips = new Container();
+    const pSpr = new Sprite(kArt.pelvis);
+    pSpr.anchor.set(0.5, 0.5);
+    pSpr.scale.set(27 / Math.max(1, kArt.pelvis.height));
+    pSpr.position.set(0.5, -5);
+    hips.addChild(pSpr);
+
+    const chest = new Container({ label: 'kestrelChest' });
+    chest.pivot.set(0, -12);
+    chest.position.set(0, -12);
+    const cSpr = new Sprite(kArt.chest);
+    cSpr.anchor.set(0.5, 0.55);
+    cSpr.scale.set(39 / Math.max(1, kArt.chest.height));
+    cSpr.position.set(1, -27);
+    chest.addChild(cSpr);
+
+    view.addChild(hips, chest);
+    return view;
+  }
+  const paintedTorso = kArt.torso;
   if (paintedTorso) {
     const chest = new Container({ label: 'kestrelChest' });
     chest.pivot.set(0, -12);
@@ -88,17 +110,34 @@ export function kestrelTorso(compact = false, detailed = false): Container {
 
 export function kestrelLimb(length: number, width: number, type: 'thigh' | 'shin' | 'upper' | 'fore', detailed = false): Container {
   const kArt = getPropArt().kestrel;
-  const key = type === 'upper' ? 'upper_arm' : type === 'fore' ? 'forearm' : type;
-  const painted = kArt[key];
+  const splitHand = type === 'fore' && Boolean(kArt.forearm_sleeve && kArt.hand);
+  const painted = splitHand
+    ? kArt.forearm_sleeve
+    : kArt[type === 'upper' ? 'upper_arm' : type === 'fore' ? 'forearm' : type];
   if (painted) {
     const c = new Container();
     const spr = new Sprite(painted);
     spr.anchor.set(0.14, 0.5);
-    const targetLen = length + (type === 'fore' ? 12 : 6);
+    const targetLen = splitHand ? length + 3 : length + (type === 'fore' ? 12 : 6);
     const sc = targetLen / Math.max(1, painted.width);
     spr.scale.set(sc);
     spr.position.set(-2, 0);
     c.addChild(spr);
+    // Optional painted joint medallions hide extreme bend seams cleanly.
+    if (type === 'upper' && kArt.joint_shoulder) {
+      const cap = new Sprite(kArt.joint_shoulder);
+      cap.anchor.set(0.5);
+      cap.scale.set(11 / Math.max(1, kArt.joint_shoulder.width));
+      cap.position.set(0, 0);
+      c.addChild(cap);
+    } else if (type === 'thigh' && kArt.joint_knee) {
+      const pad = new Sprite(kArt.joint_knee);
+      pad.anchor.set(0.5);
+      pad.scale.set(12 / Math.max(1, kArt.joint_knee.width));
+      pad.rotation = -Math.PI * 0.5;
+      pad.position.set(length - 1, -1.5);
+      c.addChild(pad);
+    }
     return c;
   }
   const g = new Graphics();
@@ -134,7 +173,16 @@ export function kestrelLimb(length: number, width: number, type: 'thigh' | 'shin
 
 export function kestrelHand(compact = false, detailed = false): Container {
   const hand = new Container();
-  if (getPropArt().kestrel.forearm) {
+  const kArt = getPropArt().kestrel;
+  if (kArt.hand && kArt.forearm_sleeve) {
+    const spr = new Sprite(kArt.hand);
+    spr.anchor.set(0.18, 0.5);
+    spr.scale.set((compact ? 15.5 : 14) / Math.max(1, kArt.hand.width));
+    spr.position.set(-1.5, 0);
+    hand.addChild(spr);
+    return hand;
+  }
+  if (kArt.forearm) {
     // Painted forearm plate already includes the weathered terracotta-red diving gauntlet!
     return hand;
   }
@@ -161,6 +209,38 @@ export function kestrelHand(compact = false, detailed = false): Container {
 
 export function kestrelFin(standing: boolean, tip: boolean, compact = false, detailed = false): Container {
   const kArt = getPropArt().kestrel;
+  // Split articulated boot + flexible flipper blade (unlocks real toe-off bend & water-lag whip).
+  if (kArt.boot && kArt.fin_blade) {
+    const c = new Container();
+    if (!tip) {
+      const spr = new Sprite(kArt.boot);
+      if (standing) {
+        spr.anchor.set(0.32, 0.86);
+        spr.scale.set(16 / Math.max(1, kArt.boot.width));
+        spr.position.set(0, 5);
+      } else {
+        spr.anchor.set(0.24, 0.52);
+        spr.scale.set(17 / Math.max(1, kArt.boot.width));
+        spr.position.set(-1, 0);
+      }
+      c.addChild(spr);
+    } else {
+      const spr = new Sprite(kArt.fin_blade);
+      if (standing) {
+        // Compress vertically into a thin flat side-profile blade flush along the floor during walking & toe-off.
+        const sc = 15.5 / Math.max(1, kArt.fin_blade.width);
+        spr.anchor.set(0.08, 0.92);
+        spr.scale.set(sc, sc * 0.34);
+        spr.position.set(-1.5, 0.5);
+      } else {
+        spr.anchor.set(0.08, 0.5);
+        spr.scale.set(24 / Math.max(1, kArt.fin_blade.width));
+        spr.position.set(-1.5, 0);
+      }
+      c.addChild(spr);
+    }
+    return c;
+  }
   const paintedFin = standing ? (kArt.fin_walk ?? kArt.fin) : kArt.fin;
   if (paintedFin) {
     const c = new Container();
@@ -258,14 +338,19 @@ export function kestrelHelmet(opening: boolean, compact = false, detailed = fals
     const sc = (compact ? 64 : 68) / Math.max(1, paintedHead.height);
     spr.scale.set(sc);
     spr.position.set(66, -6);
-    // Keep lightweight labeled expression nodes so KestrelExpression stays 100% compatible.
+    // Align the blink eyelid & subtle eye-tracking catchlight directly onto head.jpg's painted eye.
+    const ex = spr.x + spr.width * 0.21;
+    const ey = spr.y - spr.height * 0.085;
     const iris = new Container({ label: 'kestrelIris' });
+    iris.position.set(ex, ey);
+    iris.addChild(
+      new Graphics()
+        .circle(0, 0, 1.35).fill({ color: 0x2a1d16, alpha: 0.48 })
+        .circle(0.45, -0.55, 0.65).fill({ color: 0xfff8e4, alpha: 0.82 }),
+    );
     const eye = new Container({ label: 'kestrelEye' });
     eye.addChild(iris);
     const brow = new Container({ label: 'kestrelBrow' });
-    // Align the blink eyelid directly onto head.jpg's painted eye (skin-toned lid + dark lash curve).
-    const ex = spr.x + spr.width * 0.21;
-    const ey = spr.y - spr.height * 0.085;
     const lid = new Graphics({ label: 'eyelid' });
     lid.ellipse(ex, ey, 3.6, 2.5).fill({ color: 0xebb68c });
     lid.moveTo(ex - 3.2, ey + 0.4).quadraticCurveTo(ex, ey + 1.8, ex + 3.2, ey + 0.1).stroke({ color: 0x4a2f22, width: 1.35, cap: 'round' });
@@ -388,6 +473,8 @@ export class KestrelExpression {
   private readonly lid: Container;
   private readonly smile: Container;
   private readonly gasp: Container;
+  private readonly irisBaseX: number;
+  private readonly irisBaseY: number;
 
   constructor(head: Container) {
     this.eye = head.getChildByLabel('kestrelEye')!;
@@ -396,13 +483,16 @@ export class KestrelExpression {
     this.lid = head.getChildByLabel('eyelid')!;
     this.smile = head.getChildByLabel('kestrelSmile')!;
     this.gasp = head.getChildByLabel('kestrelGasp')!;
+    this.irisBaseX = this.iris.x || 81.7;
+    this.irisBaseY = this.iris.y || -7;
   }
 
   apply(blink: boolean, look: number, alert: number, effort: number, gasp = 0): void {
+    const clampedLook = Math.max(-1, Math.min(1, look));
     this.lid.visible = blink;
     this.eye.visible = !blink;
     this.eye.scale.y = 1 + alert * 0.42 - effort * 0.3;
-    this.iris.position.set(81.7 + look * 1.55, -7 + look * 0.85);
+    this.iris.position.set(this.irisBaseX + clampedLook * 1.25, this.irisBaseY + clampedLook * 0.7);
     this.brow.y = -12 - alert * 2.3 + effort * 1.35;
     this.brow.rotation = look * 0.16 + effort * 0.23;
     this.smile.alpha = 1 - gasp;

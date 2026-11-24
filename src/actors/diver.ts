@@ -1194,6 +1194,14 @@ export class Diver {
   /** Phase 19: the Rivet driver on the near forearm. */
   private rivetPod = new Graphics();
   private plume = new Graphics();
+  /** Physics-driven trailing dive lanyard clipped to Kestrel's belt (flows in the water current). */
+  private lanyard = new Graphics();
+  private readonly lanyardPts: { x: number; y: number }[] = [
+    { x: -24, y: 9 },
+    { x: -31, y: 11 },
+    { x: -38, y: 13 },
+    { x: -45, y: 14 },
+  ];
   private visorFog!: Container;
   private visorDrops!: Container;
   private headRig!: Container;
@@ -1419,6 +1427,7 @@ export class Diver {
       this.farArm.upper,
       torso,
       this.diveBag,
+      this.lanyard,
       this.beltJar.view,
       helmet,
       this.hose,
@@ -2307,13 +2316,46 @@ export class Diver {
     this.beltJar.set(this.kit.jar ? this.jar : null, this.time, this.kit.jar);
     this.beltJar.view.rotation = this.bagS.x * 0.8;
     {
-      // The hose flexes a little with the head, the breath and sudden changes of speed.
-      const target = this.headS.x * 0.25 + this.heave * 0.02 - boost * 0.02;
-      const push = Math.max(-1, Math.min(1, ax / 800)) * 0.6;
-      const w = 9;
-      this.hoseS.step(target, w, 0.4, dt, push);
-      this.hoseS.x = Math.max(-0.06, Math.min(0.06, this.hoseS.x));
+      // The hose flexes and stretches organically with the head, chest waist-flex, breath, and acceleration.
+      const chestFlex = this.chest ? this.chest.rotation : 0;
+      const target = this.headS.x * 0.35 + chestFlex * 0.45 + this.heave * 0.03 - boost * 0.035;
+      const push = Math.max(-1, Math.min(1, ax / 700)) * 0.85;
+      this.hoseS.step(target, 9.5, 0.38, dt, push);
+      this.hoseS.x = Math.max(-0.14, Math.min(0.14, this.hoseS.x));
       this.hose.rotation = this.hoseS.x;
+      this.hose.scale.set(1 + chestFlex * 0.12 + this.heave * 0.025, 1 - chestFlex * 0.06);
+    }
+    // Trailing belt lanyard: 4-node water-drag ribbon clipped to the waist belt.
+    {
+      const pts = this.lanyardPts;
+      const segLen = 6.8;
+      pts[0].x = -24;
+      pts[0].y = 9 + (this.chest ? this.chest.rotation * 3 : 0);
+      // Water flow pushes the strap backward along -x and softly waves it with swim speed & kicks.
+      const flowX = -(18 + this.speedNorm * 85 + boost * 65);
+      const flowY = Math.sin(this.time * 3.2) * 14 + Math.sin(this.kick * 2) * this.kickAmp * 26 * this.swimBlend + Math.sin(-this.pitch) * 20;
+      const follow = Math.min(1, dt * (7 + this.speedNorm * 6));
+      for (let i = 1; i < pts.length; i++) {
+        const prev = pts[i - 1];
+        const cur = pts[i];
+        const wave = Math.sin(this.time * 4.4 - i * 1.15) * (3.2 + this.speedNorm * 4.5);
+        cur.x += (prev.x + flowX * 0.14 - cur.x) * follow;
+        cur.y += (prev.y + (flowY + wave) * 0.12 - cur.y) * follow;
+        const dx = cur.x - prev.x;
+        const dy = cur.y - prev.y;
+        const dist = Math.hypot(dx, dy) || 1;
+        cur.x = prev.x + (dx / dist) * segLen;
+        cur.y = prev.y + (dy / dist) * segLen;
+      }
+      const lg = this.lanyard.clear();
+      lg.moveTo(pts[0].x, pts[0].y)
+        .bezierCurveTo(pts[1].x, pts[1].y, pts[2].x, pts[2].y, pts[3].x, pts[3].y)
+        .stroke({ color: 0x3b231b, width: 3.4, cap: 'round' });
+      lg.moveTo(pts[0].x, pts[0].y)
+        .bezierCurveTo(pts[1].x, pts[1].y, pts[2].x, pts[2].y, pts[3].x, pts[3].y)
+        .stroke({ color: 0xb65238, width: 1.9, cap: 'round' });
+      // Brass end-clip weight at the tip of the lanyard.
+      lg.circle(pts[3].x, pts[3].y, 2.2).fill({ color: 0xc99c48 }).stroke({ color: 0x4d3716, width: 0.9 });
     }
   }
 

@@ -17,8 +17,10 @@ export type BaseArtKey =
   | 'filter' | 'feeder' | 'press';
 export type FoeArtKey = 'tick' | 'drone' | 'keeper';
 export type KestrelArtKey =
-  | 'head' | 'torso' | 'pack' | 'pack_single' | 'pack_quad'
-  | 'upper_arm' | 'forearm' | 'thigh' | 'shin' | 'fin' | 'fin_walk'
+  | 'head' | 'torso' | 'chest' | 'pelvis' | 'pack' | 'pack_single' | 'pack_quad'
+  | 'upper_arm' | 'forearm' | 'forearm_sleeve' | 'hand'
+  | 'thigh' | 'shin' | 'fin' | 'fin_walk' | 'boot' | 'fin_blade'
+  | 'joint_shoulder' | 'joint_knee'
   | 'jar' | 'thruster' | 'thruster_mk2' | 'harpoon'
   | 'rivet' | 'dart' | 'flare' | 'resonator' | 'magboots' | 'satchel'
   | 'lamp' | 'hose';
@@ -125,8 +127,10 @@ async function loadGroup<K extends string>(
 }
 
 const KESTREL_KEYS: readonly KestrelArtKey[] = [
-  'head', 'torso', 'pack', 'pack_single', 'pack_quad',
-  'upper_arm', 'forearm', 'thigh', 'shin', 'fin', 'fin_walk',
+  'head', 'torso', 'chest', 'pelvis', 'pack', 'pack_single', 'pack_quad',
+  'upper_arm', 'forearm', 'forearm_sleeve', 'hand',
+  'thigh', 'shin', 'fin', 'fin_walk', 'boot', 'fin_blade',
+  'joint_shoulder', 'joint_knee',
   'jar', 'thruster', 'thruster_mk2', 'harpoon',
   'rivet', 'dart', 'flare', 'resonator', 'magboots', 'satchel',
   'lamp', 'hose',
