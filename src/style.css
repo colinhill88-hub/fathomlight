@@ -5974,19 +5974,43 @@ body.on-foot #btn-dart {
 #inventory {
   padding: 6px 9px;
   border-radius: 12px;
-  border: 1px solid rgba(201, 162, 74, 0.36);
-  border-top: 2px solid rgba(201, 162, 74, 0.65);
-  background: linear-gradient(170deg, rgba(14, 38, 46, 0.9), rgba(6, 18, 26, 0.94));
+  border: 1.5px solid rgba(206, 170, 88, 0.58);
+  border-top: 2px solid rgba(226, 192, 112, 0.82);
+  background: linear-gradient(175deg, rgba(20, 32, 36, 0.94), rgba(10, 18, 22, 0.96));
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.42), inset 0 1px 0 rgba(236, 206, 128, 0.24), inset 0 -1px 0 rgba(0, 0, 0, 0.48);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
+}
+
+#inventory .chip {
+  border-color: rgba(196, 162, 88, 0.28);
+  background: linear-gradient(180deg, rgba(28, 42, 46, 0.72), rgba(14, 24, 28, 0.82));
+}
+
+.chip canvas.mat-art {
+  display: none;
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  filter: drop-shadow(0 1px 1.5px rgba(0, 0, 0, 0.6));
+}
+
+.chip canvas.mat-art.ready {
+  display: block;
+}
+
+.chip canvas.mat-art.ready + svg {
+  display: none;
 }
 
 #jar-chip,
 #sub-chip,
 #depth-chip,
 #suit-bar {
-  border: 1px solid rgba(201, 162, 74, 0.38);
-  background: linear-gradient(170deg, rgba(14, 38, 46, 0.9), rgba(6, 18, 26, 0.94));
+  border: 1.5px solid rgba(206, 170, 88, 0.56);
+  border-top-color: rgba(226, 192, 112, 0.8);
+  background: linear-gradient(175deg, rgba(20, 32, 36, 0.94), rgba(10, 18, 22, 0.96));
+  box-shadow: 0 5px 14px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(236, 206, 128, 0.22);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
 }

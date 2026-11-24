@@ -62,8 +62,8 @@ const PORT_X = 11;
 const PORT_Y = -27;
 const LENS_X = 17.5;
 const LENS_Y = -20;
-const NOZZLE_X = -21;
-const NOZZLE_Y = -4;
+const NOZZLE_X = -10;
+const NOZZLE_Y = 7;
 /** The diver's helmet, scaled to the walker. */
 const HELMET_K = 0.57;
 /** Ladder rungs (as `drawLadder` in the interior draws them): every 20 units, 8 below each tile's top. */
@@ -397,7 +397,8 @@ function drawWalkerThruster(g: Graphics, level: number): void {
     spr.visible = true;
     const targetW = level >= 2 ? 22 : 18;
     spr.scale.set(targetW / Math.max(1, paintedThruster.width));
-    spr.position.set(-15, -4);
+    spr.rotation = -Math.PI / 2;
+    spr.position.set(-10, -2);
     return;
   }
   if (spr) spr.visible = false;

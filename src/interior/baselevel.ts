@@ -2469,10 +2469,28 @@ export class BaseHooks implements InteriorHooks {
           d.roundRect(px - ramW / 2, ramY, ramW, ramH, 3).fill({ color: 0x2a3436 }).stroke({ color: 0x12191b, width: 1.8 });
           d.rect(px - ramW / 2 + 2, ramY + ramH - 5, ramW - 4, 4).fill({ color: 0xb69244 });
         }
-        if (run && stroke > 0.95) de.circle(px, bot - 28, 10).fill({ color: 0xffd080, alpha: 0.7 });
+        if (run && stroke > 0.76) {
+          // Billowing hydraulic steam venting from both sides of the anvil as the press stamps down.
+          const k = (stroke - 0.76) / 0.24;
+          for (const side of [-1, 1]) {
+            for (let i = 0; i < 3; i++) {
+              const p = (k + i * 0.22) % 1;
+              const sx = px + side * (36 + p * 34);
+              const sy = bot - 38 - p * 26 - i * 4;
+              d.circle(sx, sy, 4 + p * 8).fill({ color: 0xdfeae4, alpha: (1 - p) * 0.24 });
+            }
+          }
+        }
+        if (run && stroke > 0.94) de.circle(px, bot - 34, 10).fill({ color: 0xffd080, alpha: 0.72 });
       } else if (r.kind === 'lab' && on) {
         const busy = c.stationBusy(id);
         for (let i = 0; i < 5; i++) d.ellipse(b.cx, bot - 70 - i * 12, 50 - i * 8, 6).stroke({ color: COL.lime, width: 1.5, alpha: busy ? 0.5 : 0.2 });
+        if (busy) {
+          // Live sweeping brass instrument needle & warm decoding beacon on the lab bench.
+          const scanY = bot - 66 - ((time * 24) % 48);
+          d.moveTo(b.cx - 34, scanY).lineTo(b.cx + 34, scanY).stroke({ color: 0xe2f498, width: 1.4, alpha: 0.55 });
+          de.circle(b.cx + 42, bot - 58, 3.2).fill({ color: 0xffc860, alpha: 0.6 + 0.4 * Math.sin(time * 7) });
+        }
         if (!getPropArt().interior.lab_bench) {
           for (const x of [b.ox + 20, b.ox + b.ow - 80]) {
             d.rect(x, b.oy + 50, 60, 40).fill({ color: 0x5a8a1e, alpha: 0.5 });
@@ -2491,7 +2509,22 @@ export class BaseHooks implements InteriorHooks {
         d.moveTo(ax, ay).lineTo(ex, ey).stroke({ color: COL.chrome, width: 9, cap: 'round' });
         d.moveTo(ex, ey).lineTo(tx, ty).stroke({ color: COL.white, width: 7, cap: 'round' });
         d.circle(ex, ey, 7).fill({ color: COL.chromeDark });
-        if (busy && Math.sin(time * 17) > 0.2) de.circle(tx, ty + 4, 5).fill({ color: 0xfff0b0 });
+        if (busy && Math.sin(time * 17) > 0.2) {
+          de.circle(tx, ty + 4, 5).fill({ color: 0xfff0b0 });
+          for (let k = 0; k < 4; k++) {
+            const sp = ((time * 4.5 + k * 0.27) % 1);
+            const ang = -0.7 + k * 0.48 + Math.sin(time * 9 + k) * 0.2;
+            de.circle(tx + Math.cos(ang) * sp * 22, ty + 4 + Math.sin(ang) * sp * 16 + sp * sp * 14, 1.4).fill({ color: 0xffc662, alpha: 1 - sp });
+          }
+        }
+      } else if (r.kind === 'dome' && on) {
+        // Gentle sunlit dust motes drifting across the Observation Deck windows.
+        const f0 = b.floor(0);
+        for (let k = 0; k < 12; k++) {
+          const mx = b.ox + 26 + (((k * 47 + time * (5 + (k % 3) * 2)) % Math.max(40, b.ow - 52)));
+          const my = b.oy + 34 + ((k * 31) % Math.max(30, f0 - b.oy - 54)) + Math.sin(time * 0.9 + k * 1.7) * 6;
+          d.circle(mx, my, 1.1 + (k % 2) * 0.5).fill({ color: 0xfff0c8, alpha: 0.18 + 0.12 * Math.sin(time * 1.4 + k) });
+        }
       } else if (r.kind === 'recomp' && on) {
         if (getPropArt().interior.recomp_chamber) {
           d.circle(b.ox + b.ow * 0.56 - 2, bot - 61, 14).fill({ color: 0x8ac030, alpha: 0.28 + 0.08 * Math.sin(time * 2) });

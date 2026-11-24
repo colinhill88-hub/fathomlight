@@ -560,15 +560,19 @@ export class SoundDirector {
       }
     }
 
-    // ---- The plate press: a heavy stroke and a hiss each time a plate drops ----
+    // ---- The plate press: a heavy hydraulic stamp and a pressurized steam hiss each time a plate drops ----
     for (const pr of f.presses) {
       const was = this.strokes.get(pr.id);
       if (was !== undefined && pr.stroke < was - 0.01) {
         const pl = this.place(pr.x, pr.y, f, 1600);
         if (pl.g > 0.01) {
-          audio.thump({ freq: 90, gain: 0.2 * pl.g, dur: 0.4, pan: pl.pan, send: 0.3 });
-          audio.metal({ t: t + 0.02, freq: 110, gain: 0.06 * pl.g, decay: 0.7, pan: pl.pan });
-          audio.hiss({ t: t + 0.25, dur: 0.7, gain: 0.05 * pl.g, freq: 2600, to: 900, q: 0.8, pan: pl.pan });
+          audio.thump({ freq: 82, gain: 0.2 * pl.g, dur: 0.4, pan: pl.pan, send: 0.3 });
+          if (!this.sam('hatchclunk', { t: t + 0.01, gain: 0.22 * pl.g, rate: 0.62, pan: pl.pan, send: 0.35 })) {
+            audio.metal({ t: t + 0.02, freq: 110, gain: 0.06 * pl.g, decay: 0.7, pan: pl.pan });
+          }
+          if (!this.sam('hiss', { t: t + 0.16, gain: 0.12 * pl.g, rate: 0.92, pan: pl.pan, send: 0.3 })) {
+            audio.hiss({ t: t + 0.25, dur: 0.7, gain: 0.05 * pl.g, freq: 2600, to: 900, q: 0.8, pan: pl.pan });
+          }
         }
       }
       this.strokes.set(pr.id, pr.stroke);
@@ -694,12 +698,16 @@ export class SoundDirector {
       case 'repair': // Repairing the drone: welding crackle.
         for (let i = 0; i < 4; i++) audio.hiss({ t: t + Math.random() * 0.12, dur: 0.015, gain: 0.07 * jit(0.3), type: 'highpass', freq: 3000 * jit(0.2), pan });
         return 0.14;
-      case 'winch': // Winding the boom winch: ratchet clicks that quicken, and a strained groan that rises.
-        audio.metal({ freq: 820 * up, gain: 0.03 * amp, decay: 0.1, pan });
+      case 'winch': // Winding the boom/vane winch: real ratcheting gear turns that quicken, and a strained groan that rises.
+        if (!this.sam('hatchwheel', { t, gain: 0.09 * amp, rate: 0.85 + 0.24 * k, pan, send: 0.2 })) {
+          audio.metal({ freq: 820 * up, gain: 0.03 * amp, decay: 0.1, pan });
+        }
         if (v === 0) audio.tone({ freq: (62 + 30 * k) * jit(0.04), to: (58 + 26 * k), dur: 0.6, gain: 0.04 * amp, type: 'sawtooth', lp: 400, pan });
-        return 0.19 * (1 - 0.45 * k) * jit(0.05);
+        return 0.26 * (1 - 0.35 * k) * jit(0.05);
       case 'brass': // Unbolt: a wrench ratchet, a dull bell-metal clank; the bolt squeals as it turns.
-        audio.metal({ freq: 520 * up, gain: 0.025 * amp, decay: 0.1, pan });
+        if (!this.sam('hatchwheel', { t, gain: 0.06 * amp, rate: 1.18 * up, pan, send: 0.15 })) {
+          audio.metal({ freq: 520 * up, gain: 0.025 * amp, decay: 0.1, pan });
+        }
         if (v % 2 === 0) audio.metal({ t: t + 0.15, freq: 300 * up, gain: 0.045 * amp, decay: 0.7, pan });
         if (strain) audio.tone({ t: t + 0.06, freq: 1400 * up, to: 1650 * up, dur: 0.12, gain: 0.008, type: 'sawtooth', lp: 3000, pan });
         return 0.3 * pace;
@@ -756,9 +764,11 @@ export class SoundDirector {
   private workDone(kind: WorkKind, pan: number): void {
     const t = audio.now;
     switch (kind) {
-      case 'winch': // The pawl drops home: a heavy clunk, a chain shiver and the strain let go.
+      case 'winch': // The pawl drops home: a heavy recorded metal clunk, a chain shiver and the strain let go.
         audio.thump({ t, freq: 95, gain: 0.09, dur: 0.35, pan, send: 0.35 });
-        audio.metal({ t, freq: 210 * jit(0.04), gain: 0.05, decay: 1.1, pan });
+        if (!this.sam('hatchclunk', { t, gain: 0.14, rate: 0.82, pan, send: 0.35 })) {
+          audio.metal({ t, freq: 210 * jit(0.04), gain: 0.05, decay: 1.1, pan });
+        }
         for (let i = 0; i < 5; i++) audio.metal({ t: t + 0.08 + i * 0.04 * jit(0.3), freq: 1100 * jit(0.2), gain: 0.012, decay: 0.07, pan });
         audio.bubbles({ t: t + 0.1, n: 8, spread: 0.5, gain: 0.03, pan });
         break;

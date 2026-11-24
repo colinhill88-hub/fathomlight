@@ -637,8 +637,25 @@ function drawSled(g: Graphics, x: number): Text {
 }
 
 /** An old fluked anchor with a few links of chain, sunk into the sand. */
-function drawAnchor(g: Graphics, x: number): void {
+function drawAnchor(g: Graphics, x: number, layer: Container): void {
   const y = gy(x) + 2;
+  const tex = getPropArt().decor.anchor;
+  if (tex) {
+    // Trailing forged chain links half-buried in the sand beside the painted anchor.
+    for (let i = 0; i < 6; i++) {
+      const cx = x - 26 - i * 12;
+      const cy = y - 10 + i * 2.5;
+      g.ellipse(cx, cy, 6.5, 3.6).stroke({ color: 0x1a1e20, width: 3.2 });
+      g.ellipse(cx, cy, 6.5, 3.6).stroke({ color: 0x7a6a48, width: 1.5 });
+    }
+    const sp = new Sprite(tex);
+    sp.anchor.set(0.5, 0.96);
+    sp.scale.set(96 / Math.max(1, tex.height));
+    sp.rotation = -0.14;
+    sp.position.set(x, y + 4);
+    layer.addChild(sp);
+    return;
+  }
   g.moveTo(x - 6, y - 70).lineTo(x + 8, y - 4).stroke({ color: 0x4a4038, width: 7, cap: 'round' });
   g.moveTo(x - 36, y - 14).quadraticCurveTo(x + 4, y + 18, x + 42, y - 22).stroke({ color: 0x4a4038, width: 7, cap: 'round' });
   g.poly([x - 40, y - 22, x - 30, y - 10, x - 44, y - 8]).fill({ color: 0x4a4038 });
@@ -966,7 +983,7 @@ export class Scenery {
     this.view.addChild(drawSled(decorAt(SLED_X), SLED_X));
     this.scanPoints.sled.push({ x: SLED_X - 20, y: gy(SLED_X) - 40 });
     this.buildRecorder(decorAt(RECORDER_X));
-    drawAnchor(decorAt(ANCHOR_X), ANCHOR_X);
+    drawAnchor(decorAt(ANCHOR_X), ANCHOR_X, decorLayer);
     this.scanPoints.anchor.push({ x: ANCHOR_X, y: gy(ANCHOR_X) - 40 });
 
     // The survey beacon at the top of the drop-off.
@@ -1437,21 +1454,41 @@ export class Scenery {
       {
         const x = KC_FINDS.relaylog.x;
         const y = floor('relaylog');
-        g.circle(x, y - 14, 18).fill({ color: 0xa8402e });
-        g.circle(x - 5, y - 20, 6).fill({ color: 0xd07050, alpha: 0.5 });
-        g.rect(x - 18, y - 16, 36, 4).fill({ color: 0xc9a24a });
-        g.moveTo(x + 10, y - 28).lineTo(x + 30, y - 52).stroke({ color: 0x8a9496, width: 2 });
-        g.roundRect(x - 34, y - 8, 18, 8, 2).fill({ color: 0x3b4448 });
-        rustStreaks(g, x - 14, x + 14, y - 20, 4, 10);
+        const tex = getPropArt().landmarks.relay_buoy;
+        if (tex) {
+          const sp = new Sprite(tex);
+          sp.anchor.set(0.5, 1);
+          sp.scale.set(78 / Math.max(1, tex.width));
+          sp.position.set(x + 6, y + 3);
+          decorLayer.addChild(sp);
+          this.slices.push({ obj: sp, x0: x - 300, x1: x + 300 });
+        } else {
+          g.circle(x, y - 14, 18).fill({ color: 0xa8402e });
+          g.circle(x - 5, y - 20, 6).fill({ color: 0xd07050, alpha: 0.5 });
+          g.rect(x - 18, y - 16, 36, 4).fill({ color: 0xc9a24a });
+          g.moveTo(x + 10, y - 28).lineTo(x + 30, y - 52).stroke({ color: 0x8a9496, width: 2 });
+          g.roundRect(x - 34, y - 8, 18, 8, 2).fill({ color: 0x3b4448 });
+          rustStreaks(g, x - 14, x + 14, y - 20, 4, 10);
+        }
       }
       {
         const x = KC_FINDS.weldchip.x;
         const y = floor('weldchip');
-        g.roundRect(x - 26, y - 22, 52, 22, 3).fill({ color: 0x5a6466 });
-        g.rect(x - 26, y - 22, 52, 5).fill({ color: 0xc9a24a });
-        g.poly([x + 8, y - 22, x + 26, y - 22, x + 30, y - 36, x + 12, y - 32]).fill({ color: 0x4a5456 });
-        g.circle(x - 12, y - 10, 4).fill({ color: 0x2a3234 });
-        rustStreaks(g, x - 22, x + 22, y - 16, 5, 9);
+        const tex = getPropArt().landmarks.welder_crate;
+        if (tex) {
+          const sp = new Sprite(tex);
+          sp.anchor.set(0.5, 1);
+          sp.scale.set(74 / Math.max(1, tex.width));
+          sp.position.set(x, y + 3);
+          decorLayer.addChild(sp);
+          this.slices.push({ obj: sp, x0: x - 300, x1: x + 300 });
+        } else {
+          g.roundRect(x - 26, y - 22, 52, 22, 3).fill({ color: 0x5a6466 });
+          g.rect(x - 26, y - 22, 52, 5).fill({ color: 0xc9a24a });
+          g.poly([x + 8, y - 22, x + 26, y - 22, x + 30, y - 36, x + 12, y - 32]).fill({ color: 0x4a5456 });
+          g.circle(x - 12, y - 10, 4).fill({ color: 0x2a3234 });
+          rustStreaks(g, x - 22, x + 22, y - 16, 5, 9);
+        }
       }
       {
         const x = KC_FINDS.towcoil.x;
@@ -1467,11 +1504,21 @@ export class Scenery {
         // After milestone 12: the nursery log's crate, with a warm egg stencilled on its lid.
         const x = KC_FINDS.nurserylog.x;
         const y = floor('nurserylog');
-        g.roundRect(x - 22, y - 20, 44, 20, 3).fill({ color: 0x4a545a });
-        g.rect(x - 22, y - 20, 44, 4).fill({ color: 0xc9a24a });
-        g.ellipse(x, y - 10, 5, 6.5).fill({ color: 0xffd890 });
-        g.ellipse(x - 1, y - 12, 2, 2.4).fill({ color: 0xfff4d0, alpha: 0.8 });
-        rustStreaks(g, x - 18, x + 18, y - 16, 4, 8);
+        const tex = getPropArt().landmarks.nursery_crate;
+        if (tex) {
+          const sp = new Sprite(tex);
+          sp.anchor.set(0.5, 1);
+          sp.scale.set(66 / Math.max(1, tex.width));
+          sp.position.set(x, y + 3);
+          decorLayer.addChild(sp);
+          this.slices.push({ obj: sp, x0: x - 300, x1: x + 300 });
+        } else {
+          g.roundRect(x - 22, y - 20, 44, 20, 3).fill({ color: 0x4a545a });
+          g.rect(x - 22, y - 20, 44, 4).fill({ color: 0xc9a24a });
+          g.ellipse(x, y - 10, 5, 6.5).fill({ color: 0xffd890 });
+          g.ellipse(x - 1, y - 12, 2, 2.4).fill({ color: 0xfff4d0, alpha: 0.8 });
+          rustStreaks(g, x - 18, x + 18, y - 16, 4, 8);
+        }
       }
       {
         const x = KC_FINDS.cache.x;

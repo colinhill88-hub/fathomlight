@@ -5,6 +5,93 @@ import { SPECIES, SPECIES_ORDER, statusLine } from '../game/creatures';
 import { discoveryNotes, fieldResearch } from '../game/discovery';
 import { GEAR } from '../game/gear';
 
+const PICKUP_URLS = import.meta.glob<string>('../art/pickups/*.{webp,jpg,png}', { eager: true, import: 'default', query: '?url' });
+
+/** Key out pure-white corners & tightly crop a painted pickup icon onto a small crisp HUD canvas. */
+function paintHudIcon(url: string, canvas: HTMLCanvasElement): void {
+  const img = new Image();
+  img.decoding = 'async';
+  img.onload = () => {
+    try {
+      const w = img.naturalWidth;
+      const h = img.naturalHeight;
+      if (!w || !h) return;
+      const src = document.createElement('canvas');
+      src.width = w;
+      src.height = h;
+      const sctx = src.getContext('2d', { willReadFrequently: true })!;
+      sctx.drawImage(img, 0, 0);
+      const id = sctx.getImageData(0, 0, w, h);
+      const d = id.data;
+      const n = w * h;
+      const bg = new Uint8Array(n);
+      const q = new Int32Array(n);
+      let head = 0;
+      let tail = 0;
+      const push = (idx: number) => {
+        if (bg[idx]) return;
+        const o = idx * 4;
+        const hi = Math.max(d[o], d[o + 1], d[o + 2]);
+        const lo = Math.min(d[o], d[o + 1], d[o + 2]);
+        if (lo >= 216 && hi - lo <= 30) {
+          bg[idx] = 1;
+          q[tail++] = idx;
+        }
+      };
+      for (let x = 0; x < w; x++) {
+        push(x);
+        push((h - 1) * w + x);
+      }
+      for (let y = 0; y < h; y++) {
+        push(y * w);
+        push(y * w + (w - 1));
+      }
+      while (head < tail) {
+        const idx = q[head++];
+        const x = idx % w;
+        const y = (idx - x) / w;
+        if (x > 0) push(idx - 1);
+        if (x + 1 < w) push(idx + 1);
+        if (y > 0) push(idx - w);
+        if (y + 1 < h) push(idx + w);
+      }
+      let x0 = w;
+      let y0 = h;
+      let x1 = 0;
+      let y1 = 0;
+      for (let i = 0; i < n; i++) {
+        const o = i * 4;
+        if (bg[i]) {
+          d[o + 3] = 0;
+          continue;
+        }
+        if (d[o + 3] > 24) {
+          const x = i % w;
+          const y = (i - x) / w;
+          if (x < x0) x0 = x;
+          if (y < y0) y0 = y;
+          if (x > x1) x1 = x;
+          if (y > y1) y1 = y;
+        }
+      }
+      sctx.putImageData(id, 0, 0);
+      const cw = Math.max(1, x1 - x0 + 1);
+      const ch = Math.max(1, y1 - y0 + 1);
+      const side = canvas.width;
+      const octx = canvas.getContext('2d')!;
+      octx.clearRect(0, 0, side, side);
+      const sc = (side - 2) / Math.max(cw, ch);
+      const dw = cw * sc;
+      const dh = ch * sc;
+      octx.drawImage(src, x0, y0, cw, ch, (side - dw) / 2, (side - dh) / 2, dw, dh);
+      canvas.classList.add('ready');
+    } catch {
+      /* keep SVG fallback */
+    }
+  };
+  img.src = url;
+}
+
 /**
  * The on-screen interface around the dive watch: carried materials, short
  * messages ("toasts"), the scanner log panel, the blackout screen, the
@@ -72,12 +159,24 @@ export class Hud {
   collectInfo: string | null = null;
 
   constructor(private readonly getSave: () => SaveData) {
+    const procedural = typeof location !== 'undefined' && new URLSearchParams(location.search).get('art') === 'procedural';
     for (const id of MATERIAL_ORDER) {
       const el = document.createElement('div');
       // Hull plating (made at the base) and the kelp forest materials: their chips hide until there is some.
       el.className = id === 'plate' || id === 'resin' || id === 'moss' || id === 'brass' || id === 'bloom' ? 'chip optional' : 'chip';
       el.title = MATERIALS[id].name;
       el.innerHTML = `${MATERIAL_ICONS[id]}<span></span><small></small>`;
+      const artUrl = !procedural
+        ? PICKUP_URLS[`../art/pickups/${id}.webp`] ?? PICKUP_URLS[`../art/pickups/${id}.jpg`] ?? PICKUP_URLS[`../art/pickups/${id}.png`]
+        : undefined;
+      if (artUrl) {
+        const iconCanvas = document.createElement('canvas');
+        iconCanvas.className = 'mat-art';
+        iconCanvas.width = 44;
+        iconCanvas.height = 44;
+        el.insertBefore(iconCanvas, el.firstChild);
+        paintHudIcon(artUrl, iconCanvas);
+      }
       this.chips.appendChild(el);
       this.chipEls.set(id, { el, count: el.querySelector('span')!, stored: el.querySelector('small')! });
     }
