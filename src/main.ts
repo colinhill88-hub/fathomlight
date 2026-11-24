@@ -5140,9 +5140,10 @@ async function boot(): Promise<void> {
           noFlareAt = time;
           hud.toast('No flare launcher yet: a Lab can work one out from scans of the kelp caves and their black water.', 'warn');
         }
-      } else if (save.bag.quartz < 1) hud.toast('Each flare takes 1 quartz, carried', 'warn');
+      } else if (save.bag.quartz + save.stored.quartz < 1) hud.toast('Each flare takes 1 quartz (none carried or in base storage)', 'warn');
       else {
-        save.bag.quartz--;
+        if (save.bag.quartz > 0) save.bag.quartz--;
+        else save.stored.quartz--;
         hud.refreshInventory();
         const lp = diver.lampPose();
         gearFx.fireFlare(lp.x, lp.y, diver.facing);
