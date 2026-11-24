@@ -19,6 +19,8 @@ interface Flare {
   y: number;
   vx: number;
   vy: number;
+  rot: number;
+  spin: number;
   life: number;
   landed: boolean;
   light: Light;
@@ -33,6 +35,7 @@ export class GearFx {
   readonly overlay = new Container();
   readonly lights: Light[] = [];
   private flares: Flare[] = [];
+  private flareSprites = new Map<Flare, Sprite>();
   private darts: { x0: number; y0: number; x1: number; y1: number; t: number }[] = [];
   private dartSprites = new Map<object, Sprite>();
   private sparks: { x: number; y: number; vx: number; vy: number; t: number }[] = [];
@@ -46,7 +49,7 @@ export class GearFx {
 
   fireFlare(x: number, y: number, face: number): void {
     const light: Light = { x, y, radius: 470, intensity: 0, color: [1, 0.42, 0.28], haze: 0.35 };
-    this.flares.push({ x, y, vx: face * 560, vy: -90, life: FLARE_SECONDS, landed: false, light });
+    this.flares.push({ x, y, vx: face * 560, vy: -90, rot: face > 0 ? -0.2 : Math.PI + 0.2, spin: face * (7 + Math.random() * 4), life: FLARE_SECONDS, landed: false, light });
     this.lights.push(light);
     // At most six burn at once: the oldest goes out.
     while (this.flares.length > 6) this.dropFlare(this.flares[0]);
@@ -56,6 +59,11 @@ export class GearFx {
     this.flares = this.flares.filter((q) => q !== f);
     const i = this.lights.indexOf(f.light);
     if (i >= 0) this.lights.splice(i, 1);
+    const sp = this.flareSprites.get(f);
+    if (sp) {
+      sp.destroy();
+      this.flareSprites.delete(f);
+    }
   }
 
   fireDart(x0: number, y0: number, x1: number, y1: number): void {
@@ -73,6 +81,7 @@ export class GearFx {
    */
   update(dt: number, time: number, marks: { x: number; y: number; teal?: boolean; young?: boolean }[], beam: { x0: number; y0: number; x1: number; y1: number } | null, zoom: number): void {
     const g = this.fx.clear();
+    const flareTex = getPropArt().kestrel.flare;
     for (const f of [...this.flares]) {
       f.life -= dt;
       if (f.life <= 0) {
@@ -83,11 +92,14 @@ export class GearFx {
         f.vx *= Math.exp(-1.6 * dt);
         f.vy += 260 * dt;
         f.vy *= Math.exp(-0.8 * dt);
+        f.rot += f.spin * dt;
+        f.spin *= Math.exp(-1.2 * dt);
         const nx = f.x + f.vx * dt;
         const ny = f.y + f.vy * dt;
         if (isSolid(nx, ny + 4)) {
           f.landed = true;
           f.vx = f.vy = 0;
+          f.rot = -0.18 + ((f.x % 7) - 3) * 0.08;
         } else {
           f.x = nx;
           f.y = ny;
@@ -95,14 +107,56 @@ export class GearFx {
       }
       const fade = Math.min(1, f.life / 6) * Math.min(1, (FLARE_SECONDS - f.life) / 0.3);
       const flick = 0.85 + 0.15 * Math.sin(time * 23 + f.x) + 0.08 * Math.sin(time * 41);
-      f.light.x = f.x;
-      f.light.y = f.y - 8;
+      const tipX = f.x + Math.cos(f.rot) * 9;
+      const tipY = f.y + Math.sin(f.rot) * 9;
+      f.light.x = tipX;
+      f.light.y = tipY - 6;
       f.light.intensity = 1.5 * fade * flick;
-      g.roundRect(f.x - 7, f.y - 2.5, 14, 5, 2).fill({ color: 0x8a2a20 });
-      g.circle(f.x + 6, f.y, 3.2 * flick).fill({ color: 0xfff0d0, alpha: fade });
-      g.circle(f.x + 6, f.y, 9 * flick).fill({ color: 0xff5a3a, alpha: 0.45 * fade });
-      // A thin trail of bubbles above a landed flare.
-      if (f.landed) for (let k = 0; k < 3; k++) g.circle(f.x + 6 + Math.sin(time * 3 + k) * 3, f.y - 10 - ((time * 30 + k * 14) % 42), 1.4).fill({ color: 0xffd0b0, alpha: 0.35 * fade });
+
+      // Painted vintage red-and-brass flare canister (or procedural fallback).
+      if (flareTex) {
+        let sp = this.flareSprites.get(f);
+        if (!sp) {
+          sp = new Sprite(flareTex);
+          sp.anchor.set(0.5, 0.5);
+          this.emissive.addChildAt(sp, 0);
+          this.flareSprites.set(f, sp);
+        }
+        sp.scale.set(22 / Math.max(1, flareTex.width));
+        sp.position.set(f.x, f.y);
+        sp.rotation = f.rot;
+        sp.alpha = Math.min(1, fade * 1.4);
+      } else {
+        g.roundRect(f.x - 7, f.y - 2.5, 14, 5, 2).fill({ color: 0x8a2a20 });
+      }
+
+      // Multi-layered burning magnesium flame + crisp star-glint rays at the nozzle tip.
+      g.circle(tipX, tipY, 13 * flick).fill({ color: 0xff4c2c, alpha: 0.28 * fade });
+      g.circle(tipX, tipY, 7.5 * flick).fill({ color: 0xff8244, alpha: 0.52 * fade });
+      g.circle(tipX, tipY, 3.6 * flick).fill({ color: 0xfff5d8, alpha: 0.96 * fade });
+      const ray = 7.5 * flick;
+      for (let i = 0; i < 4; i++) {
+        const a = f.rot + i * (Math.PI / 4) + Math.sin(time * 19 + i) * 0.15;
+        g.moveTo(tipX - Math.cos(a) * ray, tipY - Math.sin(a) * ray)
+          .lineTo(tipX + Math.cos(a) * ray, tipY + Math.sin(a) * ray)
+          .stroke({ color: 0xffe4a8, width: 1.1, alpha: 0.55 * fade, cap: 'round' });
+      }
+
+      // Crackling ember sparks + rising sizzle bubble column.
+      for (let k = 0; k < 4; k++) {
+        const u = ((time * 2.2 + k * 0.27 + f.x * 0.03) % 1);
+        const sa = -Math.PI / 2 + Math.sin(k * 2.3 + time * 5) * 0.9;
+        const sx = tipX + Math.cos(sa) * u * 16;
+        const sy = tipY + Math.sin(sa) * u * 18;
+        g.circle(sx, sy, 1.3 * (1 - u * 0.5)).fill({ color: k % 2 === 0 ? 0xffe898 : 0xff7640, alpha: (1 - u) * 0.85 * fade });
+      }
+      const nBub = f.landed ? 5 : 3;
+      for (let k = 0; k < nBub; k++) {
+        const u = ((time * 0.72 + k / nBub) % 1);
+        const bx = tipX + Math.sin(time * 3.4 + k * 1.9) * (3 + u * 5);
+        const by = tipY - 6 - u * (f.landed ? 54 : 26);
+        g.circle(bx, by, 1.2 + u * 1.1).stroke({ color: 0xffe0c4, width: 0.9, alpha: (1 - u) * 0.52 * fade });
+      }
     }
     const dartTex = getPropArt().kestrel.stun_dart;
     const activeDarts = new Set<object>();
