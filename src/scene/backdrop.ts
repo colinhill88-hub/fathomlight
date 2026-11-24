@@ -68,7 +68,7 @@ export class Backdrop {
         strip.addChild(g);
       }
       this.view.addChild(strip);
-      this.layers.push({ strip, parallax: 0.12 + t * 0.33, strength: 0.22 + t * 0.5 });
+      this.layers.push({ strip, parallax: 0.12 + t * 0.33, strength: 0.14 + t * 0.28 });
     }
   }
 

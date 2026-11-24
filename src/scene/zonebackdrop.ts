@@ -65,14 +65,14 @@ interface Landscape {
 }
 
 const landscapes: Landscape[] = [
-  { asset: 'basin', x: [-5700, 750], y: [190, 1680], center: [-2650, 985], width: 2460, depth: 0.29, opacity: 0.71 },
-  { asset: 'meadow', x: [2600, 8900], y: [-450, 1030], center: [5610, 408], width: 2620, depth: 0.32, opacity: 0.77 },
-  { asset: 'cliff', x: [5480, 10300], y: [-300, 1570], center: [8110, 660], width: 2280, depth: 0.48, opacity: 0.68 },
-  { asset: 'forest-east', x: [13210, 15260], y: [320, 1540], center: [14150, 1100], width: 1570, depth: 0.4, opacity: 0.7 },
-  { asset: 'shelf', x: [19150, 23730], y: [435, 1900], center: [21250, 1380], width: 1980, depth: 0.32, opacity: 0.64 },
-  { asset: 'shelf-east', x: [24700, 28170], y: [500, 2060], center: [26640, 1195], width: 1830, depth: 0.38, opacity: 0.59 },
-  { asset: 'trench', x: [26600, 30920], y: [1600, 5220], center: [29000, 3350], width: 2540, depth: 0.36, opacity: 0.67 },
-  { asset: 'abyss', x: [29100, 33280], y: [4350, 7990], center: [31020, 6000], width: 2610, depth: 0.33, opacity: 0.62 },
+  { asset: 'basin', x: [-5700, 1550], y: [-260, 1780], center: [-1550, 790], width: 3250, depth: 0.26, opacity: 0.84 },
+  { asset: 'meadow', x: [2400, 8900], y: [-450, 1080], center: [5610, 408], width: 2800, depth: 0.32, opacity: 0.82 },
+  { asset: 'cliff', x: [5480, 10300], y: [-300, 1570], center: [8110, 660], width: 2450, depth: 0.44, opacity: 0.76 },
+  { asset: 'forest-east', x: [13210, 15260], y: [320, 1540], center: [14150, 1100], width: 1750, depth: 0.4, opacity: 0.78 },
+  { asset: 'shelf', x: [19150, 23730], y: [435, 1900], center: [21250, 1380], width: 2150, depth: 0.32, opacity: 0.74 },
+  { asset: 'shelf-east', x: [24700, 28170], y: [500, 2060], center: [26640, 1195], width: 2000, depth: 0.38, opacity: 0.7 },
+  { asset: 'trench', x: [26600, 30920], y: [1600, 5220], center: [29000, 3350], width: 2680, depth: 0.36, opacity: 0.75 },
+  { asset: 'abyss', x: [29100, 33280], y: [4350, 7990], center: [31020, 6000], width: 2750, depth: 0.33, opacity: 0.72 },
 ];
 
 function toHex([r, g, b]: [number, number, number]): number {
@@ -212,14 +212,16 @@ export class ZoneBackdrop {
       this.zones.push(zone);
       return zone;
     };
-    // The basin: boulders now and then, an arch every so often.
-    mk(BASIN_WEST, BASIN_EAST, 0.34, (g) => {
-      for (let x = BASIN_WEST + 200; x < BASIN_EAST - 150; x += 260 + rand() * 520) {
-        const base = groundY(x) + 40;
-        if (rand() < 0.28) arch(g, lx(x), ly(base), 520 + rand() * 360, 380 + rand() * 260);
-        else boulder(g, lx(x), ly(base), 220 + rand() * 340, 120 + rand() * 200, rand);
-      }
-    });
+    // The basin: procedural boulders/arches only when the painted basin landscape is absent.
+    if (!this.art?.plates.basin) {
+      mk(BASIN_WEST, BASIN_EAST, 0.34, (g) => {
+        for (let x = BASIN_WEST + 200; x < BASIN_EAST - 150; x += 260 + rand() * 520) {
+          const base = groundY(x) + 40;
+          if (rand() < 0.28) arch(g, lx(x), ly(base), 520 + rand() * 360, 380 + rand() * 260);
+          else boulder(g, lx(x), ly(base), 220 + rand() * 340, 120 + rand() * 200, rand);
+        }
+      });
+    }
     // The kelp forest: ranks of distant kelp from the floor towards the surface.
     const forest = mk(FOREST.x0, FOREST.x1, 0.3, (g) => {
       for (let x = FOREST.x0 - 200; x < FOREST.x1 + 200; x += 70 + rand() * 90) {
@@ -238,8 +240,8 @@ export class ZoneBackdrop {
     if (this.shelfMidground) addPlate(shelf, this.shelfMidground, shelfPlacement);
   }
 
-  /** Camera centre in world units, zoom = CSS px per world unit. */
-  update(camCX: number, camCY: number, zoom: number, cssW: number, cssH: number): void {
+  /** Camera centre in world units, zoom = CSS px per world unit. Returns painted landscape coverage (0..1). */
+  update(camCX: number, camCY: number, zoom: number, cssW: number, cssH: number): number {
     const ox = camCX * PARALLAX;
     const oy = REF_DEPTH + (camCY - REF_DEPTH) * PARALLAX;
     const fog = waterColor(camCY + 80);
@@ -254,11 +256,13 @@ export class ZoneBackdrop {
         this.waterline.clear();
       }
     }
+    let paintedCover = 0;
     for (const { placement, sprite } of this.landscapes) {
       const { x, y, center, width, depth, opacity } = placement;
       const edgeX = Math.min(camCX - x[0], x[1] - camCX);
       const edgeY = Math.min(camCY - y[0], y[1] - camCY);
       const coverage = smooth(edgeX / 430) * smooth(edgeY / 260);
+      if (coverage > paintedCover) paintedCover = coverage;
       sprite.visible = coverage > 0;
       if (!sprite.visible) continue;
       sprite.position.set(cssW / 2 + (center[0] - camCX) * zoom * depth, cssH / 2 + (center[1] - camCY) * zoom * depth);
@@ -284,6 +288,7 @@ export class ZoneBackdrop {
         const edge = Math.min((camCX - placement.startX) / placement.fadeIn, (placement.endX - camCX) / placement.fadeOut);
         // Crossfade at both ends and when the view gets too wide for a single plate.
         const coverage = smooth(edge) * smooth((1810 - cssW / zoom) / 480);
+        if (coverage > paintedCover) paintedCover = coverage;
         sprite.visible = coverage > 0;
         sprite.alpha = coverage * 0.85;
         sprite.tint = toHex([
@@ -297,5 +302,6 @@ export class ZoneBackdrop {
         g.alpha = 0.62;
       }
     }
+    return paintedCover;
   }
 }

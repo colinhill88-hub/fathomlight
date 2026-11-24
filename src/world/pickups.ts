@@ -1,9 +1,10 @@
-import { Container, Graphics } from 'pixi.js';
+import { Container, Graphics, Sprite, type Texture } from 'pixi.js';
 import { mulberry32, WORLD_SEED } from '../rng';
 import { isSolid, CREVICE_X, caveBottom, groundY, WALL_NOOK, WORLD_H, SEAM, seam } from './terrain';
 import { WhorlArt } from './whorl';
 import { MATERIALS, MaterialId, ReefMaterial, regrowSeconds, SaveData, DroppedBag } from '../game/state';
 import type { PointLight } from './scenery';
+import { getPropArt, type PickupArtKey } from '../art/propArt';
 
 /**
  * Things the diver collects:
@@ -358,16 +359,53 @@ export class Pickups {
   private whorls = new Map<string, WhorlArt>();
 
   constructor() {
+    const propArt = getPropArt();
+    const paintedPickup = (kind: Spot['kind']): { tex: Texture; size: number; rot?: number } | null => {
+      if (kind in propArt.pickups) {
+        const tex = propArt.pickups[kind as PickupArtKey];
+        if (tex) {
+          const sizes: Record<PickupArtKey, number> = {
+            scrap: 32, copper: 28, quartz: 28, fibre: 30, resin: 26, moss: 28, brass: 26, bloom: 30, ore: 30,
+          };
+          return { tex, size: sizes[kind as PickupArtKey] };
+        }
+      }
+      if (kind === 'tank' && (propArt.kestrel.pack_single ?? propArt.kestrel.pack)) {
+        return { tex: (propArt.kestrel.pack_single ?? propArt.kestrel.pack)!, size: 36 };
+      }
+      if (kind === 'jar' && propArt.kestrel.jar) {
+        return { tex: propArt.kestrel.jar, size: 22, rot: 1.25 };
+      }
+      if (kind === 'thruster' && propArt.kestrel.thruster) {
+        return { tex: propArt.kestrel.thruster, size: 30 };
+      }
+      if (kind === 'thruster2' && (propArt.kestrel.thruster_mk2 ?? propArt.kestrel.thruster)) {
+        return { tex: (propArt.kestrel.thruster_mk2 ?? propArt.kestrel.thruster)!, size: 34 };
+      }
+      return null;
+    };
     for (const spot of SPOTS) {
       let view = new Graphics();
+      const painted = spot.kind === 'whorl' ? null : paintedPickup(spot.kind);
       if (spot.kind === 'whorl') {
         const art = new WhorlArt(1.1);
         view = art.shell;
         this.emissive.addChild(art.light);
         this.glow.addChild(art.halo);
         this.whorls.set(spot.id, art);
+        DRAW[spot.kind](view);
+      } else if (painted) {
+        view.ellipse(0, 4, painted.size * 0.42, 3).fill({ color: 0x071214, alpha: 0.34 });
+        const spr = new Sprite(painted.tex);
+        spr.anchor.set(0.5, 0.9);
+        const sc = painted.size / Math.max(1, Math.max(painted.tex.width, painted.tex.height));
+        spr.scale.set(sc);
+        spr.position.set(0, 4);
+        if (painted.rot) spr.rotation = painted.rot;
+        view.addChild(spr);
+      } else {
+        DRAW[spot.kind](view);
       }
-      DRAW[spot.kind](view);
       view.position.set(spot.x, spot.y);
       view.rotation = spot.kind === 'tank' ? R(-0.15, 0.15) : R(-0.25, 0.25);
       const glint = new Graphics();
@@ -391,7 +429,16 @@ export class Pickups {
         this.lights.push(l);
       }
     }
-    drawBag(this.bagView);
+    if (propArt.kestrel.satchel) {
+      this.bagView.ellipse(0, 6, 13, 3.2).fill({ color: 0x071214, alpha: 0.34 });
+      const spr = new Sprite(propArt.kestrel.satchel);
+      spr.anchor.set(0.5, 0.85);
+      spr.scale.set(26 / Math.max(1, propArt.kestrel.satchel.width));
+      spr.position.set(0, 6);
+      this.bagView.addChild(spr);
+    } else {
+      drawBag(this.bagView);
+    }
     this.bagLamp.circle(0, 0, 2.2).fill({ color: 0xffc070 });
     this.bagHalo.circle(0, 0, 18).fill({ color: 0xffa040 });
     this.view.addChild(this.bagView);

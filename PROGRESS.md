@@ -4,6 +4,15 @@ The live branch includes the Fulmar foothold, Codex Phases 1–11D the Phase 12 
 
 Play link: https://colinhill88-hub.github.io/fathomlight/ (live; first successful deploy 2026-11-14)
 
+### Pass 2 Painterly Art & Seamless Alignment Polish (Colin, Nov 24, 2026)
+
+Brought Kestrel's entire upgrade kit, the remaining base exterior modules, all 9 reef material pickups, all 5 seabed ambient animals, and the parallax ocean backdrop up to the same hand-painted watercolor-and-gouache look, with strict art-to-collision and light alignment:
+- **Complete Kestrel Upgrade Kit (`src/art/kestrel/` → `src/actors/diver.ts`, `src/actors/walker.ts`, `src/actors/kestrelArt.ts`):** installed and wired `jar`, `pack_single`, `pack_quad`, `thruster`, `thruster_mk2`, `harpoon`, `rivet`, `dart`, `flare`, `resonator`, `magboots`, `satchel`, and true side-profile `fin_walk`, plus aligned Kestrel's blink eyelid directly onto `head.jpg`'s painted eye.
+- **Remaining Base Exterior Modules & Lighting Alignment (`src/art/base/` → `src/world/basegfx.ts`, `src/interior/baselevel.ts`):** installed and wired `storage`, `junction`, `thermal`, `hatch`, `farm`, `revive`, and `signal`; replaced the dome's oval window glow with a flat-bottomed half-dome arch; split the turbine power spine clear of the blades; aligned all module lamps/porthole glows; and replaced interior storage shelf rectangles with 15 dynamic painted crates.
+- **Corvina & Fulmar 1:1 Collision Alignment (`src/world/terrain.ts`, `src/world/corvinaArt.ts`, `src/world/fulmarArt.ts`):** reshaped `corvinaHull()`, `corvinaHouse()`, and `cvDeckY()` to match `corvina.jpg` 1:1 (eliminating invisible sub collision over the stern/bow) and tightened `fulmar.jpg` registration.
+- **Reef Pickups & Seabed Life (`src/art/pickups/`, `src/art/bottom/` → `src/world/pickups.ts`, `src/actors/bottomLife.ts`):** installed and wired all 9 material pickups (`scrap`, `copper`, `quartz`, `fibre`, `resin`, `moss`, `brass`, `bloom`, `ore`) plus painted world kit finds and all 5 swaying seabed animals (`lily`, `sponge`, `worm`, `star`, `pen`).
+- **Ocean Parallax Backdrop Polish (`src/scene/zonebackdrop.ts`, `src/scene/backdrop.ts`, `src/main.ts`, `src/interior/housingSea.ts`):** disabled crude 9-sided procedural basin boulder blobs when `basin.webp` is loaded, widened the painted `basin` vista across the starting ledge, and smoothly faded the blocky sine-wave background ridges wherever any painted watercolor world landscape covers the view (both outside and through base observation windows).
+
 ### Gameplay Loop Polish: Tank Harmony, Field Contracts & Repeatable Wreck Salvage Runs (Colin, Nov 23, 2026)
 
 Connected the creature-care, exploration, Supply Buoy, and wreck-combat loops together with three save-safe systems:

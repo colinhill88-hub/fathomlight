@@ -22,15 +22,19 @@ export function drawSurveyWreck(g: Graphics, steel?: Texture): void {
     const maxX = Math.max(...xs);
     const maxY = Math.max(...ys);
     const spr = new Sprite(painted);
-    spr.anchor.set(0.5, 0.94);
-    const w = (maxX - minX) * 1.06;
+    spr.anchor.set(0.5, 1.0);
+    const w = maxX - minX + 20;
     spr.width = w;
     spr.height = w * (painted.height / Math.max(1, painted.width));
-    spr.position.set((minX + maxX) * 0.5, maxY + 12);
+    spr.position.set((minX + maxX) * 0.5, maxY + 4);
     g.addChild(spr);
     return;
   }
-  const [[a, ay], [b, by], [c, cy], [d, dy], [e, ey]] = hull;
+  const [a, ay] = hull[0];
+  const [b, by] = hull[2];
+  const [c, cy] = hull[3];
+  const [d, dy] = hull[4];
+  const [e, ey] = hull[5];
   const house = corvinaHouse();
   g.poly(hull.flat()).fill(flank);
   if (steel) g.poly(hull.flat()).fill(materialFill(steel, 0x718481, 0.27, 1030, 510));

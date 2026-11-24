@@ -322,16 +322,19 @@ const cvF = (x: number) => groundY(x) + 30;
 let hullCache: [number, number][] | null = null;
 export function corvinaHull(): [number, number][] {
   const { x0, x1 } = CORVINA;
+  // Matches corvina.jpg 1:1: stern deck on the left (~265px), midship break (~225px), bow rising on the right (~280px).
   return (hullCache ??= [
-    [x0, cvF(x0) - 300],
-    [x1 - 160, cvF(x1 - 160) - 340],
-    [x1, cvF(x1) - 470],
-    [x1 - 60, cvF(x1 - 60)],
-    [x0 + 40, cvF(x0 + 40)],
+    [x0 + 10, cvF(x0) - 265],
+    [x0 + 390, cvF(x0 + 390) - 235],
+    [x1 - 240, cvF(x1 - 240) - 245],
+    [x1 - 10, cvF(x1) - 280],
+    [x1 - 100, cvF(x1 - 100)],
+    [x0 + 90, cvF(x0 + 90)],
   ]);
 }
 export function corvinaHouse(): { x: number; y: number; w: number; h: number } {
-  return { x: CORVINA.x0 + 160, y: cvF(CORVINA.x0) - 470, w: 380, h: 172 };
+  // Matches corvina.jpg's bridge/wheelhouse on the starboard/right-of-center deck.
+  return { x: CORVINA.x0 + 690, y: cvF(CORVINA.x0 + 820) - 372, w: 270, h: 135 };
 }
 export const CV_BOLLARD = { x: 25566, y: 0 };
 export const CV_HATCH = { x: 25612, y: 0 };
@@ -375,10 +378,16 @@ export function cvUpwell(x: number, y: number): number {
 /** The top of her hull (or the superstructure) at x. */
 export function cvDeckY(x: number): number {
   const h = corvinaHull();
-  const [ax, ay] = h[0];
-  const [bx, by] = h[1];
-  const [cx, cy] = h[2];
-  let y = x <= bx ? ay + ((by - ay) * (x - ax)) / (bx - ax) : by + ((cy - by) * (x - bx)) / (cx - bx);
+  // Deck runs along the first 4 vertices (h[0] -> h[1] -> h[2] -> h[3]).
+  let y = h[3][1];
+  for (let i = 0; i < 3; i++) {
+    const [ax, ay] = h[i];
+    const [bx, by] = h[i + 1];
+    if (x <= bx || i === 2) {
+      y = ay + ((by - ay) * (x - ax)) / Math.max(1, bx - ax);
+      break;
+    }
+  }
   const H = corvinaHouse();
   if (x > H.x && x < H.x + H.w) y = Math.min(y, H.y);
   return y;

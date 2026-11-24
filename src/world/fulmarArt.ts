@@ -16,11 +16,11 @@ export function drawListeningStation(g: Graphics, pts: number[], floor: number, 
   const painted = getPropArt().wrecks.fulmar;
   if (painted) {
     const spr = new Sprite(painted);
-    spr.anchor.set(0.5, 0.96);
-    const w = (x1 - x0) * 1.12;
+    spr.anchor.set(0.5, 0.98);
+    const w = (x1 - x0) * 1.02;
     spr.width = w;
     spr.height = w * (painted.height / Math.max(1, painted.width));
-    spr.position.set((x0 + x1) * 0.5 + 32, floor + 14);
+    spr.position.set((x0 + x1) * 0.5, floor + 6);
     g.addChild(spr);
     return;
   }

@@ -4214,12 +4214,11 @@ async function boot(): Promise<void> {
     });
     water.update(time, camX, camY, viewW, viewH, app.canvas.width, app.canvas.height);
     backdrop.update(camCX, camCY, zoom, cssW, cssH);
-    if (shallowsBackdrop) {
-      backdrop.view.alpha = 1 - shallowsBackdrop.update(camCX, camCY, zoom, cssW, cssH);
-    }
+    const shallowsCover = shallowsBackdrop ? shallowsBackdrop.update(camCX, camCY, zoom, cssW, cssH) : 0;
     zoneBackdrop.view.visible = fx.zones;
     zoneBackdrop.view.alpha = preset.zoneAlpha;
-    if (fx.zones) zoneBackdrop.update(camCX, camCY, zoom, cssW, cssH);
+    const zoneCover = fx.zones ? zoneBackdrop.update(camCX, camCY, zoom, cssW, cssH) : 0;
+    backdrop.view.alpha = Math.max(0, 1 - Math.max(shallowsCover, zoneCover) * 0.92);
     water.setShimmer(fx.shimmer ? preset.shimmer : 0);
     // Near foreground kelp goes soft (Ultra); nothing to blur once it has faded away.
     dofBlur.strength = preset.dof * zoom;

@@ -16,9 +16,15 @@ export type BaseArtKey =
   | 'corridor' | 'junction' | 'storage' | 'thermal' | 'hatch' | 'farm' | 'revive' | 'signal'
   | 'filter' | 'feeder' | 'press';
 export type FoeArtKey = 'tick' | 'drone' | 'keeper';
-export type KestrelArtKey = 'head' | 'torso' | 'pack' | 'upper_arm' | 'forearm' | 'thigh' | 'shin' | 'fin';
+export type KestrelArtKey =
+  | 'head' | 'torso' | 'pack' | 'pack_single' | 'pack_quad'
+  | 'upper_arm' | 'forearm' | 'thigh' | 'shin' | 'fin' | 'fin_walk'
+  | 'jar' | 'thruster' | 'thruster_mk2' | 'harpoon'
+  | 'rivet' | 'dart' | 'flare' | 'resonator' | 'magboots' | 'satchel';
 export type WreckArtKey = 'fulmar' | 'corvina';
 export type InteriorArtKey = 'console_habitat' | 'tray_collection' | 'crate';
+export type PickupArtKey = 'scrap' | 'copper' | 'quartz' | 'fibre' | 'resin' | 'moss' | 'brass' | 'bloom' | 'ore';
+export type BottomArtKey = 'lily' | 'sponge' | 'worm' | 'star' | 'pen';
 
 export interface PropArt {
   kestrel: Partial<Record<KestrelArtKey, Texture>>;
@@ -28,6 +34,8 @@ export interface PropArt {
   interior: Partial<Record<InteriorArtKey, Texture>>;
   decor: Partial<Record<DecorId, Texture>>;
   foes: Partial<Record<FoeArtKey, Texture>>;
+  pickups: Partial<Record<PickupArtKey, Texture>>;
+  bottom: Partial<Record<BottomArtKey, Texture>>;
 }
 
 const kestrelFiles = import.meta.glob<string>('./kestrel/*.{webp,jpg,png}', { eager: true, import: 'default', query: '?url&no-inline' });
@@ -37,8 +45,10 @@ const wreckFiles = import.meta.glob<string>('./wrecks/*.{webp,jpg,png}', { eager
 const interiorFiles = import.meta.glob<string>('./interior/*.{webp,jpg,png}', { eager: true, import: 'default', query: '?url&no-inline' });
 const decorFiles = import.meta.glob<string>('./decor/*.{webp,jpg,png}', { eager: true, import: 'default', query: '?url&no-inline' });
 const foeFiles = import.meta.glob<string>('./foes/*.{webp,jpg,png}', { eager: true, import: 'default', query: '?url&no-inline' });
+const pickupFiles = import.meta.glob<string>('./pickups/*.{webp,jpg,png}', { eager: true, import: 'default', query: '?url&no-inline' });
+const bottomFiles = import.meta.glob<string>('./bottom/*.{webp,jpg,png}', { eager: true, import: 'default', query: '?url&no-inline' });
 
-let activePropArt: PropArt = { kestrel: {}, vehicles: {}, base: {}, wrecks: {}, interior: {}, decor: {}, foes: {} };
+let activePropArt: PropArt = { kestrel: {}, vehicles: {}, base: {}, wrecks: {}, interior: {}, decor: {}, foes: {}, pickups: {}, bottom: {} };
 
 /** Current loaded painted prop textures (empty when `?art=procedural` is active). */
 export function getPropArt(): PropArt {
@@ -73,7 +83,12 @@ async function loadGroup<K extends string>(
   return out;
 }
 
-const KESTREL_KEYS: readonly KestrelArtKey[] = ['head', 'torso', 'pack', 'upper_arm', 'forearm', 'thigh', 'shin', 'fin'];
+const KESTREL_KEYS: readonly KestrelArtKey[] = [
+  'head', 'torso', 'pack', 'pack_single', 'pack_quad',
+  'upper_arm', 'forearm', 'thigh', 'shin', 'fin', 'fin_walk',
+  'jar', 'thruster', 'thruster_mk2', 'harpoon',
+  'rivet', 'dart', 'flare', 'resonator', 'magboots', 'satchel',
+];
 const VEHICLE_KEYS: readonly VehicleArtKey[] = ['sub', 'drone', 'buoy'];
 const BASE_KEYS: readonly BaseArtKey[] = [
   'dome', 'dock', 'lab', 'workshop', 'nursery', 'turbine', 'portal',
@@ -87,9 +102,11 @@ const DECOR_KEYS: readonly DecorId[] = [
   'cairn', 'floats', 'anchor', 'bell', 'coralarch', 'astrolabe', 'belljar', 'kelplantern',
 ];
 const FOE_KEYS: readonly FoeArtKey[] = ['tick', 'drone', 'keeper'];
+const PICKUP_KEYS: readonly PickupArtKey[] = ['scrap', 'copper', 'quartz', 'fibre', 'resin', 'moss', 'brass', 'bloom', 'ore'];
+const BOTTOM_KEYS: readonly BottomArtKey[] = ['lily', 'sponge', 'worm', 'star', 'pen'];
 
 export async function loadPropArt(mipmaps = false): Promise<PropArt> {
-  const [kestrel, vehicles, base, wrecks, interior, decor, foes] = await Promise.all([
+  const [kestrel, vehicles, base, wrecks, interior, decor, foes, pickups, bottom] = await Promise.all([
     loadGroup(kestrelFiles, 'kestrel', KESTREL_KEYS, 320, mipmaps),
     loadGroup(vehicleFiles, 'vehicles', VEHICLE_KEYS, 384, mipmaps),
     loadGroup(baseFiles, 'base', BASE_KEYS, 512, mipmaps),
@@ -97,7 +114,9 @@ export async function loadPropArt(mipmaps = false): Promise<PropArt> {
     loadGroup(interiorFiles, 'interior', INTERIOR_KEYS, 384, mipmaps),
     loadGroup(decorFiles, 'decor', DECOR_KEYS, 220, mipmaps),
     loadGroup(foeFiles, 'foes', FOE_KEYS, 320, mipmaps),
+    loadGroup(pickupFiles, 'pickups', PICKUP_KEYS, 180, mipmaps),
+    loadGroup(bottomFiles, 'bottom', BOTTOM_KEYS, 200, mipmaps),
   ]);
-  activePropArt = { kestrel, vehicles, base, wrecks, interior, decor, foes };
+  activePropArt = { kestrel, vehicles, base, wrecks, interior, decor, foes, pickups, bottom };
   return activePropArt;
 }

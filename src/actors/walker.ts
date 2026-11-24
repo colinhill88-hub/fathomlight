@@ -299,7 +299,9 @@ function buildTorso(texture?: Texture) {
  * furthest out. Origin where the pack meets the back.
  */
 function drawPack(g: Graphics, kit: KitLook, hoop: Graphics): void {
-  const paintedPack = getPropArt().kestrel.pack;
+  const kArt = getPropArt().kestrel;
+  const n = Math.min(4, kit.tanks);
+  const paintedPack = n <= 1 ? (kArt.pack_single ?? kArt.pack) : n >= 3 ? (kArt.pack_quad ?? kArt.pack) : kArt.pack;
   if (paintedPack) {
     let spr = g.children.find((c): c is Sprite => c instanceof Sprite && c.label === 'painted-pack');
     if (!spr) {
@@ -308,17 +310,19 @@ function drawPack(g: Graphics, kit: KitLook, hoop: Graphics): void {
       spr.anchor.set(0.5, 0.5);
       spr.rotation = -Math.PI / 2;
       g.addChild(spr);
+    } else {
+      spr.texture = paintedPack;
     }
     spr.visible = true;
-    const sc = 40 / Math.max(1, paintedPack.width);
+    const targetH = n <= 1 ? 32 : n >= 3 ? 44 : 38;
+    const sc = targetH / Math.max(1, paintedPack.width);
     spr.scale.set(sc);
-    spr.position.set(-10, -2);
+    spr.position.set(n >= 3 ? -12 : -9.5, -2);
     if (kit.resonator) drawResonatorHoop(hoop, -11, -30, 6.5, 1);
     return;
   }
   const existing = g.children.find((c) => c.label === 'painted-pack');
   if (existing) existing.visible = false;
-  const n = Math.min(4, kit.tanks);
   const tank = (tx: number, y0: number, y1: number, shade: number) => {
     const h = y1 - y0;
     g.roundRect(tx, y0, 9.5, h, 4.75).fill({ color: shade });
@@ -352,6 +356,22 @@ function drawPack(g: Graphics, kit: KitLook, hoop: Graphics): void {
 
 /** The grapple harpoon clipped behind the tanks (only once the grapple line is built). */
 function drawPackSpear(g: Graphics, kit: KitLook): void {
+  const paintedHarpoon = getPropArt().kestrel.harpoon;
+  let spr = g.children.find((c): c is Sprite => c instanceof Sprite && c.label === 'painted-harpoon');
+  if (paintedHarpoon) {
+    if (!spr) {
+      spr = new Sprite(paintedHarpoon);
+      spr.label = 'painted-harpoon';
+      spr.anchor.set(0.5, 0.5);
+      spr.rotation = -Math.PI / 2 + 0.08;
+      g.addChild(spr);
+    }
+    spr.visible = true;
+    spr.scale.set(58 / Math.max(1, paintedHarpoon.width));
+    spr.position.set(kit.tanks >= 3 ? -17 : -13, -8);
+    return;
+  }
+  if (spr) spr.visible = false;
   const sx = kit.tanks >= 3 ? -5.5 : 0;
   g.moveTo(-15 + sx, 26).lineTo(-9 + sx, -42).stroke({ color: C.chromeDark, width: 1.5 });
   g.poly([-9 + sx, -42, -11 + sx, -36.5, -7.4 + sx, -36.8]).fill({ color: C.chromeHi });
@@ -362,7 +382,26 @@ function drawPackSpear(g: Graphics, kit: KitLook): void {
 
 /** The hip thruster on foot (as the diver's): none, TH-1, or the twin-nozzle TH-2. Torso space. */
 function drawWalkerThruster(g: Graphics, level: number): void {
-  if (getPropArt().kestrel.pack) {
+  const kArt = getPropArt().kestrel;
+  const paintedThruster = level >= 2 ? (kArt.thruster_mk2 ?? kArt.thruster) : level === 1 ? kArt.thruster : undefined;
+  let spr = g.children.find((c): c is Sprite => c instanceof Sprite && c.label === 'painted-thruster');
+  if (paintedThruster) {
+    if (!spr) {
+      spr = new Sprite(paintedThruster);
+      spr.label = 'painted-thruster';
+      spr.anchor.set(0.5, 0.5);
+      g.addChild(spr);
+    } else {
+      spr.texture = paintedThruster;
+    }
+    spr.visible = true;
+    const targetW = level >= 2 ? 22 : 18;
+    spr.scale.set(targetW / Math.max(1, paintedThruster.width));
+    spr.position.set(-15, -4);
+    return;
+  }
+  if (spr) spr.visible = false;
+  if (kArt.pack) {
     if (level === 1) {
       g.roundRect(-20, -7.5, 12.5, 8.5, 3).fill({ color: 0x3b4442 }).stroke({ color: 0x161d1c, width: 0.9 });
       g.roundRect(-19, -6.8, 10.5, 2, 1).fill({ color: 0x8e9a90, alpha: 0.4 });
@@ -749,46 +788,82 @@ export class Walker {
 
   /** Phase 17: draw the suit attachments once (shown by `applyKit` when the kit has them). */
   private buildAttachments(hel: Container): void {
-    // Mag-boots: a chrome-dark shell over each boot, a magnet plate under the sole with a lime strip, a cuff at the ankle.
+    const kArt = getPropArt().kestrel;
+    // Mag-boots: painted clamping boot on each foot (or procedural chrome shell fallback).
     for (const leg of [this.nearLeg, this.farLeg]) {
       const g = new Graphics();
-      g.roundRect(-6.6, -7.6, 16.8, 9.4, 3.2).fill({ color: C.chromeDark });
-      g.roundRect(-5.6, -7, 14.5, 2.2, 1.1).fill({ color: C.chromeHi, alpha: 0.55 });
-      g.circle(-3.2, -2.6, 0.9).fill({ color: C.steelLight });
-      g.circle(6.4, -2.4, 0.9).fill({ color: C.steelLight });
-      g.roundRect(-7, 1.6, 17.6, 3.6, 1.2).fill({ color: C.steelDark });
-      g.rect(-5.2, 2.9, 13.6, 1.1).fill({ color: C.visor, alpha: 0.95 });
+      if (kArt.magboots) {
+        const spr = new Sprite(kArt.magboots);
+        spr.anchor.set(0.28, 0.92);
+        spr.scale.set(20 / Math.max(1, kArt.magboots.width));
+        spr.position.set(0, ANKLE_H);
+        g.addChild(spr);
+      } else {
+        g.roundRect(-6.6, -7.6, 16.8, 9.4, 3.2).fill({ color: C.chromeDark });
+        g.roundRect(-5.6, -7, 14.5, 2.2, 1.1).fill({ color: C.chromeHi, alpha: 0.55 });
+        g.circle(-3.2, -2.6, 0.9).fill({ color: C.steelLight });
+        g.circle(6.4, -2.4, 0.9).fill({ color: C.steelLight });
+        g.roundRect(-7, 1.6, 17.6, 3.6, 1.2).fill({ color: C.steelDark });
+        g.rect(-5.2, 2.9, 13.6, 1.1).fill({ color: C.visor, alpha: 0.95 });
+      }
       if (leg === this.farLeg) g.tint = FAR_TINT;
       g.visible = false;
       leg.foot.addChildAt(g, 1);
-      const cuff = new Graphics();
-      cuff.roundRect(SHIN - 9.5, -6.6, 7.5, 13.2, 2.2).fill({ color: C.chromeDark });
-      cuff.rect(SHIN - 9.5, -6.6, 1.4, 13.2).fill({ color: C.chromeHi, alpha: 0.55 });
-      if (leg === this.farLeg) cuff.tint = FAR_TINT;
-      cuff.visible = false;
-      leg.shin.addChild(cuff);
-      this.bootGs.push(g, cuff);
+      this.bootGs.push(g);
+      if (!kArt.magboots) {
+        const cuff = new Graphics();
+        cuff.roundRect(SHIN - 9.5, -6.6, 7.5, 13.2, 2.2).fill({ color: C.chromeDark });
+        cuff.rect(SHIN - 9.5, -6.6, 1.4, 13.2).fill({ color: C.chromeHi, alpha: 0.55 });
+        if (leg === this.farLeg) cuff.tint = FAR_TINT;
+        cuff.visible = false;
+        leg.shin.addChild(cuff);
+        this.bootGs.push(cuff);
+      }
     }
     // The flare tube on the near forearm, its red cap at the wrist.
     const f = this.flareG;
-    f.roundRect(0.2, -8, 9, 4, 1.8).fill({ color: C.chromeDark });
-    f.roundRect(0.2, -8, 9, 1.2, 0.6).fill({ color: C.chromeHi, alpha: 0.6 });
-    f.rect(8.6, -7.7, 2.2, 3.4).fill({ color: 0xc8402e });
+    if (kArt.flare) {
+      const spr = new Sprite(kArt.flare);
+      spr.anchor.set(0.38, 0.65);
+      spr.scale.set(14 / Math.max(1, kArt.flare.width));
+      spr.position.set(5, -5);
+      f.addChild(spr);
+    } else {
+      f.roundRect(0.2, -8, 9, 4, 1.8).fill({ color: C.chromeDark });
+      f.roundRect(0.2, -8, 9, 1.2, 0.6).fill({ color: C.chromeHi, alpha: 0.6 });
+      f.rect(8.6, -7.7, 2.2, 3.4).fill({ color: 0xc8402e });
+    }
     f.visible = false;
     this.nearArm.fore.addChild(f);
     // The stun-dart launcher on the far forearm: a brass-banded barrel and a red-tipped dart.
     const d = this.dartG;
-    d.roundRect(0, 3.6, 9.5, 3.6, 1.6).fill({ color: C.steelDark });
-    d.rect(2.6, 3.6, 1.4, 3.6).fill({ color: BRASS });
-    d.poly([9.5, 4.4, 12.6, 5.4, 9.5, 6.4]).fill({ color: 0xc8402e });
+    if (kArt.dart) {
+      const spr = new Sprite(kArt.dart);
+      spr.anchor.set(0.35, 0.4);
+      spr.scale.set(16 / Math.max(1, kArt.dart.width));
+      spr.position.set(5, 4.5);
+      d.addChild(spr);
+    } else {
+      d.roundRect(0, 3.6, 9.5, 3.6, 1.6).fill({ color: C.steelDark });
+      d.rect(2.6, 3.6, 1.4, 3.6).fill({ color: BRASS });
+      d.poly([9.5, 4.4, 12.6, 5.4, 9.5, 6.4]).fill({ color: 0xc8402e });
+    }
     d.tint = FAR_TINT;
     d.visible = false;
     this.farArm.fore.addChild(d);
-    // The specimen satchel: a padded pouch at the front of the belt with a lime-lit lid.
+    // The specimen satchel: a padded pouch at the front of the belt.
     const sc = this.satchelG;
-    sc.roundRect(6.5, -4.5, 7.5, 10, 2.4).fill({ color: 0x4a545a });
-    sc.roundRect(6.5, -4.5, 7.5, 3.2, 1.4).fill({ color: C.chromeDark });
-    sc.rect(8.9, -0.6, 2.8, 3.6).fill({ color: C.visor, alpha: 0.8 });
+    if (kArt.satchel) {
+      const spr = new Sprite(kArt.satchel);
+      spr.anchor.set(0.5, 0.25);
+      spr.scale.set(12 / Math.max(1, kArt.satchel.width));
+      spr.position.set(9, -3);
+      sc.addChild(spr);
+    } else {
+      sc.roundRect(6.5, -4.5, 7.5, 10, 2.4).fill({ color: 0x4a545a });
+      sc.roundRect(6.5, -4.5, 7.5, 3.2, 1.4).fill({ color: C.chromeDark });
+      sc.rect(8.9, -0.6, 2.8, 3.6).fill({ color: C.visor, alpha: 0.8 });
+    }
     sc.visible = false;
     // TH-3: a third, upturned nozzle on the hip thruster.
     const x = this.dashG;
@@ -854,11 +929,17 @@ export class Walker {
         .stroke({ color: 0xc28b52, width: 3.2, cap: 'round' });
     }
     this.packSpear.clear();
+    this.packSpear.visible = k.spear;
     if (k.spear) drawPackSpear(this.packSpear, k);
     drawWalkerThruster(this.thrusterG.clear(), k.thruster);
     this.nozzleDot.visible = k.thruster > 0;
     this.bracer.visible = this.resonDot.visible = !!k.resonator;
     for (const b of this.bootGs) b.visible = !!k.boots;
+    if (getPropArt().kestrel.magboots) {
+      for (const leg of [this.nearLeg, this.farLeg]) {
+        if (leg.foot.children[0]) leg.foot.children[0].visible = !k.boots;
+      }
+    }
     this.flareG.visible = !!k.flare;
     this.dartG.visible = !!k.dart;
     this.rivetG.visible = this.guardG.visible = !!k.rivet;

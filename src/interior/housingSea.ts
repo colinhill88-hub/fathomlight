@@ -38,7 +38,8 @@ export class HousingSea {
     this.distance.scale.x = width / span;
     this.water.update(time, x, y, w, h, width, height);
     this.ridges.update(cx, cy, zoom, span, height);
-    this.plates.update(cx, cy, zoom, span, height);
+    const cover = this.plates.update(cx, cy, zoom, span, height);
+    this.ridges.view.alpha = Math.max(0, 1 - cover * 0.92);
     this.drawBank(bounds, zoom);
     this.drawDrift(bounds, zoom, time);
 

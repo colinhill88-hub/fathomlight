@@ -80,6 +80,22 @@ export function choirColour(t: number): number {
  * spokes, with two thin swept fins behind it like the Choir's ribbons.
  */
 export function drawResonatorHoop(g: Graphics, cx: number, cy: number, r: number, finDir: number): void {
+  const paintedRes = getPropArt().kestrel.resonator;
+  let spr = g.children.find((c): c is Sprite => c instanceof Sprite && c.label === 'painted-resonator');
+  if (paintedRes) {
+    if (!spr) {
+      spr = new Sprite(paintedRes);
+      spr.label = 'painted-resonator';
+      spr.anchor.set(0.62, 0.46);
+      g.addChild(spr);
+    }
+    spr.visible = true;
+    const sc = (r * 2.9) / Math.max(1, paintedRes.height);
+    spr.scale.set(sc * (finDir < 0 ? -1 : 1), sc);
+    spr.position.set(cx, cy);
+    return;
+  }
+  if (spr) spr.visible = false;
   // The fins: thin brass blades sweeping back, edged pale.
   for (const s of [-1, 1]) {
     g.moveTo(cx - finDir * r * 0.3, cy + s * r * 0.5)
@@ -130,6 +146,15 @@ export const BRASS_DARK = 0x7a5e1e;
  * `k` scales it (the swimmer's forearm is a touch longer).
  */
 export function drawRivetDriver(g: Graphics, k = 1): Graphics {
+  const paintedRivet = getPropArt().kestrel.rivet;
+  if (paintedRivet) {
+    const spr = new Sprite(paintedRivet);
+    spr.anchor.set(0.36, 0.68);
+    spr.scale.set((34 * k) / Math.max(1, paintedRivet.width));
+    spr.position.set(7 * k, -3 * k);
+    g.addChild(spr);
+    return g;
+  }
   const s = (n: number) => n * k;
   g.roundRect(s(-1), s(-11.5), s(19), s(8.5), s(2.6)).fill({ color: 0x2a2f32 });
   g.roundRect(s(-1), s(-11.5), s(19), s(2.2), s(1.1)).fill({ color: 0x8e979c, alpha: 0.7 });
@@ -172,24 +197,48 @@ export function drawGuardPlate(g: Graphics, k = 1): Graphics {
  * C (short with three tanks, full with four). With none yet, a pony bottle.
  */
 function drawDiverBack(g: Graphics, kit: KitLook, compact: boolean): void {
-  const paintedPack = getPropArt().kestrel.pack;
+  const kArt = getPropArt().kestrel;
+  const n = Math.min(4, kit.tanks);
+  const paintedPack = n <= 1 ? (kArt.pack_single ?? kArt.pack) : n >= 3 ? (kArt.pack_quad ?? kArt.pack) : kArt.pack;
   if (paintedPack) {
     let spr = g.children.find((c): c is Sprite => c instanceof Sprite && c.label === 'painted-pack');
     if (!spr) {
       spr = new Sprite(paintedPack);
       spr.label = 'painted-pack';
-      spr.anchor.set(0.5, 0.55);
+      spr.anchor.set(0.5, 0.58);
       g.addChild(spr);
+    } else {
+      spr.texture = paintedPack;
     }
     spr.visible = true;
-    const sc = (compact ? 48 : 54) / Math.max(1, paintedPack.width);
+    const targetW = n <= 1 ? (compact ? 40 : 44) : n >= 3 ? (compact ? 54 : 60) : (compact ? 48 : 54);
+    const sc = targetW / Math.max(1, paintedPack.width);
     spr.scale.set(sc);
-    spr.position.set(compact ? -2 : 0, compact ? -24 : -28);
+    spr.position.set(compact ? -2 : 0, compact ? (n >= 3 ? -26 : -23) : (n >= 3 ? -30 : -26));
+
+    // Painted grapple harpoon clipped neatly along the top of the pack when owned.
+    let hSpr = g.children.find((c): c is Sprite => c instanceof Sprite && c.label === 'painted-harpoon');
+    if (kit.spear && kArt.harpoon) {
+      if (!hSpr) {
+        hSpr = new Sprite(kArt.harpoon);
+        hSpr.label = 'painted-harpoon';
+        hSpr.anchor.set(0.5, 0.5);
+        g.addChild(hSpr);
+      }
+      hSpr.visible = true;
+      const hsc = (compact ? 56 : 64) / Math.max(1, kArt.harpoon.width);
+      hSpr.scale.set(hsc);
+      hSpr.position.set(2, spr.y - spr.height * 0.44 - 4);
+    } else if (hSpr) {
+      hSpr.visible = false;
+    }
+    if (kit.resonator) drawResonatorHoop(g, RESON_BACK.x, spr.y - spr.height * 0.5 - 8, 8, 1);
     return;
   }
-  const existing = g.children.find((c) => c.label === 'painted-pack');
-  if (existing) existing.visible = false;
-  const n = Math.min(4, kit.tanks);
+  for (const label of ['painted-pack', 'painted-harpoon']) {
+    const existing = g.children.find((c) => c.label === label);
+    if (existing) existing.visible = false;
+  }
   const tank = (x0: number, x1: number, y: number, shade: number) => {
     const w = x1 - x0;
     g.roundRect(x0, y, w, 12, 6).fill({ color: shade });
@@ -668,6 +717,17 @@ export class BeltJar {
   private content = new Graphics();
   private key = '';
   constructor() {
+    const paintedJar = getPropArt().kestrel.jar;
+    if (paintedJar) {
+      const spr = new Sprite(paintedJar);
+      spr.anchor.set(0.5, 0.14);
+      const sc = 19 / Math.max(1, paintedJar.height);
+      spr.scale.set(sc);
+      spr.position.set(0, -1.5);
+      this.view.addChild(spr, this.content);
+      this.view.visible = false;
+      return;
+    }
     const g = new Graphics();
     // Weathered leather/terracotta belt strap and dark brass clip.
     g.rect(-1.2, -5, 2.4, 5.5).fill({ color: 0x6e3a28 });
@@ -1232,30 +1292,55 @@ export class Diver {
       this.ps2Bits.push(pl);
     }
     // After milestone 12: mag-boot soles on both shins, and the flare tube on the near forearm.
+    const kArtInit = getPropArt().kestrel;
     for (const leg of [this.nearLeg, this.farLeg]) {
       const b = new Graphics();
-      b.roundRect(14.5, -7, 8, 14, 2.5).fill({ color: C.chromeDark });
-      b.roundRect(14.5, -7, 8, 3, 1.5).fill({ color: C.chromeHi, alpha: 0.7 });
-      b.circle(18.5, 3, 1.8).fill({ color: C.visor, alpha: 0.95 });
+      if (kArtInit.magboots) {
+        const spr = new Sprite(kArtInit.magboots);
+        spr.anchor.set(0.28, 0.6);
+        spr.scale.set(17 / Math.max(1, kArtInit.magboots.width));
+        spr.position.set(17, 0);
+        b.addChild(spr);
+      } else {
+        b.roundRect(14.5, -7, 8, 14, 2.5).fill({ color: C.chromeDark });
+        b.roundRect(14.5, -7, 8, 3, 1.5).fill({ color: C.chromeHi, alpha: 0.7 });
+        b.circle(18.5, 3, 1.8).fill({ color: C.visor, alpha: 0.95 });
+      }
       b.visible = false;
       leg.shin.addChild(b);
       this.bootBits.push(b);
     }
     {
       const f = this.flareTube;
-      f.roundRect(1, -9, 10, 4.5, 2).fill({ color: C.chromeDark });
-      f.roundRect(1, -9, 10, 1.4, 0.7).fill({ color: C.chromeHi, alpha: 0.6 });
-      f.rect(10, -8.6, 2.4, 3.8).fill({ color: 0xc8402e });
+      if (kArtInit.flare) {
+        const spr = new Sprite(kArtInit.flare);
+        spr.anchor.set(0.38, 0.65);
+        spr.scale.set(15 / Math.max(1, kArtInit.flare.width));
+        spr.position.set(6, -5.5);
+        f.addChild(spr);
+      } else {
+        f.roundRect(1, -9, 10, 4.5, 2).fill({ color: C.chromeDark });
+        f.roundRect(1, -9, 10, 1.4, 0.7).fill({ color: C.chromeHi, alpha: 0.6 });
+        f.rect(10, -8.6, 2.4, 3.8).fill({ color: 0xc8402e });
+      }
       f.visible = false;
       this.nearArm.fore.addChild(f);
     }
     {
       // Phase 17: the stun-dart launcher, a short brass-banded barrel on the far forearm with a red-tipped dart.
       const d = this.dartPod;
-      d.roundRect(0, 3.5, 11, 4.2, 1.8).fill({ color: C.steelDark });
-      d.rect(3, 3.5, 1.6, 4.2).fill({ color: BRASS });
-      d.roundRect(0, 3.5, 11, 1.2, 0.6).fill({ color: C.chromeHi, alpha: 0.5 });
-      d.poly([11, 4.6, 14.5, 5.6, 11, 6.6]).fill({ color: 0xc8402e });
+      if (kArtInit.dart) {
+        const spr = new Sprite(kArtInit.dart);
+        spr.anchor.set(0.35, 0.4);
+        spr.scale.set(18 / Math.max(1, kArtInit.dart.width));
+        spr.position.set(6, 4.5);
+        d.addChild(spr);
+      } else {
+        d.roundRect(0, 3.5, 11, 4.2, 1.8).fill({ color: C.steelDark });
+        d.rect(3, 3.5, 1.6, 4.2).fill({ color: BRASS });
+        d.roundRect(0, 3.5, 11, 1.2, 0.6).fill({ color: C.chromeHi, alpha: 0.5 });
+        d.poly([11, 4.6, 14.5, 5.6, 11, 6.6]).fill({ color: 0xc8402e });
+      }
       d.visible = false;
       this.farArm.fore.addChild(d);
     }
@@ -1346,27 +1431,46 @@ export class Diver {
     const k = this.kit;
     drawDiverBack(this.backG.clear(), k, this.compact);
     const t = this.thruster.clear();
-    if (k.thruster === 1) {
-      t.roundRect(-30, 8, 24, 12, 5).fill({ color: 0xd8dde0 });
-      t.roundRect(-28, 9, 20, 3, 1.5).fill({ color: 0xffffff, alpha: 0.6 });
-      t.rect(-19, 8, 2, 12).fill({ color: 0x8e979c });
-      t.roundRect(-36, 9.5, 8, 9, 2).fill({ color: C.chromeDark });
-      t.circle(-36, 14, 4).fill({ color: C.visor, alpha: 0.9 });
-      t.rect(-12, 10, 10, 3).fill({ color: C.chromeDark });
-    } else if (k.thruster === 2) {
-      // TH-2: a longer housing with twin nozzles, lime fins and a brass ring.
-      t.poly([-26, 7, -14, 0, -10, 0, -16, 7]).fill({ color: C.visor });
-      t.poly([-26, 21, -14, 28, -10, 28, -16, 21]).fill({ color: C.visor });
-      t.roundRect(-32, 6, 28, 16, 6).fill({ color: 0xd8dde0 });
-      t.roundRect(-30, 7, 24, 3.5, 1.5).fill({ color: 0xffffff, alpha: 0.6 });
-      t.rect(-20, 6, 3, 16).fill({ color: BRASS });
-      t.rect(-20, 6, 1, 16).fill({ color: 0xf0d890, alpha: 0.7 });
-      for (const y of [10.5, 17.5]) {
-        t.roundRect(-38, y - 3.6, 8, 7.2, 2).fill({ color: C.chromeDark });
-        t.circle(-38, y, 3.2).fill({ color: C.visor, alpha: 0.95 });
+    const kArt = getPropArt().kestrel;
+    const paintedThruster = k.thruster >= 2 ? (kArt.thruster_mk2 ?? kArt.thruster) : k.thruster === 1 ? kArt.thruster : undefined;
+    let tSpr = t.children.find((c): c is Sprite => c instanceof Sprite && c.label === 'painted-thruster');
+    if (paintedThruster) {
+      if (!tSpr) {
+        tSpr = new Sprite(paintedThruster);
+        tSpr.label = 'painted-thruster';
+        tSpr.anchor.set(0.5, 0.5);
+        t.addChild(tSpr);
+      } else {
+        tSpr.texture = paintedThruster;
       }
-      t.rect(-6, 9.5, 8, 3).fill({ color: C.chromeDark });
-      t.rect(-6, 15.5, 8, 3).fill({ color: C.chromeDark });
+      tSpr.visible = true;
+      const targetW = k.thruster >= 2 ? 38 : 32;
+      tSpr.scale.set(targetW / Math.max(1, paintedThruster.width));
+      tSpr.position.set(-20, 14);
+    } else {
+      if (tSpr) tSpr.visible = false;
+      if (k.thruster === 1) {
+        t.roundRect(-30, 8, 24, 12, 5).fill({ color: 0xd8dde0 });
+        t.roundRect(-28, 9, 20, 3, 1.5).fill({ color: 0xffffff, alpha: 0.6 });
+        t.rect(-19, 8, 2, 12).fill({ color: 0x8e979c });
+        t.roundRect(-36, 9.5, 8, 9, 2).fill({ color: C.chromeDark });
+        t.circle(-36, 14, 4).fill({ color: C.visor, alpha: 0.9 });
+        t.rect(-12, 10, 10, 3).fill({ color: C.chromeDark });
+      } else if (k.thruster === 2) {
+        // TH-2: a longer housing with twin nozzles, lime fins and a brass ring.
+        t.poly([-26, 7, -14, 0, -10, 0, -16, 7]).fill({ color: C.visor });
+        t.poly([-26, 21, -14, 28, -10, 28, -16, 21]).fill({ color: C.visor });
+        t.roundRect(-32, 6, 28, 16, 6).fill({ color: 0xd8dde0 });
+        t.roundRect(-30, 7, 24, 3.5, 1.5).fill({ color: 0xffffff, alpha: 0.6 });
+        t.rect(-20, 6, 3, 16).fill({ color: BRASS });
+        t.rect(-20, 6, 1, 16).fill({ color: 0xf0d890, alpha: 0.7 });
+        for (const y of [10.5, 17.5]) {
+          t.roundRect(-38, y - 3.6, 8, 7.2, 2).fill({ color: C.chromeDark });
+          t.circle(-38, y, 3.2).fill({ color: C.visor, alpha: 0.95 });
+        }
+        t.rect(-6, 9.5, 8, 3).fill({ color: C.chromeDark });
+        t.rect(-6, 15.5, 8, 3).fill({ color: C.chromeDark });
+      }
     }
     for (const b of this.bracers) b.visible = !!k.resonator;
     // After milestone 12: the attachments.
@@ -1381,11 +1485,25 @@ export class Diver {
       x.circle(-36, 4, 2.6).fill({ color: C.visor, alpha: 0.95 });
       x.poly([-28, 1, -20, -3, -18, -1, -26, 3]).fill({ color: C.visor });
     }
-    if (k.satchel) {
-      // The specimen satchel: a padded pouch with a lime-lit lid beside the jar.
-      x.roundRect(15, 10, 12, 13, 3.5).fill({ color: 0x4a545a });
-      x.roundRect(15, 10, 12, 4, 2).fill({ color: C.chromeDark });
-      x.rect(19, 15, 4, 5).fill({ color: C.visor, alpha: 0.8 });
+    let sSpr = x.children.find((c): c is Sprite => c instanceof Sprite && c.label === 'painted-satchel');
+    if (k.satchel && kArt.satchel) {
+      if (!sSpr) {
+        sSpr = new Sprite(kArt.satchel);
+        sSpr.label = 'painted-satchel';
+        sSpr.anchor.set(0.5, 0.2);
+        x.addChild(sSpr);
+      }
+      sSpr.visible = true;
+      sSpr.scale.set(16 / Math.max(1, kArt.satchel.width));
+      sSpr.position.set(20, 9);
+    } else {
+      if (sSpr) sSpr.visible = false;
+      if (k.satchel) {
+        // The specimen satchel: a padded pouch with a lime-lit lid beside the jar.
+        x.roundRect(15, 10, 12, 13, 3.5).fill({ color: 0x4a545a });
+        x.roundRect(15, 10, 12, 4, 2).fill({ color: C.chromeDark });
+        x.rect(19, 15, 4, 5).fill({ color: C.visor, alpha: 0.8 });
+      }
     }
     if (k.cowl) {
       // The heat-shield cowl: a chrome rim round the helmet's base and a cape plate over the shoulder.

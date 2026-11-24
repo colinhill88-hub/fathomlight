@@ -1794,8 +1794,20 @@ function drawPaintedHero(kind: PieceKind, n: number, rot: number, housingOcean: 
     hatchG.circle(cx, ay, 4).fill({ color: 0xc9b078 });
     const windows = new Graphics();
     const windowGlow = new Graphics();
-    windows.ellipse(cx, H - spr.height * 0.62, W * 0.32, spr.height * 0.2).fill({ color: 0xffe49e, alpha: 0.22 });
-    windowGlow.ellipse(cx, H - spr.height * 0.62, W * 0.42, spr.height * 0.28).fill({ color: 0xffd280, alpha: 0.24 });
+    // Flat-bottomed arch matching dome.webp's glass canopy (stops cleanly at the brass sill above HAB-01).
+    const sillY = H - spr.height * 0.485;
+    const archH = spr.height * 0.44;
+    const archW = W * 0.41;
+    const archPoly = (rx: number, ry: number): number[] => {
+      const pts: number[] = [];
+      for (let i = 0; i <= 20; i++) {
+        const a = (i / 20) * Math.PI;
+        pts.push(cx - Math.cos(a) * rx, sillY - Math.sin(a) * ry);
+      }
+      return pts;
+    };
+    windows.poly(archPoly(archW, archH)).fill({ color: 0xffe49e, alpha: 0.2 });
+    windowGlow.poly(archPoly(archW * 1.08, archH * 1.1)).fill({ color: 0xffd280, alpha: 0.22 });
     windows.circle(cx, ay, 17.5).stroke({ color: PAL.glass, width: 1.8, alpha: 0.85 });
     windowGlow.circle(cx, ay, 24).stroke({ color: PAL.glass, width: 5, alpha: 0.3 });
     body.addChild(stencil(`HAB-0${n}`, cx, H - 68, 7));
@@ -1986,6 +1998,145 @@ function drawPaintedHero(kind: PieceKind, n: number, rot: number, housingOcean: 
     windowGlow.circle(cx, hubY + natH * 0.37, 11).fill({ color: 0xffb830, alpha: 0.32 });
     body.addChild(stencil(`CT-${n}`, cx, 14, 6));
     return { body, rotor, windows, windowGlow, lamp: { x: W - 26, y: 14 } };
+  }
+  if (kind === 'storage' && baseArt.storage) {
+    const W = CELL;
+    const H = CELL;
+    const body = new Container();
+    const spr = new Sprite(baseArt.storage);
+    spr.anchor.set(0.5, 1);
+    const natH = (W + 4) * (baseArt.storage.height / Math.max(1, baseArt.storage.width));
+    spr.width = W + 4;
+    spr.height = Math.min(H - 6, Math.max(H * 0.76, natH));
+    spr.position.set(W / 2, H - 2);
+    body.addChild(spr);
+    const windows = new Graphics();
+    const windowGlow = new Graphics();
+    windows.circle(W * 0.64, H - spr.height * 0.61, 2.6).fill({ color: PAL.glass, alpha: 0.8 });
+    windowGlow.circle(W * 0.64, H - spr.height * 0.61, 10).fill({ color: PAL.glass, alpha: 0.25 });
+    const gaugeBox = { x: W - 24, y: H - spr.height + 26, w: 5, h: 26 };
+    const gauge = new Graphics();
+    body.addChild(stencil(`ST-0${n}`, W / 2, H - spr.height + 12, 6));
+    return { body, windows, windowGlow, lamp: { x: W * 0.64, y: H - spr.height * 0.61 }, gauge, gaugeBox };
+  }
+  if (kind === 'junction' && baseArt.junction) {
+    const W = CELL;
+    const H = CELL;
+    const c = CELL / 2;
+    const body = new Container();
+    const spr = new Sprite(baseArt.junction);
+    spr.anchor.set(0.5, 0.5);
+    spr.width = W + 4;
+    spr.height = H + 4;
+    spr.position.set(c, c);
+    body.addChild(spr);
+    const windows = new Graphics();
+    const windowGlow = new Graphics();
+    windows.circle(c, c, 9.5).fill({ color: PAL.glass, alpha: 0.42 });
+    windowGlow.circle(c, c, 18).fill({ color: PAL.glass, alpha: 0.24 });
+    return { body, windows, windowGlow, lamp: { x: W - 28, y: 28 } };
+  }
+  if (kind === 'thermal' && baseArt.thermal) {
+    const W = CELL;
+    const H = CELL * 2;
+    const cx = W / 2;
+    const body = new Container();
+    const g = body.addChild(new Graphics());
+    const windows = new Graphics();
+    const windowGlow = new Graphics();
+    tubeH(g, 0, 18, H - CELL / 2, 1);
+    tubeH(g, W - 18, W, H - CELL / 2, 1);
+    tubeH(g, 0, 18, CELL / 2, 1);
+    tubeH(g, W - 18, W, CELL / 2, 1);
+    g.roundRect(18, 8, W - 36, H - 16, 8).fill({ color: PAL.steel });
+    g.roundRect(18, 8, W - 36, 12, 6).fill({ color: PAL.steelDark });
+    rivets(g, 24, 15, W - 24, 15, 6);
+    rivets(g, 24, H - 14, W - 24, H - 14, 6);
+    const spr = new Sprite(baseArt.thermal);
+    spr.anchor.set(0.5, 0.5);
+    const natH = (W + 8) * (baseArt.thermal.height / Math.max(1, baseArt.thermal.width));
+    spr.width = W + 8;
+    spr.height = natH;
+    spr.position.set(cx, H / 2);
+    body.addChild(spr);
+    windows.circle(cx, H / 2 - 2, 13).fill({ color: 0xff8a2a, alpha: 0.38 });
+    windowGlow.circle(cx, H / 2 - 2, 32).fill({ color: 0xff7020, alpha: 0.34 });
+    body.addChild(stencil(`CG-${n}`, cx, 16, 6));
+    return { body, windows, windowGlow, lamp: { x: W - 26, y: 16 } };
+  }
+  if (kind === 'hatch' && baseArt.hatch) {
+    const W = CELL * 2;
+    const H = CELL;
+    const body = new Container();
+    const spr = new Sprite(baseArt.hatch);
+    spr.width = W + 6;
+    spr.height = H - 4;
+    spr.position.set(-3, 2);
+    body.addChild(spr);
+    const windows = new Graphics();
+    const windowGlow = new Graphics();
+    for (const fx of [0.355, 0.5, 0.645]) {
+      windows.roundRect(W * fx - 8, H * 0.34, 16, H * 0.26, 6).fill({ color: 0xffd890, alpha: 0.25 });
+      windowGlow.circle(W * fx, H * 0.47, 20).fill({ color: 0xffc870, alpha: 0.2 });
+    }
+    body.addChild(stencil(`HX-${n}`, W - 44, H - 14, 6));
+    return { body, windows, windowGlow, lamp: { x: 28, y: 16 } };
+  }
+  if (kind === 'farm' && baseArt.farm) {
+    const W = CELL * 2;
+    const H = CELL;
+    const body = new Container();
+    const spr = new Sprite(baseArt.farm);
+    spr.width = W + 6;
+    spr.height = H - 4;
+    spr.position.set(-3, 2);
+    body.addChild(spr);
+    const windows = new Graphics();
+    const windowGlow = new Graphics();
+    windows.roundRect(W * 0.26, H * 0.21, W * 0.48, 4, 2).fill({ color: PAL.lampOn, alpha: 0.65 });
+    windowGlow.roundRect(W * 0.24, H * 0.2, W * 0.52, H * 0.26, 8).fill({ color: PAL.glass, alpha: 0.16 });
+    body.addChild(stencil(`KF-${n}`, 44, H - 14, 6));
+    return { body, windows, windowGlow, lamp: { x: W - 28, y: 16 }, whorlAt: { x: W - 34, y: H - 36 } };
+  }
+  if (kind === 'revive' && baseArt.revive) {
+    const W = CELL * 2;
+    const H = CELL;
+    const body = new Container();
+    const spr = new Sprite(baseArt.revive);
+    spr.width = W + 6;
+    spr.height = H - 4;
+    spr.position.set(-3, 2);
+    body.addChild(spr);
+    const windows = new Graphics();
+    const windowGlow = new Graphics();
+    // Flat-bottomed conservatory glow stopping cleanly at the brass sill.
+    const sillY = H * 0.44;
+    windows.roundRect(W * 0.16, H * 0.15, W * 0.54, sillY - H * 0.15, 10).fill({ color: 0xfff0c0, alpha: 0.2 });
+    windowGlow.roundRect(W * 0.13, H * 0.12, W * 0.6, sillY - H * 0.1, 14).fill({ color: 0xffe8a8, alpha: 0.22 });
+    body.addChild(stencil(`RP-${n}`, W / 2, H - 14, 6));
+    return { body, windows, windowGlow, lamp: { x: W - 30, y: H * 0.54 } };
+  }
+  if (kind === 'signal' && baseArt.signal) {
+    const W = CELL * 2;
+    const H = CELL * 2;
+    const body = new Container();
+    const spr = new Sprite(baseArt.signal);
+    spr.anchor.set(0.5, 1);
+    const natH = (W + 6) * (baseArt.signal.height / Math.max(1, baseArt.signal.width));
+    spr.width = W + 6;
+    spr.height = Math.min(H - 2, natH);
+    spr.position.set(W / 2, H - 1);
+    body.addChild(spr);
+    const windows = new Graphics();
+    const windowGlow = new Graphics();
+    const py = H - spr.height * 0.32;
+    windows.circle(W * 0.385, py, 12.5).fill({ color: 0xffd078, alpha: 0.32 });
+    windowGlow.circle(W * 0.385, py, 26).fill({ color: 0xffb850, alpha: 0.26 });
+    const tipX = W * 0.745;
+    const tipY = H - spr.height + 6;
+    windows.circle(tipX, tipY, 2.4).fill({ color: 0xffe4a0 });
+    body.addChild(stencil(`SA-${n}`, W * 0.62, H - 18, 6));
+    return { body, windows, windowGlow, lamp: { x: tipX, y: tipY } };
   }
   return null;
 }

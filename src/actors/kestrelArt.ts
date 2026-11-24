@@ -160,17 +160,18 @@ export function kestrelHand(compact = false, detailed = false): Container {
 }
 
 export function kestrelFin(standing: boolean, tip: boolean, compact = false, detailed = false): Container {
-  const paintedFin = getPropArt().kestrel.fin;
+  const kArt = getPropArt().kestrel;
+  const paintedFin = standing ? (kArt.fin_walk ?? kArt.fin) : kArt.fin;
   if (paintedFin) {
     const c = new Container();
     if (!tip) {
       // Mount the painted flipper blade on the ankle joint (tip stays empty so there's no double blade).
       const spr = new Sprite(paintedFin);
       if (standing) {
-        spr.anchor.set(0.22, 0.72);
+        spr.anchor.set(0.24, 0.88);
         const sc = 24 / Math.max(1, paintedFin.width);
         spr.scale.set(sc);
-        spr.position.set(-1, 4.5);
+        spr.position.set(-1, 5);
       } else {
         spr.anchor.set(0.12, 0.5);
         const sc = 36 / Math.max(1, paintedFin.width);
@@ -262,8 +263,12 @@ export function kestrelHelmet(opening: boolean, compact = false, detailed = fals
     const eye = new Container({ label: 'kestrelEye' });
     eye.addChild(iris);
     const brow = new Container({ label: 'kestrelBrow' });
+    // Align the blink eyelid directly onto head.jpg's painted eye (skin-toned lid + dark lash curve).
+    const ex = spr.x + spr.width * 0.21;
+    const ey = spr.y - spr.height * 0.085;
     const lid = new Graphics({ label: 'eyelid' });
-    lid.moveTo(76, -8).quadraticCurveTo(80, -6.5, 84, -8.2).stroke({ color: 0x4a2f22, width: 1.4, cap: 'round' });
+    lid.ellipse(ex, ey, 3.6, 2.5).fill({ color: 0xebb68c });
+    lid.moveTo(ex - 3.2, ey + 0.4).quadraticCurveTo(ex, ey + 1.8, ex + 3.2, ey + 0.1).stroke({ color: 0x4a2f22, width: 1.35, cap: 'round' });
     lid.visible = false;
     const smile = new Container({ label: 'kestrelSmile' });
     const gasp = new Container({ label: 'kestrelGasp', alpha: 0 });

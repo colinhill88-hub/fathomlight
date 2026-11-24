@@ -1,14 +1,29 @@
-import { Container, Graphics } from 'pixi.js';
+import { Container, Graphics, Sprite } from 'pixi.js';
 import { batchAll } from './animkit';
+import { getPropArt } from '../art/propArt';
 
 export type BottomKind = 'lily' | 'sponge' | 'worm' | 'star' | 'pen';
 
 export class BottomAnimal {
   readonly view = new Container();
   private readonly parts: Container[] = [];
+  private readonly painted?: Container;
 
   constructor(readonly kind: BottomKind, readonly x: number, readonly y: number, size: number, phase: number) {
     this.view.position.set(x, y);
+    const paintedTex = getPropArt().bottom[kind];
+    if (paintedTex) {
+      const host = new Container();
+      const spr = new Sprite(paintedTex);
+      spr.anchor.set(0.5, 0.94);
+      const target = kind === 'pen' ? size * 1.75 : kind === 'star' ? size * 2.1 : size * 1.45;
+      const sc = target / Math.max(1, Math.max(paintedTex.width, paintedTex.height));
+      spr.scale.set(sc);
+      host.addChild(spr);
+      this.view.addChild(host);
+      this.painted = host;
+      return;
+    }
     const base = new Graphics();
     this.view.addChild(base);
     if (kind === 'lily') {
@@ -81,6 +96,20 @@ export class BottomAnimal {
 
   update(time: number, flow: number, passing: number): void {
     const t = time + this.x * 0.017;
+    if (this.painted) {
+      if (this.kind === 'star') {
+        this.painted.scale.set(1 - passing * 0.08, 1 + Math.sin(t * 1.5) * 0.03);
+      } else if (this.kind === 'sponge') {
+        this.painted.scale.set(1 + Math.sin(t * 1.05) * 0.03, 1 + Math.sin(t * 1.05) * 0.06 - passing * 0.08);
+      } else if (this.kind === 'worm') {
+        this.painted.rotation = flow * 0.25 + Math.sin(t * 1.8) * 0.08;
+        this.painted.scale.set(1 - passing * 0.22, Math.max(0.32, 1 - passing * 0.65));
+      } else {
+        this.painted.rotation = Math.sin(t * 1.6) * 0.14 + flow * 0.3;
+        this.painted.scale.set(1 - passing * 0.14, 0.96 + Math.sin(t * 1.3) * 0.05 - passing * 0.24);
+      }
+      return;
+    }
     for (const [i, part] of this.parts.entries()) {
       if (this.kind === 'lily') {
         part.rotation = (i - 3) * 0.38 * (1 - passing * 0.27) + Math.sin(t * 2.3 - i * 0.7) * 0.12 + flow * 0.24;
