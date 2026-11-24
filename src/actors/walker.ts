@@ -693,8 +693,15 @@ export class Walker {
       if (c) c.visible = false;
     }
     this.helmet.addChild(hel);
-    // Breathing hose: subtle weathered rubber hose when painted pack is loaded, coiled stripes otherwise.
-    if (getPropArt().kestrel.pack) {
+    // Breathing hose: painted hose when available, subtle weathered rubber hose with painted pack, coiled stripes otherwise.
+    const paintedHose = getPropArt().kestrel.hose;
+    if (paintedHose) {
+      const spr = new Sprite(paintedHose);
+      spr.anchor.set(0.5, 0.5);
+      spr.scale.set(36 / Math.max(1, paintedHose.width));
+      spr.position.set(-4, -34);
+      this.hose.addChild(spr);
+    } else if (getPropArt().kestrel.pack) {
       const pts: [number, number][] = compact
         ? [[-18, -32], [-18, -39], [6, -39], [PORT_X, PORT_Y]]
         : [[-15, -36], [-15, -45], [10, -42], [PORT_X, PORT_Y]];

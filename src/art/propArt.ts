@@ -20,7 +20,8 @@ export type KestrelArtKey =
   | 'head' | 'torso' | 'pack' | 'pack_single' | 'pack_quad'
   | 'upper_arm' | 'forearm' | 'thigh' | 'shin' | 'fin' | 'fin_walk'
   | 'jar' | 'thruster' | 'thruster_mk2' | 'harpoon'
-  | 'rivet' | 'dart' | 'flare' | 'resonator' | 'magboots' | 'satchel';
+  | 'rivet' | 'dart' | 'flare' | 'resonator' | 'magboots' | 'satchel'
+  | 'lamp' | 'hose';
 export type WreckArtKey = 'fulmar' | 'corvina';
 export type InteriorArtKey =
   | 'console_habitat' | 'tray_collection' | 'crate'
@@ -92,6 +93,7 @@ const KESTREL_KEYS: readonly KestrelArtKey[] = [
   'upper_arm', 'forearm', 'thigh', 'shin', 'fin', 'fin_walk',
   'jar', 'thruster', 'thruster_mk2', 'harpoon',
   'rivet', 'dart', 'flare', 'resonator', 'magboots', 'satchel',
+  'lamp', 'hose',
 ];
 const VEHICLE_KEYS: readonly VehicleArtKey[] = ['sub', 'drone', 'buoy'];
 const BASE_KEYS: readonly BaseArtKey[] = [

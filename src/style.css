@@ -6053,13 +6053,13 @@ body.on-foot #btn-dart {
   }
 }
 
-/* ---- Interface Simplification: calm diving HUD & compact console status pills ---- */
-body:not(.building):not(.stationing):not(.docking):not(.caring) #inventory.bag-empty {
+/* ---- Always show both carried and base-stored inventory in the upper left ---- */
+#inventory .chip.empty {
   display: none;
 }
 
-body:not(.building):not(.stationing):not(.docking):not(.caring) #inventory .chip.bag-zero {
-  display: none;
+#inventory .chip.bag-zero span {
+  opacity: 0.45;
 }
 
 #inventory.all-empty {

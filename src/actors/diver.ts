@@ -807,6 +807,15 @@ export class BeltJar {
 
 export function buildShoulderLamp(): Graphics {
   const g = new Graphics();
+  const paintedLamp = getPropArt().kestrel.lamp;
+  if (paintedLamp) {
+    const spr = new Sprite(paintedLamp);
+    spr.anchor.set(0.5, 0.5);
+    spr.scale.set(22 / Math.max(1, paintedLamp.width));
+    spr.position.set(38, 14.5);
+    g.addChild(spr);
+    return g;
+  }
   g.rect(33, 7, 3.5, 15).fill({ color: C.red }); // strap round the harness
   g.rect(33, 7, 3.5, 4).fill({ color: C.redShade, alpha: 0.6 });
   chromeBands(g, 28, 10.5, 16, 8, 3.5);
@@ -1060,7 +1069,17 @@ export function playerHelmet(redesigned: boolean, opening: boolean, paintedFace?
   if (!redesigned) return buildHelmet(opening, paintedFace);
   const helmet = kestrelHelmet(opening, compact, detailed);
   const hose = new Graphics({ label: 'hose' });
-  coiledHose(hose, compact ? [[43, -28], [37, -23], [57, -10], [51, 3]] : [[44, -42], [59, -46], [55, -9], [51, 3]], 4.2);
+  const paintedHose = getPropArt().kestrel.hose;
+  if (paintedHose) {
+    const spr = new Sprite(paintedHose);
+    spr.anchor.set(0.5, 0.5);
+    spr.scale.set((compact ? 30 : 34) / Math.max(1, paintedHose.width));
+    spr.rotation = 0.65;
+    spr.position.set(47, compact ? -15 : -20);
+    hose.addChild(spr);
+  } else {
+    coiledHose(hose, compact ? [[43, -28], [37, -23], [57, -10], [51, 3]] : [[44, -42], [59, -46], [55, -9], [51, 3]], 4.2);
+  }
   helmet.addChild(hose);
   return helmet;
 }
@@ -1232,7 +1251,7 @@ export class Diver {
    * helmet about twice the walker's on screen; SWIM_MATCH brings swim form up
    * ~14% (Colin, Nov 23, 2026) to match the mag-boots walker's visual presence.
    */
-  private static readonly SWIM_MATCH = 0.57;
+  private static readonly SWIM_MATCH = 0.63;
   private static readonly SCALE = 0.86 * Diver.SWIM_MATCH * Diver.KESTREL_SIZE;
   /** The swimmer's size against the old one, for distances tuned at the old size. */
   static readonly SWIM_K = Diver.SWIM_MATCH * Diver.KESTREL_SIZE;

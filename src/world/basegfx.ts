@@ -2297,10 +2297,8 @@ export class BaseView {
     for (const [id, l] of this.live) {
       if (ids.has(id)) continue;
       l.root.destroy({ children: true });
-      l.art.windows.destroy();
       l.art.windowGlow.destroy();
       l.art.sheen?.destroy();
-      l.lampG.destroy();
       l.lampHalo.destroy();
       l.frame?.seam.destroy();
       l.frame?.seamGlow.destroy();
@@ -2316,21 +2314,21 @@ export class BaseView {
       const root = new Container();
       root.addChild(art.body);
       if (art.gauge) root.addChild(art.gauge);
+      // Keep solid lit panes, grille bars, and status dots inside root so Kestrel & KD-1 always swim in front of them.
+      root.addChild(art.windows);
+      const lampG = new Graphics().circle(0, 0, 3).fill({ color: 0xffffff });
+      lampG.position.set(art.lamp.x, art.lamp.y);
+      root.addChild(lampG);
       root.position.set(r.x, r.y);
       this.pieceLayer.addChild(root);
-      art.windows.position.set(r.x, r.y);
       art.windowGlow.position.set(r.x, r.y);
-      this.emissive.addChild(art.windows);
       this.glow.addChild(art.windowGlow);
       if (art.sheen) {
         art.sheen.position.set(r.x, r.y);
         this.front.addChild(art.sheen);
       }
-      const lampG = new Graphics().circle(0, 0, 3).fill({ color: 0xffffff });
       const lampHalo = new Graphics().circle(0, 0, 12).fill({ color: 0xffffff, alpha: 0.6 });
-      lampG.position.set(r.x + art.lamp.x, r.y + art.lamp.y);
-      lampHalo.position.copyFrom(lampG.position);
-      this.emissive.addChild(lampG);
+      lampHalo.position.set(r.x + art.lamp.x, r.y + art.lamp.y);
       this.glow.addChild(lampHalo);
       const light: PointLight | null =
         p.kind === 'dome'

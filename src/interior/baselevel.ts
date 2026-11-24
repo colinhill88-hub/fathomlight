@@ -1094,7 +1094,7 @@ export class BaseHooks implements InteriorHooks {
       floorGrime(g, b.ox, b.ow, f, rand);
       skirting(g, b.ox, b.ow, f);
       const tankWindow = this.ctx.livingBases && (r.kind === 'tank' || r.kind === 'gtank');
-      const circuit = tankWindow ? g : e;
+      const circuit = g;
       const dockWindow = this.ocean && r.kind === 'dock';
       const panoramicWall = this.ctx.panorama && (r.kind === 'dome' || r.kind === 'corridor' || r.kind === 'lab' || r.kind === 'workshop');
       const circuitY = f - (tankWindow ? 12 : 92);
@@ -1110,9 +1110,9 @@ export class BaseHooks implements InteriorHooks {
     // The room's stencil code, high on the back wall.
     // (The Hatchery's goes over its console instead: its first heat lamp hangs here.)
     if (r.kind !== 'corridor' && r.kind !== 'hatch') addText(sign(code, b.ox + 70, b.oy + 26, 13));
-    // A red status lamp by the code.
-    e.circle(b.ox + 22, b.oy + 26, 3).fill({ color: COL.red });
-    gl.circle(b.ox + 22, b.oy + 26, 8).fill({ color: COL.red, alpha: 0.4 });
+    // A red status lamp by the code (on the back wall behind Kestrel).
+    g.circle(b.ox + 22, b.oy + 26, 3).fill({ color: COL.red });
+    gl.circle(b.ox + 22, b.oy + 26, 8).fill({ color: COL.red, alpha: 0.35 });
 
     const bot = b.bottom;
     if (this.ctx.panorama && this.ocean && (r.kind === 'lab' || r.kind === 'workshop')) {
@@ -1203,7 +1203,7 @@ export class BaseHooks implements InteriorHooks {
           spr.scale.set(114 / Math.max(1, intArt.airlock.width));
           spr.position.set(ax, ay);
           fixtures.addChild(spr);
-          e.circle(ax, ay, 41).stroke({ color: COL.lime, width: 1.8, alpha: 0.45 });
+          fixtures.circle(ax, ay, 41).stroke({ color: COL.lime, width: 1.8, alpha: 0.45 });
         } else {
           fixtures.circle(ax, ay, 54).fill({ color: COL.chrome });
           fixtures.circle(ax, ay, 54).stroke({ color: COL.chromeDark, width: 3 });
@@ -1298,14 +1298,14 @@ export class BaseHooks implements InteriorHooks {
       }
       case 'shaft': {
         // Chrome bands up the shaft, like an upright corridor, with a gold conduit down the wall
-        // beside the ladder, and a lime level marker at each floor.
+        // beside the ladder, and a lime level marker at each floor (all behind Kestrel on g).
         for (let y = b.oy + 20; y < b.oy + b.oh; y += 50) g.rect(b.ox, y, b.ow, 6).fill({ color: COL.chromeDark });
         g.rect(b.ox + b.ow - 14, b.oy, 8, b.oh).fill({ color: COL.wallDark });
-        e.rect(b.ox + b.ow - 11, b.oy, 2, b.oh).fill({ color: 0xe8b040, alpha: 0.55 });
+        g.rect(b.ox + b.ow - 11, b.oy, 2, b.oh).fill({ color: 0xe8b040, alpha: 0.65 });
         for (let k = 0; k < r.h; k++) {
           const fy = b.floor(k);
           g.rect(b.ox + 8, fy - 14, 22, 4).fill({ color: COL.chrome });
-          e.rect(b.ox + 10, fy - 13, 18, 2).fill({ color: COL.lime, alpha: 0.7 });
+          g.rect(b.ox + 10, fy - 13, 18, 2).fill({ color: COL.lime, alpha: 0.75 });
           addText(sign(`L${r.h - k}`, b.ox + 56, fy - 22, 9, 0xc6f03a, 0.65));
         }
         break;
@@ -1364,9 +1364,9 @@ export class BaseHooks implements InteriorHooks {
         }
         const sx = b.ox + b.ow - 12;
         g.rect(sx - 9, b.oy, 18, b.oh).fill({ color: COL.wallDark });
-        // (Toned down in the interior art pass: it bloomed harder than anything else in the room.)
-        e.rect(sx - 3, b.oy, 6, b.oh).fill({ color: 0xe8b040, alpha: 0.75 });
-        gl.rect(sx - 8, b.oy, 16, b.oh).fill({ color: 0xffb030, alpha: 0.14 });
+        // Drawn on the back wall (g) so Kestrel always walks cleanly in front of the gold power spine.
+        g.rect(sx - 3, b.oy, 6, b.oh).fill({ color: 0xe8b040, alpha: 0.8 });
+        gl.rect(sx - 8, b.oy, 16, b.oh).fill({ color: 0xffb030, alpha: 0.1 });
         for (let y = b.oy + 30; y < b.oy + b.oh; y += 70) g.rect(sx - 12, y, 24, 10).fill({ color: COL.chrome });
         // Lower level: the generator housing, with lime grille vents.
         g.roundRect(b.ox + 110, bot - 120, b.ow - 140, 120, 6).fill({ color: COL.wallDark });
@@ -1735,14 +1735,14 @@ export class BaseHooks implements InteriorHooks {
       case 'recomp': {
         // A pressure chamber: painted cylinder when available, procedural fallback otherwise.
         const recompTex = getPropArt().interior.recomp_chamber;
-        const cx = b.ox + b.ow * 0.56;
         if (recompTex) {
+          const rcx = b.ox + b.ow * 0.56;
           const spr = new Sprite(recompTex);
           spr.anchor.set(0.5, 1);
           spr.scale.set(250 / Math.max(1, recompTex.width));
-          spr.position.set(cx, bot);
+          spr.position.set(rcx, bot);
           g.addChild(spr);
-          this.screens.push({ x: cx, y: bot - 62, radius: 160, intensity: 0.48, color: [0.75, 1, 0.4], zone: id } as Light);
+          this.screens.push({ x: rcx, y: bot - 62, radius: 160, intensity: 0.48, color: [0.75, 1, 0.4], zone: id } as Light);
           break;
         }
         // A pressure chamber: a chrome cylinder with gold bands and a round door, lime light inside.
@@ -2087,14 +2087,14 @@ export class BaseHooks implements InteriorHooks {
           d.rect(cx2 + 4, bot - 62, 38, 24).fill({ color: 0xc6f03a, alpha: 0.45 });
           for (let k = 0; k < 4; k++) d.rect(cx2 - 38, bot - 58 + k * 5, 10 + ((time * 20 + k * 7) % 24), 2).fill({ color: 0x0c1418, alpha: 0.6 });
         } else {
-          // Subtle live CRT glow pulse aligned to galley.webp's two recessed monitors.
-          const pulse = 0.18 + 0.06 * Math.sin(time * 2.6);
-          de.roundRect(cx2 - 34, bot - 52, 26, 17, 3).fill({ color: 0xc6f03a, alpha: pulse });
-          de.roundRect(cx2 + 8, bot - 52, 26, 17, 3).fill({ color: 0xc6f03a, alpha: pulse * 0.85 });
+          // Subtle live CRT glow pulse aligned to galley.webp's two recessed monitors (behind Kestrel on d).
+          const pulse = 0.22 + 0.06 * Math.sin(time * 2.6);
+          d.roundRect(cx2 - 34, bot - 52, 26, 17, 3).fill({ color: 0xc6f03a, alpha: pulse });
+          d.roundRect(cx2 + 8, bot - 52, 26, 17, 3).fill({ color: 0xc6f03a, alpha: pulse * 0.85 });
         }
         const px = b.ox + b.ow - 90;
         const f0 = b.floor(0);
-        for (let i = 0; i < 5; i++) de.rect(px - 36 + i * 16, f0 - 84 + Math.sin(time * 2 + i) * 4, 10, 26).fill({ color: COL.lime, alpha: 0.16 });
+        for (let i = 0; i < 5; i++) d.rect(px - 36 + i * 16, f0 - 84 + Math.sin(time * 2 + i) * 4, 10, 26).fill({ color: COL.lime, alpha: 0.22 });
       } else if (r.kind === 'storage' || r.kind === 'sorter') {
         // Painted crates fill the racks cleanly as storage fills; procedural rectangles only when crate art is absent.
         const frac = c.storedFrac();
@@ -2111,8 +2111,8 @@ export class BaseHooks implements InteriorHooks {
           }
         }
         if (on) {
-          de.rect(b.ox + b.ow - 50, b.oy + 50, 20, 60).fill({ color: 0x0c1418 });
-          de.rect(b.ox + b.ow - 48, b.oy + 108 - 56 * frac, 16, 56 * frac).fill({ color: COL.lime, alpha: 0.85 });
+          d.rect(b.ox + b.ow - 50, b.oy + 50, 20, 60).fill({ color: 0x0c1418 });
+          d.rect(b.ox + b.ow - 48, b.oy + 108 - 56 * frac, 16, 56 * frac).fill({ color: COL.lime, alpha: 0.9 });
         }
       } else if (r.kind === 'tank' || r.kind === 'gtank') {
         this.drawTank(r, d, de, time, on);
@@ -2161,7 +2161,7 @@ export class BaseHooks implements InteriorHooks {
         if (busy && Math.sin(time * 17) > 0.2) de.circle(tx, ty + 4, 5).fill({ color: 0xfff0b0 });
       } else if (r.kind === 'recomp' && on) {
         if (getPropArt().interior.recomp_chamber) {
-          de.circle(b.ox + b.ow * 0.56 - 2, bot - 61, 14).fill({ color: 0x8ac030, alpha: 0.24 + 0.08 * Math.sin(time * 2) });
+          d.circle(b.ox + b.ow * 0.56 - 2, bot - 61, 14).fill({ color: 0x8ac030, alpha: 0.28 + 0.08 * Math.sin(time * 2) });
         } else {
           const cx = b.ox + b.ow * 0.62;
           d.circle(cx, (b.oy + bot) / 2, 28).fill({ color: 0x8ac030, alpha: 0.35 + 0.1 * Math.sin(time * 2) });
