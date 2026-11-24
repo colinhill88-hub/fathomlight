@@ -1,6 +1,6 @@
 import { BaseLayout, pieceCode } from '../game/base';
 import { careForAll, cleanTank, crowding, feedTank, PLANTS, reserveOpen, tankDataFor, worstNeed } from '../game/creatures';
-import { BREED_SECONDS, carePower, contentment, creatureName, creaturesIn, HATCH_CAP, HATCH_SECONDS, hatcheries, jarRoom, moveCreature, nurseryRoom, nurseryTroughCap, putInJar, pairsIn, RESERVE_CAP, SPECIES, SPECIES_ORDER, tankCapacity, tanks } from '../game/creatures';
+import { BREED_SECONDS, carePower, contentment, creatureName, creaturesIn, HATCH_CAP, HATCH_SECONDS, hatcheries, jarRoom, moveCreature, nurseryRoom, nurseryTroughCap, putInJar, pairsIn, RESERVE_CAP, SPECIES, SPECIES_ORDER, tankCapacity, tankHarmony, tanks } from '../game/creatures';
 import { CreatureData, SaveData, SpeciesId } from '../game/state';
 import { COLOURS, eggOdds, formText, genText, isRare, PATTERNS, RARE_COLOUR, SHAPES, traitsOf, traitText, WILD_PATTERNS } from '../game/traits';
 import { book, kindKey } from '../game/collection';
@@ -334,7 +334,9 @@ export class HatchPanel {
         const acts = picked
           ? `<div class="row tsel"><b>${picked.stage === 'egg' ? `${SPECIES[picked.species].name} egg` : creatureName(picked)}</b> <small>${traitText(picked.species, traitsOf(picked))}</small>${moveTo(picked)}${picked.stage === 'egg' ? '' : `<button type="button" data-act="h-card" data-id="${picked.id}">Card</button>`}</div>`
           : '';
-        return `<div class="tblock"><div class="thead"><b>${pieceCode(layout, t)}</b><span>${here.length}/${cap}</span><button type="button" data-act="t-feed" data-id="${t.id}" ${eaters.length ? '' : 'disabled title="Nobody here eats yet"'}>Feed</button><button type="button" data-act="t-clean" data-id="${t.id}" ${td.water >= 0.99 ? 'disabled title="The water is clean"' : ''}>Clean</button></div>
+        const harm = tankHarmony(save, t.id);
+        const starTag = harm.stars > 0 ? `<span class="h-stars" title="${harm.nextTip ?? 'Max Harmony (+40% rare odds)'}">${'★'.repeat(harm.stars)}${'☆'.repeat(5 - harm.stars)}</span>` : '';
+        return `<div class="tblock"><div class="thead"><b>${pieceCode(layout, t)}</b>${starTag}<span>${here.length}/${cap}</span><button type="button" data-act="t-feed" data-id="${t.id}" ${eaters.length ? '' : 'disabled title="Nobody here eats yet"'}>Feed</button><button type="button" data-act="t-clean" data-id="${t.id}" ${td.water >= 0.99 ? 'disabled title="The water is clean"' : ''}>Clean</button></div>
           <p class="tnote">${notes}</p>${chips ? `<div class="tchips">${chips}</div>` : '<p class="note">Empty.</p>'}${acts}</div>`;
       })
       .join('');

@@ -13,6 +13,7 @@ import {
   statusLine,
   makeRate,
   tankDataFor,
+  tankHarmony,
   tankNumber,
   tankCapacity,
   breedNote,
@@ -115,7 +116,7 @@ function makeLine(save: SaveData, layout: BaseLayout, c: CreatureData): string {
   const r = makeRate(save, layout, c);
   if (r.perMin <= 0) return 'Makes nothing while unhappy.';
   const sp = SPECIES[c.species];
-  const parts = [r.radiant > 1 ? `+${Math.round((r.radiant - 1) * 100)}% radiant` : '', r.shoal > 0 ? `+${Math.round(r.shoal * 100)}% shoal` : '', r.clean > 0 ? `+${Math.round(r.clean * 100)}% cleaned` : '', r.reef > 0 ? `+${Math.round(r.reef * 100)}% reef` : '', r.whorl > 1 ? `×${r.whorl} whorl` : '']
+  const parts = [r.radiant > 1 ? `+${Math.round((r.radiant - 1) * 100)}% radiant` : '', r.shoal > 0 ? `+${Math.round(r.shoal * 100)}% shoal` : '', r.clean > 0 ? `+${Math.round(r.clean * 100)}% cleaned` : '', r.reef > 0 ? `+${Math.round(r.reef * 100)}% reef` : '', r.harmony > 0 ? `+${Math.round(r.harmony * 100)}% harmony` : '', r.whorl > 1 ? `×${r.whorl} whorl` : '']
     .filter(Boolean)
     .join(', ');
   return `Makes ${r.perMin.toFixed(2)} ${sp.makes === 'fibre' ? 'kelp fibre' : sp.makes}/min${parts ? ` (${parts})` : ''}. Happy tank-mates and other thriving tanks raise it.`;
@@ -628,9 +629,15 @@ export class CareMode {
           </div>`;
         })()
       : '';
+    const harm = tankHarmony(save, this.tankId);
+    const starsStr = harm.stars > 0 ? `${'★'.repeat(harm.stars)}${'☆'.repeat(5 - harm.stars)}` : '☆☆☆☆☆';
+    const harmBanner = harm.stars > 0
+      ? `<div class="harmony-bar"><span class="h-stars" title="Tank Harmony Rating">${starsStr}</span><span class="h-bonus">${harm.rareBonus > 0 ? `+${Math.round(harm.rareBonus * 100)}% rare odds · +${Math.round(harm.yieldBonus * 100)}% yield` : 'Base Harmony'}</span>${harm.nextTip ? `<small class="h-tip">${harm.nextTip}</small>` : '<small class="h-tip max">Max Harmony!</small>'}</div>`
+      : '';
     const html = `
       <div class="care-head"><b>${livingBases ? `Habitat Console · ${this.code()}` : this.code()}${this.tankId !== null && isDisplay(save, layout, this.tankId) ? ' · Display aquarium' : ''}</b><span class="care-pill ${powered ? 'on' : 'off'}">${list.length}/${capacity} · ${powered ? 'powered' : 'no power'}</span>
         <button type="button" class="x" data-act="close" aria-label="Close">✕</button></div>
+      ${harmBanner}
       ${overview}
       <section class="care-sec">
         ${chips}

@@ -32,7 +32,7 @@ export const ENGINE_MAP: string[] = [
   '#                                                              #       #',
   '#                                       d                      Y       #',
   '#                        c  d      cc                          Y       #',
-  '#  S K      t  cc t   K  c      t  cc     K           h        Y  7  $ #',
+  '#  S K      t  cc t 1 K  c      t  cc 2   K       3   h        Y  7  $ #',
   '########################################################################',
   '########################################################################',
 ];
@@ -42,6 +42,9 @@ export const ENGINE_OPTS = {
   style: 'engine' as const,
   powered: true,
   labels: {
+    '1': 'Pry open salvage crate',
+    '2': 'Pry open salvage crate',
+    '3': 'Pry open salvage crate',
     '7': "Read the chief engineer's log",
     $: "Open the keeper's hoard",
   } as Record<string, string>,

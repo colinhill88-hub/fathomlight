@@ -143,6 +143,7 @@ import { loadCreatureArt } from './art/creatureArt';
 import { loadPropArt } from './art/propArt';
 import { SupplyBuoy } from './world/supplyBuoy';
 import { ExchangePanel } from './ui/exchange';
+import { readyContractCount, recordContractEvent } from './game/contracts';
 import { Escort } from './actors/escort';
 import { Critter } from './actors/critters';
 import { CareMode } from './ui/care';
@@ -2080,6 +2081,7 @@ async function boot(): Promise<void> {
         continue;
       }
       if (ev.type === 'nursery-hatched') {
+        if (recordContractEvent(save, 'hatch', 1)) hud.toast('Field Contract complete! Claim your reward at Supply Buoy EX-1.', 'big');
         // Phase 20: the hatching moment, scaled by rarity (it names the baby too).
         // Colin (Nov 23, 2026): ordinary repeat hatchlings that settle themselves do so quietly;
         // only meaningful births (new book entries, rare/special, Linnea's requests, first hatch)
@@ -3249,6 +3251,7 @@ async function boot(): Promise<void> {
         hud.refreshInventory(ev.kind);
         reward.minor(hud.chip(ev.kind));
         hud.toast(`+1 ${MATERIALS[ev.kind].name}`);
+        if (recordContractEvent(save, 'gather', 1, ev.kind)) hud.toast('Field Contract complete! Claim your reward at Supply Buoy EX-1.', 'big');
       } else if (ev.type === 'tank') {
         save.oxygen = maxOxygen(save);
         grant(tankReward(TANK_BONUS));
@@ -3846,7 +3849,8 @@ async function boot(): Promise<void> {
         const wish = !linneaSay.hasMore && [save.jar, save.jar2].some((j) => j && j.stage !== 'egg' && save.requests?.active.some((q) => matchesRequest(q, j.species, j.keep ? traitsOf(j.keep) : j.traits ?? { colour: -1, pattern: -1 })));
         baseAct = { label: linneaSay.hasMore ? 'Listen to Linnea' : wish ? 'Show Linnea your creature' : 'Talk to Linnea', run: talkToLinnea };
       } else if (Math.hypot(supplyBuoy.x - (aboard ? sub.x : diver.x), supplyBuoy.y - (aboard ? sub.y : diver.y)) < 140 + (aboard ? 60 : 0)) {
-        baseAct = { label: 'Open Research Exchange (EX-1)', run: () => exchangePanel.show() };
+        const readyC = readyContractCount(save);
+      baseAct = { label: readyC > 0 ? `Open Research Exchange (EX-1 · ${readyC} ready)` : 'Open Research Exchange (EX-1)', run: () => exchangePanel.show() };
       } else if (pod?.by) {
         baseAct = {
           label: pod.powered ? `Unload ${carried} item${carried === 1 ? '' : 's'} into storage` : pod.frame ? 'Storage pod: still a frame' : 'Storage pod: no power',
@@ -4417,12 +4421,23 @@ async function boot(): Promise<void> {
   // ---- Phase 19: the Corvina's engine room, the first infested section ----
   const engineLay = engineLayout();
   let combat: CombatLayer | null = null;
+  /** Per-visit repeatable salvage crates taken in the engine room (respawn on every fresh visit). */
+  let engineVisitTaken: string[] = [];
   /** A blackout in the fight: counts up while the screen goes dark and Kestrel wakes by the safe lamp. */
   let knockout = 0;
   let knockedWoke = false;
   function engineHooks(): CombatLayer {
     return new CombatLayer(interior, engineLay, () => save.corvina.engine, {
-      cue: (c, x) => sound.foe(c, x - interior.walker.x),
+      cue: (c, x, _y, kind) => {
+        sound.foe(c, x - interior.walker.x);
+        if (c === 'down') {
+          const bounty = kind === 'drone' ? 15 : 8;
+          save.credits = Math.max(0, Math.floor(save.credits ?? 0)) + bounty;
+          const finished = recordContractEvent(save, 'foes', 1);
+          hud.toast(finished ? `Machine scrapped (+${bounty} SC) · Field Contract ready at EX-1!` : `Machine scrapped (+${bounty} SC)`, finished ? 'big' : 'item');
+          persist();
+        }
+      },
       hurt: (attack, result) => {
         if (result === 'hit') {
           save.suit = afterHit(save.suit, attack, result);
@@ -4458,9 +4473,10 @@ async function boot(): Promise<void> {
   function enterEngine(): void {
     const first = !save.corvina.engine;
     save.corvina.engine ??= { taken: [] };
+    engineVisitTaken = [];
     combat = engineHooks();
     combat.armed = hasGear(save, 'rivet');
-    interior.enter(ENGINE_MAP, { breakers: [], taken: save.corvina.engine.taken }, null, {
+    interior.enter(ENGINE_MAP, { breakers: [], taken: [...save.corvina.engine.taken] }, null, {
       ...ENGINE_OPTS,
       ambient: [0.24, 0.22, 0.2],
       combat,
@@ -5222,7 +5238,7 @@ async function boot(): Promise<void> {
     if (inside === 'corvina') interior.syncState(save.corvina.breakers, save.corvina.taken ?? []);
     if (inside === 'fulmar') interior.syncState(save.fulmar.breakers, save.fulmar.taken);
     if (inside === 'sanctum') interior.syncState([], save.sanctum.taken);
-    if (inside === 'engine') interior.syncState([], (save.corvina.engine ??= { taken: [] }).taken);
+    if (inside === 'engine') interior.syncState([], [...(save.corvina.engine ??= { taken: [] }).taken, ...engineVisitTaken]);
     // Phase 19: the fight. Shoot fires the Rivet driver; the Shoot button shows only here, once it's built.
     if (combat) {
       combat.armed = hasGear(save, 'rivet');
@@ -5365,7 +5381,23 @@ async function boot(): Promise<void> {
         enterEngine();
         return;
       } else if (e.type === 'find' && inside === 'engine') {
-        if (e.id === '7') {
+        if (e.id === '1' || e.id === '2' || e.id === '3') {
+          // Repeatable Engine Room Salvage Crate: respawns on every visit, feeds directly into EX-1 & base storage.
+          if (!engineVisitTaken.includes(e.id)) engineVisitTaken.push(e.id);
+          save.credits = Math.max(0, Math.floor(save.credits ?? 0)) + 35;
+          const loot = e.id === '1' ? 'brass' : e.id === '2' ? 'plate' : 'brass';
+          save.stored[loot] = (save.stored[loot] ?? 0) + 1;
+          if (e.id === '3') save.stored.plate = (save.stored.plate ?? 0) + 1;
+          const lootText = e.id === '3' ? '1 brass fitting & 1 hull plating' : `1 ${MATERIALS[loot].name.toLowerCase()}`;
+          const finished = recordContractEvent(save, 'salvage', 1);
+          hud.refreshInventory();
+          hud.toast(
+            finished
+              ? `Salvage crate: +35 SC & ${lootText} · Field Contract ready at EX-1!`
+              : `Salvage crate: +35 SC & ${lootText} sent to base storage.`,
+            'big',
+          );
+        } else if (e.id === '7') {
           grant(notable('data', 'Log found', 'The chief engineer’s log'));
           if (!save.scans.includes('enginelog')) save.scans.push('enginelog');
           hud.showReading("The chief engineer's log", SCAN_ENTRIES.find((x) => x.id === 'enginelog')!.text, FIND_NOTE);

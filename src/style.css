@@ -6482,3 +6482,136 @@ body:not(.building):not(.stationing):not(.docking):not(.caring) #inventory .chip
     height: 48px;
   }
 }
+
+/* ============================================================================
+ * Tank Harmony Showcase Rating & Supply Buoy Field Contracts (Nov 23, 2026)
+ * ============================================================================ */
+.harmony-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  margin: 0 0 8px;
+  padding: 6px 10px;
+  border-radius: 9px;
+  background: linear-gradient(90deg, rgba(212, 173, 90, 0.14), rgba(14, 34, 40, 0.55));
+  border: 1px solid rgba(212, 173, 90, 0.32);
+}
+.h-stars {
+  color: #f4d06f;
+  letter-spacing: 1px;
+  font-size: 13px;
+  text-shadow: 0 0 8px rgba(244, 208, 111, 0.38);
+}
+.harmony-bar .h-bonus {
+  font-size: 11px;
+  font-weight: 600;
+  color: #d6ef9e;
+}
+.harmony-bar .h-tip {
+  flex: 1 1 100%;
+  font-size: 11px;
+  color: rgba(226, 236, 224, 0.72);
+}
+.harmony-bar .h-tip.max {
+  color: #f4d06f;
+  font-weight: 600;
+}
+.tblock .thead .h-stars {
+  font-size: 11px;
+  margin-left: 2px;
+}
+
+.ex-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  margin-left: 4px;
+  border-radius: 999px;
+  background: #f4d06f;
+  color: #102022;
+  font-style: normal;
+  font-size: 10px;
+  font-weight: 800;
+}
+.ex-contracts {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.ex-contract {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: rgba(12, 30, 36, 0.72);
+  border: 1px solid rgba(164, 186, 176, 0.22);
+}
+.ex-contract.ready {
+  border-color: rgba(244, 208, 111, 0.62);
+  background: linear-gradient(90deg, rgba(212, 173, 90, 0.16), rgba(14, 34, 40, 0.78));
+  box-shadow: 0 0 18px rgba(244, 208, 111, 0.14);
+}
+.ex-c-main {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.ex-c-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 3px;
+}
+.ex-c-head b {
+  font-size: 13.5px;
+  color: #f2f7ec;
+}
+.ex-c-pay {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #f4d06f;
+  white-space: nowrap;
+}
+.ex-contract p {
+  margin: 0 0 7px;
+  font-size: 12px;
+  color: rgba(220, 234, 224, 0.78);
+}
+.ex-c-prog {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  color: rgba(220, 234, 224, 0.8);
+  font-variant-numeric: tabular-nums;
+}
+.ex-c-track {
+  flex: 1 1 auto;
+  height: 7px;
+  border-radius: 999px;
+  background: rgba(6, 16, 20, 0.72);
+  overflow: hidden;
+  border: 1px solid rgba(164, 186, 176, 0.18);
+}
+.ex-c-track i {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #98c848, #d8f474);
+  transition: width 0.25s ease;
+}
+.ex-contract.ready .ex-c-track i {
+  background: linear-gradient(90deg, #d8a842, #ffe28c);
+}
+.ex-go.claim {
+  background: linear-gradient(180deg, #e5bf62, #b88a32);
+  color: #102022;
+  border-color: #ffe39a;
+  font-weight: 800;
+}

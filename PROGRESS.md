@@ -4,6 +4,13 @@ The live branch includes the Fulmar foothold, Codex Phases 1–11D the Phase 12 
 
 Play link: https://colinhill88-hub.github.io/fathomlight/ (live; first successful deploy 2026-11-14)
 
+### Gameplay Loop Polish: Tank Harmony, Field Contracts & Repeatable Wreck Salvage Runs (Colin, Nov 23, 2026)
+
+Connected the creature-care, exploration, Supply Buoy, and wreck-combat loops together with three save-safe systems:
+- **Tank Harmony / Showcase Rating (`★–★★★★★`, `src/game/creatures.ts`, `src/ui/care.ts`, `src/ui/hatch.ts`):** tanks earn stars for matching biome flora, placing 2+ painted decorations, keeping water/residents thriving, and housing rare/radiant/diverse specimens. Each star above 1★ grants **+10% rare-trait breeding odds** (up to `+40%`) and **+8% faster material yield** (up to `+32%`), displayed with golden stars and next-star tips in both the Habitat Console and Creature Room.
+- **Supply Buoy `EX-1` Rotating Field Contracts (`src/game/contracts.ts`, `src/ui/exchange.ts`, `src/main.ts`):** 3 active, no-time-limit dive & base contracts tailored to progression (clearing Corvina wreck machines, Engine Room salvage runs, biome material samples, Showcase Tank Harmony, hatching, and sanctuary dispatches), paying Survey Credits (`SC`) and bonus Mystery Rare Eggs, with a ready-to-claim badge on `EX-1`.
+- **Repeatable Wreck Salvage Runs & Bounties (`src/interior/engineRoom.ts`, `src/interior/interior.ts`, `src/main.ts`):** added 3 guarded Salvage Crates inside the Corvina Engine Room that respawn on every fresh visit (`+35 SC` + Brass Fittings / Hull Plating each), plus `+8 SC` / `+15 SC` salvage bounties for defeating Rust Ticks and Weld Drones — giving the Rivet Driver `RD-1` and wreck combat a lasting role tied into the Supply Buoy and breeding loop.
+
 ### Painted vehicles, base exterior modules, all 16 tank decor & wreck machines (Colin, Nov 23, 2026)
 
 Extended the painterly cutout pipeline with `src/art/propArt.ts` (`loadPropArt`, reusing the 4-corner pure-white flood-fill cutout from `src/art/creatureArt.ts` with `?art=procedural` fallback) and installed **28 new painted `.webp` plates** (all logged in `docs/art/SOURCES.md`):

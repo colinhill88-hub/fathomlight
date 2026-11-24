@@ -1,7 +1,7 @@
 import { BaseLayout, isDone, isTankKind, Placed } from './base';
 import { CreatureData, JarData, MaterialId, MATERIAL_ORDER, MATERIALS, PlantId, SaveData, SpeciesId, TankData } from './state';
 import { EAT_BELOW, MASH_FED, NURSERY_TROUGH, TRAY_CAP, trayCount, whorlMult } from './factory';
-import { ensureTraits, inherit, RADIANT_MAKE, traitsOf, wildForms, wildTraits, type Traits } from './traits';
+import { ensureTraits, inherit, isRare, RADIANT_MAKE, traitsOf, wildForms, wildTraits, type Traits } from './traits';
 
 /**
  * Creature care (milestone 4). No drawing here, just the rules.
@@ -383,6 +383,53 @@ export function thrivingTanks(save: SaveData, layout: BaseLayout): Set<number> {
   return out;
 }
 
+export interface TankHarmony {
+  /** 0 if empty, 1..5 stars when occupied. */
+  stars: number;
+  /** Extra care-power bonus towards rare breeding odds (0..0.40). */
+  rareBonus: number;
+  /** Extra material production multiplier (0..0.32). */
+  yieldBonus: number;
+  flora: boolean;
+  decor: boolean;
+  thriving: boolean;
+  showcase: boolean;
+  nextTip: string | null;
+}
+
+/**
+ * Tank Harmony / Showcase Rating (★–★★★★★): matching biome flora, 2+ painted
+ * decorations, thriving care, and rare/diverse residents each add a star and
+ * boost both rare-trait breeding odds and material production speed.
+ */
+export function tankHarmony(save: SaveData, tankId: number): TankHarmony {
+  const here = creaturesIn(save, tankId).filter((c) => c.stage !== 'egg');
+  if (!here.length) {
+    return { stars: 0, rareBonus: 0, yieldBonus: 0, flora: false, decor: false, thriving: false, showcase: false, nextTip: 'Add a creature to start building Harmony.' };
+  }
+  const td = tankDataFor(save, tankId);
+  const flora = here.some((c) => td.plant === SPECIES[c.species].plant || td.plant2 === SPECIES[c.species].plant);
+  const decorCount = td.decor?.length ?? 0;
+  const decor = decorCount >= 2;
+  const thriving = td.water >= 0.72 && here.every((c) => c.fed >= 0.65 && c.comfort >= 0.65);
+  const speciesCount = new Set(here.map((c) => c.species)).size;
+  const showcase =
+    speciesCount >= 3 ||
+    here.some((c) => {
+      const tr = traitsOf(c);
+      return isRare(tr) || !!tr.radiant || !!tr.heirloom || !!tr.choir;
+    });
+  const stars = 1 + (flora ? 1 : 0) + (decor ? 1 : 0) + (thriving ? 1 : 0) + (showcase ? 1 : 0);
+  const rareBonus = (stars - 1) * 0.1;
+  const yieldBonus = (stars - 1) * 0.08;
+  let nextTip: string | null = null;
+  if (!flora) nextTip = 'Plant a matching biome flora for +1★';
+  else if (!decor) nextTip = decorCount === 1 ? 'Place 1 more tank decoration for +1★' : 'Place 2 tank decorations for +1★';
+  else if (!thriving) nextTip = 'Keep water & residents thriving for +1★';
+  else if (!showcase) nextTip = 'House a rare/radiant specimen or 3 species for +1★';
+  return { stars, rareBonus, yieldBonus, flora, decor, thriving, showcase, nextTip };
+}
+
 /**
  * How fast a grown creature makes its material, in items per minute, and
  * the parts of that number for the readouts. Zero unless it is happy.
@@ -392,7 +439,7 @@ export function makeRate(
   layout: BaseLayout,
   c: CreatureData,
   thriving = thrivingTanks(save, layout),
-): { perMin: number; shoal: number; reef: number; whorl: number; clean: number; radiant: number } {
+): { perMin: number; shoal: number; reef: number; whorl: number; clean: number; radiant: number; harmony: number } {
   const happyMates = creaturesIn(save, c.tank).filter((m) => m.id !== c.id && isHappy(save, m));
   const mates = happyMates.length;
   const shoal = Math.min(SHOAL_MAX, SHOAL_BONUS * mates);
@@ -400,10 +447,11 @@ export function makeRate(
   const clean = c.species === 'shrimp' ? 0 : CLEAN_BONUS * happyMates.filter((m) => m.species === 'shrimp').length;
   const reef = Math.min(REEF_MAX, REEF_BONUS * (thriving.size - (thriving.has(c.tank) ? 1 : 0)));
   const whorl = whorlMult(save, c.tank);
+  const harmony = tankHarmony(save, c.tank).yieldBonus;
   const base = c.stage === 'grown' && isHappy(save, c) ? 60 / MAKE_SECONDS : 0;
   // Milestone 9: a radiant creature makes a quarter more.
   const radiant = traitsOf(c).radiant ? RADIANT_MAKE : 1;
-  return { perMin: base * (1 + shoal + clean) * (1 + reef) * whorl * radiant, shoal, reef, whorl, clean, radiant };
+  return { perMin: base * (1 + shoal + clean) * (1 + reef) * (1 + harmony) * whorl * radiant, shoal, reef, whorl, clean, radiant, harmony };
 }
 
 export function tankDataFor(save: SaveData, tankId: number): TankData {
@@ -814,7 +862,8 @@ function tickBreeding(save: SaveData, layout: BaseLayout, dt: number, ev: CareEv
       if (j >= i) j++;
       const pa = b[i];
       const pb = b[j];
-      const power = tonic ? Math.min(1, carePower(save, pa, pb) + 0.45) : carePower(save, pa, pb);
+      const harm = tankHarmony(save, t.id);
+      const power = Math.min(1, carePower(save, pa, pb) + (tonic ? 0.45 : 0) + harm.rareBonus);
       const egg: CreatureData = {
         id: save.nextCreatureId++,
         species: sp,

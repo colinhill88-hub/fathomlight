@@ -1131,7 +1131,14 @@ export class Interior {
       if (!isFind(s.ch) || this.state.taken.includes(s.ch)) continue;
       const x = s.x;
       const y = s.y - 18;
-      if (s.ch === '1') tk.roundRect(x - 10, y - 10, 20, 14, 2).fill({ color: 0x3a3e40 }).roundRect(x - 7, y - 8, 14, 9, 1).fill({ color: 0x9ab070 });
+      if (this.opts.style === 'engine' && (s.ch === '1' || s.ch === '2' || s.ch === '3')) {
+        // Repeatable salvage crate in the Corvina engine room: brass-bound chest with warm glint.
+        tk.roundRect(x - 14, y - 6, 28, 22, 3).fill({ color: 0x4a3c28 });
+        tk.roundRect(x - 14, y - 6, 28, 22, 3).stroke({ color: 0xb68b3a, width: 2 });
+        tk.rect(x - 14, y + 2, 28, 2.5).fill({ color: 0x7c6028 });
+        tk.roundRect(x - 4, y - 1, 8, 9, 1.5).fill({ color: 0xdcb45a });
+        tk.circle(x, y + 3, 1.6).fill({ color: 0x262018 });
+      } else if (s.ch === '1') tk.roundRect(x - 10, y - 10, 20, 14, 2).fill({ color: 0x3a3e40 }).roundRect(x - 7, y - 8, 14, 9, 1).fill({ color: 0x9ab070 });
       else if (s.ch === '2') tk.roundRect(x - 16, y - 6, 32, 8, 4).fill({ color: 0xd8d0b8 });
       else if (s.ch === '3' || s.ch === '7') tk.roundRect(x - 11, y - 8, 22, 10, 1).fill({ color: 0x6a3a2a });
       else if (s.ch === '4' || s.ch === '5') tk.circle(x, y - 3, 7).stroke({ color: 0xc9a24a, width: 2.4 }).circle(x, y - 3, 2).fill({ color: 0x4a4e50 });

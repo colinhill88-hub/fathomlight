@@ -1,5 +1,6 @@
 import { BaseLayout, pieceCode } from '../game/base';
 import { DECOR } from '../game/collection';
+import { claimContract, ensureContracts, readyContractCount, recordContractEvent, syncHarmonyContracts } from '../game/contracts';
 import { creatureName, SPECIES, tanks } from '../game/creatures';
 import {
   applyTonic,
@@ -33,7 +34,7 @@ export interface ExchangeDeps {
   onDispatch(): void;
 }
 
-type Tab = 'dispatch' | 'store';
+type Tab = 'dispatch' | 'contracts' | 'store';
 type SourceFilter = 'reserve' | 'tanks';
 
 export class ExchangePanel {
@@ -77,6 +78,7 @@ export class ExchangePanel {
       else if (act === 'buy-tonic') this.buyTonic(Number(id));
       else if (act === 'buy-supply') this.buySupply(id as (typeof EXCHANGE_SUPPLIES)[number]['id']);
       else if (act === 'buy-egg') this.buyEgg(id as SpeciesId);
+      else if (act === 'claim-contract') this.claim(id);
     });
 
     window.addEventListener('keydown', (e) => {
@@ -90,9 +92,11 @@ export class ExchangePanel {
 
   show(): void {
     const s = this.deps.save();
+    syncHarmonyContracts(s, this.deps.layout());
     this.open = true;
     this.armedId = null;
     this.source = (s.reserve?.length ?? 0) > 0 ? 'reserve' : 'tanks';
+    if (readyContractCount(s) > 0) this.tab = 'contracts';
     this.el.hidden = false;
     this.render();
   }
@@ -112,6 +116,7 @@ export class ExchangePanel {
       this.deps.toast('No extra duplicate common adults to dispatch right now.', 'item');
       return;
     }
+    recordContractEvent(s, 'dispatch', res.count);
     this.deps.onDispatch();
     this.deps.changed();
     this.deps.persist();
@@ -137,10 +142,25 @@ export class ExchangePanel {
       this.deps.toast(res.why, 'warn');
       return;
     }
+    recordContractEvent(s, 'dispatch', 1);
     this.deps.onDispatch();
     this.deps.changed();
     this.deps.persist();
     this.deps.toast(`Dispatched ${res.name} the ${SPECIES[res.species].name.toLowerCase()} (+${res.earned} SC).`, 'item');
+    this.render();
+  }
+
+  private claim(contractId: string): void {
+    const s = this.deps.save();
+    const res = claimContract(s, contractId);
+    if (!res.ok) {
+      this.deps.toast(res.why, 'warn');
+      return;
+    }
+    syncHarmonyContracts(s, this.deps.layout());
+    this.deps.changed();
+    this.deps.persist();
+    this.deps.onBuy('supply', `Contract Complete (+${res.credits} SC)`, `Reward credited${res.bonusText}. A fresh field contract has been posted.`);
     this.render();
   }
 
@@ -316,10 +336,38 @@ export class ExchangePanel {
       <div class="ex-egg-row">${eggBtns}</div>`;
   }
 
+  private renderContracts(s: SaveData): string {
+    syncHarmonyContracts(s, this.deps.layout());
+    const list = ensureContracts(s);
+    const doneTotal = s.contractsDone ?? 0;
+    const cards = list
+      .map((c) => {
+        const done = c.progress >= c.target;
+        const pct = Math.min(100, Math.round((c.progress / Math.max(1, c.target)) * 100));
+        const bonusTag = c.bonus === 'egg' ? ' + Mystery Rare Egg' : c.bonus === 'whorl' ? ' + Echo Whorl' : '';
+        return `<div class="ex-contract${done ? ' ready' : ''}">
+          <div class="ex-c-main">
+            <div class="ex-c-head"><b>${c.title}</b><span class="ex-c-pay">+${c.credits} SC${bonusTag}</span></div>
+            <p>${c.detail}</p>
+            <div class="ex-c-prog"><div class="ex-c-track"><i style="width:${pct}%"></i></div><span>${c.progress}/${c.target}</span></div>
+          </div>
+          <button type="button" class="ex-go${done ? ' claim' : ''}" data-ex="claim-contract" data-id="${c.id}" ${done ? '' : 'disabled'}>
+            ${done ? 'Claim' : 'In progress'}
+          </button>
+        </div>`;
+      })
+      .join('');
+    return `
+      <h3 class="ex-sec-title">Active Field Contracts <span>No time limits · ${doneTotal} completed</span></h3>
+      <div class="ex-contracts">${cards}</div>`;
+  }
+
   render(): void {
     if (!this.open) return;
     const s = this.deps.save();
+    syncHarmonyContracts(s, this.deps.layout());
     const sc = creditsOf(s);
+    const ready = readyContractCount(s);
     this.el.innerHTML = `<div class="ex-card">
       <header class="ex-head">
         <div>
@@ -328,13 +376,14 @@ export class ExchangePanel {
         </div>
         <div class="ex-tabs">
           <button type="button" class="tab${this.tab === 'dispatch' ? ' on' : ''}" data-ex="tab" data-id="dispatch">Dispatch</button>
+          <button type="button" class="tab${this.tab === 'contracts' ? ' on' : ''}" data-ex="tab" data-id="contracts">Contracts${ready ? ` <em class="ex-badge">${ready}</em>` : ''}</button>
           <button type="button" class="tab${this.tab === 'store' ? ' on' : ''}" data-ex="tab" data-id="store">Exchange Store</button>
         </div>
         <div class="ex-credits" aria-label="Survey Credits">${sc} <span>SC</span></div>
         <button type="button" class="fk-close" data-ex="close" aria-label="Close">✕</button>
       </header>
       <div class="ex-body">
-        ${this.tab === 'dispatch' ? this.renderDispatch(s) : this.renderStore(s)}
+        ${this.tab === 'dispatch' ? this.renderDispatch(s) : this.tab === 'contracts' ? this.renderContracts(s) : this.renderStore(s)}
       </div>
     </div>`;
   }

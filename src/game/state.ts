@@ -216,6 +216,19 @@ export type DecorId =
   | 'arch' | 'amphora' | 'helmet' | 'chest' | 'driftwood' | 'clam' | 'lantern' | 'wheel'
   | 'anchor' | 'coralarch' | 'astrolabe' | 'floats' | 'bell' | 'belljar' | 'cairn' | 'kelplantern';
 
+/** Supply Buoy EX-1 rotating Field Contract (save-safe, no time limits). */
+export interface FieldContract {
+  id: string;
+  kind: 'foes' | 'salvage' | 'gather' | 'hatch' | 'harmony' | 'dispatch';
+  title: string;
+  detail: string;
+  target: number;
+  progress: number;
+  mat?: MaterialId;
+  credits: number;
+  bonus?: 'egg' | 'whorl';
+}
+
 /** Phase 20: one kind (species, colour, pattern) in the collection book. */
 export interface BookEntry {
   /** Where the first one came from. */
@@ -501,6 +514,9 @@ export interface SaveData {
   displayKits?: number;
   /** Research Exchange (Supply Buoy): Survey Credits earned by dispatching surplus raised creatures. */
   credits?: number;
+  /** Supply Buoy EX-1 rotating Field Contracts (optional, save-safe). */
+  contracts?: FieldContract[];
+  contractsDone?: number;
   playSeconds: number;
   savedAt: number;
 }
