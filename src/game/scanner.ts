@@ -442,10 +442,13 @@ export class Scanner {
   private idPulse = 0;
   private idX = 0;
   private idY = 0;
+  private donePulse = 0;
+  private doneX = 0;
+  private doneY = 0;
 
   constructor(readonly candidates: ScanCandidate[]) {}
 
-  /** A quick amber ring sweeping out from the diver, shown when the quick ID is used. */
+  /** A quick sonar wave sweeping out from the diver, shown when the quick ID is used. */
   pulseIdentify(x: number, y: number): void {
     this.idPulse = 1;
     this.idX = x;
@@ -455,7 +458,8 @@ export class Scanner {
   /** Returns the id of an entry that was just completed, if any. */
   update(dt: number, dx: number, dy: number, held: boolean, done: Set<string>, emitX: number, emitY: number, enabled: boolean): string | null {
     this.pulse += dt;
-    this.idPulse = Math.max(0, this.idPulse - dt / 0.7);
+    this.idPulse = Math.max(0, this.idPulse - dt / 0.85);
+    this.donePulse = Math.max(0, this.donePulse - dt / 0.65);
     let completed: string | null = null;
 
     // Keep a locked target while the button is held, otherwise pick the nearest new thing.
@@ -482,6 +486,9 @@ export class Scanner {
       this.progress += dt / SCAN_TIME;
       if (this.progress >= 1) {
         completed = this.target.id;
+        this.donePulse = 1;
+        this.doneX = this.target.x;
+        this.doneY = this.target.y;
         this.progress = 0;
       }
     } else {
@@ -495,16 +502,52 @@ export class Scanner {
   private draw(ex: number, ey: number, held: boolean): void {
     const g = this.overlay;
     g.clear();
+    const gold = 0xf2d488;
+    const lime = 0xc6f03a;
+
+    // Quick-ID sonar wave: smooth double-ring expansion with a faint optical wash.
     if (this.idPulse > 0) {
-      const r = 40 + (1 - this.idPulse) * 420;
-      g.circle(this.idX, this.idY, r).stroke({ color: 0xffc861, width: 2, alpha: this.idPulse * 0.6 });
+      const k = 1 - this.idPulse;
+      const ease = 1 - (1 - k) * (1 - k);
+      const r = 34 + ease * 430;
+      g.circle(this.idX, this.idY, r).fill({ color: lime, alpha: this.idPulse * 0.04 });
+      g.circle(this.idX, this.idY, r).stroke({ color: lime, width: 2.2, alpha: this.idPulse * 0.55 });
+      if (r > 52) {
+        g.circle(this.idX, this.idY, r - 24).stroke({ color: gold, width: 1.2, alpha: this.idPulse * 0.3 });
+      }
     }
+
+    // Completion bloom when a scan finishes.
+    if (this.donePulse > 0) {
+      const k = 1 - this.donePulse;
+      const ease = 1 - (1 - k) * (1 - k);
+      const r = 18 + ease * 58;
+      g.circle(this.doneX, this.doneY, r).stroke({ color: lime, width: 2.5 * this.donePulse + 0.5, alpha: this.donePulse * 0.78 });
+      g.circle(this.doneX, this.doneY, r * 0.65).fill({ color: lime, alpha: this.donePulse * 0.14 });
+    }
+
     const t = this.target;
     if (!t) return;
-    const amber = 0xffc861;
-    const s = 26 + Math.sin(this.pulse * 4) * 3 - this.progress * 6;
-    const k = 9;
-    // Four corner brackets.
+    const p = this.progress;
+    const s = 24 + Math.sin(this.pulse * 3.2) * 2.2 - p * 5;
+    const k = 7.5;
+
+    // Subtle dark backing halo so the optical reticle reads crisply even in bright shallows.
+    g.circle(t.x, t.y, s + 9).fill({ color: 0x081a1e, alpha: held && p > 0 ? 0.22 : 0.12 });
+
+    // Rotating optical tick marks around the target.
+    const rot = this.pulse * (held ? 1.5 : 0.45);
+    const ringR = s + 6;
+    for (let i = 0; i < 4; i++) {
+      const a = rot + (i * Math.PI) / 2;
+      const ca = Math.cos(a);
+      const sa = Math.sin(a);
+      g.moveTo(t.x + ca * (ringR - 3), t.y + sa * (ringR - 3))
+        .lineTo(t.x + ca * (ringR + 3), t.y + sa * (ringR + 3));
+    }
+    g.stroke({ color: gold, width: 1.4, alpha: 0.55, cap: 'round' });
+
+    // Clean corner brackets (tightening softly as scan completes).
     for (const [sx, sy] of [
       [-1, -1],
       [1, -1],
@@ -515,21 +558,51 @@ export class Scanner {
         .lineTo(t.x + sx * s, t.y + sy * s)
         .lineTo(t.x + sx * (s - k), t.y + sy * s);
     }
-    g.stroke({ color: amber, width: 2, alpha: 0.85 });
-    if (held && this.progress > 0) {
-      // A fan of light from the scanner to the target.
+    g.stroke({ color: held && p > 0 ? lime : gold, width: 1.8, alpha: 0.85, cap: 'round', join: 'round' });
+
+    if (held && p > 0) {
+      // Smooth dual-layer optical beam from Kestrel's visor/sub dome to the target.
       const ang = Math.atan2(t.y - ey, t.x - ex);
-      const len = Math.hypot(t.x - ex, t.y - ey);
-      const spread = 18 / Math.max(40, len);
-      g.poly([ex, ey, ex + Math.cos(ang - spread) * len, ey + Math.sin(ang - spread) * len, ex + Math.cos(ang + spread) * len, ey + Math.sin(ang + spread) * len]).fill({
-        color: amber,
-        alpha: 0.12 + 0.06 * Math.sin(this.pulse * 30),
+      const nx = -Math.sin(ang);
+      const ny = Math.cos(ang);
+      const wide = Math.min(26, s * 0.95);
+      const narrow = wide * 0.45;
+      // Outer soft haze cone.
+      g.poly([ex, ey, t.x + nx * wide, t.y + ny * wide, t.x - nx * wide, t.y - ny * wide]).fill({
+        color: gold,
+        alpha: 0.065,
       });
-      // A sweeping line across the target.
-      const sweep = Math.sin(this.pulse * 6) * s * 0.9;
-      g.moveTo(t.x - s * 0.9, t.y + sweep).lineTo(t.x + s * 0.9, t.y + sweep).stroke({ color: amber, width: 1.5, alpha: 0.7 });
-      // Progress ring.
-      g.arc(t.x, t.y, s + 8, -Math.PI / 2, -Math.PI / 2 + this.progress * Math.PI * 2).stroke({ color: amber, width: 3, alpha: 0.95 });
+      // Inner focused lime-gold beam.
+      g.poly([ex, ey, t.x + nx * narrow, t.y + ny * narrow, t.x - nx * narrow, t.y - ny * narrow]).fill({
+        color: lime,
+        alpha: 0.095,
+      });
+      // Travelling optical scan pulses gliding down the beam toward the target.
+      for (let i = 0; i < 3; i++) {
+        const u = (this.pulse * 1.4 + i / 3) % 1;
+        const px = ex + (t.x - ex) * u;
+        const py = ey + (t.y - ey) * u;
+        const hw = 3 + u * (wide * 0.85);
+        g.moveTo(px + nx * hw, py + ny * hw)
+          .lineTo(px - nx * hw, py - ny * hw)
+          .stroke({ color: lime, width: 1.4, alpha: Math.sin(u * Math.PI) * 0.45, cap: 'round' });
+      }
+
+      // Gentle vertical sweep wave across the target (soft glow + crisp line).
+      const sweep = Math.sin(this.pulse * 5.2) * s * 0.78;
+      const halfW = Math.sqrt(Math.max(0, s * s - sweep * sweep)) * 0.95;
+      g.moveTo(t.x - halfW, t.y + sweep).lineTo(t.x + halfW, t.y + sweep).stroke({ color: lime, width: 4, alpha: 0.16, cap: 'round' });
+      g.moveTo(t.x - halfW, t.y + sweep).lineTo(t.x + halfW, t.y + sweep).stroke({ color: 0xeaff9a, width: 1.3, alpha: 0.78, cap: 'round' });
+
+      // Smooth progress ring with dark track, luminous arc (proper moveTo so zero stray chord!), and leading tip dot.
+      const pr = ringR + 3;
+      const start = -Math.PI / 2;
+      const end = start + p * Math.PI * 2;
+      g.circle(t.x, t.y, pr).stroke({ color: 0x0c242a, width: 3.6, alpha: 0.5 });
+      g.moveTo(t.x + Math.cos(start) * pr, t.y + Math.sin(start) * pr)
+        .arc(t.x, t.y, pr, start, end)
+        .stroke({ color: lime, width: 2.6, alpha: 0.95, cap: 'round' });
+      g.circle(t.x + Math.cos(end) * pr, t.y + Math.sin(end) * pr, 3.2).fill({ color: 0xf4ffbd, alpha: 0.95 });
     }
   }
 }
