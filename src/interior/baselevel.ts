@@ -1477,18 +1477,18 @@ export class BaseHooks implements InteriorHooks {
       }
       case 'storage':
       case 'sorter': {
-        // Racks of crates (storage) or labelled bays (sorting pod).
+        // Weathered riveted cast-iron & brass shelving racks for painted crates.
         for (let k = 0; k < 3; k++) {
           const sy = bot - 40 - k * 46;
-          g.rect(b.ox + 16, sy, b.ow - 32, 5).fill({ color: COL.chrome });
-          g.rect(b.ox + 16, sy + 5, b.ow - 32, 2).fill({ color: COL.seam });
+          g.rect(b.ox + 16, sy, b.ow - 32, 5).fill({ color: 0x3b4646 }).stroke({ color: 0x141b1d, width: 1 });
+          g.rect(b.ox + 16, sy, b.ow - 32, 1.5).fill({ color: 0x8f723c, alpha: 0.72 });
         }
         for (const x of [b.ox + 18, b.ox + b.ow - 24]) {
-          g.rect(x, bot - 150, 6, 150).fill({ color: COL.chromeDark });
-          for (let y = bot - 144; y < bot - 6; y += 9) g.rect(x + 2, y, 2, 4).fill({ color: DC.grime });
+          g.rect(x, bot - 150, 6, 150).fill({ color: 0x263032 }).stroke({ color: 0x12191b, width: 1 });
+          for (let y = bot - 144; y < bot - 6; y += 12) g.circle(x + 3, y, 1.1).fill({ color: 0xb6944e, alpha: 0.75 });
         }
-        // Diagonal bracing behind the shelves, and a stripe where the forklift path ends.
-        g.moveTo(b.ox + 24, bot - 46).lineTo(b.ox + 70, bot - 132).moveTo(b.ox + b.ow - 24, bot - 46).lineTo(b.ox + b.ow - 70, bot - 132).stroke({ color: DC.chromeDark, width: 2, alpha: 0.7 });
+        // Subtle diagonal bracing behind the shelves.
+        g.moveTo(b.ox + 24, bot - 46).lineTo(b.ox + 70, bot - 132).moveTo(b.ox + b.ow - 24, bot - 46).lineTo(b.ox + b.ow - 70, bot - 132).stroke({ color: 0x263032, width: 2, alpha: 0.65 });
         hazard(g, b.ox + 16, bot - 6, 40, 6);
         hazard(g, b.ox + b.ow - 56, bot - 6, 40, 6);
         const crateTex = getPropArt().interior.crate;
@@ -2282,8 +2282,10 @@ export class BaseHooks implements InteriorHooks {
           }
         }
         if (on) {
-          d.rect(b.ox + b.ow - 50, b.oy + 50, 20, 60).fill({ color: 0x0c1418 });
-          d.rect(b.ox + b.ow - 48, b.oy + 108 - 56 * frac, 16, 56 * frac).fill({ color: COL.lime, alpha: 0.9 });
+          // Recessed riveted brass-bezel storage capacity meter.
+          d.roundRect(b.ox + b.ow - 52, b.oy + 48, 24, 64, 3).fill({ color: 0x263032 }).stroke({ color: 0x8f723c, width: 1.6 });
+          d.rect(b.ox + b.ow - 49, b.oy + 51, 18, 58).fill({ color: 0x10181a });
+          if (frac > 0.01) d.rect(b.ox + b.ow - 47, b.oy + 107 - 54 * frac, 14, 54 * frac).fill({ color: 0x9bb83c, alpha: 0.85 });
         }
       } else if (r.kind === 'tank' || r.kind === 'gtank') {
         this.drawTank(r, d, de, time, on);
@@ -2326,9 +2328,9 @@ export class BaseHooks implements InteriorHooks {
         const run = on && c.pressing(id);
         const stroke = run ? (Math.sin(time * 2.4) + 1) / 2 : 0;
         const ramY = b.oy + 32 + stroke * (bot - b.oy - 110);
-        d.rect(px - 10, b.oy + 32, 20, ramY - b.oy - 32).fill({ color: COL.chromeHi });
-        d.roundRect(px - 60, ramY, 120, 40, 4).fill({ color: COL.chromeDark });
-        d.rect(px - 60, ramY + 36, 120, 4).fill({ color: COL.gold });
+        d.rect(px - 10, b.oy + 32, 20, ramY - b.oy - 32).fill({ color: 0x5c6868 }).stroke({ color: 0x141b1d, width: 1.4 });
+        d.roundRect(px - 60, ramY, 120, 40, 4).fill({ color: 0x2a3436 }).stroke({ color: 0x12191b, width: 2 });
+        d.rect(px - 58, ramY + 34, 116, 5).fill({ color: 0xb69244 });
         if (run && stroke > 0.95) de.circle(px, bot - 28, 10).fill({ color: 0xffd080, alpha: 0.7 });
       } else if (r.kind === 'lab' && on) {
         const busy = c.stationBusy(id);

@@ -1274,6 +1274,7 @@ function drawFilter(n: number, livingBases: boolean): PieceArt {
   tubeV(g, 0, 18, c, 1);
   const painted = getPropArt().base.filter;
   if (painted) {
+    tubeV(g, CELL - 18, CELL, c, 1);
     const spr = new Sprite(painted);
     spr.anchor.set(0.5, 0.54);
     const sc = Math.min((CELL - 10) / Math.max(1, painted.width), (CELL - 8) / Math.max(1, painted.height));
@@ -2116,20 +2117,24 @@ function drawPaintedHero(kind: PieceKind, n: number, rot: number, housingOcean: 
     spr.height = natH;
     spr.position.set(cx, hubY + 4);
     body.addChild(spr);
-    // Live spinning impeller rotor inside the circular brass intake ring!
+    // Live spinning 4-blade tarnished-bronze impeller rotor matching the interior CT-1 turbine!
     const rotor = new Container();
     const rg = rotor.addChild(new Graphics());
-    for (let i = 0; i < 3; i++) {
-      const a = (i / 3) * Math.PI * 2;
+    for (let i = 0; i < 4; i++) {
+      const a = (i / 4) * Math.PI * 2;
       const ca = Math.cos(a);
       const sa = Math.sin(a);
       const P = (u: number, v: number): [number, number] => [ca * u - sa * v, sa * u + ca * v];
-      rg.poly([P(5, -3), P(14, -9), P(24, -4), P(25, 2), P(6, 4)].flat()).fill({ color: 0x626c72 });
-      rg.poly([P(6, 1), P(25, 2), P(6, 4)].flat()).fill({ color: 0x3a4248 });
+      rg.poly([P(5, -3), P(14, -8.5), P(24, -4), P(25, 2.5), P(6, 3.5)].flat())
+        .fill({ color: 0x5c5540 }).stroke({ color: 0x161c1d, width: 1.2 });
+      rg.poly([P(6, -2.5), P(14, -7.2), P(23, -3.5), P(14, -1.8), P(6, -0.5)].flat())
+        .fill({ color: 0xb69452, alpha: 0.72 });
+      rg.poly([P(6, 0.5), P(24, 0), P(24, 2.5), P(6, 3.5)].flat())
+        .fill({ color: 0x262e30, alpha: 0.72 });
     }
-    rg.circle(0, 0, 6.5).fill({ color: PAL.chrome });
-    rg.circle(-1.5, -1.5, 2.4).fill({ color: PAL.chromeHi, alpha: 0.7 });
-    rg.circle(0, 0, 2).fill({ color: PAL.steelDeep });
+    rg.circle(0, 0, 6.8).fill({ color: 0x8f713a }).stroke({ color: 0x161c1d, width: 1.3 });
+    rg.circle(-1.2, -1.2, 3.2).fill({ color: 0xd6b86e, alpha: 0.78 });
+    rg.circle(0, 0, 2.2).fill({ color: 0x3b3322 });
     rotor.position.set(cx, hubY - 3);
     body.addChild(rotor);
     windows.circle(cx, hubY + natH * 0.37, 2.8).fill({ color: 0xffc84a, alpha: 0.85 });

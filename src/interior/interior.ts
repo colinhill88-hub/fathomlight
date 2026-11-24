@@ -861,7 +861,7 @@ export class Interior {
    * chrome trim and gold power lines, hanging in black water. The rooms'
    * own art comes from the level's hooks.
    */
-  private buildBaseStatic(g: Graphics, e: Graphics, gl: Graphics, rand: () => number): void {
+  private buildBaseStatic(g: Graphics, _e: Graphics, gl: Graphics, rand: () => number): void {
     const PW = this.W * T;
     const PH = this.H * T;
     const modular = !!this.hooks?.housingHull;
@@ -880,7 +880,8 @@ export class Interior {
       this.litCam.addChildAt(t, this.litCam.getChildIndex(this.baseLadders) + 1);
       this.texts.push(t);
     };
-    this.hooks!.decorate(g, e, gl, addLamp, addText, 'back', this.art?.materials.kestrel);
+    // Inside the walkable base, pass `g` for static overlays so every room fixture & light sits behind Kestrel.
+    this.hooks!.decorate(g, g, gl, addLamp, addText, 'back', this.art?.materials.kestrel);
     const hull = (tx: number, ty: number) => {
       const c = this.ch(tx, ty);
       return c === '#' || c === 'P';
@@ -950,7 +951,7 @@ export class Interior {
         }
         if (c === 'H') this.drawLadder(this.hooks!.oceanBackdrop ? this.baseLadders : g, x, y);
       }
-    this.hooks!.decorate(g, e, gl, addLamp, addText, 'front');
+    this.hooks!.decorate(g, g, gl, addLamp, addText, 'front');
   }
 
   /**
@@ -1947,7 +1948,8 @@ export class Interior {
     if (this.opts.combat) this.opts.combat.draw(d, this.front, de, dg, this.time);
     if (this.hooks) {
       de.clear();
-      this.hooks.animate(d, de, this.time, { x0: this.cam.x, y0: this.cam.y, x1: this.cam.x + viewW, y1: this.cam.y + viewH });
+      // Pass `d` for both lit and indicator overlays so moving base gauges/lights stay behind Kestrel.
+      this.hooks.animate(d, d, this.time, { x0: this.cam.x, y0: this.cam.y, x1: this.cam.x + viewW, y1: this.cam.y + viewH });
       this.hooks.tick?.(dt, this.time, this.cam.x, this.cam.x + viewW);
     }
     this.drawLift(d, de, this.front);
