@@ -4,6 +4,7 @@ import { groundY, isSolid, WORLD_H, WORLD_W } from './terrain';
 import { Critter } from '../actors/critters';
 import { wildLook, type Traits } from '../game/traits';
 import { restockedLook } from '../game/collection';
+import { wildAllowed } from '../game/creatures';
 import { REGROW_SECONDS, SaveData, SpeciesId } from '../game/state';
 import type { PointLight } from './scenery';
 import type { FlowSample, WaterMotion } from '../scene/waterMotion';
@@ -359,7 +360,7 @@ export class Wildlife {
           this.strokeDelay = 0.24;
         }
       }
-      if (w.collectible && w.scared <= 0 && fd < bestD) {
+      if (w.collectible && wildAllowed(save, w.species) && w.scared <= 0 && fd < bestD) {
         bestD = fd;
         best = w;
       }
