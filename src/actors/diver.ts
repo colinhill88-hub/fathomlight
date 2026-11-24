@@ -7,6 +7,7 @@ import type { Walker } from './walker';
 import { MAG, floorBetween, magClamp, magStep, type MagBody, type MagResult } from '../game/magboots';
 import { KestrelExpression, kestrelFin, kestrelHand, kestrelHelmet, kestrelLimb, kestrelTorso } from './kestrelArt';
 import { KestrelSwimMotion, type KestrelAction } from './kestrelMotion';
+import { getPropArt } from '../art/propArt';
 
 /**
  * The explorer, drawn entirely with code. The suit takes its inspiration
@@ -171,6 +172,23 @@ export function drawGuardPlate(g: Graphics, k = 1): Graphics {
  * C (short with three tanks, full with four). With none yet, a pony bottle.
  */
 function drawDiverBack(g: Graphics, kit: KitLook, compact: boolean): void {
+  const paintedPack = getPropArt().kestrel.pack;
+  if (paintedPack) {
+    let spr = g.children.find((c): c is Sprite => c instanceof Sprite && c.label === 'painted-pack');
+    if (!spr) {
+      spr = new Sprite(paintedPack);
+      spr.label = 'painted-pack';
+      spr.anchor.set(0.5, 0.55);
+      g.addChild(spr);
+    }
+    spr.visible = true;
+    const sc = (compact ? 48 : 54) / Math.max(1, paintedPack.width);
+    spr.scale.set(sc);
+    spr.position.set(compact ? -2 : 0, compact ? -24 : -28);
+    return;
+  }
+  const existing = g.children.find((c) => c.label === 'painted-pack');
+  if (existing) existing.visible = false;
   const n = Math.min(4, kit.tanks);
   const tank = (x0: number, x1: number, y: number, shade: number) => {
     const w = x1 - x0;
@@ -480,7 +498,7 @@ function buildArm(far: boolean, redesigned: boolean, compact: boolean, detailed:
   return { upper, fore, hand };
 }
 
-export function playerPart(legacy: Graphics, replacement: Graphics | undefined, tint: number): Graphics {
+export function playerPart(legacy: Graphics, replacement: Container | undefined, tint: number): Container {
   if (replacement) legacy.destroy();
   const part = replacement ?? legacy;
   part.tint = tint;
@@ -1868,26 +1886,24 @@ export class Diver {
     const action = this.working ? 'busy' : this.visualAction;
     motion.update(dt, this.vx, this.vy, mx, my, this.face, this.boostLvl, this.surfaced, this.surfaceTime,
       this.popStrength, action, this.visualTarget, this.x, this.y, this.pitch);
-    const curl = motion.brake * (this.compact ? 0.51 : 0.23) + motion.interest * motion.look * 0.16 + motion.relief * 0.15;
-    const flex = this.chestFlex.step(curl + Math.sin(motion.stroke - 0.5) * (0.034 + motion.power * 0.038)
-      - motion.reach * 0.13, 10, 0.84, dt);
+    // Natural, buoyant scuba posture: gentle spine wave synced to kicks, zero cartoon accordion squash/stretch!
+    const curl = motion.brake * 0.14 + motion.interest * motion.look * 0.12 + motion.relief * 0.12;
+    const flex = this.chestFlex.step(curl + Math.sin(motion.stroke - 0.5) * (0.025 + motion.power * 0.025)
+      - motion.reach * 0.06, 9, 0.86, dt);
     this.chest!.rotation = flex;
-    this.chest!.scale.y = 1 + this.heave * 0.045 + motion.reach * 0.10 - motion.brake * (this.compact ? 0.25 : 0.11);
-    this.helmet.rotation = flex * 0.54 - motion.relief * 0.17 - motion.trim * 0.18;
-    this.helmet.position.set((this.compact ? 51 : 57) - motion.brake * (this.compact ? 9 : 5) + motion.reach * 2.4, 17 + flex * 13 - motion.relief * 2);
+    this.chest!.scale.y = 1 + this.heave * 0.025;
+    this.helmet.rotation = flex * 0.42 - motion.relief * 0.14 - motion.trim * 0.16;
+    this.helmet.position.set((this.compact ? 52 : 57) - motion.brake * 2.5 + motion.reach * 1.5, 16 + flex * 8 - motion.relief * 1.8);
     this.view.scale.x = Math.sign(this.view.scale.x) * Math.max(this.compact ? 0.47 : 0.26, Math.abs(this.view.scale.x));
-    this.body.y += Math.sin(this.time * 1.7) * 1.75 * (1 - motion.travel) + Math.sin(motion.stroke * 2 - 0.5) * (1.8 * motion.travel) - motion.relief * 2.2;
-    this.body.rotation += Math.sin(motion.stroke * 2) * (0.038 * motion.travel + 0.025 * motion.power);
-    this.nearArm.upper.position.set(25 - motion.brake * 2.4, 8 + flex * 16);
-    this.farArm.upper.position.set(27 - motion.brake * 3.1, 1 + flex * 12);
-    this.nearLeg.thigh.position.set(-26 + motion.brake * 1.5, 7 + motion.brake * 3);
-    this.farLeg.thigh.position.set(-24 + motion.brake * 1.8, 2 + motion.brake * 1.5);
-    this.backG.rotation = this.tankSwing.step(motion.brake * 0.09 - motion.reach * 0.06, 8.5, 0.63, dt);
-    if (this.compact && !this.surfaced && action === 'free') {
-      this.body.rotation -= motion.brake * 0.30 + motion.reach * 0.13 + motion.interest * 0.19;
-      this.body.scale.x *= 1 - motion.compression * 0.14 + motion.reach * 0.08;
-      this.body.scale.y *= 1 + motion.compression * 0.09;
-    }
+    this.body.y += Math.sin(this.time * 1.65) * 1.8 * (1 - motion.travel) + Math.sin(motion.stroke * 2 - 0.5) * (1.4 * motion.travel) - motion.relief * 2;
+    // Slight natural head-up hover tilt (-12°) flattening cleanly into a streamlined horizontal glide while swimming.
+    const hoverTilt = !this.surfaced ? -0.20 * (1 - motion.travel) : 0;
+    this.body.rotation += hoverTilt + Math.sin(motion.stroke * 2) * (0.028 * motion.travel + 0.018 * motion.power);
+    this.nearArm.upper.position.set(24, 7 + flex * 8);
+    this.farArm.upper.position.set(26, 2 + flex * 6);
+    this.nearLeg.thigh.position.set(-25, 6);
+    this.farLeg.thigh.position.set(-23, 2);
+    this.backG.rotation = this.tankSwing.step(motion.brake * 0.05 - motion.reach * 0.03, 8.5, 0.72, dt);
   }
 
   private poseKestrelLimbs(dt: number, motion: KestrelSwimMotion): void {
@@ -1896,53 +1912,44 @@ export class Diver {
     const scanning = this.visualAction === 'scan';
     const grappling = this.visualAction === 'grapple';
     const nearFloor = !this.surfaced && isSolid(this.x - this.face * 48 * Diver.SWIM_K, this.y + 29 * Diver.SWIM_K);
-    // Expressive flutter kick: gentle tread while hovering, clear rhythmic scissor kick while swimming, strong surge on boost.
-    const spread = (this.surfaced ? 0.44 : 0.20 + travel * 0.26 + power * 0.34) * (nearFloor ? 0.65 : 1);
+    // Clean, rhythmic scuba flutter-kick: gentle relaxed tread while hovering, graceful scissor kick while cruising.
+    const spread = (this.surfaced ? 0.36 : 0.16 + travel * 0.24 + power * 0.26) * (nearFloor ? 0.65 : 1);
     for (let i = 0; i < 2; i++) {
       const near = i === 0;
       const leg = near ? this.nearLeg : this.farLeg;
       const arm = near ? this.nearArm : this.farArm;
       const phase = stroke + i * Math.PI;
       const beat = Math.sin(phase);
-      const kneeWave = Math.sin(phase - 0.88);
-      const ankleWave = Math.sin(phase - 1.48);
-      const tipWave = Math.sin(phase - 2.08);
-      // Power travels naturally down the leg: hip -> knee -> ankle -> flexible fin blade tip.
-      leg.thigh.rotation = Math.PI - hover * (0.34 + i * 0.16) + spread * beat
-        - brake * (0.69 + i * 0.23) + trim * 0.24 - relief * 0.18;
-      leg.shin.rotation = 0.14 + hover * (0.48 + 0.12 * i) + spread * (0.44 + kneeWave * 0.68)
-        + brake * 0.49 - reach * 0.14;
-      if (this.compact) {
-        leg.thigh.rotation -= brake * 0.55 + motion.compression * 0.48;
-        leg.shin.rotation += brake * 0.75 + motion.compression * 0.78;
-      }
-      const target = -0.08 - hover * 0.18 - ankleWave * (0.24 + spread * 1.15) + brake * 0.25 - this.visualCurrent * hover * 0.12;
-      leg.finAng = approach(leg.finAng, target, 16, dt);
+      const kneeWave = Math.sin(phase - 0.9);
+      const ankleWave = Math.sin(phase - 1.55);
+      const tipWave = Math.sin(phase - 2.15);
+      // Smooth hip -> soft natural knee (clamped so legs never fold backwards!) -> supple whipping flipper.
+      leg.thigh.rotation = Math.PI - hover * (0.24 + i * 0.12) + spread * beat
+        - brake * (0.22 + i * 0.08) + trim * 0.18 - relief * 0.12;
+      const rawKnee = 0.10 + hover * (0.24 + 0.08 * i) + spread * (0.28 + kneeWave * 0.42) + brake * 0.18;
+      leg.shin.rotation = Math.max(0.05, Math.min(0.62, rawKnee));
+      const target = -0.06 - hover * 0.14 - ankleWave * (0.22 + spread * 1.05) + brake * 0.12 - this.visualCurrent * hover * 0.1;
+      leg.finAng = approach(leg.finAng, target, 15, dt);
       leg.fin.rotation = leg.finAng;
-      const tipTarget = -tipWave * (0.22 + spread * 1.18) + (leg.finAng - target) * 0.55;
-      leg.tip.rotation = approach(leg.tip.rotation, tipTarget, 18, dt);
-      const delay = kneeWave;
+      const tipTarget = -tipWave * (0.20 + spread * 1.1) + (leg.finAng - target) * 0.45;
+      leg.tip.rotation = approach(leg.tip.rotation, tipTarget, 17, dt);
 
-      // An easy figure-eight scull becomes a longer recovery and pull as speed builds.
-      const pull = 0.5 + 0.5 * Math.sin(phase - 0.33);
-      let upper = 1.05 + Math.sin(phase * 1.0 + 0.2) * 0.19 + i * 0.23;
-      upper += travel * (1.50 + 0.50 * power - 0.58 * (1 - power) * pull);
-      let elbow = -0.78 + travel * (0.71 + 0.26 * pull);
-      upper -= reach * (near ? 1.04 : 0.63) + brake * (near ? 1.07 : 1.19);
-      elbow -= brake * 0.89 + reach * 0.28;
-      if (this.compact) {
-        upper += brake * 0.46 + motion.compression * 0.47 - reach * 0.35 - interest * (near ? 0.33 : 0.17);
-        elbow -= brake * 0.48 + motion.compression * 0.34 + interest * (near ? 0.18 : 0.1);
-      }
-      upper += interest * (near ? 0.09 : 0.31) - relief * (near ? 0.67 : 0.23) - trim * 0.37;
-      elbow -= (near ? adjust * 0.85 : 0) + relief * 0.29;
+      // Natural scuba diver arms: calmly tucked forward/down near chest with gentle balance sculling,
+      // streamlining smoothly back along the flanks only when boosting fast.
+      const scull = Math.sin(phase * 0.5 + 0.4);
+      let upper = 0.82 + scull * (0.14 * hover + 0.08 * travel) + i * 0.14 + power * 0.95;
+      let elbow = -0.78 - hover * 0.18 + power * 0.42 + scull * 0.10;
+      upper -= reach * (near ? 0.45 : 0.25) + brake * 0.22;
+      elbow -= brake * 0.28 + reach * 0.12;
+      upper += interest * (near ? 0.08 : 0.18) - relief * (near ? 0.35 : 0.15) - trim * 0.22;
+      elbow -= (near ? adjust * 0.5 : 0) + relief * 0.18;
       if (near && (scanning || grappling)) {
-        upper = scanning ? 0.68 + motion.look * 0.52 : 0.14 + trim * 0.4;
-        elbow = scanning ? -0.85 : -0.17;
+        upper = scanning ? 0.52 + motion.look * 0.42 : 0.18 + trim * 0.35;
+        elbow = scanning ? -0.72 : -0.18;
       }
-      arm.upper.rotation = approach(arm.upper.rotation, upper, 14, dt);
-      arm.fore.rotation = approach(arm.fore.rotation, elbow, 15, dt);
-      arm.hand!.rotation = approach(arm.hand!.rotation, -0.22 - delay * 0.20 + brake * 0.62 - reach * 0.25, 12, dt);
+      arm.upper.rotation = approach(arm.upper.rotation, upper, 12, dt);
+      arm.fore.rotation = approach(arm.fore.rotation, elbow, 13, dt);
+      arm.hand!.rotation = approach(arm.hand!.rotation, -0.16 - kneeWave * 0.12 + brake * 0.25, 11, dt);
     }
   }
 

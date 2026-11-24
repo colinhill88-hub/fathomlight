@@ -16,7 +16,7 @@ export type BaseArtKey =
   | 'corridor' | 'junction' | 'storage' | 'thermal' | 'hatch' | 'farm' | 'revive' | 'signal'
   | 'filter' | 'feeder' | 'press';
 export type FoeArtKey = 'tick' | 'drone' | 'keeper';
-export type KestrelArtKey = 'head' | 'torso';
+export type KestrelArtKey = 'head' | 'torso' | 'pack' | 'upper_arm' | 'forearm' | 'thigh' | 'shin' | 'fin';
 export type WreckArtKey = 'fulmar' | 'corvina';
 export type InteriorArtKey = 'console_habitat' | 'tray_collection' | 'crate';
 
@@ -73,7 +73,7 @@ async function loadGroup<K extends string>(
   return out;
 }
 
-const KESTREL_KEYS: readonly KestrelArtKey[] = ['head', 'torso'];
+const KESTREL_KEYS: readonly KestrelArtKey[] = ['head', 'torso', 'pack', 'upper_arm', 'forearm', 'thigh', 'shin', 'fin'];
 const VEHICLE_KEYS: readonly VehicleArtKey[] = ['sub', 'drone', 'buoy'];
 const BASE_KEYS: readonly BaseArtKey[] = [
   'dome', 'dock', 'lab', 'workshop', 'nursery', 'turbine', 'portal',

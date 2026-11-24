@@ -82,7 +82,7 @@ Wired `src/art/tankArt.ts` (`loadTankArt`) and `HabitatWater.setTheme()` so ever
 
 Added `src/art/propArt.ts` (`loadPropArt`), sharing the 4-corner pure-white cutout loader from `src/art/creatureArt.ts`, with `?art=procedural` fallback:
 - Ambient schooling fish (`src/art/creatures/silverbar.webp`): Silverbar (`src/actors/silverbar.ts`, keeping its live wagging forked golden tail).
-- Kestrel hero art (`src/art/kestrel/`): `head.jpg` (weathered brass/charcoal helmet & expressive portrait) and `torso.jpg` (olive-charcoal & brass diving suit torso), wired into `src/actors/kestrelArt.ts` (shared by swimmer, walker, and Field Kit portrait).
+- Kestrel hero art (`src/art/kestrel/`): complete 8-piece painted puppet — `head.jpg`, `torso.jpg`, `pack.webp` (twin brass scuba tanks), `upper_arm.webp`, `forearm.webp` (with terracotta gauntlet), `thigh.webp`, `shin.webp`, and `fin.webp` (ribbed charcoal & terracotta flipper) — wired into `src/actors/kestrelArt.ts` & `src/actors/diver.ts` (shared by swimmer, walker, and Field Kit portrait).
 - Exterior wrecks (`src/art/wrecks/`): `fulmar.jpg` (Fulmar Listening Station, `src/world/fulmarArt.ts`) and `corvina.jpg` (Corvina Survey Ship, `src/world/corvinaArt.ts`).
 - Interior base stations & props (`src/art/interior/`): `console_habitat.jpg` (Habitat management lectern), `tray_collection.jpg` (Collection tray stand), and `crate.jpg` (storage salvage crates), wired into `src/interior/baselevel.ts` with engraved brass-plaque signage.
 - Base corridors & shafts (`src/art/base/corridor.jpg`): horizontal/vertical corridors and 3-cell riser shafts (`src/world/basegfx.ts`).

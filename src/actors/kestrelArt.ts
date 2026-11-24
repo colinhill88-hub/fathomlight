@@ -86,7 +86,21 @@ export function kestrelTorso(compact = false, detailed = false): Container {
   return view;
 }
 
-export function kestrelLimb(length: number, width: number, type: 'thigh' | 'shin' | 'upper' | 'fore', detailed = false): Graphics {
+export function kestrelLimb(length: number, width: number, type: 'thigh' | 'shin' | 'upper' | 'fore', detailed = false): Container {
+  const kArt = getPropArt().kestrel;
+  const key = type === 'upper' ? 'upper_arm' : type === 'fore' ? 'forearm' : type;
+  const painted = kArt[key];
+  if (painted) {
+    const c = new Container();
+    const spr = new Sprite(painted);
+    spr.anchor.set(0.14, 0.5);
+    const targetLen = length + (type === 'fore' ? 12 : 6);
+    const sc = targetLen / Math.max(1, painted.width);
+    spr.scale.set(sc);
+    spr.position.set(-2, 0);
+    c.addChild(spr);
+    return c;
+  }
   const g = new Graphics();
   const w = width * 0.65;
   const l = length;
@@ -120,6 +134,10 @@ export function kestrelLimb(length: number, width: number, type: 'thigh' | 'shin
 
 export function kestrelHand(compact = false, detailed = false): Container {
   const hand = new Container();
+  if (getPropArt().kestrel.forearm) {
+    // Painted forearm plate already includes the weathered terracotta-red diving gauntlet!
+    return hand;
+  }
   if (compact) {
     const gauntlet = new Graphics().moveTo(-2, -5.8).lineTo(5, -7.4)
       .quadraticCurveTo(11.8, -6.7, 12.3, 1.5).quadraticCurveTo(10, 8.6, 2, 8)
@@ -141,7 +159,21 @@ export function kestrelHand(compact = false, detailed = false): Container {
   return hand;
 }
 
-export function kestrelFin(standing: boolean, tip: boolean, compact = false, detailed = false): Graphics {
+export function kestrelFin(standing: boolean, tip: boolean, compact = false, detailed = false): Container {
+  const paintedFin = !standing ? getPropArt().kestrel.fin : undefined;
+  if (paintedFin) {
+    const c = new Container();
+    if (!tip) {
+      // Mount the sleek painted flipper blade on the ankle joint (tip stays empty so there's no double blade).
+      const spr = new Sprite(paintedFin);
+      spr.anchor.set(0.12, 0.5);
+      const sc = 36 / Math.max(1, paintedFin.width);
+      spr.scale.set(sc);
+      spr.position.set(-2, 0);
+      c.addChild(spr);
+    }
+    return c;
+  }
   const g = new Graphics();
   if (compact && tip) {
     const edge = standing ? 11.8 : 13.7;
