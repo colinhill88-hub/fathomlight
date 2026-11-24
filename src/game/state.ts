@@ -517,6 +517,9 @@ export interface SaveData {
   /** Supply Buoy EX-1 rotating Field Contracts (optional, save-safe). */
   contracts?: FieldContract[];
   contractsDone?: number;
+  /** Recompression Chamber RC-1 pre-dive Acclimated buff expiry (playSeconds) and 2-hit pressurized suit seal. */
+  acclimatedUntil?: number;
+  suitShield?: number;
   playSeconds: number;
   savedAt: number;
 }

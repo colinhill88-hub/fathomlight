@@ -900,7 +900,7 @@ export class BaseHooks implements InteriorHooks {
         return { key: 'dock', label: `Dock controls (${code})`, seconds: 0.4, done: () => c.dock(p.id) };
       case 'recomp':
         if (!on) return `${code}: no power`;
-        return { key: 'recomp', label: 'Seal the chamber: mend the suit', seconds: 1.6, done: () => c.recompress() };
+        return { key: 'recomp', label: 'Cycle chamber: Acclimated buff (12m: +25% O₂, +15% speed, +10m depth) & 2-hit suit seal', seconds: 1.6, done: () => c.recompress() };
       case 'lift': {
         const to = best.to!;
         return {
@@ -964,6 +964,7 @@ export class BaseHooks implements InteriorHooks {
       this.screens = [];
       this.storageCrates.clear();
       this.roomFixtures.clear();
+      for (const child of this.roomFixtures.removeChildren()) child.destroy();
       this.ocean?.clear();
       for (const child of this.habitatForeground.removeChildren()) child.destroy();
       for (const r of this.level.rooms) this.drawRoom(r, g, e, gl, addLamp, addText, rand, wallTexture);
@@ -1163,13 +1164,22 @@ export class BaseHooks implements InteriorHooks {
           g.rect(wx - rx - 8, wy - 4, rx * 2 + 16, 8).fill({ color: COL.chrome });
           e.moveTo(wx - rx * 0.7, wy - ry * 0.55).quadraticCurveTo(wx - rx * 0.2, wy - ry * 0.95, wx + rx * 0.3, wy - ry * 0.9).stroke({ color: 0xe8ffc0, width: 4, alpha: 0.18 });
         }
-        // The base planner: a table with a lime holographic grid.
+        // The base planner: painted drafting table when available, procedural fallback otherwise.
         const fixtures = this.ctx.panorama ? this.roomFixtures : g;
+        const intArt = getPropArt().interior;
         const px = b.ox + b.ow - 90;
-        fixtures.roundRect(px - 44, f0 - 46, 88, 12, 3).fill({ color: COL.chromeDark });
-        fixtures.rect(px - 6, f0 - 34, 12, 34).fill({ color: COL.wallDark });
-        for (let i = 0; i < 6; i++) e.rect(px - 40 + i * 16, f0 - 50, 10, 4).fill({ color: COL.lime, alpha: 0.5 });
-        addText(sign('BASE PLANNER', px, f0 - 66, 9, 0xc6f03a, 0.8));
+        if (intArt.planner) {
+          const spr = new Sprite(intArt.planner);
+          spr.anchor.set(0.5, 1);
+          spr.scale.set(118 / Math.max(1, intArt.planner.width));
+          spr.position.set(px, f0);
+          fixtures.addChild(spr);
+        } else {
+          fixtures.roundRect(px - 44, f0 - 46, 88, 12, 3).fill({ color: COL.chromeDark });
+          fixtures.rect(px - 6, f0 - 34, 12, 34).fill({ color: COL.wallDark });
+          for (let i = 0; i < 6; i++) e.rect(px - 40 + i * 16, f0 - 50, 10, 4).fill({ color: COL.lime, alpha: 0.5 });
+        }
+        addText(sign('BASE PLANNER', px, f0 - 72, 9, 0xc6f03a, 0.85));
         this.screens.push({ x: px, y: f0 - 60, radius: 160, intensity: 0.5, color: [0.75, 0.95, 0.35], zone: id } as Light);
         // Lower level: the airlock, a bunk, and a galley console.
         const ax = b.cx;
@@ -1187,36 +1197,61 @@ export class BaseHooks implements InteriorHooks {
             gl.ellipse(x, y, 51, 27).fill({ color: 0xd5a674, alpha: 0.18 });
           }
         }
-        fixtures.circle(ax, ay, 54).fill({ color: COL.chrome });
-        fixtures.circle(ax, ay, 54).stroke({ color: COL.chromeDark, width: 3 });
-        fixtures.circle(ax, ay, 42).fill({ color: COL.wallDark });
-        for (let i = 0; i < 8; i++) {
-          const a = (i / 8) * Math.PI * 2;
-          fixtures.circle(ax + Math.cos(a) * 48, ay + Math.sin(a) * 48, 2.4).fill({ color: COL.chromeDark });
+        if (intArt.airlock) {
+          const spr = new Sprite(intArt.airlock);
+          spr.anchor.set(0.5, 0.5);
+          spr.scale.set(114 / Math.max(1, intArt.airlock.width));
+          spr.position.set(ax, ay);
+          fixtures.addChild(spr);
+          e.circle(ax, ay, 41).stroke({ color: COL.lime, width: 1.8, alpha: 0.45 });
+        } else {
+          fixtures.circle(ax, ay, 54).fill({ color: COL.chrome });
+          fixtures.circle(ax, ay, 54).stroke({ color: COL.chromeDark, width: 3 });
+          fixtures.circle(ax, ay, 42).fill({ color: COL.wallDark });
+          for (let i = 0; i < 8; i++) {
+            const a = (i / 8) * Math.PI * 2;
+            fixtures.circle(ax + Math.cos(a) * 48, ay + Math.sin(a) * 48, 2.4).fill({ color: COL.chromeDark });
+          }
+          fixtures.moveTo(ax - 28, ay).lineTo(ax + 28, ay).moveTo(ax, ay - 28).lineTo(ax, ay + 28).stroke({ color: COL.chrome, width: 5 });
+          fixtures.circle(ax, ay, 10).fill({ color: COL.chrome });
+          e.circle(ax, ay, 44).stroke({ color: COL.lime, width: 2, alpha: 0.6 });
+          for (const [hx, hy] of [[-40, -40], [40, -40], [-40, 40], [40, 40]]) rivet(fixtures, ax + hx, ay + hy, 1.6);
         }
-        fixtures.moveTo(ax - 28, ay).lineTo(ax + 28, ay).moveTo(ax, ay - 28).lineTo(ax, ay + 28).stroke({ color: COL.chrome, width: 5 });
-        fixtures.circle(ax, ay, 10).fill({ color: COL.chrome });
-        e.circle(ax, ay, 44).stroke({ color: COL.lime, width: 2, alpha: 0.6 });
         addText(sign('AIRLOCK', ax, ay - 70, 10));
         hazard(fixtures, ax - 60, bot - 6, 120, 6);
-        for (const [hx, hy] of [[-40, -40], [40, -40], [-40, 40], [40, 40]]) rivet(fixtures, ax + hx, ay + hy, 1.6);
         // Bunk on the left.
-        fixtures.roundRect(b.ox + 70, bot - 40, 120, 18, 4).fill({ color: COL.chromeDark });
-        fixtures.roundRect(b.ox + 74, bot - 50, 112, 12, 4).fill({ color: 0x4a5258 });
-        fixtures.roundRect(b.ox + 76, bot - 56, 30, 10, 4).fill({ color: COL.white, alpha: 0.7 });
-        fixtures.rect(b.ox + 70, bot - 22, 6, 22).fill({ color: COL.chromeDark });
-        fixtures.rect(b.ox + 184, bot - 22, 6, 22).fill({ color: COL.chromeDark });
+        if (intArt.bunk) {
+          const spr = new Sprite(intArt.bunk);
+          spr.anchor.set(0.5, 1);
+          spr.scale.set(152 / Math.max(1, intArt.bunk.width));
+          spr.position.set(b.ox + 134, bot);
+          fixtures.addChild(spr);
+        } else {
+          fixtures.roundRect(b.ox + 70, bot - 40, 120, 18, 4).fill({ color: COL.chromeDark });
+          fixtures.roundRect(b.ox + 74, bot - 50, 112, 12, 4).fill({ color: 0x4a5258 });
+          fixtures.roundRect(b.ox + 76, bot - 56, 30, 10, 4).fill({ color: COL.white, alpha: 0.7 });
+          fixtures.rect(b.ox + 70, bot - 22, 6, 22).fill({ color: COL.chromeDark });
+          fixtures.rect(b.ox + 184, bot - 22, 6, 22).fill({ color: COL.chromeDark });
+        }
         // Console on the right with two screens.
         const cx2 = b.ox + b.ow - 120;
-        fixtures.roundRect(cx2 - 50, bot - 70, 100, 70, 4).fill({ color: COL.wallDark });
-        fixtures.rect(cx2 - 50, bot - 70, 100, 3).fill({ color: COL.chrome });
-        fixtures.rect(cx2 - 42, bot - 62, 38, 24).fill({ color: 0x0c1418 });
-        fixtures.rect(cx2 + 4, bot - 62, 38, 24).fill({ color: 0x0c1418 });
-        // Screen bezels, a row of keys and the console's bolted side panels.
-        fixtures.rect(cx2 - 43, bot - 63, 40, 26).stroke({ color: DC.chromeDark, width: 1.4 });
-        fixtures.rect(cx2 + 3, bot - 63, 40, 26).stroke({ color: DC.chromeDark, width: 1.4 });
-        for (let i = 0; i < 8; i++) fixtures.rect(cx2 - 40 + i * 10, bot - 30, 7, 4).fill({ color: i % 3 ? 0x4a5258 : 0x6f8a1e });
-        bolts(fixtures, cx2 - 46, bot - 18, cx2 + 46, bot - 18, 23, 1);
+        if (intArt.galley) {
+          const spr = new Sprite(intArt.galley);
+          spr.anchor.set(0.5, 1);
+          spr.scale.set(132 / Math.max(1, intArt.galley.width));
+          spr.position.set(cx2, bot);
+          fixtures.addChild(spr);
+        } else {
+          fixtures.roundRect(cx2 - 50, bot - 70, 100, 70, 4).fill({ color: COL.wallDark });
+          fixtures.rect(cx2 - 50, bot - 70, 100, 3).fill({ color: COL.chrome });
+          fixtures.rect(cx2 - 42, bot - 62, 38, 24).fill({ color: 0x0c1418 });
+          fixtures.rect(cx2 + 4, bot - 62, 38, 24).fill({ color: 0x0c1418 });
+          // Screen bezels, a row of keys and the console's bolted side panels.
+          fixtures.rect(cx2 - 43, bot - 63, 40, 26).stroke({ color: DC.chromeDark, width: 1.4 });
+          fixtures.rect(cx2 + 3, bot - 63, 40, 26).stroke({ color: DC.chromeDark, width: 1.4 });
+          for (let i = 0; i < 8; i++) fixtures.rect(cx2 - 40 + i * 10, bot - 30, 7, 4).fill({ color: i % 3 ? 0x4a5258 : 0x6f8a1e });
+          bolts(fixtures, cx2 - 46, bot - 18, cx2 + 46, bot - 18, 23, 1);
+        }
         this.screens.push({ x: cx2, y: bot - 60, radius: 180, intensity: 0.45, color: [0.7, 0.95, 0.4], zone: id } as Light);
         break;
       }
@@ -1476,6 +1511,20 @@ export class BaseHooks implements InteriorHooks {
         break;
       }
       case 'filter': {
+        const filterVatTex = getPropArt().interior.filter_vat;
+        if (filterVatTex) {
+          for (const cx of [b.ox + 72, b.ox + b.ow - 72]) {
+            const spr = new Sprite(filterVatTex);
+            spr.anchor.set(0.5, 1);
+            spr.scale.set(174 / Math.max(1, filterVatTex.height));
+            spr.position.set(cx, bot);
+            g.addChild(spr);
+          }
+          g.roundRect(b.cx - 30, bot - 70, 60, 70, 6).fill({ color: COL.wallDark });
+          g.circle(b.cx, bot - 40, 16).fill({ color: COL.chrome });
+          g.rect(b.ox + 96, bot - 120, b.ow - 192, 6).fill({ color: COL.chromeDark });
+          break;
+        }
         // Two glass columns of lime-tinted water and a pump between them.
         for (const x of [b.ox + 50, b.ox + b.ow - 90]) {
           g.roundRect(x - 4, bot - 154, 48, 154, 8).fill({ color: COL.chrome });
@@ -1624,49 +1673,78 @@ export class BaseHooks implements InteriorHooks {
       }
       case 'lab': {
         const fixtures = this.ctx.panorama ? this.roomFixtures : g;
-        // A scanner table with a lime hologram, and wall screens.
-        fixtures.roundRect(b.cx - 70, bot - 50, 140, 50, 6).fill({ color: COL.wallDark });
-        fixtures.rect(b.cx - 70, bot - 50, 140, 4).fill({ color: COL.chrome });
+        const labBenchTex = getPropArt().interior.lab_bench;
+        if (labBenchTex) {
+          const spr = new Sprite(labBenchTex);
+          spr.anchor.set(0.5, 1);
+          spr.scale.set(220 / Math.max(1, labBenchTex.width));
+          spr.position.set(b.cx, bot);
+          fixtures.addChild(spr);
+        } else {
+          // A scanner table with a lime hologram, and wall screens.
+          fixtures.roundRect(b.cx - 70, bot - 50, 140, 50, 6).fill({ color: COL.wallDark });
+          fixtures.rect(b.cx - 70, bot - 50, 140, 4).fill({ color: COL.chrome });
+          for (let i = 0; i < 3; i++) {
+            fixtures.rect(b.cx - 62 + i * 44, bot - 40, 38, 30).stroke({ color: DC.bevelLo, width: 1.2 });
+            fixtures.rect(b.cx - 49 + i * 44, bot - 28, 12, 3).fill({ color: COL.chrome });
+          }
+          for (let i = 0; i < 6; i++) {
+            fixtures.roundRect(b.ox + 110 + i * 12, b.oy + 64, 6, 20, 3).fill({ color: [0x6f8a1e, 0x2a7080, 0xb06a3a][i % 3], alpha: 0.8 });
+          }
+          fixtures.rect(b.ox + 104, b.oy + 82, 78, 4).fill({ color: COL.chromeDark });
+        }
         for (const x of [b.ox + 20, b.ox + b.ow - 80]) {
           fixtures.rect(x, b.oy + 50, 60, 40).fill({ color: 0x0c1418 });
           fixtures.rect(x - 3, b.oy + 47, 66, 46).stroke({ color: COL.chromeDark, width: 2.4 });
           fixtures.rect(x + 26, b.oy + 93, 8, 10).fill({ color: COL.chromeDark });
         }
-        // Drawers under the scanner table, and sample racks on the wall.
-        for (let i = 0; i < 3; i++) {
-          fixtures.rect(b.cx - 62 + i * 44, bot - 40, 38, 30).stroke({ color: DC.bevelLo, width: 1.2 });
-          fixtures.rect(b.cx - 49 + i * 44, bot - 28, 12, 3).fill({ color: COL.chrome });
-        }
-        for (let i = 0; i < 6; i++) {
-          fixtures.roundRect(b.ox + 110 + i * 12, b.oy + 64, 6, 20, 3).fill({ color: [0x6f8a1e, 0x2a7080, 0xb06a3a][i % 3], alpha: 0.8 });
-        }
-        fixtures.rect(b.ox + 104, b.oy + 82, 78, 4).fill({ color: COL.chromeDark });
         this.screens.push({ x: b.cx, y: bot - 80, radius: 220, intensity: 0.55, color: [0.7, 1, 0.35], zone: id } as Light);
         break;
       }
       case 'workshop': {
         const fixtures = this.ctx.panorama ? this.roomFixtures : g;
-        // A fabricator bench with a robot arm (it works in animate), and tool racks.
-        fixtures.roundRect(b.cx - 140, bot - 44, 280, 44, 6).fill({ color: COL.wallDark });
-        fixtures.rect(b.cx - 140, bot - 44, 280, 4).fill({ color: COL.chrome });
+        const wsBenchTex = getPropArt().interior.workshop_bench;
         fixtures.rect(b.cx - 10, b.oy, 20, 30).fill({ color: COL.chromeDark });
-        for (let k = 0; k < 5; k++) fixtures.rect(b.ox + 30 + k * 18, b.oy + 50, 4, 40 + (k % 2) * 14).fill({ color: COL.chrome });
-        // A pegboard of tools (a wrench, a hammer, a saw), the bench's vice and drawers.
-        fixtures.rect(b.ox + b.ow - 180, b.oy + 40, 140, 90).fill({ color: 0x3a3428 });
-        for (let y = b.oy + 48; y < b.oy + 126; y += 10) for (let x = b.ox + b.ow - 172; x < b.ox + b.ow - 44; x += 10) fixtures.circle(x, y, 1).fill({ color: DC.grime });
-        const tx = b.ox + b.ow - 160;
-        fixtures.rect(tx, b.oy + 52, 4, 46).fill({ color: COL.chrome });
-        fixtures.circle(tx + 2, b.oy + 52, 6).stroke({ color: COL.chrome, width: 3 });
-        fixtures.rect(tx + 34, b.oy + 56, 4, 44).fill({ color: 0x6a4a2e });
-        fixtures.rect(tx + 26, b.oy + 52, 20, 9).fill({ color: COL.chromeDark });
-        fixtures.poly([tx + 66, b.oy + 54, tx + 104, b.oy + 54, tx + 104, b.oy + 66, tx + 66, b.oy + 78]).fill({ color: COL.chrome });
-        fixtures.rect(tx + 100, b.oy + 52, 8, 16).fill({ color: COL.red, alpha: 0.85 });
-        fixtures.roundRect(b.cx + 90, bot - 60, 34, 16, 3).fill({ color: COL.chromeDark });
-        fixtures.rect(b.cx + 100, bot - 74, 14, 14).fill({ color: COL.chrome });
-        for (let i = 0; i < 4; i++) fixtures.rect(b.cx - 130 + i * 50, bot - 30, 40, 22).stroke({ color: DC.bevelLo, width: 1.2 });
+        if (wsBenchTex) {
+          const spr = new Sprite(wsBenchTex);
+          spr.anchor.set(0.5, 1);
+          spr.scale.set(270 / Math.max(1, wsBenchTex.width));
+          spr.position.set(b.cx, bot);
+          fixtures.addChild(spr);
+        } else {
+          // A fabricator bench with a robot arm (it works in animate), and tool racks.
+          fixtures.roundRect(b.cx - 140, bot - 44, 280, 44, 6).fill({ color: COL.wallDark });
+          fixtures.rect(b.cx - 140, bot - 44, 280, 4).fill({ color: COL.chrome });
+          for (let k = 0; k < 5; k++) fixtures.rect(b.ox + 30 + k * 18, b.oy + 50, 4, 40 + (k % 2) * 14).fill({ color: COL.chrome });
+          // A pegboard of tools (a wrench, a hammer, a saw), the bench's vice and drawers.
+          fixtures.rect(b.ox + b.ow - 180, b.oy + 40, 140, 90).fill({ color: 0x3a3428 });
+          for (let y = b.oy + 48; y < b.oy + 126; y += 10) for (let x = b.ox + b.ow - 172; x < b.ox + b.ow - 44; x += 10) fixtures.circle(x, y, 1).fill({ color: DC.grime });
+          const tx = b.ox + b.ow - 160;
+          fixtures.rect(tx, b.oy + 52, 4, 46).fill({ color: COL.chrome });
+          fixtures.circle(tx + 2, b.oy + 52, 6).stroke({ color: COL.chrome, width: 3 });
+          fixtures.rect(tx + 34, b.oy + 56, 4, 44).fill({ color: 0x6a4a2e });
+          fixtures.rect(tx + 26, b.oy + 52, 20, 9).fill({ color: COL.chromeDark });
+          fixtures.poly([tx + 66, b.oy + 54, tx + 104, b.oy + 54, tx + 104, b.oy + 66, tx + 66, b.oy + 78]).fill({ color: COL.chrome });
+          fixtures.rect(tx + 100, b.oy + 52, 8, 16).fill({ color: COL.red, alpha: 0.85 });
+          fixtures.roundRect(b.cx + 90, bot - 60, 34, 16, 3).fill({ color: COL.chromeDark });
+          fixtures.rect(b.cx + 100, bot - 74, 14, 14).fill({ color: COL.chrome });
+          for (let i = 0; i < 4; i++) fixtures.rect(b.cx - 130 + i * 50, bot - 30, 40, 22).stroke({ color: DC.bevelLo, width: 1.2 });
+        }
         break;
       }
       case 'recomp': {
+        // A pressure chamber: painted cylinder when available, procedural fallback otherwise.
+        const recompTex = getPropArt().interior.recomp_chamber;
+        const cx = b.ox + b.ow * 0.56;
+        if (recompTex) {
+          const spr = new Sprite(recompTex);
+          spr.anchor.set(0.5, 1);
+          spr.scale.set(250 / Math.max(1, recompTex.width));
+          spr.position.set(cx, bot);
+          g.addChild(spr);
+          this.screens.push({ x: cx, y: bot - 62, radius: 160, intensity: 0.48, color: [0.75, 1, 0.4], zone: id } as Light);
+          break;
+        }
         // A pressure chamber: a chrome cylinder with gold bands and a round door, lime light inside.
         const cx = b.ox + b.ow * 0.62;
         g.roundRect(cx - 90, b.oy + 14, 180, bot - b.oy - 14, 60).fill({ color: COL.chrome });
@@ -1695,29 +1773,46 @@ export class BaseHooks implements InteriorHooks {
       case 'hatch': {
         // Milestone 9: an incubator bench of glass cradles under warm lamps, and a console.
         const cr = this.cradles(r);
+        const intArt = getPropArt().interior;
         g.roundRect(b.ox + 30, bot - 46, b.ow - 170, 46, 6).fill({ color: COL.wallDark });
         g.rect(b.ox + 30, bot - 46, b.ow - 170, 5).fill({ color: COL.chrome });
         bolts(g, b.ox + 38, bot - 30, b.ox + b.ow - 150, bot - 30, 26, 1.2);
         for (const q of cr) {
-          // A chrome stand, a shallow bowl of warm water, and a glass bell over it.
-          g.rect(q.x - 4, q.y + 16, 8, bot - 46 - q.y - 16).fill({ color: COL.chromeDark });
-          g.ellipse(q.x, q.y + 16, 34, 7).fill({ color: COL.chrome });
-          g.ellipse(q.x, q.y + 13, 30, 5).fill({ color: 0x1a3a3a });
-          g.moveTo(q.x - 30, q.y + 13).bezierCurveTo(q.x - 32, q.y - 40, q.x + 32, q.y - 40, q.x + 30, q.y + 13).stroke({ color: COL.chromeHi, width: 1.6, alpha: 0.5 });
-          g.moveTo(q.x - 22, q.y - 8).quadraticCurveTo(q.x - 16, q.y - 26, q.x - 4, q.y - 28).stroke({ color: 0xffffff, width: 2, alpha: 0.18 });
-          // A heat lamp hanging over each cradle.
-          g.rect(q.x - 1.5, b.oy + 40, 3, q.y - 48 - b.oy - 40).fill({ color: COL.chromeDark });
-          g.poly([q.x - 14, q.y - 48, q.x + 14, q.y - 48, q.x + 8, q.y - 58, q.x - 8, q.y - 58]).fill({ color: COL.chrome });
-          e.ellipse(q.x, q.y - 47, 10, 2.4).fill({ color: 0xffd890, alpha: 0.9 });
+          if (intArt.hatch_cradle) {
+            const spr = new Sprite(intArt.hatch_cradle);
+            spr.anchor.set(0.5, 1);
+            spr.scale.set(116 / Math.max(1, intArt.hatch_cradle.height));
+            spr.position.set(q.x, bot - 44);
+            g.addChild(spr);
+          } else {
+            // A chrome stand, a shallow bowl of warm water, and a glass bell over it.
+            g.rect(q.x - 4, q.y + 16, 8, bot - 46 - q.y - 16).fill({ color: COL.chromeDark });
+            g.ellipse(q.x, q.y + 16, 34, 7).fill({ color: COL.chrome });
+            g.ellipse(q.x, q.y + 13, 30, 5).fill({ color: 0x1a3a3a });
+            g.moveTo(q.x - 30, q.y + 13).bezierCurveTo(q.x - 32, q.y - 40, q.x + 32, q.y - 40, q.x + 30, q.y + 13).stroke({ color: COL.chromeHi, width: 1.6, alpha: 0.5 });
+            g.moveTo(q.x - 22, q.y - 8).quadraticCurveTo(q.x - 16, q.y - 26, q.x - 4, q.y - 28).stroke({ color: 0xffffff, width: 2, alpha: 0.18 });
+            // A heat lamp hanging over each cradle.
+            g.rect(q.x - 1.5, b.oy + 40, 3, q.y - 48 - b.oy - 40).fill({ color: COL.chromeDark });
+            g.poly([q.x - 14, q.y - 48, q.x + 14, q.y - 48, q.x + 8, q.y - 58, q.x - 8, q.y - 58]).fill({ color: COL.chrome });
+            e.ellipse(q.x, q.y - 47, 10, 2.4).fill({ color: 0xffd890, alpha: 0.9 });
+          }
           gl.ellipse(q.x, q.y - 10, 34, 40).fill({ color: 0xffc070, alpha: 0.16 });
           this.screens.push({ x: q.x, y: q.y - 20, radius: 120, intensity: 0.55, color: [1, 0.8, 0.5], zone: id } as Light);
         }
         // The console: a screen of egg readouts and a warm keypad.
         const kx = b.ox + b.ow - 70;
-        g.roundRect(kx - 40, bot - 96, 80, 96, 6).fill({ color: COL.wallDark });
-        g.roundRect(kx - 32, bot - 88, 64, 40, 3).fill({ color: 0x0c1418 });
-        for (let i = 0; i < 6; i++) e.rect(kx - 26 + (i % 3) * 18, bot - 82 + Math.floor(i / 3) * 16, 12, 9).fill({ color: 0xffd890, alpha: 0.35 + (i % 2) * 0.2 });
-        for (let i = 0; i < 4; i++) rivet(g, kx - 30 + i * 20, bot - 38, 1.6);
+        if (intArt.hatch_console) {
+          const spr = new Sprite(intArt.hatch_console);
+          spr.anchor.set(0.5, 1);
+          spr.scale.set(106 / Math.max(1, intArt.hatch_console.height));
+          spr.position.set(kx, bot);
+          g.addChild(spr);
+        } else {
+          g.roundRect(kx - 40, bot - 96, 80, 96, 6).fill({ color: COL.wallDark });
+          g.roundRect(kx - 32, bot - 88, 64, 40, 3).fill({ color: 0x0c1418 });
+          for (let i = 0; i < 6; i++) e.rect(kx - 26 + (i % 3) * 18, bot - 82 + Math.floor(i / 3) * 16, 12, 9).fill({ color: 0xffd890, alpha: 0.35 + (i % 2) * 0.2 });
+          for (let i = 0; i < 4; i++) rivet(g, kx - 30 + i * 20, bot - 38, 1.6);
+        }
         hazard(g, b.ox + 30, bot - 6, b.ow - 170, 6);
         addText(sign(code, kx, bot - 130, 13));
         addText(sign('CREATURE ROOM', kx, bot - 110, 9, 0xffd890, 0.75));
@@ -1725,11 +1820,22 @@ export class BaseHooks implements InteriorHooks {
       }
       case 'farm': {
         // Milestone 9: two tiers of planter troughs under lime grow lamps, a seed console and a tray hatch.
+        const troughTex = getPropArt().interior.farm_trough;
         for (const ty of this.farmTiers(r)) {
-          g.rect(b.ox + 110, ty, b.ow - 220, 14).fill({ color: COL.chromeDark });
-          g.rect(b.ox + 114, ty + 2, b.ow - 228, 8).fill({ color: 0x4a3a28 });
-          g.rect(b.ox + 110, ty, b.ow - 220, 2).fill({ color: COL.chromeHi, alpha: 0.5 });
-          bolts(g, b.ox + 116, ty + 12, b.ox + b.ow - 116, ty + 12, 30, 1);
+          if (troughTex) {
+            const spr = new Sprite(troughTex);
+            spr.anchor.set(0.5, 0.85);
+            const targetW = b.ow - 216;
+            const sc = Math.min(targetW / Math.max(1, troughTex.width), 70 / Math.max(1, troughTex.height));
+            spr.scale.set(sc);
+            spr.position.set(b.cx, ty + 14);
+            g.addChild(spr);
+          } else {
+            g.rect(b.ox + 110, ty, b.ow - 220, 14).fill({ color: COL.chromeDark });
+            g.rect(b.ox + 114, ty + 2, b.ow - 228, 8).fill({ color: 0x4a3a28 });
+            g.rect(b.ox + 110, ty, b.ow - 220, 2).fill({ color: COL.chromeHi, alpha: 0.5 });
+            bolts(g, b.ox + 116, ty + 12, b.ox + b.ow - 116, ty + 12, 30, 1);
+          }
           // The lamp rail over the tier.
           g.rect(b.ox + 110, ty - 70, b.ow - 220, 5).fill({ color: COL.chrome });
           for (let x = b.ox + 130; x < b.ox + b.ow - 120; x += 60) {
@@ -1755,29 +1861,49 @@ export class BaseHooks implements InteriorHooks {
       case 'revive': {
         // Milestone 9: a still, warm pool in a brass rim, under a glass hood.
         const py = bot - 34;
-        g.roundRect(b.cx - 170, py - 12, 340, 46, 18).fill({ color: 0xa8822e });
-        g.roundRect(b.cx - 160, py - 6, 320, 30, 14).fill({ color: 0x14221c });
-        bolts(g, b.cx - 160, py - 9, b.cx + 160, py - 9, 24, 1.3);
-        g.moveTo(b.cx - 150, py - 12).bezierCurveTo(b.cx - 140, b.oy + 10, b.cx + 140, b.oy + 10, b.cx + 150, py - 12).stroke({ color: COL.chromeHi, width: 2, alpha: 0.45 });
-        g.moveTo(b.cx - 100, py - 50).quadraticCurveTo(b.cx - 70, b.oy + 40, b.cx - 20, b.oy + 36).stroke({ color: 0xffffff, width: 3, alpha: 0.12 });
+        const reviveTex = getPropArt().interior.revive_pool;
+        if (reviveTex) {
+          const spr = new Sprite(reviveTex);
+          spr.anchor.set(0.5, 1);
+          spr.scale.set(360 / Math.max(1, reviveTex.width));
+          spr.position.set(b.cx, bot);
+          g.addChild(spr);
+        } else {
+          g.roundRect(b.cx - 170, py - 12, 340, 46, 18).fill({ color: 0xa8822e });
+          g.roundRect(b.cx - 160, py - 6, 320, 30, 14).fill({ color: 0x14221c });
+          bolts(g, b.cx - 160, py - 9, b.cx + 160, py - 9, 24, 1.3);
+          g.moveTo(b.cx - 150, py - 12).bezierCurveTo(b.cx - 140, b.oy + 10, b.cx + 140, b.oy + 10, b.cx + 150, py - 12).stroke({ color: COL.chromeHi, width: 2, alpha: 0.45 });
+          g.moveTo(b.cx - 100, py - 50).quadraticCurveTo(b.cx - 70, b.oy + 40, b.cx - 20, b.oy + 36).stroke({ color: 0xffffff, width: 3, alpha: 0.12 });
+        }
         gl.ellipse(b.cx, py, 180, 40).fill({ color: 0xfff0c0, alpha: 0.14 });
         this.screens.push({ x: b.cx, y: py - 10, radius: 260, intensity: 0.65, color: [1, 0.93, 0.7], zone: id } as Light);
         for (const x of [b.cx - 220, b.cx + 220]) {
           g.roundRect(x - 18, bot - 120, 36, 120, 6).fill({ color: COL.wallDark });
           e.rect(x - 10, bot - 110, 20, 3).fill({ color: 0xfff0c0, alpha: 0.6 });
         }
-        addText(sign('REVIVAL POOL', b.cx, b.oy + 54, 10, 0xfff0c0, 0.7));
+        addText(sign('REVIVAL POOL', b.cx, b.oy + 36, 10, 0xfff0c0, 0.75));
         break;
       }
       case 'signal': {
         // Milestone 10: the decoder: a big round pattern screen in a brass ring, receiver racks either side.
         const sy = b.oy + (bot - b.oy) * 0.42;
-        g.circle(b.cx, sy, 104).fill({ color: 0xa8822e });
-        g.circle(b.cx, sy, 94).fill({ color: 0x081014 });
-        bolts(g, b.cx - 96, sy - 100, b.cx + 96, sy - 100, 12, 1.2);
-        for (let k = 0; k < 24; k++) {
-          const a = (k / 24) * Math.PI * 2;
-          g.moveTo(b.cx + Math.cos(a) * 96, sy + Math.sin(a) * 96).lineTo(b.cx + Math.cos(a) * 102, sy + Math.sin(a) * 102).stroke({ color: 0x5a4418, width: 1.4 });
+        const signalTex = getPropArt().interior.signal_dish;
+        if (signalTex) {
+          const spr = new Sprite(signalTex);
+          spr.anchor.set(0.5, 1);
+          spr.scale.set(248 / Math.max(1, signalTex.height));
+          spr.position.set(b.cx, bot);
+          g.addChild(spr);
+        } else {
+          g.circle(b.cx, sy, 104).fill({ color: 0xa8822e });
+          g.circle(b.cx, sy, 94).fill({ color: 0x081014 });
+          bolts(g, b.cx - 96, sy - 100, b.cx + 96, sy - 100, 12, 1.2);
+          for (let k = 0; k < 24; k++) {
+            const a = (k / 24) * Math.PI * 2;
+            g.moveTo(b.cx + Math.cos(a) * 96, sy + Math.sin(a) * 96).lineTo(b.cx + Math.cos(a) * 102, sy + Math.sin(a) * 102).stroke({ color: 0x5a4418, width: 1.4 });
+          }
+          g.roundRect(b.cx - 60, bot - 70, 120, 70, 8).fill({ color: COL.chromeDark });
+          g.roundRect(b.cx - 50, bot - 62, 100, 26, 4).fill({ color: 0x0c1418 });
         }
         for (const x of [b.ox + 70, b.ox + b.ow - 70]) {
           g.roundRect(x - 34, bot - 200, 68, 200, 6).fill({ color: COL.wallDark });
@@ -1786,9 +1912,7 @@ export class BaseHooks implements InteriorHooks {
             e.rect(x - 22, bot - 186 + k * 22, 6 + ((k * 13) % 30), 3).fill({ color: 0xffc860, alpha: 0.6 });
           }
         }
-        g.roundRect(b.cx - 60, bot - 70, 120, 70, 8).fill({ color: COL.chromeDark });
-        g.roundRect(b.cx - 50, bot - 62, 100, 26, 4).fill({ color: 0x0c1418 });
-        addText(sign('SIGNAL ARRAY', b.cx, sy + 128, 11, 0xffd890, 0.75));
+        addText(sign('SIGNAL ARRAY', b.cx, b.oy + 28, 11, 0xffd890, 0.8));
         this.screens.push({ x: b.cx, y: sy, radius: 300, intensity: 0.5, color: [1, 0.85, 0.6], zone: id } as Light);
         break;
       }
@@ -1799,16 +1923,24 @@ export class BaseHooks implements InteriorHooks {
         for (let x = b.ox + 30; x < b.ox + b.ow - 30; x += 30) g.poly([x, b.oy + 22, x + 15, b.oy + 40, x + 30, b.oy + 22]).stroke({ color: COL.chromeDark, width: 2 });
         g.roundRect(b.cx - 30, b.oy + 42, 60, 30, 4).fill({ color: COL.wallDark });
         g.rect(b.cx - 1.5, b.oy + 72, 3, f0 - b.oy - 100).fill({ color: COL.chromeDark });
-        g.roundRect(b.cx - 120, bot - 30, 240, 30, 6).fill({ color: COL.wallDark });
-        g.rect(b.cx - 120, bot - 30, 240, 4).fill({ color: COL.gold, alpha: 0.8 });
-        // The trolley's wheels and motor, a hook block, the cradle's jaws and a stripe round it.
         for (const x of [b.cx - 20, b.cx + 20]) g.circle(x, b.oy + 44, 5).fill({ color: COL.chrome });
         g.rect(b.cx - 26, b.oy + 50, 52, 3).fill({ color: DC.grime, alpha: 0.8 });
         g.roundRect(b.cx - 10, f0 - 30, 20, 16, 3).fill({ color: COL.chrome });
         g.arc(b.cx, f0 - 8, 8, 0, Math.PI).stroke({ color: COL.chromeDark, width: 3.5 });
-        for (const x of [b.cx - 110, b.cx + 96]) g.rect(x, bot - 52, 14, 22).fill({ color: COL.chromeDark });
-        bolts(g, b.cx - 112, bot - 20, b.cx + 112, bot - 20, 28, 1.2);
-        hazard(g, b.cx - 120, bot - 6, 240, 6);
+        const cradleTex = getPropArt().interior.crane_cradle;
+        if (cradleTex) {
+          const spr = new Sprite(cradleTex);
+          spr.anchor.set(0.5, 1);
+          spr.scale.set(256 / Math.max(1, cradleTex.width));
+          spr.position.set(b.cx, bot);
+          g.addChild(spr);
+        } else {
+          g.roundRect(b.cx - 120, bot - 30, 240, 30, 6).fill({ color: COL.wallDark });
+          g.rect(b.cx - 120, bot - 30, 240, 4).fill({ color: COL.gold, alpha: 0.8 });
+          for (const x of [b.cx - 110, b.cx + 96]) g.rect(x, bot - 52, 14, 22).fill({ color: COL.chromeDark });
+          bolts(g, b.cx - 112, bot - 20, b.cx + 112, bot - 20, 28, 1.2);
+          hazard(g, b.cx - 120, bot - 6, 240, 6);
+        }
         break;
       }
     }
@@ -1895,16 +2027,34 @@ export class BaseHooks implements InteriorHooks {
       const bot = b.bottom;
       const id = r.piece.id;
       if (r.kind === 'dock' && c.subDocked(id)) {
-        // KS-1 berthed in the pool: charcoal hull, lime dome, a lamp on the nose.
+        // KS-1 berthed in the moon pool: painted sub.webp when available, procedural silhouette otherwise.
         const sy = bot - 30;
         const sx = b.cx;
-        d.roundRect(sx - 100, sy - 36, 200, 44, 18).fill({ color: 0x2c3236 });
-        d.roundRect(sx - 100, sy - 36, 200, 10, 5).fill({ color: 0x4a545a });
-        d.rect(sx - 70, sy - 14, 140, 2).fill({ color: COL.gold });
-        d.poly([sx - 40, sy - 36, sx - 26, sy - 62, sx + 26, sy - 62, sx + 40, sy - 36]).fill({ color: 0x4a6a14 });
-        d.poly([sx - 30, sy - 36, sx - 20, sy - 56, sx + 6, sy - 56, sx + 2, sy - 36]).fill({ color: COL.lime, alpha: 0.6 });
-        de.circle(sx + 96, sy - 16, 4).fill({ color: 0xfff0b0 });
-        de.circle(sx - 94, sy - 12, 3).fill({ color: COL.red });
+        const subTex = getPropArt().vehicles.sub;
+        if (subTex) {
+          let subSpr = this.habitatForeground.children.find((ch): ch is Sprite => ch instanceof Sprite && ch.label === `docked-sub-${id}`);
+          if (!subSpr) {
+            subSpr = new Sprite(subTex);
+            subSpr.label = `docked-sub-${id}`;
+            subSpr.anchor.set(0.5, 0.62);
+            this.habitatForeground.addChild(subSpr);
+          }
+          subSpr.visible = true;
+          subSpr.scale.set(220 / Math.max(1, subTex.width));
+          subSpr.position.set(sx, sy - 14 + Math.sin(time * 1.4) * 2.2);
+          de.circle(sx + 94, sy - 12, 3.6).fill({ color: 0xfff0b0, alpha: 0.85 });
+        } else {
+          d.roundRect(sx - 100, sy - 36, 200, 44, 18).fill({ color: 0x2c3236 });
+          d.roundRect(sx - 100, sy - 36, 200, 10, 5).fill({ color: 0x4a545a });
+          d.rect(sx - 70, sy - 14, 140, 2).fill({ color: COL.gold });
+          d.poly([sx - 40, sy - 36, sx - 26, sy - 62, sx + 26, sy - 62, sx + 40, sy - 36]).fill({ color: 0x4a6a14 });
+          d.poly([sx - 30, sy - 36, sx - 20, sy - 56, sx + 6, sy - 56, sx + 2, sy - 36]).fill({ color: COL.lime, alpha: 0.6 });
+          de.circle(sx + 96, sy - 16, 4).fill({ color: 0xfff0b0 });
+          de.circle(sx - 94, sy - 12, 3).fill({ color: COL.red });
+        }
+      } else if (r.kind === 'dock') {
+        const subSpr = this.habitatForeground.children.find((ch) => ch.label === `docked-sub-${id}`);
+        if (subSpr) subSpr.visible = false;
       }
       if (r.kind === 'signal' && on) {
         // The pattern screen: slow rings while listening, the Choir's own colours while a fragment decodes.
@@ -1932,12 +2082,19 @@ export class BaseHooks implements InteriorHooks {
       }
       if (r.kind === 'dome' && on) {
         const cx2 = b.ox + b.ow - 120;
-        d.rect(cx2 - 42, bot - 62, 38, 24).fill({ color: 0x9ad040, alpha: 0.55 + 0.1 * Math.sin(time * 3) });
-        d.rect(cx2 + 4, bot - 62, 38, 24).fill({ color: 0xc6f03a, alpha: 0.45 });
-        for (let k = 0; k < 4; k++) d.rect(cx2 - 38, bot - 58 + k * 5, 10 + ((time * 20 + k * 7) % 24), 2).fill({ color: 0x0c1418, alpha: 0.6 });
+        if (!getPropArt().interior.galley) {
+          d.rect(cx2 - 42, bot - 62, 38, 24).fill({ color: 0x9ad040, alpha: 0.55 + 0.1 * Math.sin(time * 3) });
+          d.rect(cx2 + 4, bot - 62, 38, 24).fill({ color: 0xc6f03a, alpha: 0.45 });
+          for (let k = 0; k < 4; k++) d.rect(cx2 - 38, bot - 58 + k * 5, 10 + ((time * 20 + k * 7) % 24), 2).fill({ color: 0x0c1418, alpha: 0.6 });
+        } else {
+          // Subtle live CRT glow pulse aligned to galley.webp's two recessed monitors.
+          const pulse = 0.18 + 0.06 * Math.sin(time * 2.6);
+          de.roundRect(cx2 - 34, bot - 52, 26, 17, 3).fill({ color: 0xc6f03a, alpha: pulse });
+          de.roundRect(cx2 + 8, bot - 52, 26, 17, 3).fill({ color: 0xc6f03a, alpha: pulse * 0.85 });
+        }
         const px = b.ox + b.ow - 90;
         const f0 = b.floor(0);
-        for (let i = 0; i < 5; i++) de.rect(px - 36 + i * 16, f0 - 90 + Math.sin(time * 2 + i) * 4, 10, 30).fill({ color: COL.lime, alpha: 0.18 });
+        for (let i = 0; i < 5; i++) de.rect(px - 36 + i * 16, f0 - 84 + Math.sin(time * 2 + i) * 4, 10, 26).fill({ color: COL.lime, alpha: 0.16 });
       } else if (r.kind === 'storage' || r.kind === 'sorter') {
         // Painted crates fill the racks cleanly as storage fills; procedural rectangles only when crate art is absent.
         const frac = c.storedFrac();
@@ -1960,9 +2117,10 @@ export class BaseHooks implements InteriorHooks {
       } else if (r.kind === 'tank' || r.kind === 'gtank') {
         this.drawTank(r, d, de, time, on);
       } else if (r.kind === 'filter' && on) {
+        const hasVat = !!getPropArt().interior.filter_vat;
         for (const x of [b.ox + 50, b.ox + b.ow - 90]) {
-          d.roundRect(x, bot - 146, 40, 138, 6).fill({ color: 0x5a8a1e, alpha: 0.6 });
-          for (let i = 0; i < 6; i++) de.circle(x + 8 + ((i * 13) % 26), bot - 12 - ((time * 60 + i * 23) % 130), 2.4).fill({ color: 0xe0ff90, alpha: 0.7 });
+          if (!hasVat) d.roundRect(x, bot - 146, 40, 138, 6).fill({ color: 0x5a8a1e, alpha: 0.6 });
+          for (let i = 0; i < 6; i++) de.circle(x + 12 + ((i * 11) % 20), bot - 48 - ((time * 50 + i * 21) % 80), 2.1).fill({ color: 0xe0ff90, alpha: 0.65 });
         }
         de.circle(b.cx, bot - 40, 6).fill({ color: COL.lime, alpha: 0.8 });
       } else if (r.kind === 'feeder') {
@@ -2002,8 +2160,12 @@ export class BaseHooks implements InteriorHooks {
         d.circle(ex, ey, 7).fill({ color: COL.chromeDark });
         if (busy && Math.sin(time * 17) > 0.2) de.circle(tx, ty + 4, 5).fill({ color: 0xfff0b0 });
       } else if (r.kind === 'recomp' && on) {
-        const cx = b.ox + b.ow * 0.62;
-        d.circle(cx, (b.oy + bot) / 2, 28).fill({ color: 0x8ac030, alpha: 0.35 + 0.1 * Math.sin(time * 2) });
+        if (getPropArt().interior.recomp_chamber) {
+          de.circle(b.ox + b.ow * 0.56 - 2, bot - 61, 14).fill({ color: 0x8ac030, alpha: 0.24 + 0.08 * Math.sin(time * 2) });
+        } else {
+          const cx = b.ox + b.ow * 0.62;
+          d.circle(cx, (b.oy + bot) / 2, 28).fill({ color: 0x8ac030, alpha: 0.35 + 0.1 * Math.sin(time * 2) });
+        }
       } else if (r.kind === 'crane') {
         const f0 = b.floor(0);
         const sway = Math.sin(time * 0.8) * 6;

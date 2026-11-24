@@ -22,7 +22,11 @@ export type KestrelArtKey =
   | 'jar' | 'thruster' | 'thruster_mk2' | 'harpoon'
   | 'rivet' | 'dart' | 'flare' | 'resonator' | 'magboots' | 'satchel';
 export type WreckArtKey = 'fulmar' | 'corvina';
-export type InteriorArtKey = 'console_habitat' | 'tray_collection' | 'crate';
+export type InteriorArtKey =
+  | 'console_habitat' | 'tray_collection' | 'crate'
+  | 'airlock' | 'bunk' | 'planner' | 'galley'
+  | 'lab_bench' | 'workshop_bench' | 'hatch_cradle' | 'hatch_console'
+  | 'revive_pool' | 'signal_dish' | 'recomp_chamber' | 'farm_trough' | 'filter_vat' | 'crane_cradle';
 export type PickupArtKey = 'scrap' | 'copper' | 'quartz' | 'fibre' | 'resin' | 'moss' | 'brass' | 'bloom' | 'ore';
 export type BottomArtKey = 'lily' | 'sponge' | 'worm' | 'star' | 'pen';
 
@@ -96,7 +100,12 @@ const BASE_KEYS: readonly BaseArtKey[] = [
   'filter', 'feeder', 'press',
 ];
 const WRECK_KEYS: readonly WreckArtKey[] = ['fulmar', 'corvina'];
-const INTERIOR_KEYS: readonly InteriorArtKey[] = ['console_habitat', 'tray_collection', 'crate'];
+const INTERIOR_KEYS: readonly InteriorArtKey[] = [
+  'console_habitat', 'tray_collection', 'crate',
+  'airlock', 'bunk', 'planner', 'galley',
+  'lab_bench', 'workshop_bench', 'hatch_cradle', 'hatch_console',
+  'revive_pool', 'signal_dish', 'recomp_chamber', 'farm_trough', 'filter_vat', 'crane_cradle',
+];
 const DECOR_KEYS: readonly DecorId[] = [
   'arch', 'amphora', 'helmet', 'chest', 'driftwood', 'clam', 'lantern', 'wheel',
   'cairn', 'floats', 'anchor', 'bell', 'coralarch', 'astrolabe', 'belljar', 'kelplantern',

@@ -1522,7 +1522,15 @@ async function boot(): Promise<void> {
   }
   let insideDome: number | null = null;
   // ---- Milestone 10: crush depth (Colin's numbers: Kestrel suit 30 m, PS-1 60 m, PS-2 110 m; KS-1 45 m, plated 120 m) ----
-  const diverLimit = () => (hasGear(save, 'psuit2') ? CRUSH.ps2 : hasGear(save, 'psuit') ? CRUSH.ps1 : CRUSH.kestrel);
+  const acclimated = () => (save.acclimatedUntil ?? 0) > save.playSeconds;
+  const consumeSuitShield = (): boolean => {
+    if ((save.suitShield ?? 0) <= 0) return false;
+    save.suitShield = (save.suitShield ?? 1) - 1;
+    sound.clamps(false);
+    hud.toast(save.suitShield > 0 ? `Pressurized seal absorbed the hit (${save.suitShield} charge left)` : 'Pressurized seal absorbed the hit (seal spent)', 'big');
+    return true;
+  };
+  const diverLimit = () => (hasGear(save, 'psuit2') ? CRUSH.ps2 : hasGear(save, 'psuit') ? CRUSH.ps1 : CRUSH.kestrel) + (acclimated() ? 10 : 0);
   const subLimit = () => (save.sub?.plating ? CRUSH.plated : CRUSH.sub);
   let crushClock = 0;
   /** Milestone 11: whether the Choir gates are drawn (after contact). */
@@ -2752,7 +2760,8 @@ async function boot(): Promise<void> {
         hud.toast('No thruster to boost with yet. A Kestrel survey left a spare hip thruster somewhere near its beacon, at the drop-off.', 'warn');
       }
       const freeSwimming = inControl && !input.suspended && !peek && !s.boost && !s.board && !s.scan && !s.collect && !s.flare && !s.dart;
-      diver.update(dt, inControl ? s.moveX : 0, inControl ? s.moveY : 0, inControl && s.boost && save.kit.thruster > 0, inControl && s.lamp, freeSwimming, pool?.y);
+      const swimBoost = acclimated() ? 1.15 : 1;
+      diver.update(dt, inControl ? s.moveX * swimBoost : 0, inControl ? s.moveY * swimBoost : 0, inControl && s.boost && save.kit.thruster > 0, inControl && s.lamp, freeSwimming, pool?.y);
       // After milestone 12: the TH-3 dash head. A double tap of Boost dashes, every 3 s.
       if (inControl && s.boost && hasGear(save, 'dash')) {
         if (time - boostTapAt < 0.32 && time - dashAt > 3) {
@@ -2862,8 +2871,10 @@ async function boot(): Promise<void> {
     }
     if (lk.warn) sound.lurkWarn(lk.warn.denX - diver.x);
     if (lk.bite) {
-      save.suit = Math.max(0, save.suit - 0.3);
-      suitCalm = 0;
+      if (!consumeSuitShield()) {
+        save.suit = Math.max(0, save.suit - 0.3);
+        suitCalm = 0;
+      }
       shake = Math.min(1, shake + 0.7);
       const L = Math.max(1, Math.hypot(diver.x - lk.bite.denX, diver.y - lk.bite.denY));
       diver.vx = ((diver.x - lk.bite.denX) / L) * 420;
@@ -2880,8 +2891,10 @@ async function boot(): Promise<void> {
     // ---- The trench (milestone 10): predators ----
     for (const ev of hunters.update(dt, { x: diver.x, y: diver.y, lampOn: diver.lampOn && diver.lamp > 0.3, speed: Math.hypot(diver.vx, diver.vy) }, !aboard && blackout === 0 && !boarding, camX, camX + lastViewW, camY, camY + viewH, motion)) {
       if (ev.type === 'bite') {
-        save.suit = Math.max(0, save.suit - ev.damage);
-        suitCalm = 0;
+        if (!consumeSuitShield()) {
+          save.suit = Math.max(0, save.suit - ev.damage);
+          suitCalm = 0;
+        }
         shake = Math.min(1, shake + 0.7);
         const L = Math.max(1, Math.hypot(diver.x - ev.x, diver.y - ev.y));
         diver.vx = ((diver.x - ev.x) / L) * 420;
@@ -3012,7 +3025,8 @@ async function boot(): Promise<void> {
         // Hard work uses air faster: boosting, and prying materials loose.
         // A heavy dive bag makes the diver breathe harder too.
         const work = diver.boosting ? 1.8 : pickups.working || drone.repairProgress > 0 ? 1.3 : 1;
-        save.oxygen = Math.max(0, save.oxygen - dt * work * (1 + 0.2 * Math.min(1.6, diver.load)));
+        const o2Scale = acclimated() ? 0.8 : 1;
+        save.oxygen = Math.max(0, save.oxygen - dt * work * o2Scale * (1 + 0.2 * Math.min(1.6, diver.load)));
         diveTime += dt;
       }
       const frac = save.oxygen / maxO2;
@@ -4445,10 +4459,12 @@ async function boot(): Promise<void> {
       },
       hurt: (attack, result) => {
         if (result === 'hit') {
-          save.suit = afterHit(save.suit, attack, result);
-          suitCalm = 0;
-          hud.suitHit();
-          sound.suitHit();
+          if (!consumeSuitShield()) {
+            save.suit = afterHit(save.suit, attack, result);
+            suitCalm = 0;
+            hud.suitHit();
+            sound.suitHit();
+          }
           if (save.suit <= 0 && knockout === 0) {
             knockout = 0.0001;
             knockedWoke = false;
@@ -4724,9 +4740,11 @@ async function boot(): Promise<void> {
     recompress: () => {
       save.suit = 1;
       save.oxygen = maxOxygen(save);
+      save.acclimatedUntil = save.playSeconds + 12 * 60;
+      save.suitShield = 2;
       suitCalm = 99;
       sound.clamps(true);
-      hud.toast('The chamber seals and the pressure eases: suit integrity 100%, air full.', 'big');
+      hud.toast('Recompression complete: Acclimated for 12 min (+25% O₂, +15% speed, +10 m depth) + 2-hit suit seal!', 'big');
       persist();
     },
     status: (p) => {
@@ -5516,10 +5534,12 @@ async function boot(): Promise<void> {
         }
         persist();
       } else if (e.type === 'hurt') {
-        save.suit = Math.max(0, save.suit - e.amount);
-        suitCalm = 0;
-        hud.suitHit();
-        sound.hurt(e.why);
+        if (!consumeSuitShield()) {
+          save.suit = Math.max(0, save.suit - e.amount);
+          suitCalm = 0;
+          hud.suitHit();
+          sound.hurt(e.why);
+        }
         if (e.why === 'bilge' && !save.tips.includes('bilge')) {
           save.tips.push('bilge');
           hud.toast('The bilge is deep, cold and full of wreckage: you haul yourself back out where you last stood. Your suit takes a knock.', 'warn');
