@@ -1884,10 +1884,14 @@ function drawPaintedHero(kind: PieceKind, n: number, rot: number, housingOcean: 
     const c = CELL / 2;
     const body = new Container();
     const g = body.addChild(new Graphics());
-    tubeH(g, 0, 18, c, 1);
-    tubeH(g, CELL - 18, CELL, c, 1);
-    tubeH(g, 0, 18, CELL * 2 + c, 1);
-    tubeH(g, CELL - 18, CELL, CELL * 2 + c, 1);
+    // Continuous side connector sleeves through top and bottom shaft cells so left/right flanges seat flush with zero water gaps.
+    for (const cy of [c, CELL * 2 + c]) {
+      tubeH(g, 0, CELL, cy, 0);
+      for (const sx of [16, CELL - 16]) {
+        g.rect(sx - 3, cy - TUBE / 2 - 2, 6, TUBE + 4).fill({ color: 0x7c6334 }).stroke({ color: 0x161d20, width: 1 });
+        for (const dy of [-20, 0, 20]) g.circle(sx, cy + dy, 1.3).fill({ color: 0x2a2418 });
+      }
+    }
     const windows = new Graphics();
     const windowGlow = new Graphics();
     const natH = (CELL + 4) * (baseArt.corridor.height / Math.max(1, baseArt.corridor.width));

@@ -377,7 +377,7 @@ body.touch .desk-only {
 }
 @media (min-height: 820px) and (min-width: 1100px) and (hover: hover) and (pointer: fine) {
   :root {
-    --watch: clamp(108px, 11vh, 176px);
+    --watch: clamp(118px, 13vh, 186px);
   }
 }
 body.touch {
@@ -1107,6 +1107,12 @@ body.building #log-btn {
 
 #jar-chip.show {
   display: inline-flex;
+}
+
+#jar-chip.full {
+  border-color: rgba(242, 200, 107, 0.85);
+  color: #f6e2a8;
+  box-shadow: 0 0 10px rgba(224, 168, 64, 0.28);
 }
 
 #jar-chip svg {

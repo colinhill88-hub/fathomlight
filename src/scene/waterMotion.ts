@@ -24,7 +24,7 @@ export function ventLensAt(x: number, y: number): { x: number; y: number } | und
 }
 
 export function isWaterAir(x: number, y: number): boolean {
-  return y < 0 || (x > 15420 && x < 17440 && AIR_POCKETS.some((a) => y < a.waterY && inShape(a.shape, x, y)));
+  return y < 0 || (x > 15420 && x < 18700 && AIR_POCKETS.some((a) => y < a.waterY && inShape(a.shape, x, y)));
 }
 
 /** Visual current only. Never fed back into collision, swimming, or AI. */

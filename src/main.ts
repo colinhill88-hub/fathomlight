@@ -1422,13 +1422,17 @@ async function boot(): Promise<void> {
   function recorderOut(): boolean {
     return !save.finds.includes('recorder') && !save.blueprints.includes('light') && !hasGear(save, 'light') && !Object.values(save.jobs).some((j) => j.id === 'research:light');
   }
-  /** Text for the jar chip. */
+  /** Text for the jar chip (shows both slots when the upgraded satchel is carried). */
   function jarText(): string | null {
-    const j = save.jar;
-    if (!j) return null;
-    const sp = SPECIES[j.species];
-    const named = j.keep && j.stage !== 'egg' ? `${creatureName(j.keep)}, ` : '';
-    return j.stage === 'egg' ? `Jar: ${sp.eggName}` : j.stage === 'young' ? `Jar: ${named}${sp.youngName}` : `Jar: ${named}${sp.name.toLowerCase()}`;
+    const items = [save.jar, save.jar2].filter((j): j is NonNullable<typeof save.jar> => !!j);
+    if (!items.length) return null;
+    const cap = hasGear(save, 'satchel') || !!save.jar2 ? 2 : 1;
+    const desc = items.map((j) => {
+      const sp = SPECIES[j.species];
+      const named = j.keep && j.stage !== 'egg' ? `${creatureName(j.keep)}, ` : '';
+      return j.stage === 'egg' ? sp.eggName : j.stage === 'young' ? `${named}${sp.youngName}` : `${named}${sp.name.toLowerCase()}`;
+    });
+    return cap > 1 ? `Jar (${items.length}/2): ${desc.join(' · ')}` : `Jar: ${desc[0]}`;
   }
 
   /** Phase 15: what Release would let go (the satchel's newer catch first), for the helper and prompts. */
@@ -2761,7 +2765,22 @@ async function boot(): Promise<void> {
       }
       const freeSwimming = inControl && !input.suspended && !peek && !s.boost && !s.board && !s.scan && !s.collect && !s.flare && !s.dart;
       const swimBoost = acclimated() ? 1.15 : 1;
-      diver.update(dt, inControl ? s.moveX * swimBoost : 0, inControl ? s.moveY * swimBoost : 0, inControl && s.boost && save.kit.thruster > 0, inControl && s.lamp, freeSwimming, pool?.y);
+      const pocketWater = !pool
+        ? (AIR_POCKETS.find((a) => inShape(a.shape, diver.x, diver.y, 14) && diver.y <= a.waterY + 75 && !isSolid(diver.x, a.waterY - 12)) ?? null)
+        : null;
+      if (diver.surfaced && !pool && !pocketWater && diver.y > 120) {
+        diver.surfaced = false;
+        diver.cancelSurfaceReaction();
+      }
+      diver.update(
+        dt,
+        inControl ? s.moveX * swimBoost : 0,
+        inControl ? s.moveY * swimBoost : 0,
+        inControl && s.boost && save.kit.thruster > 0,
+        inControl && s.lamp,
+        freeSwimming,
+        pool?.y ?? pocketWater?.waterY,
+      );
       // After milestone 12: the TH-3 dash head. A double tap of Boost dashes, every 3 s.
       if (inControl && s.boost && hasGear(save, 'dash')) {
         if (time - boostTapAt < 0.32 && time - dashAt > 3) {
@@ -2801,9 +2820,12 @@ async function boot(): Promise<void> {
 
     // Breaking the surface: a splash, then breath vapour with each breath out.
     const [hx, hy] = diver.helmetPoint();
+    const activePocket = !pool && !aboard ? (AIR_POCKETS.find((a) => inShape(a.shape, diver.x, diver.y, 18) && diver.y <= a.waterY + 85) ?? null) : null;
     if (diver.splash > 0) {
       if (pool) poolFx.splash(hx - pool.x, diver.splash * 0.58, time, diver.vx, !diver.surfaced);
-      else if (surfaceMotion && !aboard) {
+      else if (activePocket) {
+        bubbles.puff(hx, activePocket.waterY + 4, diver.vx * 0.25, -45, Math.max(4, Math.round(6 + diver.splash * 8)));
+      } else if (surfaceMotion && !aboard) {
         const strength = Math.min(1.20, diver.splash * 0.67 + Math.max(Math.abs(incomingVY), Math.abs(diver.vy)) / 620 + Math.abs(diver.vx) / 1000);
         surfaceFx.splash(hx, strength, time, diver.vx, !diver.surfaced);
       } else surfaceFx.splash(hx, diver.splash, time);
@@ -2993,7 +3015,7 @@ async function boot(): Promise<void> {
     const dome = null as Placed | null;
     const domeAir = false;
     // Milestone 7 part 2: trapped air in the kelp caves' roofs, and planted air relays.
-    const pocketAir = blackout === 0 && !aboard && AIR_POCKETS.some((a) => inShape(a.shape, hx, hy) && hy < a.waterY);
+    const pocketAir = blackout === 0 && !aboard && ((!!activePocket && diver.surfaced) || AIR_POCKETS.some((a) => inShape(a.shape, hx, hy) && hy < a.waterY));
     const relayAir = blackout === 0 && !aboard && save.relays.some((r) => Math.hypot(diver.x - r.x, diver.y - (r.y - 50)) < 140);
     // Milestone 8 part 2: inside a finished, powered recompression room.
     const recompHere = null as Placed | null;
@@ -4252,7 +4274,7 @@ async function boot(): Promise<void> {
     perf.pass('glow', () => renderer.render({ container: glowCam, target: glowRT, clear: true, clearColor: [0, 0, 0, 0] }));
 
     input.diverScreen = aboard ? { x: (sub.x - camX) * zoom, y: (sub.y - camY) * zoom } : { x: (diver.x - camX) * zoom, y: (diver.y - camY) * zoom };
-    surfaceFx.update(dt, time, camX, camX + viewW, camY, diver.surfaced && !pool ? { x: hx } : null);
+    surfaceFx.update(dt, time, camX, camX + viewW, camY, diver.surfaced && !pool && !activePocket ? { x: hx } : null);
     poolFx.view.visible = !!pool;
     if (pool) {
       poolFx.view.position.set(pool.x, pool.y);

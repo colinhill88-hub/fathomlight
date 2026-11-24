@@ -712,6 +712,7 @@ export class Scenery {
   /** The survey boom gate on the cliff-top shelf and its winch (milestone 7). */
   private boomGate = new Container();
   private winch = new Graphics();
+  private boomWheel: Sprite | null = null;
   private cable = new Graphics();
   private boomShown = -1;
   private mossGlows: { core: Graphics; halo: Graphics; light: PointLight; phase: number }[] = [];
@@ -867,7 +868,13 @@ export class Scenery {
       rope.tint = painted ? 0xffffff : tint;
       layer.addChild(rope);
       this.kelps.push({ rope, points, baseX: x, baseY, height, phase: rand() * 10, bend: 0 });
-      if (layer !== this.front) this.scanPoints.kelp.push({ x, y: baseY - height * 0.4 });
+      if (layer !== this.front) {
+        if (x >= 9880 && x <= FOREST.x1) {
+          for (let h = 140; h < height - 60; h += 220) this.scanPoints.gkelp.push({ x, y: baseY - h });
+        } else {
+          for (const f of [0.22, 0.5, 0.78]) this.scanPoints.kelp.push({ x, y: baseY - height * f });
+        }
+      }
     };
     for (let i = 0; i < Math.round(56 * detail); i++) {
       const p = rand();
@@ -1146,7 +1153,6 @@ export class Scenery {
       const front = rand() < 0.3;
       addKelp(x, gy(x) - R(-10, 70), front ? kelpFront : kelpBack, tints[Math.floor(rand() * tints.length)]);
       holdfast(dg(x), x);
-      if (!front && rand() < 0.4) this.scanPoints.gkelp.push({ x, y: gy(x) - 160 });
     }
     // A few more along the foot of the east face and the west edge of the wall.
     for (const x of [9880, 9960, 10010, 14520, 14610]) {
@@ -1237,6 +1243,28 @@ export class Scenery {
     this.boomGate.addChild(gate, label);
     this.boomGate.position.set(BOOM_X, -72);
     this.view.addChild(post, this.cable, this.boomGate, this.winch);
+    const winchTex = getPropArt().landmarks.winch;
+    const wheelTex = getPropArt().landmarks.winch_wheel;
+    if (winchTex) {
+      const wx = WINCH_X;
+      const wy = gy(wx) + 5;
+      const body = new Sprite(winchTex);
+      body.anchor.set(0.5, 1);
+      const sc = 76 / winchTex.width;
+      body.scale.set(sc);
+      body.position.set(wx, wy);
+      this.view.addChild(body);
+      this.slices.push({ obj: body, x0: wx - 300, x1: wx + 300 });
+      if (wheelTex) {
+        const wh = new Sprite(wheelTex);
+        wh.anchor.set(0.5, 0.5);
+        wh.scale.set(24 / Math.max(wheelTex.width, wheelTex.height));
+        wh.position.set(wx + 22, wy - winchTex.height * sc * 0.52);
+        this.view.addChild(wh);
+        this.slices.push({ obj: wh, x0: wx - 300, x1: wx + 300 });
+        this.boomWheel = wh;
+      }
+    }
     this.scanPoints.boom.push({ x: BOOM_X - 40, y: 120 });
     this.slices.push({ obj: post, x0: BOOM_X - 300, x1: WINCH_X + 300 });
     this.setBoom(0);
@@ -1330,8 +1358,8 @@ export class Scenery {
       // caves' own shape, so the air follows the real roof (after milestone 8 part 1).
       for (const ap of AIR_POCKETS) {
         const e = ap.shape as { x: number; y: number; rx: number; ry: number };
-        const x0 = e.x - e.rx - 80;
-        const x1 = e.x + e.rx + 80;
+        const x0 = e.x - e.rx - 10;
+        const x1 = e.x + e.rx + 10;
         const airField = (x: number, y: number) => Math.max(field(x, y), y - ap.waterY);
         traceField(g, airField, x0, x1, ap.waterY - 260, ap.waterY + 8, 6, 0x34494d, 0.9);
         traceField(g, (x, y) => Math.max(field(x, y) + 10, y - ap.waterY + 8), x0, x1, ap.waterY - 260, ap.waterY + 8, 6, 0x45625f, 0.5);
@@ -1399,12 +1427,22 @@ export class Scenery {
       {
         const x = KC_FINDS.cache.x;
         const y = floor('cache');
-        g.roundRect(x - 40, y - 34, 80, 34, 4).fill({ color: 0x6a5a4c });
-        g.rect(x - 40, y - 34, 80, 7).fill({ color: 0x8a7a62 });
-        g.rect(x - 4, y - 30, 8, 12).fill({ color: 0x2a2622 });
-        for (const bx of [-30, 30]) g.circle(x + bx, y - 16, 2.5).fill({ color: 0x3b3a36 });
-        g.rect(x - 40, y - 20, 80, 3).fill({ color: 0xa8402e, alpha: 0.8 });
-        rustStreaks(g, x - 34, x + 34, y - 28, 8, 14);
+        const cacheTex = getPropArt().landmarks.cache;
+        if (cacheTex) {
+          const sp = new Sprite(cacheTex);
+          sp.anchor.set(0.5, 1);
+          sp.scale.set(92 / cacheTex.width);
+          sp.position.set(x, y + 3);
+          decorLayer.addChild(sp);
+          this.slices.push({ obj: sp, x0: x - 300, x1: x + 300 });
+        } else {
+          g.roundRect(x - 40, y - 34, 80, 34, 4).fill({ color: 0x6a5a4c });
+          g.rect(x - 40, y - 34, 80, 7).fill({ color: 0x8a7a62 });
+          g.rect(x - 4, y - 30, 8, 12).fill({ color: 0x2a2622 });
+          for (const bx of [-30, 30]) g.circle(x + bx, y - 16, 2.5).fill({ color: 0x3b3a36 });
+          g.rect(x - 40, y - 20, 80, 3).fill({ color: 0xa8402e, alpha: 0.8 });
+          rustStreaks(g, x - 34, x + 34, y - 28, 8, 14);
+        }
       }
     });
     const stencil = (text: string, x: number, y: number) => {
@@ -1588,6 +1626,7 @@ export class Scenery {
   /** The flow vane (a hinged plate on a seabed pivot) and its winch. */
   private vane = new Container();
   private vaneWinch = new Graphics();
+  private vaneWheel: Sprite | null = null;
   private vaneShown = -1;
   /** The grapple's target marker, drawn unlit so it shows in the dark. */
   private markG = new Graphics();
@@ -1735,6 +1774,28 @@ export class Scenery {
       pivot.circle(VANE.x, gy(VANE.x) - 8, 12).fill({ color: 0x6a625c });
       pivot.circle(VANE.x, gy(VANE.x) - 8, 4).fill({ color: 0x2a2622 });
       decorLayer.addChild(this.vane, pivot, this.vaneWinch);
+      const winchTex = getPropArt().landmarks.winch;
+      const wheelTex = getPropArt().landmarks.winch_wheel;
+      if (winchTex) {
+        const wx = VANE.winchX;
+        const wy = gy(wx) + 5;
+        const body = new Sprite(winchTex);
+        body.anchor.set(0.5, 1);
+        const sc = 76 / winchTex.width;
+        body.scale.set(sc);
+        body.position.set(wx, wy);
+        decorLayer.addChild(body);
+        this.slices.push({ obj: body, x0: wx - 300, x1: wx + 300 });
+        if (wheelTex) {
+          const wh = new Sprite(wheelTex);
+          wh.anchor.set(0.5, 0.5);
+          wh.scale.set(24 / Math.max(wheelTex.width, wheelTex.height));
+          wh.position.set(wx + 22, wy - winchTex.height * sc * 0.52);
+          decorLayer.addChild(wh);
+          this.slices.push({ obj: wh, x0: wx - 300, x1: wx + 300 });
+          this.vaneWheel = wh;
+        }
+      }
       this.scanPoints.vane.push({ x: VANE.x - 120, y: gy(VANE.x) - 60 });
       this.setVane(0);
     }
@@ -1926,14 +1987,18 @@ export class Scenery {
     const w = this.vaneWinch.clear();
     const x = VANE.winchX;
     const y = gy(x) + 4;
-    w.roundRect(x - 26, y - 12, 52, 12, 3).fill({ color: 0x4a4038 });
-    w.rect(x - 22, y - 40, 6, 30).fill({ color: 0x5a4a3e });
-    w.rect(x + 16, y - 40, 6, 30).fill({ color: 0x5a4a3e });
-    w.roundRect(x - 18, y - 36, 36, 20, 6).fill({ color: 0xa88a40 });
     const a = t * 14;
-    w.circle(x + 30, y - 26, 10).stroke({ color: 0xa8402e, width: 3 });
-    w.moveTo(x + 30 + Math.cos(a) * 10, y - 26 + Math.sin(a) * 10).lineTo(x + 30 - Math.cos(a) * 10, y - 26 - Math.sin(a) * 10).stroke({ color: 0xa8402e, width: 2 });
-    rustStreaks(w, x - 16, x + 16, y - 30, 5, 12);
+    if (this.vaneWheel) {
+      this.vaneWheel.rotation = a;
+    } else if (!getPropArt().landmarks.winch) {
+      w.roundRect(x - 26, y - 12, 52, 12, 3).fill({ color: 0x4a4038 });
+      w.rect(x - 22, y - 40, 6, 30).fill({ color: 0x5a4a3e });
+      w.rect(x + 16, y - 40, 6, 30).fill({ color: 0x5a4a3e });
+      w.roundRect(x - 18, y - 36, 36, 20, 6).fill({ color: 0xa88a40 });
+      w.circle(x + 30, y - 26, 10).stroke({ color: 0xa8402e, width: 3 });
+      w.moveTo(x + 30 + Math.cos(a) * 10, y - 26 + Math.sin(a) * 10).lineTo(x + 30 - Math.cos(a) * 10, y - 26 - Math.sin(a) * 10).stroke({ color: 0xa8402e, width: 2 });
+      rustStreaks(w, x - 16, x + 16, y - 30, 5, 12);
+    }
     // The cable from the drum to the vane's tip.
     const L = 420;
     const ang = this.vane.rotation;
@@ -2206,17 +2271,21 @@ export class Scenery {
     const w = this.winch.clear();
     const x = WINCH_X;
     const y = groundY(x) + 4;
-    w.roundRect(x - 26, y - 12, 52, 12, 3).fill({ color: 0x4a4038 });
-    w.rect(x - 22, y - 40, 6, 30).fill({ color: 0x5a4a3e });
-    w.rect(x + 16, y - 40, 6, 30).fill({ color: 0x5a4a3e });
-    w.roundRect(x - 18, y - 36, 36, 20, 6).fill({ color: 0xa88a40 });
-    w.rect(x - 18, y - 30, 36, 3).fill({ color: 0x3b4448, alpha: 0.6 });
-    for (let k = 0; k < 6; k++) w.moveTo(x - 16 + k * 6, y - 35).lineTo(x - 16 + k * 6, y - 17).stroke({ color: 0x6a5530, width: 1, alpha: 0.7 });
     const a = t * 14;
-    w.circle(x + 30, y - 26, 10).stroke({ color: 0xa8402e, width: 3 });
-    w.moveTo(x + 30 + Math.cos(a) * 10, y - 26 + Math.sin(a) * 10).lineTo(x + 30 - Math.cos(a) * 10, y - 26 - Math.sin(a) * 10).stroke({ color: 0xa8402e, width: 2 });
-    w.moveTo(x + 22, y - 26).lineTo(x + 30, y - 26).stroke({ color: 0x3b4448, width: 3 });
-    rustStreaks(w, x - 16, x + 16, y - 30, 5, 12);
+    if (this.boomWheel) {
+      this.boomWheel.rotation = a;
+    } else if (!getPropArt().landmarks.winch) {
+      w.roundRect(x - 26, y - 12, 52, 12, 3).fill({ color: 0x4a4038 });
+      w.rect(x - 22, y - 40, 6, 30).fill({ color: 0x5a4a3e });
+      w.rect(x + 16, y - 40, 6, 30).fill({ color: 0x5a4a3e });
+      w.roundRect(x - 18, y - 36, 36, 20, 6).fill({ color: 0xa88a40 });
+      w.rect(x - 18, y - 30, 36, 3).fill({ color: 0x3b4448, alpha: 0.6 });
+      for (let k = 0; k < 6; k++) w.moveTo(x - 16 + k * 6, y - 35).lineTo(x - 16 + k * 6, y - 17).stroke({ color: 0x6a5530, width: 1, alpha: 0.7 });
+      w.circle(x + 30, y - 26, 10).stroke({ color: 0xa8402e, width: 3 });
+      w.moveTo(x + 30 + Math.cos(a) * 10, y - 26 + Math.sin(a) * 10).lineTo(x + 30 - Math.cos(a) * 10, y - 26 - Math.sin(a) * 10).stroke({ color: 0xa8402e, width: 2 });
+      w.moveTo(x + 22, y - 26).lineTo(x + 30, y - 26).stroke({ color: 0x3b4448, width: 3 });
+      rustStreaks(w, x - 16, x + 16, y - 30, 5, 12);
+    }
     // The cable from the drum up to the gate's free end.
     const ga = this.boomGate.rotation;
     const L = SHELF.floor + 70;

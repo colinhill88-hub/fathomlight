@@ -358,19 +358,25 @@ export class Hud {
     const dormant = SPECIES_ORDER.filter((s) => save.dormant[s])
       .map((s) => `${save.dormant[s]} ${SPECIES[s].name.toLowerCase()}`)
       .join(', ');
+    const jars = [save.jar, save.jar2].filter((j): j is NonNullable<typeof save.jar> => !!j);
     return `${rows ? `<ul class="log">${rows}</ul>` : '<p class="note">No creatures kept yet. Scan a creature, then hold Collect by a young one (or a glowfin egg clutch) to put it in the specimen jar, and bring it to a creature tank.</p>'}${
-      save.jar ? `<p class="note">In the specimen jar: ${save.jar.stage === 'egg' ? SPECIES[save.jar.species].eggName : SPECIES[save.jar.species].youngName}.</p>` : ''
+      jars.length ? `<p class="note">In the specimen jar: ${jars.map((j) => (j.stage === 'egg' ? SPECIES[j.species].eggName : j.stage === 'young' ? SPECIES[j.species].youngName : SPECIES[j.species].name.toLowerCase())).join(' and ')}.</p>` : ''
     }${dormant ? `<p class="note">Dormant remains in storage: ${dormant}. A Revival pool could wake them (its blueprint is somewhere on the wreck shelf).</p>` : ''}`;
   }
 
   /** The specimen jar chip under the watch. */
   setJar(text: string | null): void {
     const el = document.getElementById('jar-chip')!;
+    const two = !!text && text.includes('(2/2)');
+    const dots = two
+      ? '<circle cx="10.2" cy="15.2" r="2.3" fill="#ffd9a0" opacity=".95"/><circle cx="14.2" cy="11.8" r="2.2" fill="#e8f0b8" opacity=".95"/>'
+      : '<circle cx="12" cy="14" r="3" fill="#ffd9a0" opacity=".9"/>';
     const html = text
-      ? `<svg viewBox="0 0 24 24"><rect x="6" y="3" width="12" height="3" rx="1" fill="#8a9496"/><path d="M6.5 6h11v12a3 3 0 0 1-3 3h-5a3 3 0 0 1-3-3z" fill="#86b3ae" opacity=".5" stroke="#d8e6a0" stroke-width="1"/><circle cx="12" cy="14" r="3" fill="#ffd9a0" opacity=".9"/></svg>${text}`
+      ? `<svg viewBox="0 0 24 24"><rect x="6" y="3" width="12" height="3" rx="1" fill="#8a9496"/><path d="M6.5 6h11v12a3 3 0 0 1-3 3h-5a3 3 0 0 1-3-3z" fill="#86b3ae" opacity=".5" stroke="${two ? '#f2c86b' : '#d8e6a0'}" stroke-width="1.2"/>${dots}</svg>${text}`
       : '';
     if (el.innerHTML !== html) el.innerHTML = html;
     el.classList.toggle('show', !!text);
+    el.classList.toggle('full', two);
   }
 
   scanAnnounce(id: string): void {

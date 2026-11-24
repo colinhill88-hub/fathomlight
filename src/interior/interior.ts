@@ -58,8 +58,9 @@ const SWING_CLIMB = 220;
 const SWING_MAX = 1050;
 const VENT_CYCLE = 3.2;
 const VENT_BURST = 1.0;
-/** Climbing speed on a ladder (the base on foot). */
+/** Climbing speed on a ladder (the base on foot), and faster while holding Shift/sprint. */
 export const CLIMB = 210;
+export const CLIMB_FAST = 360;
 /** The lighting shader adds up at most this many lights; the nearest win. */
 const MAX_LIGHTS = 32;
 
@@ -1504,7 +1505,7 @@ export class Interior {
       }
     }
     w.vx = 0;
-    w.vy = dir * CLIMB;
+    w.vy = dir * (inp.sprint ? CLIMB_FAST : CLIMB);
     const ny = w.y + w.vy * dt;
     w.pose = 'climb';
     w.climbPhase += (w.vy * dt) / 26;

@@ -36,6 +36,14 @@ export const SAMPLE_GROUPS: Record<string, number> = {
   creak: 3, // short metal creaks: crush-depth creaks, the shelf's clanks
   sand: 3, // sand and gravel trickling: copper loosening, the drill, rockfall
   wetstep: 5, // footsteps on wet metal: walking in the wrecks
+  // Round 4 (Freesound, CC0 — hatch unscrewing, rivet gun, stun-dart zap, sonar, airlock hiss, brass switch):
+  hatchwheel: 1, // ratcheting metal wheel unscrewing a submarine hatch
+  hatchclunk: 1, // heavy metal hatch unlatching & docking clamps locking
+  hiss: 1, // pressurized airlock & docking seal steam/air release
+  rivet: 2, // pneumatic compressed-air burst for RD-1 rivet driver & SD-1 dart release
+  zap: 1, // crisp electric taser/stun-dart impact crackle
+  sonar: 1, // resonant submarine sonar ping
+  click: 1, // tactile metallic brass switch click (UI buttons & headlamp)
 };
 
 /**

@@ -153,7 +153,7 @@ export const KC_PILLARS = [ell(17800, 1600, 55, 120), ell(18100, 1722, 66, 108),
 /** Where trapped air fills the roof of a chamber: the diver breathes above waterY. */
 export const AIR_POCKETS = [
   { shape: KC.hall, waterY: 1002 },
-  { shape: KC.junction, waterY: 1202 },
+  { shape: KC.dark, waterY: 1500 },
 ];
 /** Old Kestrel lamp brackets across the black chamber (set lumen moss on them). */
 export const BRACKETS = [17660, 17960, 18240, 18520].map((x) => ({ x, y: ellBottom(KC.dark, x) - 22 }));

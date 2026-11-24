@@ -1028,6 +1028,7 @@ export class SoundDirector {
   /** Milestone 8 part 2: the sonar pulse: a deep, ringing ping that rolls away. */
   sonar(): void {
     if (!audio.running) return;
+    if (this.sam('sonar', { gain: 0.14, rate: 0.98, send: 0.85 })) return;
     const t = audio.now;
     audio.bell({ t, freq: 520, gain: 0.07, decay: 2.4, ratio: 1, index: 0.2, send: 0.9 });
     audio.tone({ t, freq: 900, to: 260, dur: 0.5, gain: 0.05, send: 0.8 });
@@ -1043,13 +1044,19 @@ export class SoundDirector {
     audio.hiss({ t: t + 0.05, dur: 0.9, gain: 0.06, freq: 2400, to: 1400, q: 0.8, send: 0.4 });
     audio.bubbles({ t, n: 6, spread: 0.3, gain: 0.03 });
   }
-  /** The stun dart: a sharp release and a crackle where it strikes. */
+  /** The stun dart: a crisp pneumatic release and a recorded electric zap where it strikes. */
   dart(hit: boolean): void {
     if (!audio.running) return;
     const t = audio.now;
-    audio.thump({ t, freq: 260, gain: 0.1, dur: 0.08 });
-    audio.hiss({ t, dur: 0.15, gain: 0.08, freq: 3000, to: 1200, q: 1.5 });
-    if (hit) for (let i = 0; i < 6; i++) audio.hiss({ t: t + 0.18 + i * 0.03, dur: 0.02, gain: 0.07, freq: 4000 + Math.random() * 2000, q: 4 });
+    if (!this.sam('rivet', { t, gain: 0.14, rate: 1.35, send: 0.25 })) {
+      audio.thump({ t, freq: 260, gain: 0.1, dur: 0.08 });
+      audio.hiss({ t, dur: 0.15, gain: 0.08, freq: 3000, to: 1200, q: 1.5 });
+    }
+    if (hit) {
+      if (!this.sam('zap', { t: t + 0.2, gain: 0.16, rate: 1.05, bus: 'ui', send: 0.3 })) {
+        for (let i = 0; i < 6; i++) audio.hiss({ t: t + 0.18 + i * 0.03, dur: 0.02, gain: 0.07, freq: 4000 + Math.random() * 2000, q: 4 });
+      }
+    }
   }
   /**
    * Phase 17b: one heavy step in clamped mag-boots. A deep, clanking stomp:
@@ -1208,23 +1215,32 @@ export class SoundDirector {
 
   private click(): void {
     if (!audio.running) return;
+    if (this.sam('click', { gain: 0.08, rate: 1.08, bus: 'ui', send: 0.04 })) return;
     audio.tone({ freq: 1250, to: 950, dur: 0.03, gain: 0.035, type: 'triangle', lp: 3500, bus: 'ui', send: 0.05 });
   }
 
   private panelCue(open: boolean): void {
-    audio.tone({ freq: open ? 260 : 330, to: open ? 360 : 230, dur: 0.12, gain: 0.04, type: 'triangle', lp: 1500, bus: 'ui', send: 0.2 });
-    audio.hiss({ dur: 0.14, gain: 0.02, type: 'lowpass', freq: 900, bus: 'ui' });
+    this.sam('click', { gain: 0.06, rate: open ? 1.15 : 0.88, bus: 'ui', send: 0.08 });
+    audio.tone({ freq: open ? 260 : 330, to: open ? 360 : 230, dur: 0.12, gain: 0.03, type: 'triangle', lp: 1500, bus: 'ui', send: 0.2 });
   }
 
   private lampCue(on: boolean): void {
+    if (this.sam('click', { gain: 0.1, rate: on ? 1.25 : 0.92, send: 0.08 })) return;
     audio.tone({ freq: on ? 2100 : 1700, dur: 0.02, gain: 0.04, type: 'square', lp: 4000 });
     audio.thump({ freq: on ? 420 : 360, gain: 0.03, dur: 0.05, send: 0 });
   }
 
   private hatch(boarding: boolean): void {
-    audio.metal({ freq: 180, gain: 0.07, decay: 0.6 });
-    audio.hiss({ t: audio.now + 0.1, dur: boarding ? 0.9 : 0.5, gain: 0.05, freq: 1800, to: 700, q: 0.8 });
-    if (!boarding) audio.bubbles({ n: 10, spread: 0.6, gain: 0.03 });
+    const t = audio.now;
+    // 1. Unscrewing the heavy brass hatch wheel (ratchet turn), 2. heavy metal latch clunk, 3. airlock pressure hiss.
+    const wheeled = this.sam('hatchwheel', { t, gain: 0.14, rate: boarding ? 0.92 : 1.04, bus: 'ui', send: 0.2 });
+    const clunked = this.sam('hatchclunk', { t: t + 0.24, gain: 0.16, rate: boarding ? 0.94 : 1.02, bus: 'ui', send: 0.25 });
+    const hissed = this.sam('hiss', { t: t + 0.3, gain: 0.11, rate: boarding ? 0.9 : 1.05, send: 0.25 });
+    if (!wheeled && !clunked) audio.metal({ freq: 180, gain: 0.07, decay: 0.6 });
+    if (!hissed) audio.hiss({ t: t + 0.1, dur: boarding ? 0.9 : 0.5, gain: 0.05, freq: 1800, to: 700, q: 0.8 });
+    if (!boarding && !this.sam('bubble', { t: t + 0.34, gain: 0.04, rate: 0.85 })) {
+      audio.bubbles({ t: t + 0.34, n: 10, spread: 0.6, gain: 0.03 });
+    }
   }
 
   /** After milestone 8 part 2: on foot. The hatch (in or out), boots on steel, steam and the bilge. */
@@ -1343,8 +1359,10 @@ export class SoundDirector {
         break;
       // ---- Kestrel's rivets and what they hit ----
       case 'shot':
-        audio.thump({ t, freq: 150 * up, gain: 0.13, dur: 0.09, send: 0.25 });
-        audio.hiss({ t, dur: 0.07, gain: 0.09, freq: 3600 * up, to: 1800, q: 1.3, send: 0.25 });
+        audio.thump({ t, freq: 145 * up, gain: 0.12, dur: 0.08, send: 0.22 });
+        if (!this.sam('rivet', { t, gain: 0.16, rate: 1.05 * up, send: 0.25 })) {
+          audio.hiss({ t, dur: 0.07, gain: 0.09, freq: 3600 * up, to: 1800, q: 1.3, send: 0.25 });
+        }
         audio.metal({ t: t + 0.005, freq: 1250 * up, gain: 0.025, decay: 0.12, send: 0.2 });
         break;
       case 'rivetWall':
@@ -1400,9 +1418,13 @@ export class SoundDirector {
     const up = jit(0.03);
     audio.tone({ t, freq: 380 * up, to: 620 * up, dur: 0.22, attack: 0.04, gain: 0.02, type: 'sawtooth', lp: 1400 });
     audio.thump({ t: t + 0.2, freq: 80 * up, gain: 0.11, dur: 0.35 });
-    audio.metal({ t: t + 0.2, freq: 150 * up, gain: 0.06, decay: 0.8 });
+    if (!this.sam('hatchclunk', { t: t + 0.2, gain: 0.15, rate: 0.82 * up, send: 0.25 })) {
+      audio.metal({ t: t + 0.2, freq: 150 * up, gain: 0.06, decay: 0.8 });
+    }
     if (docked) audio.metal({ t: t + 0.46, freq: 165 * up, gain: 0.055, decay: 0.8 });
-    audio.hiss({ t: t + 0.5, dur: 0.8, gain: 0.05, freq: 1600, to: 600, q: 0.8 });
+    if (!this.sam('hiss', { t: t + 0.48, gain: 0.11, rate: 0.88 * up, send: 0.25 })) {
+      audio.hiss({ t: t + 0.5, dur: 0.8, gain: 0.05, freq: 1600, to: 600, q: 0.8 });
+    }
     if (docked && !this.sam('bubble', { t: t + 0.55, gain: 0.02, rate: 0.75 })) audio.bubbles({ t: t + 0.55, n: 10, spread: 0.6, gain: 0.03, low: 300, high: 900 });
   }
 

@@ -245,10 +245,24 @@ export class TinkerRig extends ShoreRig {
       .moveTo(-1, -6).quadraticCurveTo(6, -12, 13, -9).stroke({ color: 0xf3bb90, width: 2 }));
     this.finger = joint(this.claw, 4, 0);
     this.finger.addChild(new Graphics().moveTo(-3, 0).quadraticCurveTo(8, 6, 14, -4).lineTo(7, -1).lineTo(0, -3).fill(0xb16a62));
-    for (let i = 0; i < 5; i++) {
-      const x = -14 + i * 7;
-      if (pattern === 1) this.markings.moveTo(x, -10).lineTo(x + 1, -16).stroke({ color: 0xffc76e, width: 1.8 });
-      else this.markings.circle(x, pattern === 2 ? -12 - Math.abs(i - 2) * 2 : -7, 1.4).fill(0xffce7f);
+    if (pattern === 1) {
+      // Soft bioluminescent shell speckles nestled along the carapace dome.
+      for (const [x, y, rad] of [
+        [-13, -10, 1.15],
+        [-7, -14.5, 1.35],
+        [-1, -16, 1.1],
+        [5, -14.5, 1.3],
+        [11, -10.5, 1.1],
+        [-4, -10.5, 0.9],
+        [3, -10, 0.95],
+      ] as const) {
+        this.markings.circle(x, y, rad).fill({ color: 0xffd486, alpha: 0.85 });
+      }
+    } else {
+      for (let i = 0; i < 5; i++) {
+        const x = -14 + i * 7;
+        this.markings.circle(x, pattern === 2 ? -12 - Math.abs(i - 2) * 2 : -7, 1.35).fill({ color: 0xffce7f, alpha: 0.85 });
+      }
     }
     this.halo.ellipse(0, -10, 29, 17).fill({ color: 0xffb66e, alpha: 0.25 });
     Object.assign(this.stroke, { y: 5, vx: -26, vy: -21, radius: 35 });
