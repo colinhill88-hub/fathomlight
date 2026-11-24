@@ -936,7 +936,7 @@ export class Interior {
         } else if (c === 'P') {
           // The moon pool: dark water in the dock's lower deck.
           g.rect(x, y, T + 0.5, T + 0.5).fill({ color: 0x0a2c34 });
-          if (!hull(tx, ty - 1) && this.ch(tx, ty - 1) !== 'P') e.rect(x, y, T + 0.5, 3).fill({ color: 0x3aa0a8, alpha: 0.5 });
+          if (!hull(tx, ty - 1) && this.ch(tx, ty - 1) !== 'P') g.rect(x, y, T + 0.5, 3).fill({ color: 0x3aa0a8, alpha: 0.5 });
         } else if (c === '=') {
           const deckGrate = getPropArt().interior.deck_grate;
           if (deckGrate) {
