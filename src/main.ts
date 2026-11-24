@@ -5502,7 +5502,7 @@ async function boot(): Promise<void> {
         }
         interior.walker.view.alpha = p > 0.52 ? Math.max(0, 1 - (p - 0.52) / 0.48) : 1;
       }
-      interior.walker.update(dt);
+      interior.walker.animate(dt);
       if (poolBoard.t >= WALK_T + CLIMB_T) {
         poolBoard = null;
         interior.walker.view.alpha = 1;
