@@ -1233,13 +1233,13 @@ export class SoundDirector {
   private hatch(boarding: boolean): void {
     const t = audio.now;
     // 1. Unscrewing the heavy brass hatch wheel (ratchet turn), 2. heavy metal latch clunk, 3. airlock pressure hiss.
-    const wheeled = this.sam('hatchwheel', { t, gain: 0.14, rate: boarding ? 0.92 : 1.04, bus: 'ui', send: 0.2 });
-    const clunked = this.sam('hatchclunk', { t: t + 0.24, gain: 0.16, rate: boarding ? 0.94 : 1.02, bus: 'ui', send: 0.25 });
-    const hissed = this.sam('hiss', { t: t + 0.3, gain: 0.11, rate: boarding ? 0.9 : 1.05, send: 0.25 });
+    const wheeled = this.sam('hatchwheel', { t, gain: 0.15, rate: boarding ? 0.96 : 1.08, bus: 'ui', send: 0.2 });
+    const clunked = this.sam('hatchclunk', { t: t + 0.2, gain: 0.16, rate: boarding ? 0.96 : 1.04, bus: 'ui', send: 0.25 });
+    const hissed = this.sam('hiss', { t: t + 0.26, gain: 0.11, rate: boarding ? 0.94 : 1.08, send: 0.25 });
     if (!wheeled && !clunked) audio.metal({ freq: 180, gain: 0.07, decay: 0.6 });
     if (!hissed) audio.hiss({ t: t + 0.1, dur: boarding ? 0.9 : 0.5, gain: 0.05, freq: 1800, to: 700, q: 0.8 });
-    if (!boarding && !this.sam('bubble', { t: t + 0.34, gain: 0.04, rate: 0.85 })) {
-      audio.bubbles({ t: t + 0.34, n: 10, spread: 0.6, gain: 0.03 });
+    if (!boarding && !this.sam('bubble', { t: t + 0.3, gain: 0.04, rate: 0.88 })) {
+      audio.bubbles({ t: t + 0.3, n: 10, spread: 0.6, gain: 0.03 });
     }
   }
 
@@ -1247,7 +1247,6 @@ export class SoundDirector {
   hatchCue(entering: boolean): void {
     if (!audio.running) return;
     this.hatch(!entering);
-    audio.metal({ t: audio.now + 0.3, freq: 260, gain: 0.05, decay: 0.5, bus: 'ui' });
   }
   step(jump: boolean, hard = false): void {
     if (!audio.running) return;

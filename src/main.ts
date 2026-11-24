@@ -965,9 +965,9 @@ async function boot(): Promise<void> {
   let boostTapAt = -99;
   let dashAt = -99;
   let drillT = 0;
-  /** The sound of a Collect hold action, by its key. */
-  const holdWork = (key: string): WorkKind =>
-    key === 'snailgraze' || key === 'crablock' ? 'creature' : key === 'winch' || key === 'relay' || key === 'vane' || key === 'fulmarhatch' ? 'winch' : key === 'kwall' ? 'cutter' : key.startsWith('bracket') ? 'bracket' : 'recorder';
+  /** The sound of a Collect hold action, by its key (null for airlock/hatch entries that use the recorded hatch sound). */
+  const holdWork = (key: string): WorkKind | null =>
+    key.startsWith('enterbase') ? null : key === 'snailgraze' || key === 'crablock' ? 'creature' : key === 'winch' || key === 'relay' || key === 'vane' || key === 'fulmarhatch' ? 'winch' : key === 'kwall' ? 'cutter' : key.startsWith('bracket') ? 'bracket' : 'recorder';
   /** Phase 16: the drill's progress for its sound loop (null while it is not biting). */
   let drillSound: number | null = null;
   let tractorAt = 0;
@@ -3826,7 +3826,8 @@ async function boot(): Promise<void> {
       holdProgress += dt / holdAct.seconds;
       if (holdProgress >= 1) {
         holdProgress = 0;
-        sound.holdDone(holdWork(holdAct.key), workAt ? workAt.x - diver.x : 0);
+        const doneWork = holdWork(holdAct.key);
+        if (doneWork) sound.holdDone(doneWork, workAt ? workAt.x - diver.x : 0);
         holdAct.done();
         holdAct = null;
         holdKey = '';
@@ -5600,7 +5601,7 @@ async function boot(): Promise<void> {
       lampOn: interior.lampOn,
       lowAir: 0,
       freeAir: true,
-      work: interior.progress > 0 ? 'winch' : null,
+      work: interior.progress > 0 && inside !== 'base' ? 'winch' : null,
       workX: soundAt.x,
       workProgress: interior.progress,
       indoors: inside === 'base' ? 'base' : inside === 'sanctum' ? null : 'wreck',
