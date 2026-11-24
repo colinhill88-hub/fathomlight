@@ -1646,32 +1646,57 @@ export class BaseHooks implements InteriorHooks {
         break;
       }
       case 'feeder': {
-        // Upper level: riveted cast-iron & brass tapered fibre hopper. Lower level: riveted mash sight vat.
+        // Upper level: painted riveted feed hopper (or procedural fallback). Lower level: painted mash mixing vat (or procedural fallback).
         const f0 = b.floor(0);
         const hx0 = b.ox + 80;
         const hx1 = b.ox + b.ow - 30;
-        g.poly([hx0, f0 - 150, hx1, f0 - 150, hx1 - 40, f0 - 40, hx0 + 40, f0 - 40])
-          .fill({ color: 0x1e2729 }).stroke({ color: 0x101618, width: 2 });
-        g.poly([hx0 + 4, f0 - 146, hx1 - 4, f0 - 146, hx1 - 42, f0 - 44, hx0 + 42, f0 - 44])
-          .fill({ color: 0x141b1d });
-        g.roundRect(hx0 - 2, f0 - 153, hx1 - hx0 + 4, 7, 2).fill({ color: 0x8f723c }).stroke({ color: 0x1a150c, width: 1.2 });
-        g.roundRect(b.ox + 80, bot - 150, b.ow - 110, 150, 10).fill({ color: 0x333e40 }).stroke({ color: 0x121a1c, width: 2.2 });
-        g.roundRect(b.ox + 83, bot - 147, b.ow - 116, 144, 8).stroke({ color: 0x8f723c, width: 1.5, alpha: 0.85 });
-        g.roundRect(b.ox + 88, bot - 142, b.ow - 126, 134, 8).fill({ color: 0x162418 });
-        // Hopper ribs and a chute down to the vat; the vat's bolted bands and a sight window.
-        for (let i = 1; i < 5; i++) {
-          const yy = f0 - 150 + i * 22;
-          const inset = (i * 22 * 40) / 110;
-          g.rect(hx0 + inset, yy, hx1 - hx0 - inset * 2, 3).fill({ color: 0x455052 });
+        const fCx = (hx0 + hx1) / 2;
+        const hopTex = getPropArt().interior.feeder_hopper;
+        const mashTex = getPropArt().interior.feeder_mash;
+        pipeUp(g, fCx, f0 - 38, bot - 142, 6, 0x263032, 0x7b6334);
+        if (hopTex) {
+          // Dark recessed interior behind the hopper's open sight-glass window.
+          g.poly([fCx - 24, f0 - 116, fCx + 24, f0 - 116, fCx + 13, f0 - 54, fCx - 13, f0 - 54]).fill({ color: 0x11181a });
+          const hSpr = new Sprite(hopTex);
+          hSpr.anchor.set(0.5, 1);
+          const sc = 144 / Math.max(1, hopTex.height);
+          hSpr.scale.set(sc);
+          hSpr.position.set(fCx + 9, f0 - 18);
+          this.roomFixtures.addChild(hSpr);
+        } else {
+          g.poly([hx0, f0 - 150, hx1, f0 - 150, hx1 - 40, f0 - 40, hx0 + 40, f0 - 40])
+            .fill({ color: 0x1e2729 }).stroke({ color: 0x101618, width: 2 });
+          g.poly([hx0 + 4, f0 - 146, hx1 - 4, f0 - 146, hx1 - 42, f0 - 44, hx0 + 42, f0 - 44])
+            .fill({ color: 0x141b1d });
+          g.roundRect(hx0 - 2, f0 - 153, hx1 - hx0 + 4, 7, 2).fill({ color: 0x8f723c }).stroke({ color: 0x1a150c, width: 1.2 });
+          for (let i = 1; i < 5; i++) {
+            const yy = f0 - 150 + i * 22;
+            const inset = (i * 22 * 40) / 110;
+            g.rect(hx0 + inset, yy, hx1 - hx0 - inset * 2, 3).fill({ color: 0x455052 });
+          }
         }
-        pipeUp(g, b.cx + 20, f0 - 40, bot - 150, 6, 0x263032, 0x7b6334);
-        for (const yy of [bot - 110, bot - 50]) {
-          g.rect(b.ox + 82, yy, b.ow - 114, 5).fill({ color: 0x2a3335 });
-          bolts(g, b.ox + 90, yy + 2.5, b.ox + b.ow - 40, yy + 2.5, 30, 1);
+        if (mashTex) {
+          // Dark recessed interior + vertical brass agitator shaft behind the mash vat's open sight-glass window.
+          g.roundRect(fCx - 42, bot - 102, 84, 64, 8).fill({ color: 0x0e1913 });
+          g.rect(fCx - 2, bot - 102, 4, 62).fill({ color: 0x6f592e });
+          const mSpr = new Sprite(mashTex);
+          mSpr.anchor.set(0.5, 1);
+          const sc = 156 / Math.max(1, mashTex.height);
+          mSpr.scale.set(sc);
+          mSpr.position.set(fCx + 7, bot + 2);
+          this.roomFixtures.addChild(mSpr);
+        } else {
+          g.roundRect(b.ox + 80, bot - 150, b.ow - 110, 150, 10).fill({ color: 0x333e40 }).stroke({ color: 0x121a1c, width: 2.2 });
+          g.roundRect(b.ox + 83, bot - 147, b.ow - 116, 144, 8).stroke({ color: 0x8f723c, width: 1.5, alpha: 0.85 });
+          g.roundRect(b.ox + 88, bot - 142, b.ow - 126, 134, 8).fill({ color: 0x162418 });
+          for (const yy of [bot - 110, bot - 50]) {
+            g.rect(b.ox + 82, yy, b.ow - 114, 5).fill({ color: 0x2a3335 });
+            bolts(g, b.ox + 90, yy + 2.5, b.ox + b.ow - 40, yy + 2.5, 30, 1);
+          }
+          g.roundRect(b.ox + b.ow - 80, bot - 96, 18, 40, 4).fill({ color: 0x223c1e }).stroke({ color: 0x8f723c, width: 1.8 });
+          hazard(g, b.ox + 80, bot - 6, b.ow - 110, 6);
         }
-        g.roundRect(b.ox + b.ow - 80, bot - 96, 18, 40, 4).fill({ color: 0x223c1e }).stroke({ color: 0x8f723c, width: 1.8 });
-        hazard(g, b.ox + 80, bot - 6, b.ow - 110, 6);
-        addText(sign('MASH', b.ox + 80 + (b.ow - 110) / 2, bot - 160, 9, 0xd8c882, 0.85));
+        addText(sign('MASH', fCx, bot - 160, 9, 0xd8c882, 0.85));
         break;
       }
       case 'press': {
@@ -2318,27 +2343,96 @@ export class BaseHooks implements InteriorHooks {
         d.circle(b.cx, bot - (hasVat ? 34 : 40), 5.5).fill({ color: COL.lime, alpha: 0.85 });
       } else if (r.kind === 'feeder') {
         const lv = c.feederLevels(id);
-        const vh = 130;
-        const mh = Math.max(0, vh * lv.mash);
-        if (mh > 1) {
-          d.roundRect(b.ox + 90, bot - 10 - mh, b.ow - 130, mh, 5).fill({ color: 0x628028, alpha: 0.86 });
-          d.rect(b.ox + 92, bot - 10 - mh, b.ow - 134, 3).fill({ color: 0x9ec048, alpha: 0.65 });
+        const fCx = b.ox + 80 + (b.ow - 110) / 2;
+        const intArt = getPropArt().interior;
+        const hasMashArt = !!intArt.feeder_mash;
+        const hasHopArt = !!intArt.feeder_hopper;
+        const churning = lv.run && on;
+        // ---- Lower Mash Mixing Vat: layered kelp-mash liquid, undulating wave surface, churning brass paddles & rising bubbles ----
+        const mL = hasMashArt ? fCx - 37 : b.ox + 90;
+        const mW = hasMashArt ? 74 : b.ow - 130;
+        const mBot = hasMashArt ? bot - 42 : bot - 10;
+        const mMaxH = hasMashArt ? 56 : 130;
+        const mh = Math.max(0, mMaxH * Math.max(0, Math.min(1, lv.mash)));
+        if (mh > 2) {
+          const mTop = mBot - mh;
+          // Deep shaded kelp-mash body with layered depth gradient bands.
+          d.roundRect(mL, mTop + 2, mW, Math.max(1, mh - 2), 4).fill({ color: 0x3b581e, alpha: 0.92 });
+          d.roundRect(mL + 2, mTop + 2, mW - 4, Math.max(1, mh * 0.58), 3).fill({ color: 0x5c8028, alpha: 0.72 });
+          d.roundRect(mL + 3, mTop + 2, mW - 6, Math.max(1, mh * 0.24), 2).fill({ color: 0x7ea438, alpha: 0.6 });
+          // Spinning central brass mixer shaft + churning paddle blades inside the mash.
+          const spin = churning ? time * 3.8 : 0.6;
+          const armW = Math.cos(spin) * (mW * 0.34);
+          d.rect(fCx - 1.5, mTop + 1, 3, mh - 3).fill({ color: 0x8f743c, alpha: 0.85 });
+          for (const py of [mBot - mh * 0.28, mBot - mh * 0.62]) {
+            if (py > mTop + 4 && py < mBot - 4) {
+              d.moveTo(fCx - armW, py).lineTo(fCx + armW, py).stroke({ color: 0xb89648, width: 3.2, alpha: 0.88, cap: 'round' });
+              d.circle(fCx, py, 2.5).fill({ color: 0xd8b868, alpha: 0.9 });
+            }
+          }
+          // Drifting kelp-pulp flecks & rising fermentation bubbles.
+          for (let k = 0; k < 10; k++) {
+            const frac = ((k * 0.37 + time * (churning ? 0.32 : 0.09)) % 1);
+            const by = mBot - 3 - frac * (mh - 6);
+            const bx = mL + 7 + ((k * 23 + Math.sin(time * 2.1 + k * 1.9) * 5) % (mW - 14));
+            if (k % 2 === 0) {
+              d.circle(bx, by, 1.4 + (k % 3) * 0.55).fill({ color: 0xcbe87a, alpha: 0.48 * (1 - frac * 0.4) });
+            } else {
+              d.ellipse(bx, by, 2.4, 1.1).fill({ color: 0x2d4316, alpha: 0.58 });
+            }
+          }
+          // Live undulating frothy surface meniscus.
+          const segs = 9;
+          for (let s = 0; s <= segs; s++) {
+            const sx = mL + 1 + (s / segs) * (mW - 2);
+            const sy = mTop + Math.sin(time * (churning ? 4.4 : 1.8) + s * 0.85) * (churning ? 2.1 : 0.9);
+            if (s === 0) d.moveTo(sx, sy);
+            else d.lineTo(sx, sy);
+          }
+          d.stroke({ color: 0xbfe268, width: 2.6, alpha: 0.88, cap: 'round' });
         }
-        // Tapered trapezoidal fibre fill matching the hopper's sloped inner walls.
+        // Subtle diagonal glass highlight streak over the mash sight window.
+        if (hasMashArt) {
+          d.moveTo(mL + 8, mBot - mMaxH + 5).lineTo(mL + 22, mBot - 8).stroke({ color: 0xeaf6e0, width: 2.2, alpha: 0.14, cap: 'round' });
+        }
+        // ---- Upper Feed Hopper: tapered layered golden kelp-fibre grain & animated settling pellets ----
         const f0 = b.floor(0);
         const fillFrac = Math.max(0, Math.min(1, lv.hopper));
         if (fillFrac > 0.01) {
-          const yBot = f0 - 45;
-          const yTop = yBot - 98 * fillFrac;
-          const topInset = 40 * (1 - fillFrac);
-          const lxBot = b.ox + 123;
-          const rxBot = b.ox + b.ow - 73;
-          const lxTop = b.ox + 86 + topInset;
-          const rxTop = b.ox + b.ow - 36 - topInset;
-          d.poly([lxTop, yTop, rxTop, yTop, rxBot, yBot, lxBot, yBot]).fill({ color: 0xb8923e, alpha: 0.88 });
-          d.moveTo(lxTop + 2, yTop + 1.5).lineTo(rxTop - 2, yTop + 1.5).stroke({ color: 0xecd080, width: 2.5, alpha: 0.72, cap: 'round' });
+          const yBot = hasHopArt ? f0 - 57 : f0 - 45;
+          const hMax = hasHopArt ? 54 : 98;
+          const yTop = yBot - hMax * fillFrac;
+          const halfBot = hasHopArt ? 10 : (b.ow - 196) / 2;
+          const halfTopMax = hasHopArt ? 21 : (b.ow - 122) / 2;
+          const halfTop = halfBot + (halfTopMax - halfBot) * fillFrac;
+          const lxBot = fCx - halfBot;
+          const rxBot = fCx + halfBot;
+          const lxTop = fCx - halfTop;
+          const rxTop = fCx + halfTop;
+          // Deep toasted-ochre base + warm golden-fibre upper layer.
+          d.poly([lxTop, yTop, rxTop, yTop, rxBot, yBot, lxBot, yBot]).fill({ color: 0x8a6424, alpha: 0.94 });
+          const midY = yTop + (yBot - yTop) * 0.58;
+          const halfMid = halfBot + (halfTop - halfBot) * 0.42;
+          d.poly([lxTop, yTop, rxTop, yTop, fCx + halfMid, midY, fCx - halfMid, midY]).fill({ color: 0xc2983e, alpha: 0.82 });
+          // Individual kelp-fibre pellets & chaff strands settling downward when feeding.
+          for (let k = 0; k < 14; k++) {
+            const flow = ((k * 0.29 + (churning ? time * 0.26 : 0)) % 1);
+            const py = yTop + 3 + flow * Math.max(1, yBot - yTop - 6);
+            const rowHalf = halfBot + (halfTop - halfBot) * (1 - flow) - 3;
+            if (rowHalf <= 2) continue;
+            const px = fCx + Math.sin(k * 2.7 + 0.5) * rowHalf * 0.85;
+            const col = k % 3 === 0 ? 0xf0d686 : k % 3 === 1 ? 0x6b4b18 : 0xdcb456;
+            d.ellipse(px, py, 2.2, 1.2).fill({ color: col, alpha: 0.78 });
+          }
+          // Softly mounded sunlit fibre crest at the top of the fill.
+          d.moveTo(lxTop + 1, yTop + 1)
+            .quadraticCurveTo(fCx, yTop - 3.5 * fillFrac, rxTop - 1, yTop + 1)
+            .stroke({ color: 0xf4dc8e, width: 2.6, alpha: 0.88, cap: 'round' });
         }
-        if (lv.run && on) d.circle(b.ox + b.ow - 50, bot - 170, 4).fill({ color: COL.lime });
+        if (hasHopArt) {
+          d.moveTo(fCx - 12, f0 - 108).lineTo(fCx - 5, f0 - 64).stroke({ color: 0xfff8e2, width: 2, alpha: 0.14, cap: 'round' });
+        }
+        if (churning) d.circle(b.ox + b.ow - 50, bot - 170, 4).fill({ color: COL.lime });
       } else if (r.kind === 'press') {
         const px = b.ox + 160;
         const run = on && c.pressing(id);

@@ -29,7 +29,7 @@ export type InteriorArtKey =
   | 'console_habitat' | 'tray_collection' | 'crate'
   | 'airlock' | 'bunk' | 'planner' | 'galley'
   | 'lab_bench' | 'workshop_bench' | 'hatch_cradle' | 'hatch_console'
-  | 'revive_pool' | 'signal_dish' | 'recomp_chamber' | 'farm_trough' | 'filter_vat' | 'crane_cradle' | 'press_frame' | 'press_ram'
+  | 'revive_pool' | 'signal_dish' | 'recomp_chamber' | 'farm_trough' | 'filter_vat' | 'crane_cradle' | 'press_frame' | 'press_ram' | 'feeder_hopper' | 'feeder_mash'
   | 'wall_bulkhead' | 'deck_grate' | 'ladder_rung';
 export type PickupArtKey = 'scrap' | 'copper' | 'quartz' | 'fibre' | 'resin' | 'moss' | 'brass' | 'bloom' | 'ore';
 export type BottomArtKey = 'lily' | 'sponge' | 'worm' | 'star' | 'pen';
@@ -149,7 +149,7 @@ const INTERIOR_KEYS: readonly InteriorArtKey[] = [
   'console_habitat', 'tray_collection', 'crate',
   'airlock', 'bunk', 'planner', 'galley',
   'lab_bench', 'workshop_bench', 'hatch_cradle', 'hatch_console',
-  'revive_pool', 'signal_dish', 'recomp_chamber', 'farm_trough', 'filter_vat', 'crane_cradle', 'press_frame', 'press_ram',
+  'revive_pool', 'signal_dish', 'recomp_chamber', 'farm_trough', 'filter_vat', 'crane_cradle', 'press_frame', 'press_ram', 'feeder_hopper', 'feeder_mash',
   'wall_bulkhead', 'deck_grate', 'ladder_rung',
 ];
 const DECOR_KEYS: readonly DecorId[] = [
