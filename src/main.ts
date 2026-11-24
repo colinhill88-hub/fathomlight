@@ -103,6 +103,7 @@ import {
   SANCTUM,
   sanctum,
   inSanctum,
+  BUOY_X,
 } from './world/terrain';
 import { DeepHunters } from './actors/deep';
 import { FULMAR_MAP, FULMAR_OPTS } from './interior/fulmar';
@@ -1255,8 +1256,8 @@ async function boot(): Promise<void> {
     return out;
   }
   function unloadAtPod(pod: { powered: boolean; frame: boolean }): void {
-    if (!pod.powered) {
-      hud.toast(pod.frame ? 'This storage pod is still a frame: the drone has to finish it first' : 'This storage pod has no power: join it to a current turbine', 'warn');
+    if (pod.frame) {
+      hud.toast('This storage pod is still a frame: the drone has to finish it first', 'warn');
       return;
     }
     let moved = 0;
@@ -3853,8 +3854,13 @@ async function boot(): Promise<void> {
       baseAct = { label: readyC > 0 ? `Open Research Exchange (EX-1 · ${readyC} ready)` : 'Open Research Exchange (EX-1)', run: () => exchangePanel.show() };
       } else if (pod?.by) {
         baseAct = {
-          label: pod.powered ? `Unload ${carried} item${carried === 1 ? '' : 's'} into storage` : pod.frame ? 'Storage pod: still a frame' : 'Storage pod: no power',
+          label: pod.frame ? 'Storage pod: still a frame' : `Unload ${carried} item${carried === 1 ? '' : 's'} into storage`,
           run: () => unloadAtPod(pod),
+        };
+      } else if (carried > 0 && Math.hypot(BUOY_X - (aboard ? sub.x : diver.x), groundY(BUOY_X) - 20 - (aboard ? sub.y : diver.y)) < 115) {
+        baseAct = {
+          label: `Stash ${carried} item${carried === 1 ? '' : 's'} in intake locker`,
+          run: () => unloadAtPod({ powered: true, frame: false }),
         };
       }
     }

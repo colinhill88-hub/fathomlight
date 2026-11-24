@@ -2516,10 +2516,10 @@ export class BaseView {
   }
 }
 
-/** Storage capacity of the whole base. */
+/** Storage capacity of the whole base (plus 20 starter slots in the Kestrel air intake locker). */
 export function storageCapacity(layout: BaseLayout): number {
   // Milestone 7 part 2: each sorting pod adds a bay of SORT_BAY for every material.
-  return layout.countDone('storage') * STORAGE_PER_POD + layout.countDone('sorter') * SORT_BAY * MATERIAL_ORDER.length;
+  return 20 + layout.countDone('storage') * STORAGE_PER_POD + layout.countDone('sorter') * SORT_BAY * MATERIAL_ORDER.length;
 }
 
 // ---------------------------------------------------------------------------
