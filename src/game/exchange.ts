@@ -12,8 +12,8 @@ import { isRare, isUncommon, traitsOf } from './traits';
  * Echo whorls, and mystery rare eggs.
  */
 
-/** World X of the floating Supply Buoy, just east of the base, Linnea, and the Choir portal. */
-export const SUPPLY_BUOY_X = 2060;
+/** World X of the floating Supply Buoy, just east of the base, Linnea, and the Choir portal (clear of pickup nodes). */
+export const SUPPLY_BUOY_X = 2145;
 /** How long one dose of Rich Kelp Tonic boosts a tank (15 minutes of play time). */
 export const TONIC_SECONDS = 900;
 /** Cost of one dose of Rich Kelp Tonic in Survey Credits. */

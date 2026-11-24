@@ -728,11 +728,12 @@ export class Drone {
     const lx = (lookX - this.x) * this.face;
     const ly = lookY - this.y;
     const ll = Math.hypot(lx, ly) || 1;
-    const reach = Math.min(1, ll / 60) * 2.4;
+    const eyePos = getPropArt().vehicles.drone ? { x: 14.5, y: -2.2 } : EYE;
+    const reach = getPropArt().vehicles.drone ? Math.min(1, ll / 60) * 1.1 : Math.min(1, ll / 60) * 2.4;
     this.look.x += ((lx / ll) * reach - this.look.x) * Math.min(1, dt * 8);
     this.look.y += ((ly / ll) * reach - this.look.y) * Math.min(1, dt * 8);
     if (!running) this.look.x = this.look.y = 0;
-    const [ex, ey] = this.toWorld(EYE.x + this.look.x, EYE.y + this.look.y);
+    const [ex, ey] = this.toWorld(eyePos.x + this.look.x, eyePos.y + this.look.y);
     // Blinks every few seconds; half closed and sleepy while parked alone.
     if (this.time > this.blinkAt) this.blinkAt = this.time + R(2.5, 5.5);
     const lid = this.lidOpen();
@@ -756,7 +757,7 @@ export class Drone {
     const [ax, ay] = this.toWorld(ANT.x + Math.sin(ta) * ANT_LEN, ANT.y - Math.cos(ta) * ANT_LEN);
     this.tip.position.set(ax, ay);
     this.tipHalo.position.set(ax, ay);
-    const tipOn = running ? ((time * 0.8) % 1 < 0.15 ? 1 : 0.2) : 0;
+    const tipOn = !getPropArt().vehicles.drone && running ? ((time * 0.8) % 1 < 0.15 ? 1 : 0.2) : 0;
     this.tip.alpha = tipOn;
     this.tipHalo.alpha = tipOn;
     this.fanL.visible = this.fanR.visible = running;
