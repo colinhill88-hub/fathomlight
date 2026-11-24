@@ -2233,6 +2233,14 @@ export class BaseHooks implements InteriorHooks {
       const on = this.powered(r.piece.id);
       const bot = b.bottom;
       const id = r.piece.id;
+      if (r.kind === 'dock') {
+        // Dancing water-light caustic reflections shimmering up onto the Moon Pool ceiling.
+        for (let k = 0; k < 5; k++) {
+          const cx = b.ox + 56 + k * ((b.ow - 112) / 4) + Math.sin(time * 1.4 + k * 1.3) * 14;
+          const cy = b.oy + 22 + Math.cos(time * 1.7 + k * 1.9) * 5;
+          d.ellipse(cx, cy, 24 + Math.sin(time * 2.1 + k) * 6, 4.5).fill({ color: 0xa8e0d4, alpha: 0.09 + 0.04 * Math.sin(time * 2.3 + k) });
+        }
+      }
       if (r.kind === 'dock' && c.subDocked(id)) {
         // KS-1 berthed in the moon pool: painted sub.webp when available, procedural silhouette otherwise.
         const sy = bot - 30;
@@ -2275,12 +2283,38 @@ export class BaseHooks implements InteriorHooks {
         if (pr >= 0) de.rect(b.cx - 46, bot - 54, 92 * pr, 6).fill({ color: 0x9ad0e0, alpha: 0.85 });
       }
       if (r.kind === 'revive' && on) {
-        // Slow rings drifting out across the still, warm water.
+        // Slow rings drifting out across the still, warm water + rising warm revival motes.
         const py = bot - 22;
         for (let k = 0; k < 3; k++) {
           const u = ((time * 0.25 + k / 3) % 1);
           de.ellipse(b.cx, py, 20 + u * 130, 3 + u * 8).stroke({ color: 0xfff0c0, width: 1.4, alpha: 0.5 * (1 - u) });
         }
+        for (let k = 0; k < 7; k++) {
+          const u = ((time * 0.18 + k * 0.19) % 1);
+          const mx = b.cx + Math.sin(k * 2.4 + time * 0.8) * 76;
+          const my = py - 4 - u * 54;
+          de.circle(mx, my, 1.3 + (k % 2) * 0.6).fill({ color: 0xffe4a0, alpha: (1 - u) * 0.55 });
+        }
+      } else if (r.kind === 'hatch' && on) {
+        // Warm rising incubation bubbles & soft golden glow motes over the Hatchery cradle.
+        const eggs = c.nursery().length;
+        const nMotes = eggs > 0 ? 10 : 5;
+        for (let k = 0; k < nMotes; k++) {
+          const u = ((time * (eggs > 0 ? 0.26 : 0.14) + k * 0.17) % 1);
+          const mx = b.cx - 32 + ((k * 19) % 64) + Math.sin(time * 1.6 + k * 1.3) * 5;
+          const my = bot - 54 - u * 56;
+          de.circle(mx, my, 1.2 + (k % 3) * 0.45).fill({ color: 0xffe296, alpha: (1 - u) * (eggs > 0 ? 0.65 : 0.3) });
+        }
+      } else if (r.kind === 'turbine' && on) {
+        // Subtle warm-amber capacitor crackle & power pulse inside the Current Turbine cabinet.
+        const capX = b.ox + b.ow - 62;
+        const capY = bot - 72;
+        if (Math.sin(time * 19) > 0.65) {
+          const sx = capX + Math.sin(time * 31) * 8;
+          const sy = capY + Math.cos(time * 27) * 10;
+          de.moveTo(sx - 4, sy - 2).lineTo(sx + 1, sy + 2).lineTo(sx + 5, sy - 3).stroke({ color: 0xffe698, width: 1.4, alpha: 0.85 });
+        }
+        de.circle(capX, capY, 12).fill({ color: 0xffc860, alpha: 0.08 + 0.04 * Math.sin(time * 4.5) });
       } else if (r.kind === 'farm' && on) {
         const f = c.farmCrop(id);
         const tx = b.ox + b.ow - 56;
@@ -2560,6 +2594,27 @@ export class BaseHooks implements InteriorHooks {
     }
     // Bubbles from the filter inlet, when powered.
     if (on && !this.ctx.livingBases) for (let i = 0; i < 8; i++) de.circle(t.x + t.w - 30 + Math.sin(time * 2 + i) * 4, t.y + t.h - 20 - ((time * 50 + i * 37) % (t.h - 30)), 2 + (i % 3)).fill({ color: 0xc8ffff, alpha: 0.35 });
+    // Living tank juice: drifting kelp-mash feed drops & dreamy golden shimmer motes in thriving tanks.
+    if (on) {
+      const hasLife = this.ctx.save.creatures.some((cr) => cr.tank === r.piece.id);
+      const td = this.ctx.save.tanks[String(r.piece.id)];
+      if (hasLife && td && td.food > 0.35) {
+        for (let k = 0; k < 5; k++) {
+          const u = ((time * 0.14 + k * 0.23) % 1);
+          const fx = t.x + t.w * 0.24 + ((k * 43) % Math.max(40, t.w * 0.52)) + Math.sin(time * 1.4 + k * 2.1) * 8;
+          const fy = t.y + 14 + u * (t.h - 36);
+          d.ellipse(fx, fy, 2.2, 1.3).fill({ color: 0xaad454, alpha: (1 - u) * 0.55 });
+        }
+      }
+      if (hasLife && td && td.food > 0.7 && td.clean > 0.7 && (td.decor?.length ?? 0) >= 2) {
+        for (let k = 0; k < 7; k++) {
+          const u = ((time * 0.11 + k * 0.17) % 1);
+          const sx = t.x + 24 + ((k * 59) % Math.max(40, t.w - 48)) + Math.sin(time * 1.1 + k) * 10;
+          const sy = t.y + t.h - 18 - u * (t.h - 36);
+          de.circle(sx, sy, 1.4 + (k % 2) * 0.6).fill({ color: 0xffe89e, alpha: Math.sin(u * Math.PI) * 0.52 });
+        }
+      }
+    }
 
   }
 }

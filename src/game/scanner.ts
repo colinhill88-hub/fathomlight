@@ -517,13 +517,22 @@ export class Scanner {
       }
     }
 
-    // Completion bloom when a scan finishes.
+    // Completion sonar ripple when a scan finishes: double lume-and-brass rings + radiating tick glints.
     if (this.donePulse > 0) {
       const k = 1 - this.donePulse;
       const ease = 1 - (1 - k) * (1 - k);
-      const r = 18 + ease * 58;
-      g.circle(this.doneX, this.doneY, r).stroke({ color: lime, width: 2.5 * this.donePulse + 0.5, alpha: this.donePulse * 0.78 });
-      g.circle(this.doneX, this.doneY, r * 0.65).fill({ color: lime, alpha: this.donePulse * 0.14 });
+      const r = 18 + ease * 68;
+      g.circle(this.doneX, this.doneY, r).stroke({ color: lime, width: 2.5 * this.donePulse + 0.5, alpha: this.donePulse * 0.82 });
+      g.circle(this.doneX, this.doneY, r * 0.72).stroke({ color: gold, width: 1.4, alpha: this.donePulse * 0.65 });
+      g.circle(this.doneX, this.doneY, r * 0.55).fill({ color: lime, alpha: this.donePulse * 0.14 });
+      for (let i = 0; i < 8; i++) {
+        const a = (i / 8) * Math.PI * 2 + k * 0.35;
+        const r0 = r * 0.82;
+        const r1 = r + 7;
+        g.moveTo(this.doneX + Math.cos(a) * r0, this.doneY + Math.sin(a) * r0)
+          .lineTo(this.doneX + Math.cos(a) * r1, this.doneY + Math.sin(a) * r1)
+          .stroke({ color: gold, width: 1.4, alpha: this.donePulse * 0.7, cap: 'round' });
+      }
     }
 
     const t = this.target;

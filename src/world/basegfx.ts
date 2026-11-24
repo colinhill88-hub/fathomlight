@@ -1289,11 +1289,11 @@ function drawFilter(n: number, livingBases: boolean): PieceArt {
         .fill({ color: 0x9c8248, alpha: 0.88 }).stroke({ color: 0x1a2022, width: 1 });
     }
     rg.circle(0, 0, 3.8).fill({ color: 0xc9a85c }).stroke({ color: 0x1a2022, width: 1 });
-    rotor.position.set(c - 12, 49);
+    rotor.position.set(c - 12, 53);
     body.addChild(rotor);
     body.addChild(stencil(`FP-${n}`, c + 24, 68, 6, -Math.PI / 2));
-    windows.circle(c - 12, 49, 15).fill({ color: 0xb8e6a0, alpha: 0.14 });
-    windowGlow.circle(c - 12, 49, 24).fill({ color: 0xb8e6a0, alpha: 0.16 });
+    windows.circle(c - 12, 53, 15).fill({ color: 0xb8e6a0, alpha: 0.14 });
+    windowGlow.circle(c - 12, 53, 24).fill({ color: 0xb8e6a0, alpha: 0.16 });
     return { body, rotor, windows, windowGlow, lamp: { x: c + 26, y: 38 }, whorlAt: { x: 26, y: 30 } };
   }
   // Drum.
@@ -2140,7 +2140,7 @@ function drawPaintedHero(kind: PieceKind, n: number, rot: number, housingOcean: 
     rg.circle(0, 0, 6.8).fill({ color: 0x8f713a }).stroke({ color: 0x161c1d, width: 1.3 });
     rg.circle(-1.2, -1.2, 3.2).fill({ color: 0xd6b86e, alpha: 0.78 });
     rg.circle(0, 0, 2.2).fill({ color: 0x3b3322 });
-    rotor.position.set(cx, hubY - 3);
+    rotor.position.set(cx, hubY - 8);
     body.addChild(rotor);
     windows.circle(cx, hubY + natH * 0.37, 2.8).fill({ color: 0xffc84a, alpha: 0.85 });
     windowGlow.circle(cx, hubY + natH * 0.37, 11).fill({ color: 0xffb830, alpha: 0.32 });

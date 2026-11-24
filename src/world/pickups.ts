@@ -593,6 +593,7 @@ export class Pickups {
         save.taken[t.id] = now;
         events.push({ type: 'material', kind: t.kind, x: t.x, y: t.y });
         for (let i = 0; i < 3; i++) this.strike(t.kind, t.x, t.y - 4);
+        this.popBurst(t.kind, t.x, t.y - 6);
       }
     } else if (t) {
       // Let go: the work slips back slowly, so a short pause does not lose it all.
@@ -652,6 +653,36 @@ export class Pickups {
     if (kind === 'scrap' || kind === 'quartz') {
       for (let i = 0; i < (kind === 'scrap' ? 3 : 2); i++)
         this.bits.push({ x, y, vx: R(-120, 120), vy: R(-120, -30), life: 1, color: kind === 'scrap' ? 0xffc070 : 0xfffbe8, r: 1, spark: true });
+    }
+  }
+
+  /** Crisp radial burst of material-matched glints & mineral motes when a pickup pops free. */
+  private popBurst(kind: ReefMaterial, x: number, y: number): void {
+    const glints: Record<ReefMaterial, number[]> = {
+      scrap: [0xffc070, 0xb8a696, 0x9c4628],
+      copper: [0xe6a86a, 0x76b88e, 0xd8c496],
+      quartz: [0xffffff, 0xe8f4ee, 0xc8d8d0],
+      fibre: [0xe8c46a, 0x8aa852, 0xc9a24a],
+      resin: [0xffe090, 0xe09838, 0xc87a24],
+      moss: [0xe8f898, 0xa8d458, 0x7aa440],
+      brass: [0xffe088, 0xd4aa4a, 0x82b294],
+      bloom: [0xfffce8, 0xfff090, 0xf2e4b0],
+      ore: [0xffb454, 0xff8232, 0x827468],
+    };
+    const pal = glints[kind];
+    for (let i = 0; i < 10; i++) {
+      const a = (i / 10) * Math.PI * 2 + R(-0.22, 0.22);
+      const spd = R(55, 135);
+      this.bits.push({
+        x: x + Math.cos(a) * 4,
+        y: y + Math.sin(a) * 4,
+        vx: Math.cos(a) * spd,
+        vy: Math.sin(a) * spd - 24,
+        life: 1,
+        color: pal[i % pal.length],
+        r: i % 2 === 0 ? 1.2 : R(1.4, 2.2),
+        spark: i % 2 === 0,
+      });
     }
   }
 

@@ -62,7 +62,7 @@ const VENT_BURST = 1.0;
 export const CLIMB = 210;
 export const CLIMB_FAST = 360;
 /** The lighting shader adds up at most this many lights; the nearest win. */
-const MAX_LIGHTS = 32;
+const MAX_LIGHTS = 72;
 
 /** Something to hold Collect at (or tap, for the grapple). */
 export interface InteriorAct {
@@ -278,6 +278,8 @@ export class Interior {
   private cssH = 1;
   private coyote = 0;
   private sprinting = false;
+  private splashes: { x: number; y: number; vx: number; vy: number; life: number }[] = [];
+  private splashClock = 0;
   private buffer = 0;
   private jumpWas = false;
   private collectWas = false;
@@ -1982,6 +1984,36 @@ export class Interior {
       this.hooks.tick?.(dt, this.time, this.cam.x, this.cam.x + viewW);
     }
     this.drawLift(d, de, this.front);
+    // Wet wreck footstep droplets kicking up behind Kestrel's boots inside Fulmar & Corvina.
+    if (!this.hooks && !this.sanctum) {
+      this.splashClock = Math.max(0, this.splashClock - dt);
+      if (w.onGround && Math.abs(w.vx) > 95 && this.splashClock <= 0 && this.splashes.length < 24) {
+        this.splashClock = this.sprinting ? 0.09 : 0.16;
+        const dir = Math.sign(w.vx);
+        const count = this.sprinting ? 3 : 2;
+        for (let k = 0; k < count; k++) {
+          this.splashes.push({
+            x: w.x - dir * (4 + Math.random() * 6),
+            y: w.y - 2,
+            vx: -dir * (35 + Math.random() * 55) + (Math.random() - 0.5) * 18,
+            vy: -(48 + Math.random() * 52),
+            life: 1,
+          });
+        }
+      }
+      for (let i = this.splashes.length - 1; i >= 0; i--) {
+        const sp = this.splashes[i];
+        sp.life -= dt * 2.8;
+        if (sp.life <= 0) {
+          this.splashes.splice(i, 1);
+          continue;
+        }
+        sp.vy += 320 * dt;
+        sp.x += sp.vx * dt;
+        sp.y += sp.vy * dt;
+        d.circle(sp.x, sp.y, 1.45).fill({ color: 0xbad6d2, alpha: sp.life * 0.65 });
+      }
+    }
     // Lights: lamps (with power), the emergency lamps, and the helmet lamp's beam.
     // The beam starts at the shoulder lamp (the same lamp as the diver's).
     w.lampOn = this.lampOn;
@@ -2011,6 +2043,7 @@ export class Interior {
     this.headLamp.shadow = true;
     for (const l of pool) l.shadow = false;
     const lights: Light[] = [this.headLamp, ...pool.slice(0, MAX_LIGHTS - 1)];
+    const zoomLift = this.hooks ? Math.min(1, Math.max(0, (this.baseZoom - 1.15) / 1.4)) * 0.18 : 0;
     this.lighting.update({
       time: this.time,
       camX: this.cam.x,
@@ -2019,7 +2052,7 @@ export class Interior {
       viewH,
       cssW: this.cssW,
       cssH: this.cssH,
-      ambient: this.opts.ambient && !this.hooks ? this.opts.ambient : this.hooks ? [0.3, 0.32, 0.34] : this.sanctum ? [0.26, 0.25, 0.38] : this.power ? [0.46, 0.44, 0.42] : [0.16, 0.17, 0.2],
+      ambient: this.opts.ambient && !this.hooks ? this.opts.ambient : this.hooks ? [0.3 + zoomLift, 0.32 + zoomLift, 0.34 + zoomLift] : this.sanctum ? [0.26, 0.25, 0.38] : this.power ? [0.46, 0.44, 0.42] : [0.16, 0.17, 0.2],
       lights,
       shadowLights: this.look.shadowLights,
       shadowSteps: this.look.shadowSteps,

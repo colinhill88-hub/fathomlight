@@ -795,6 +795,9 @@ export class Scenery {
   /** Milestone 11: the sanctum under the trench floor. */
   sanctum!: SanctumScenery;
   private kelps: Kelp[] = [];
+  private kelpFx = new Graphics();
+  private kelpMotes: { x: number; y: number; vx: number; vy: number; life: number; r: number; bubble: boolean }[] = [];
+  private kelpEmitClock = 0;
   private grass: { g: Graphics | Sprite; phase: number; x: number; bend?: number }[] = [];
   private readonly plantFlow = { x: 0, y: 0, silt: 0, energy: 0 };
   private slices: Slice[] = [];
@@ -976,7 +979,7 @@ export class Scenery {
     drawSiteMarker(decorAt(BUOY_X), BUOY_X, decorLayer);
     drawBuoy(this.buoy);
     this.buoy.position.set(BUOY_X + 2, 4);
-    this.view.addChild(this.buoy);
+    this.view.addChild(this.buoy, this.kelpFx);
     this.scanPoints.buoy.push({ x: BUOY_X, y: gy(BUOY_X) - 20 });
 
     // Survey sled wreck in the channel and the old anchor in the coral garden.
@@ -2450,7 +2453,9 @@ export class Scenery {
       } else g.g.skew.x = Math.sin(time * 1.1 + g.phase + g.x * 0.004) * 0.12 + near;
     }
 
-    // Kelp sways in the swell, and leans away when the diver brushes past.
+    // Kelp sways in the swell, and leans away when the diver brushes past (shedding micro-bubbles & flecks).
+    this.kelpEmitClock = Math.max(0, this.kelpEmitClock - dt);
+    const swimSpd = Math.hypot(diverVX, diverVY);
     for (const k of this.kelps) {
       if (k.rope.parent !== this.front) {
         const vis = k.baseX > viewX0 - 200 && k.baseX < viewX1 + 200;
@@ -2460,6 +2465,21 @@ export class Scenery {
       const dx = k.baseX - diverX;
       const near = diverY > k.baseY - k.height - 40 && diverY < k.baseY + 20 && Math.abs(dx) < 90;
       const push = near ? Math.sign(dx || 1) * (1 - Math.abs(dx) / 90) * 60 + diverVX * 0.12 : 0;
+      if (near && Math.abs(dx) < 34 && swimSpd > 65 && this.kelpEmitClock <= 0 && this.kelpMotes.length < 36) {
+        this.kelpEmitClock = 0.09;
+        for (let m = 0; m < 3; m++) {
+          const isBubble = m !== 2;
+          this.kelpMotes.push({
+            x: diverX + (Math.random() - 0.5) * 20,
+            y: diverY + (Math.random() - 0.5) * 24,
+            vx: diverVX * 0.18 + (Math.random() - 0.5) * 28,
+            vy: isBubble ? -28 - Math.random() * 26 : -6 + Math.random() * 14,
+            life: 1,
+            r: isBubble ? 1.4 + Math.random() * 1.4 : 1.8 + Math.random() * 1.2,
+            bubble: isBubble,
+          });
+        }
+      }
       const flow = motion && k.rope.parent !== this.front ? motion.sample(k.baseX, Math.max(24, k.baseY - k.height * 0.39), this.plantFlow) : undefined;
       const current = flow ? Math.max(-100, Math.min(100, flow.x * 2.55)) : 0;
       k.bend += (push * (flow ? passing : 1) + current - k.bend) * (motion ? 1 - Math.exp(-dt * 3.1) : 0.06);
@@ -2471,6 +2491,24 @@ export class Scenery {
         const lean = k.bend * f * f;
         k.points[i].x = k.baseX + sway + lean;
         k.points[i].y = k.baseY - k.height * f + Math.abs(lean) * 0.2 * f + (flow?.y ?? 0) * f ** 3 * 0.3;
+      }
+    }
+    const kf = this.kelpFx.clear();
+    for (let i = this.kelpMotes.length - 1; i >= 0; i--) {
+      const m = this.kelpMotes[i];
+      m.life -= dt * (m.bubble ? 0.95 : 0.72);
+      if (m.life <= 0) {
+        this.kelpMotes.splice(i, 1);
+        continue;
+      }
+      m.vx *= 1 - dt * 2.2;
+      m.x += m.vx * dt + Math.sin(time * 4 + i) * (m.bubble ? 6 : 10) * dt;
+      m.y += m.vy * dt;
+      if (m.bubble) {
+        kf.circle(m.x, m.y, m.r).stroke({ color: 0xd8f4ec, width: 0.9, alpha: m.life * 0.55 });
+        kf.circle(m.x - m.r * 0.3, m.y - m.r * 0.3, m.r * 0.32).fill({ color: 0xffffff, alpha: m.life * 0.5 });
+      } else {
+        kf.ellipse(m.x, m.y, m.r * 1.4, m.r * 0.65).fill({ color: 0x6f8a42, alpha: m.life * 0.65 });
       }
     }
   }

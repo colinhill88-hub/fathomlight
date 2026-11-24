@@ -795,6 +795,18 @@ export class Drone {
       if (this.sparkClock <= 0) {
         this.sparkClock = 0.06;
         this.burst(nx, ny, 2);
+        // Sizzling hot-weld micro-bubbles rising off the seam while KD-1 welds.
+        if (this.wakeBubbles.length < 32) {
+          this.wakeBubbles.push({
+            x: nx + (Math.random() - 0.5) * 8,
+            y: ny + 2,
+            vx: (Math.random() - 0.5) * 18,
+            vy: -24 - Math.random() * 22,
+            r: 1.0 + Math.random() * 1.5,
+            life: 0,
+            max: 0.5 + Math.random() * 0.45,
+          });
+        }
       }
     }
     // Spinning tarnished-brass rear propeller + bubbly underwater wake trail on the painted drone.

@@ -1,4 +1,45 @@
-import { Container, Graphics } from 'pixi.js';
+import { Container, Filter, GlProgram, Graphics } from 'pixi.js';
+
+const OUTLINE_VERT = /* glsl */ `
+in vec2 aPosition;
+out vec2 vTextureCoord;
+uniform vec4 uInputSize;
+uniform vec4 uOutputFrame;
+uniform vec4 uOutputTexture;
+vec4 filterVertexPosition(void) {
+  vec2 position = aPosition * uOutputFrame.zw + uOutputFrame.xy;
+  position.x = position.x * (2.0 / uOutputTexture.x) - 1.0;
+  position.y = position.y * (2.0 * uOutputTexture.z / uOutputTexture.y) - uOutputTexture.z;
+  return vec4(position, 0.0, 1.0);
+}
+vec2 filterTextureCoord(void) {
+  return aPosition * (uOutputFrame.zw * uInputSize.zw);
+}
+void main(void) {
+  gl_Position = filterVertexPosition();
+  vTextureCoord = filterTextureCoord();
+}
+`;
+
+const OUTLINE_FRAG = /* glsl */ `
+precision highp float;
+in vec2 vTextureCoord;
+out vec4 finalColor;
+uniform sampler2D uTexture;
+uniform vec4 uInputSize;
+void main(void) {
+  vec4 c = texture(uTexture, vTextureCoord);
+  float edge = 0.0;
+  vec2 px = uInputSize.zw * 2.2;
+  for (int i = 0; i < 12; i++) {
+    float a = float(i) * 0.5235987756;
+    edge = max(edge, texture(uTexture, vTextureCoord + vec2(cos(a), sin(a)) * px).a);
+  }
+  float outline = clamp(edge - c.a, 0.0, 1.0);
+  vec4 rim = vec4(vec3(1.0, 0.945, 0.753) * outline * 0.95, outline * 0.95);
+  finalColor = c + rim * (1.0 - c.a);
+}
+`;
 import { Critter } from '../actors/critters';
 import { BaseLayout, pieceRect, Placed } from '../game/base';
 import { contentment, creaturesIn, filteredTanks, KNOWS_KESTREL, tankDataFor, tanks, vigour } from '../game/creatures';
@@ -160,6 +201,7 @@ export class TankLife {
   kestrel: { x: number; y: number } | null = null;
   private moodClock = 0;
   private ring = new Graphics();
+  private outlineFilter = new Filter({ glProgram: GlProgram.from({ vertex: OUTLINE_VERT, fragment: OUTLINE_FRAG }), padding: 6 });
   private readonly k: number;
 
   constructor(private readonly opts: TankLifeOptions = {}) {
@@ -460,13 +502,11 @@ export class TankLife {
         if (on) bg.circle(b.x + Math.sin(time * 5 + i) * 1.5 * this.k, b.y, b.r).stroke({ color: 0xe8f6f0, width: 0.8 * this.k, alpha: Math.min(1, b.life) * 0.8 });
       }
       v.shadowG.clear();
-      for (const s of v.swimmers.values()) this.move(s, v, dt, time, save, on);
-      if (on && this.highlight !== null && v.swimmers.has(this.highlight)) {
-        const s = v.swimmers.get(this.highlight)!;
-        const n = 12;
-        for (let i = 0; i < n; i++) {
-          const a0 = (i / n) * Math.PI * 2 + time;
-          this.ring.arc(s.critter.view.x, s.critter.view.y - 3 * this.k, 22 * this.k, a0, a0 + Math.PI / n).stroke({ color: 0xfff1c0, width: 1.4 * this.k, alpha: 0.8 });
+      for (const s of v.swimmers.values()) {
+        this.move(s, v, dt, time, save, on);
+        const sel = on && this.highlight !== null && s.data.id === this.highlight;
+        if (Boolean(s.critter.view.filters?.length) !== sel) {
+          s.critter.view.filters = sel ? [this.outlineFilter] : [];
         }
       }
     }
