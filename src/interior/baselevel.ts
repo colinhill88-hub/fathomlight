@@ -6,7 +6,7 @@ import { BaseLayout, CELL, GRID_BASE, GRID_X0, collarsOf, isDone, PieceKind, PIE
 import type { CreatureData, MaterialId, PlantId, SaveData, SavedLine } from '../game/state';
 import { Critter } from '../actors/critters';
 import { traitsOf } from '../game/traits';
-import { HATCH_CAP } from '../game/creatures';
+import { HATCH_CAP, tankDataFor } from '../game/creatures';
 import { WHORLS_PER_PIECE } from '../game/factory';
 import { ITEM_COLOURS, pointAlong } from '../world/linegfx';
 import { drawPlant, TankLife } from '../world/tanklife';
@@ -1795,7 +1795,18 @@ export class BaseHooks implements InteriorHooks {
             g.roundRect(x, f0 - 22, 36, 10, 3).fill(0x574e3b);
             e.roundRect(x + 4, f0 - 19, 28, 3.5, 1.5).fill({ color: 0xf6c991, alpha: 0.7 });
           }
-          addText(sign('MOONPOOL', b.cx, f0 - 50, 12, 0xe5c397, 0.85));
+          const dockConTex = getPropArt().interior.hatch_console ?? getPropArt().interior.console_habitat;
+          if (dockConTex) {
+            const spr = new Sprite(dockConTex);
+            spr.anchor.set(0.5, 1);
+            spr.scale.set(86 / Math.max(1, dockConTex.height));
+            spr.position.set(b.cx, f0 + 2);
+            this.roomFixtures.addChild(spr);
+          } else {
+            g.roundRect(b.cx - 24, f0 - 66, 48, 66, 4).fill({ color: 0x354244 }).stroke({ color: 0x8f723c, width: 1.8 });
+            g.roundRect(b.cx - 17, f0 - 58, 34, 22, 3).fill({ color: 0x162b22 }).stroke({ color: 0x8f723c, width: 1.2 });
+          }
+          addText(sign('DOCK CONTROLS', b.cx, f0 - 92, 10, 0xe5c397, 0.9));
           addText(sign('↓ SWIM LADDER', ladder + T / 2, f0 - 15, 9, 0xffd7a1, 0.92));
           addText(sign('KS-1 BERTH', b.cx - 289, f0 - 49, 10, 0xb3c6bd, 0.78));
           break;
@@ -2240,6 +2251,10 @@ export class BaseHooks implements InteriorHooks {
           const cy = b.oy + 22 + Math.cos(time * 1.7 + k * 1.9) * 5;
           d.ellipse(cx, cy, 24 + Math.sin(time * 2.1 + k) * 6, 4.5).fill({ color: 0xa8e0d4, alpha: 0.09 + 0.04 * Math.sin(time * 2.3 + k) });
         }
+        // Subtle live status pulse on the painted Dock Control console at (b.cx, f0).
+        const f0 = b.floor(0);
+        const docked = c.subDocked(id);
+        d.circle(b.cx + 16, f0 - 54, 2.8).fill({ color: on ? (docked ? 0x9ef0b8 : 0xffc860) : 0x6b5638, alpha: on ? 0.72 + 0.22 * Math.sin(time * 2.8) : 0.45 });
       }
       if (r.kind === 'dock' && c.subDocked(id)) {
         // KS-1 berthed in the moon pool: painted sub.webp when available, procedural silhouette otherwise.
@@ -2597,8 +2612,8 @@ export class BaseHooks implements InteriorHooks {
     // Living tank juice: drifting kelp-mash feed drops & dreamy golden shimmer motes in thriving tanks.
     if (on) {
       const hasLife = this.ctx.save.creatures.some((cr) => cr.tank === r.piece.id);
-      const td = this.ctx.save.tanks[String(r.piece.id)];
-      if (hasLife && td && td.food > 0.35) {
+      const td = tankDataFor(this.ctx.save, r.piece.id);
+      if (hasLife && (td.mash ?? 0) > 0.1) {
         for (let k = 0; k < 5; k++) {
           const u = ((time * 0.14 + k * 0.23) % 1);
           const fx = t.x + t.w * 0.24 + ((k * 43) % Math.max(40, t.w * 0.52)) + Math.sin(time * 1.4 + k * 2.1) * 8;
@@ -2606,7 +2621,7 @@ export class BaseHooks implements InteriorHooks {
           d.ellipse(fx, fy, 2.2, 1.3).fill({ color: 0xaad454, alpha: (1 - u) * 0.55 });
         }
       }
-      if (hasLife && td && td.food > 0.7 && td.clean > 0.7 && (td.decor?.length ?? 0) >= 2) {
+      if (hasLife && td.water > 0.7 && (td.decor?.length ?? 0) >= 2) {
         for (let k = 0; k < 7; k++) {
           const u = ((time * 0.11 + k * 0.17) % 1);
           const sx = t.x + 24 + ((k * 59) % Math.max(40, t.w - 48)) + Math.sin(time * 1.1 + k) * 10;
