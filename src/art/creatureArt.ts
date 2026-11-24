@@ -142,17 +142,58 @@ export function keyOutWhiteAndCrop(img: HTMLImageElement, mipmaps: boolean, maxD
     }
   }
 
-  // Soften the 1-pixel anti-aliased fringe touching the removed white background.
+  // White-matte decontamination + 2-ring anti-aliased edge feathering so cutout sprites
+  // blend seamlessly into dark indoor walls and ocean water with zero pale-grey halo.
+  const isEdge1 = new Uint8Array(total);
   for (let y = 1; y < h - 1; y++) {
     for (let x = 1; x < w - 1; x++) {
       const idx = y * w + x;
       if (visited[idx]) continue;
-      if (visited[idx - 1] || visited[idx + 1] || visited[idx - w] || visited[idx + w]) {
+      if (
+        visited[idx - 1] || visited[idx + 1] || visited[idx - w] || visited[idx + w] ||
+        visited[idx - w - 1] || visited[idx - w + 1] || visited[idx + w - 1] || visited[idx + w + 1]
+      ) {
+        isEdge1[idx] = 1;
         const o = idx * 4;
-        const lum = (px[o] + px[o + 1] + px[o + 2]) / 3;
-        if (lum > 215) {
-          const keep = Math.max(0, Math.min(1, (245 - lum) / 30));
+        const r = px[o];
+        const g = px[o + 1];
+        const b = px[o + 2];
+        const lum = (r + g + b) / 3;
+        const sat = Math.max(r, g, b) - Math.min(r, g, b);
+        if (sat <= 38 && lum > 115) {
+          const keep = Math.max(0, Math.min(1, (236 - lum) / 135));
           px[o + 3] = Math.round(px[o + 3] * keep);
+          if (keep > 0.04) {
+            const inv = 1 - keep;
+            px[o] = Math.max(0, Math.min(255, Math.round((r - 255 * inv) / keep)));
+            px[o + 1] = Math.max(0, Math.min(255, Math.round((g - 255 * inv) / keep)));
+            px[o + 2] = Math.max(0, Math.min(255, Math.round((b - 255 * inv) / keep)));
+          }
+        }
+      }
+    }
+  }
+  // Second pass: softly de-fringe any pale neutral 2nd-ring pixel touching a feathered edge.
+  for (let y = 1; y < h - 1; y++) {
+    for (let x = 1; x < w - 1; x++) {
+      const idx = y * w + x;
+      if (visited[idx] || isEdge1[idx]) continue;
+      if (isEdge1[idx - 1] || isEdge1[idx + 1] || isEdge1[idx - w] || isEdge1[idx + w]) {
+        const o = idx * 4;
+        const r = px[o];
+        const g = px[o + 1];
+        const b = px[o + 2];
+        const lum = (r + g + b) / 3;
+        const sat = Math.max(r, g, b) - Math.min(r, g, b);
+        if (sat <= 28 && lum > 180) {
+          const keep = Math.max(0, Math.min(1, (242 - lum) / 68));
+          px[o + 3] = Math.round(px[o + 3] * keep);
+          if (keep > 0.08) {
+            const inv = 1 - keep;
+            px[o] = Math.max(0, Math.min(255, Math.round((r - 255 * inv) / keep)));
+            px[o + 1] = Math.max(0, Math.min(255, Math.round((g - 255 * inv) / keep)));
+            px[o + 2] = Math.max(0, Math.min(255, Math.round((b - 255 * inv) / keep)));
+          }
         }
       }
     }

@@ -2009,26 +2009,27 @@ function drawPaintedHero(kind: PieceKind, n: number, rot: number, housingOcean: 
     const H = CELL;
     const body = new Container();
     const g = body.addChild(new Graphics());
-    tubeV(g, 0, 18, W / 2, 1);
+    tubeV(g, 0, 22, W / 2, 1);
+    tubeH(g, 0, 20, H / 2, 1);
+    tubeH(g, W - 20, W, H / 2, 1);
     const spr = new Sprite(baseArt.lab);
-    spr.anchor.set(0.5, 1);
-    spr.width = W + 8;
-    spr.height = Math.round(H * 0.86);
-    spr.position.set(W / 2, H - 4);
+    spr.anchor.set(0.5, 0.5);
+    const sc = Math.min((W - 10) / Math.max(1, baseArt.lab.width), (H - 10) / Math.max(1, baseArt.lab.height));
+    spr.scale.set(sc);
+    spr.position.set(W / 2, H / 2);
     body.addChild(spr);
     const windows = new Graphics();
     const windowGlow = new Graphics();
-    // Aligned to lab.webp's two round observation portholes.
-    const py = H * 0.63;
-    windows.circle(W * 0.35, py, 10.5).fill({ color: 0xffda94, alpha: 0.28 });
-    windows.circle(W * 0.65, py, 10.5).fill({ color: 0xd8f48c, alpha: 0.28 });
-    windowGlow.circle(W * 0.35, py, 18).fill({ color: 0xffcf78, alpha: 0.2 });
-    windowGlow.circle(W * 0.65, py, 18).fill({ color: 0xc6f03a, alpha: 0.18 });
-    const scan = new Graphics().rect(0, 0, 12, 1.6).fill({ color: 0xffffff, alpha: 0.8 });
-    scan.position.set(W * 0.65 - 6, py - 5);
+    // Centered on the square lab module's main circular brass specimen window.
+    const cx = W / 2;
+    const cy = H / 2;
+    windows.circle(cx, cy, 18).fill({ color: 0xe6f69a, alpha: 0.22 });
+    windowGlow.circle(cx, cy, 30).fill({ color: 0xc6f03a, alpha: 0.2 });
+    const scan = new Graphics().rect(0, 0, 22, 1.8).fill({ color: 0xf4ffd0, alpha: 0.8 });
+    scan.position.set(cx - 11, cy - 8);
     windows.addChild(scan);
-    body.addChild(stencil(`LAB-${n}`, W / 2, H - 12, 6));
-    return { body, windows, windowGlow, lamp: { x: 22, y: 38 }, station: { bar: scan, y0: py - 5, h: 10 } };
+    body.addChild(stencil(`LAB-${n}`, cx, H - 12, 6));
+    return { body, windows, windowGlow, lamp: { x: 24, y: 24 }, station: { bar: scan, y0: cy - 8, h: 16 } };
   }
   if (kind === 'workshop' && baseArt.workshop) {
     const W = CELL * 2;
@@ -2553,26 +2554,51 @@ export class BaseView {
         let below = p.gy - 1;
         while (below >= 0 && !layout.pieceAt(gx, below)) below--;
         const x0 = r.x + i * CELL;
+        const beamY = r.y + r.h - (p.kind === 'corridor' && p.rot % 2 === 0 ? CELL / 2 - TUBE / 2 + 2 : 8);
+        let hasLeg = false;
         for (const lx of [x0 + 22, x0 + CELL - 22]) {
-          const top = r.y + r.h - (p.kind === 'corridor' && p.rot % 2 === 0 ? CELL / 2 - TUBE / 2 + 2 : 14);
+          const top = beamY + 4;
           const bot = below >= 0 ? GRID_BASE - (below + 1) * CELL : groundY(Math.max(WORLD_X0, Math.min(WORLD_W, lx))) + 6;
-          if (bot - top < 4) continue;
-          g.rect(lx - 4, top, 8, bot - top).fill({ color: PAL.steelDark });
-          g.rect(lx - 4, top, 2.5, bot - top).fill({ color: 0xffffff, alpha: 0.1 });
-          for (let y = top + 14; y < bot - 6; y += 22) g.circle(lx, y, 1.3).fill({ color: 0x2a3033 });
+          if (bot - top < 2) continue;
+          hasLeg = true;
+          // Heavy riveted cast-iron pier column with brass collar bands.
+          g.rect(lx - 5, top, 10, bot - top).fill({ color: 0x141b1d });
+          g.rect(lx - 4, top, 8, bot - top).fill({ color: 0x313c3e });
+          g.rect(lx - 3.5, top, 2.2, bot - top).fill({ color: 0x707e7c, alpha: 0.45 });
+          for (let y = top + 16; y < bot - 8; y += 26) {
+            g.rect(lx - 5.5, y - 2, 11, 4).fill({ color: 0x7c6334 }).stroke({ color: 0x141b1d, width: 0.9 });
+            g.circle(lx, y, 1.0).fill({ color: 0xd6b86e });
+          }
           if (below < 0) {
-            g.roundRect(lx - 11, bot - 6, 22, 7, 2).fill({ color: PAL.steel });
+            g.roundRect(lx - 12, bot - 7, 24, 8, 2).fill({ color: 0x3b4648 }).stroke({ color: 0x141b1d, width: 1.4 });
+            g.rect(lx - 10, bot - 6, 20, 2).fill({ color: 0x9c7c3e, alpha: 0.8 });
             dab(g, lx, bot + 1, 16, 4, PAL.sand, 0.8);
           }
           streaks(g, lx - 3, lx + 3, top + 4, 2, 24);
           if (bot - top > 30) algaeLine(g, lx - 5, lx + 5, bot - 4, 4);
         }
-        // Cross bracing between the two legs.
-        const top = r.y + r.h - 10;
+        // Continuous riveted cast-iron & tarnished-brass foundation girder along the underside
+        // so every painted module's feet rest solidly on the structural crossbeam.
+        if (hasLeg) {
+          g.roundRect(x0 + 4, beamY - 1, CELL - 8, 9, 2).fill({ color: 0x263032 }).stroke({ color: 0x12191b, width: 1.5 });
+          g.rect(x0 + 6, beamY, CELL - 12, 2.2).fill({ color: 0xa68542, alpha: 0.85 });
+          for (let rx = x0 + 14; rx <= x0 + CELL - 14; rx += 22) {
+            g.circle(rx, beamY + 4.5, 1.3).fill({ color: 0x141b1d });
+            g.circle(rx - 0.3, beamY + 4.2, 0.6).fill({ color: 0xd6b86e, alpha: 0.85 });
+          }
+        }
+        // Riveted X-bracing between the two pier columns.
+        const top = beamY + 6;
         const bot = below >= 0 ? GRID_BASE - (below + 1) * CELL : Math.min(groundY(x0 + 22), groundY(x0 + CELL - 22));
         if (bot - top > 34) {
-          g.moveTo(x0 + 22, top + 6).lineTo(x0 + CELL - 22, bot - 6).moveTo(x0 + CELL - 22, top + 6).lineTo(x0 + 22, bot - 6);
-          g.stroke({ color: PAL.steelDark, width: 3, alpha: 0.9 });
+          g.moveTo(x0 + 22, top + 4).lineTo(x0 + CELL - 22, bot - 6).moveTo(x0 + CELL - 22, top + 4).lineTo(x0 + 22, bot - 6)
+            .stroke({ color: 0x141b1d, width: 4.5 });
+          g.moveTo(x0 + 22, top + 4).lineTo(x0 + CELL - 22, bot - 6).moveTo(x0 + CELL - 22, top + 4).lineTo(x0 + 22, bot - 6)
+            .stroke({ color: 0x3d484a, width: 2.2 });
+          const midX = x0 + CELL / 2;
+          const midY = (top + 4 + bot - 6) / 2;
+          g.circle(midX, midY, 4.2).fill({ color: 0x7c6334 }).stroke({ color: 0x141b1d, width: 1.1 });
+          g.circle(midX - 0.6, midY - 0.6, 1.4).fill({ color: 0xe6ca80, alpha: 0.8 });
         }
       }
     }
