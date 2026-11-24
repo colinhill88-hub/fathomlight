@@ -43,7 +43,7 @@ export function loadImage(url: string): Promise<HTMLImageElement> {
  * interior eye catchlights and bright highlights stay 100% intact.
  * Crops tightly to the non-transparent silhouette for predictable rig fitting.
  */
-export function keyOutWhiteAndCrop(img: HTMLImageElement, mipmaps: boolean, maxDim = TARGET_MAX_DIM): Texture {
+export function keyOutWhiteAndCrop(img: HTMLImageElement, mipmaps: boolean, maxDim = TARGET_MAX_DIM, removeEnclosedWhite = false): Texture {
   const scale = Math.min(1, maxDim / Math.max(img.naturalWidth, img.naturalHeight));
   const w = Math.max(1, Math.round(img.naturalWidth * scale));
   const h = Math.max(1, Math.round(img.naturalHeight * scale));
@@ -97,6 +97,49 @@ export function keyOutWhiteAndCrop(img: HTMLImageElement, mipmaps: boolean, maxD
     if (x + 1 < w) push(x + 1, y);
     if (y > 0) push(x, y - 1);
     if (y + 1 < h) push(x, y + 1);
+  }
+
+  // Optionally key out enclosed pure-white background pockets (pipe loops, ladder rungs, wheel spokes).
+  if (removeEnclosedWhite) {
+    const seen = new Uint8Array(total);
+    const comp = new Int32Array(total);
+    const isPureWhite = (idx: number): boolean => {
+      const o = idx * 4;
+      if (px[o + 3] < 16) return false;
+      const min = Math.min(px[o], px[o + 1], px[o + 2]);
+      const max = Math.max(px[o], px[o + 1], px[o + 2]);
+      return min >= 247 && max - min <= 8;
+    };
+    for (let start = 0; start < total; start++) {
+      if (visited[start] || seen[start] || !isPureWhite(start)) continue;
+      let cHead = 0;
+      let cTail = 0;
+      seen[start] = 1;
+      comp[cTail++] = start;
+      while (cHead < cTail) {
+        const idx = comp[cHead++];
+        const x = idx % w;
+        const y = (idx - x) / w;
+        const tryAdd = (nx: number, ny: number) => {
+          const nIdx = ny * w + nx;
+          if (visited[nIdx] || seen[nIdx] || !isBg(nIdx)) return;
+          seen[nIdx] = 1;
+          comp[cTail++] = nIdx;
+        };
+        if (x > 0) tryAdd(x - 1, y);
+        if (x + 1 < w) tryAdd(x + 1, y);
+        if (y > 0) tryAdd(x, y - 1);
+        if (y + 1 < h) tryAdd(x, y + 1);
+      }
+      // Only remove genuine background pockets (>= 12 px) so tiny specular highlights stay intact.
+      if (cTail >= 12) {
+        for (let k = 0; k < cTail; k++) {
+          const idx = comp[k];
+          visited[idx] = 1;
+          px[idx * 4 + 3] = 0;
+        }
+      }
+    }
   }
 
   // Soften the 1-pixel anti-aliased fringe touching the removed white background.

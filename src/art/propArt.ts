@@ -10,7 +10,7 @@ import { keyOutWhiteAndCrop, loadImage } from './creatureArt';
  * Supports `.webp`, `.jpg`, and `.png`. Missing files or `?art=procedural` fall
  * back cleanly to the code-drawn art.
  */
-export type VehicleArtKey = 'sub' | 'drone' | 'buoy';
+export type VehicleArtKey = 'sub' | 'drone' | 'buoy' | 'buoy_anchor';
 export type BaseArtKey =
   | 'dome' | 'dock' | 'lab' | 'workshop' | 'nursery' | 'turbine' | 'portal'
   | 'corridor' | 'junction' | 'storage' | 'thermal' | 'hatch' | 'farm' | 'revive' | 'signal'
@@ -27,7 +27,8 @@ export type InteriorArtKey =
   | 'console_habitat' | 'tray_collection' | 'crate'
   | 'airlock' | 'bunk' | 'planner' | 'galley'
   | 'lab_bench' | 'workshop_bench' | 'hatch_cradle' | 'hatch_console'
-  | 'revive_pool' | 'signal_dish' | 'recomp_chamber' | 'farm_trough' | 'filter_vat' | 'crane_cradle';
+  | 'revive_pool' | 'signal_dish' | 'recomp_chamber' | 'farm_trough' | 'filter_vat' | 'crane_cradle'
+  | 'wall_bulkhead' | 'deck_grate' | 'ladder_rung';
 export type PickupArtKey = 'scrap' | 'copper' | 'quartz' | 'fibre' | 'resin' | 'moss' | 'brass' | 'bloom' | 'ore';
 export type BottomArtKey = 'lily' | 'sponge' | 'worm' | 'star' | 'pen';
 
@@ -77,7 +78,42 @@ async function loadGroup<K extends string>(
       if (!url) return null;
       try {
         const img = await loadImage(url);
-        return [key, keyOutWhiteAndCrop(img, mipmaps, maxDim)] as const;
+        if (prefix === 'interior' && (key === 'wall_bulkhead' || key === 'deck_grate')) {
+          const tmp = document.createElement('canvas');
+          const sc = Math.min(1, maxDim / Math.max(img.naturalWidth, img.naturalHeight));
+          const tw = Math.max(1, Math.round(img.naturalWidth * sc));
+          const th = Math.max(1, Math.round(img.naturalHeight * sc));
+          tmp.width = tw;
+          tmp.height = th;
+          const tctx = tmp.getContext('2d')!;
+          tctx.drawImage(img, 0, 0, tw, th);
+          let y0 = 0;
+          let y1 = th - 1;
+          if (key === 'deck_grate') {
+            // Trim any pure-white top/bottom margins from horizontal deck strips so they tile cleanly.
+            const px = tctx.getImageData(0, 0, tw, th).data;
+            const rowIsWhite = (y: number): boolean => {
+              let whiteCount = 0;
+              for (let x = 0; x < tw; x++) {
+                const o = (y * tw + x) * 4;
+                if (px[o] >= 242 && px[o + 1] >= 242 && px[o + 2] >= 242) whiteCount++;
+              }
+              return whiteCount >= tw * 0.85;
+            };
+            while (y0 < y1 && rowIsWhite(y0)) y0++;
+            while (y1 > y0 && rowIsWhite(y1)) y1--;
+          }
+          const ch = Math.max(1, y1 - y0 + 1);
+          const canvas = document.createElement('canvas');
+          canvas.width = tw;
+          canvas.height = ch;
+          canvas.getContext('2d')!.drawImage(tmp, 0, y0, tw, ch, 0, 0, tw, ch);
+          const tex = Texture.from({ resource: canvas, autoGenerateMipmaps: mipmaps });
+          tex.source.style.addressMode = 'repeat';
+          return [key, tex] as const;
+        }
+        const stripHoles = !(prefix === 'kestrel' && key === 'head');
+        return [key, keyOutWhiteAndCrop(img, mipmaps, maxDim, stripHoles)] as const;
       } catch {
         return null;
       }
@@ -95,7 +131,7 @@ const KESTREL_KEYS: readonly KestrelArtKey[] = [
   'rivet', 'dart', 'flare', 'resonator', 'magboots', 'satchel',
   'lamp', 'hose',
 ];
-const VEHICLE_KEYS: readonly VehicleArtKey[] = ['sub', 'drone', 'buoy'];
+const VEHICLE_KEYS: readonly VehicleArtKey[] = ['sub', 'drone', 'buoy', 'buoy_anchor'];
 const BASE_KEYS: readonly BaseArtKey[] = [
   'dome', 'dock', 'lab', 'workshop', 'nursery', 'turbine', 'portal',
   'corridor', 'junction', 'storage', 'thermal', 'hatch', 'farm', 'revive', 'signal',
@@ -107,6 +143,7 @@ const INTERIOR_KEYS: readonly InteriorArtKey[] = [
   'airlock', 'bunk', 'planner', 'galley',
   'lab_bench', 'workshop_bench', 'hatch_cradle', 'hatch_console',
   'revive_pool', 'signal_dish', 'recomp_chamber', 'farm_trough', 'filter_vat', 'crane_cradle',
+  'wall_bulkhead', 'deck_grate', 'ladder_rung',
 ];
 const DECOR_KEYS: readonly DecorId[] = [
   'arch', 'amphora', 'helmet', 'chest', 'driftwood', 'clam', 'lantern', 'wheel',

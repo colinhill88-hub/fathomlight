@@ -1,4 +1,5 @@
 import { materialFill, type WorldArt } from '../art/worldArt';
+import { getPropArt } from '../art/propArt';
 import { perf } from '../dev/perf';
 import { BlurFilter, Container, Graphics, RenderTexture, Renderer, Sprite, Text, type Texture } from 'pixi.js';
 import type { Light } from '../fx/lighting';
@@ -597,7 +598,9 @@ export class Interior {
 
   private buildStatic(): void {
     const g = this.static_.clear();
+    for (const ch of this.static_.removeChildren()) ch.destroy();
     this.baseLadders.clear();
+    for (const ch of this.baseLadders.removeChildren()) ch.destroy();
     const e = this.emissiveStatic.clear();
     const gl = this.glowStatic.clear();
     for (const l of this.lamps) {
@@ -901,16 +904,23 @@ export class Interior {
             if (outside(-1, 0)) g.rect(x, y, 3, T + 0.5).fill({ color: 0x9aa6ad, alpha: 0.7 });
             if (outside(1, 0)) g.rect(x + T - 3, y, 3, T + 0.5).fill({ color: 0x14181b });
           }
-          // Floors: a chrome-capped deck with a gold power line just under it.
+          // Floors: painted riveted steel deck grate when available, procedural chrome-capped tread otherwise.
+          const deckGrate = getPropArt().interior.deck_grate;
           if (open(0, -1)) {
-            g.rect(x, y, T + 0.5, 7).fill({ color: 0x8e9aa2 });
-            g.rect(x, y, T + 0.5, 2).fill({ color: 0xdfe7ec, alpha: 0.7 });
-            g.rect(x, y + 7, T + 0.5, 2).fill({ color: 0x15191c });
-            e.rect(x, y + 13, T + 0.5, 1.6).fill({ color: 0xc9a13a, alpha: 0.75 });
-            deckTread(g, x, T + 0.5, y + 1.5);
-            // Under the deck: the plate's edge and its bolts.
-            g.rect(x, y + 16, T + 0.5, 1).fill({ color: 0x3e464b });
-            if (tx % 2 === 0) rivet(g, x + 20, y + 24, 1.1);
+            if (deckGrate) {
+              g.rect(x, y, T + 0.5, 16).fill(materialFill(deckGrate, 0x6a787e, 1, 96, 18, 0, y));
+              g.rect(x, y, T + 0.5, 1.5).fill({ color: 0xd8d2b8, alpha: 0.45 });
+              g.rect(x, y + 15, T + 0.5, 1.5).fill({ color: 0x15191c, alpha: 0.85 });
+            } else {
+              g.rect(x, y, T + 0.5, 7).fill({ color: 0x8e9aa2 });
+              g.rect(x, y, T + 0.5, 2).fill({ color: 0xdfe7ec, alpha: 0.7 });
+              g.rect(x, y + 7, T + 0.5, 2).fill({ color: 0x15191c });
+              g.rect(x, y + 13, T + 0.5, 1.6).fill({ color: 0xc9a13a, alpha: 0.75 });
+              deckTread(g, x, T + 0.5, y + 1.5);
+              // Under the deck: the plate's edge and its bolts.
+              g.rect(x, y + 16, T + 0.5, 1).fill({ color: 0x3e464b });
+              if (tx % 2 === 0) rivet(g, x + 20, y + 24, 1.1);
+            }
           }
           // Ceilings and walls facing a room: a dark lip with a bolted strip.
           if (open(0, 1)) {
@@ -927,9 +937,15 @@ export class Interior {
           g.rect(x, y, T + 0.5, T + 0.5).fill({ color: 0x0a2c34 });
           if (!hull(tx, ty - 1) && this.ch(tx, ty - 1) !== 'P') e.rect(x, y, T + 0.5, 3).fill({ color: 0x3aa0a8, alpha: 0.5 });
         } else if (c === '=') {
-          g.rect(x, y, T + 0.5, 7).fill({ color: 0x7c878e });
-          for (let k = 3; k < T; k += 8) g.rect(x + k, y + 2, 4, 3).fill({ color: 0x15191c });
-          g.rect(x, y + 7, T + 0.5, 2).fill({ color: 0x15191c });
+          const deckGrate = getPropArt().interior.deck_grate;
+          if (deckGrate) {
+            g.rect(x, y, T + 0.5, 10).fill(materialFill(deckGrate, 0x6a787e, 1, 96, 12, 0, y));
+            g.rect(x, y + 9, T + 0.5, 2).fill({ color: 0x15191c, alpha: 0.85 });
+          } else {
+            g.rect(x, y, T + 0.5, 7).fill({ color: 0x7c878e });
+            for (let k = 3; k < T; k += 8) g.rect(x + k, y + 2, 4, 3).fill({ color: 0x15191c });
+            g.rect(x, y + 7, T + 0.5, 2).fill({ color: 0x15191c });
+          }
           if (tx % 3 === 0) g.moveTo(x + 4, y + 9).lineTo(x + 4, y + 22).stroke({ color: 0x3a4146, width: 2 });
         }
         if (c === 'H') this.drawLadder(this.hooks!.oceanBackdrop ? this.baseLadders : g, x, y);
@@ -1091,6 +1107,15 @@ export class Interior {
   }
 
   private drawLadder(g: Graphics, x: number, y: number): void {
+    const ladderTex = getPropArt().interior.ladder_rung;
+    if (ladderTex) {
+      const spr = new Sprite(ladderTex);
+      spr.width = T - 10;
+      spr.height = T + 0.5;
+      spr.position.set(x + 5, y);
+      g.addChild(spr);
+      return;
+    }
     g.rect(x + 7, y, 4, T + 0.5).fill({ color: 0xaeb9c0 });
     g.rect(x + T - 11, y, 4, T + 0.5).fill({ color: 0x8e9aa2 });
     for (const k of [8, 28]) {

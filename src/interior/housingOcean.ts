@@ -67,14 +67,14 @@ class OceanAperture {
     const { tone, clear } = glazing;
     base.rect(0, 0, w, h).fill(pool ? floodedSea : tone === 'deep' ? deepSea : tone === 'violet' ? violetSea : sea);
     if (basin && !tone) {
-      this.sprite = this.scene.addChild(new Sprite({ texture: basin, alpha: pool ? 0.48 : 0.53, tint: 0x74a8bc }));
+      this.sprite = this.scene.addChild(new Sprite({ texture: basin, alpha: pool ? 0.56 : 0.72, tint: 0x86b8ca }));
       this.sprite.width = Math.max(w + 120, 210);
       this.sprite.height = this.sprite.width * basin.height / basin.width;
     }
     this.scene.addChild(this.ridge);
     const stone = this.ridge.addChild(new Graphics());
     const Y = (v: number) => v * h;
-    if (!tone && !clear) {
+    if (!tone && !clear && !basin) {
       // The smaller legacy ports retain the original backdrop.
       stone.moveTo(-24, Y(0.76)).lineTo(w * 0.16, Y(0.49)).lineTo(w * 0.22, Y(0.29)).lineTo(w * 0.34, Y(0.22))
         .lineTo(w * 0.46, Y(0.46)).lineTo(w * 0.52, Y(0.73)).lineTo(w * 0.66, Y(0.62)).lineTo(w * 0.81, Y(0.38))

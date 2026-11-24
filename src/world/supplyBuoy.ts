@@ -18,7 +18,10 @@ export class SupplyBuoy {
   y = 145;
 
   private readonly floorY: number;
+  private readonly anchorRingY: number;
+  private readonly ringR: number;
   private readonly chain = new Graphics();
+  private readonly shackle = new Graphics();
   private readonly body = new Container();
   private readonly emBody = new Container();
   private readonly glowBody = new Container();
@@ -31,16 +34,30 @@ export class SupplyBuoy {
     this.emissive.addChild(this.emBody);
     this.glow.addChild(this.glowBody);
 
-    // Anchor block on the seabed.
-    const anchor = new Graphics();
-    anchor.position.set(this.x, this.floorY);
-    anchor.poly([-24, 4, -18, -14, 18, -14, 24, 4]).fill({ color: 0x3b4448 });
-    anchor.poly([-18, -14, 18, -14, 14, -10, -14, -10]).fill({ color: 0x627074, alpha: 0.7 });
-    anchor.circle(0, -16, 5).stroke({ color: 0x8a7444, width: 2.5 });
-    this.view.addChild(anchor);
+    // Anchor block on the seabed: painted sprite if available, else procedural iron block.
+    const paintedAnchor = getPropArt().vehicles.buoy_anchor;
+    if (paintedAnchor) {
+      const aSpr = new Sprite(paintedAnchor);
+      aSpr.anchor.set(0.5, 0.88);
+      const sc = 72 / Math.max(1, paintedAnchor.width);
+      aSpr.scale.set(sc);
+      aSpr.position.set(this.x, this.floorY + 6);
+      this.view.addChild(aSpr);
+      this.anchorRingY = this.floorY + 6 - paintedAnchor.height * sc * 0.84;
+    } else {
+      const anchor = new Graphics();
+      anchor.position.set(this.x, this.floorY);
+      anchor.poly([-24, 4, -18, -14, 18, -14, 24, 4]).fill({ color: 0x3b4448 });
+      anchor.poly([-18, -14, 18, -14, 14, -10, -14, -10]).fill({ color: 0x627074, alpha: 0.7 });
+      anchor.circle(0, -16, 5).stroke({ color: 0x8a7444, width: 2.5 });
+      this.view.addChild(anchor);
+      this.anchorRingY = this.floorY - 16;
+    }
+    this.view.addChild(this.shackle);
 
     // Buoy hull: painted sprite if available, else procedural charcoal-and-brass drum.
     const painted = getPropArt().vehicles.buoy;
+    this.ringR = painted ? 53.5 : 40;
     if (painted) {
       const spr = new Sprite(painted);
       spr.anchor.set(0.5, 0.58);
@@ -130,17 +147,27 @@ export class SupplyBuoy {
     this.beacon.alpha = 0.7 + pulse * 0.3;
     this.beaconGlow.alpha = 0.45 + pulse * 0.55;
 
-    // Mooring chain from seabed anchor to buoy keel.
+    // Mooring cable from seabed anchor ring to the bottom rim of the buoy's brass ring.
     const cg = this.chain.clear();
-    const topX = bx - Math.sin(tilt) * 40;
-    const topY = by + Math.cos(tilt) * 40;
-    const midX = (topX + this.x) * 0.5 + Math.sin(time * 1.1) * 8;
-    const midY = (topY + this.floorY - 16) * 0.5;
-    cg.moveTo(this.x, this.floorY - 16)
+    const topX = bx - Math.sin(tilt) * this.ringR;
+    const topY = by + Math.cos(tilt) * this.ringR;
+    const midX = (topX + this.x) * 0.5 + Math.sin(time * 1.1) * 7;
+    const midY = (topY + this.anchorRingY) * 0.5;
+    cg.moveTo(this.x, this.anchorRingY)
       .quadraticCurveTo(midX, midY, topX, topY)
-      .stroke({ color: 0x3b4448, width: 3.4 });
-    cg.moveTo(this.x, this.floorY - 16)
+      .stroke({ color: 0x262d30, width: 4.2, cap: 'round' });
+    cg.moveTo(this.x, this.anchorRingY)
       .quadraticCurveTo(midX, midY, topX, topY)
-      .stroke({ color: 0x8e7c52, width: 1.1, alpha: 0.6 });
+      .stroke({ color: 0x5c6666, width: 2.0, alpha: 0.85, cap: 'round' });
+    cg.moveTo(this.x, this.anchorRingY)
+      .quadraticCurveTo(midX, midY, topX, topY)
+      .stroke({ color: 0x9c844c, width: 0.9, alpha: 0.55, cap: 'round' });
+
+    // Interlocking brass shackles clasping the buoy ring (top) and seabed anchor ring (bottom).
+    const sg = this.shackle.clear();
+    sg.roundRect(topX - 2.6, topY - 2.5, 5.2, 7.5, 2.2).fill({ color: 0x2b3133 }).stroke({ color: 0x9c8248, width: 1.2 });
+    sg.circle(topX, topY + 0.2, 1.3).fill({ color: 0xd4b66a });
+    sg.roundRect(this.x - 2.6, this.anchorRingY - 5.0, 5.2, 7.5, 2.2).fill({ color: 0x2b3133 }).stroke({ color: 0x9c8248, width: 1.2 });
+    sg.circle(this.x, this.anchorRingY - 0.2, 1.3).fill({ color: 0xd4b66a });
   }
 }

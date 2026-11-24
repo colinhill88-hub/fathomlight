@@ -2003,18 +2003,23 @@ function drawPaintedHero(kind: PieceKind, n: number, rot: number, housingOcean: 
     const W = CELL;
     const H = CELL;
     const body = new Container();
+    const g = body.addChild(new Graphics());
+    // Connect cleanly to top and side pressure collars with zero floating gap.
+    tubeV(g, 0, 26, W / 2, 1);
+    tubeH(g, 0, 18, H / 2, 1);
+    tubeH(g, W - 18, W, H / 2, 1);
     const spr = new Sprite(baseArt.storage);
     spr.anchor.set(0.5, 1);
     const natH = (W + 4) * (baseArt.storage.height / Math.max(1, baseArt.storage.width));
     spr.width = W + 4;
-    spr.height = Math.min(H - 6, Math.max(H * 0.76, natH));
+    spr.height = Math.min(H - 8, Math.max(H * 0.82, natH));
     spr.position.set(W / 2, H - 2);
     body.addChild(spr);
     const windows = new Graphics();
     const windowGlow = new Graphics();
-    windows.circle(W * 0.64, H - spr.height * 0.61, 2.6).fill({ color: PAL.glass, alpha: 0.8 });
-    windowGlow.circle(W * 0.64, H - spr.height * 0.61, 10).fill({ color: PAL.glass, alpha: 0.25 });
-    const gaugeBox = { x: W - 24, y: H - spr.height + 26, w: 5, h: 26 };
+    windows.circle(W * 0.64, H - spr.height * 0.61, 2.2).fill({ color: PAL.glass, alpha: 0.7 });
+    windowGlow.circle(W * 0.64, H - spr.height * 0.61, 9).fill({ color: PAL.glass, alpha: 0.22 });
+    const gaugeBox = { x: W - 24, y: H - spr.height + 28, w: 5, h: 24 };
     const gauge = new Graphics();
     body.addChild(stencil(`ST-0${n}`, W / 2, H - spr.height + 12, 6));
     return { body, windows, windowGlow, lamp: { x: W * 0.64, y: H - spr.height * 0.61 }, gauge, gaugeBox };

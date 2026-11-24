@@ -1071,8 +1071,8 @@ export class BaseHooks implements InteriorHooks {
     const b = this.box(r);
     const id = r.piece.id;
     const code = pieceCode(this.ctx.layout, r.piece);
-    // Back wall: bevelled, riveted charcoal plates with vents, hatches and fittings (interior art pass).
-    wallPanels(g, b.ox, b.oy, b.ow, b.oh, rand, wallTexture);
+    // Back wall: bevelled, riveted charcoal plates (prefers painted wall_bulkhead when loaded).
+    wallPanels(g, b.ox, b.oy, b.ow, b.oh, rand, getPropArt().interior.wall_bulkhead ?? wallTexture);
     // A conduit along the wall, under the line lanes, where the machines leave the wall clear.
     const conduit = r.kind === 'storage' || r.kind === 'sorter' || r.kind === 'lab' || r.kind === 'workshop' || r.kind === 'filter' || r.kind === 'dock';
     // A living habitat is one tall aquarium over a single floor (its bottom deck); the dock keeps its catwalk deck.
@@ -1184,7 +1184,7 @@ export class BaseHooks implements InteriorHooks {
         // Lower level: the airlock, a bunk, and a galley console.
         const ax = b.cx;
         const ay = bot - 64;
-        if (this.ctx.livingBases) {
+        if (this.ctx.livingBases && !intArt.airlock) {
           fixtures.roundRect(b.ox + 44, bot - 157, b.ow - 88, 144, 36).fill({ color: 0x475650, alpha: 0.88 });
           fixtures.roundRect(b.ox + 59, bot - 144, b.ow - 118, 111, 26).fill({ color: 0x292f31, alpha: 0.78 });
           fixtures.moveTo(b.ox + 72, bot - 146).lineTo(b.ox + b.ow - 72, bot - 146)
@@ -1513,16 +1513,16 @@ export class BaseHooks implements InteriorHooks {
       case 'filter': {
         const filterVatTex = getPropArt().interior.filter_vat;
         if (filterVatTex) {
-          for (const cx of [b.ox + 72, b.ox + b.ow - 72]) {
+          for (const cx of [b.ox + 68, b.ox + b.ow - 68]) {
             const spr = new Sprite(filterVatTex);
             spr.anchor.set(0.5, 1);
-            spr.scale.set(174 / Math.max(1, filterVatTex.height));
+            spr.scale.set(138 / Math.max(1, filterVatTex.height));
             spr.position.set(cx, bot);
             g.addChild(spr);
           }
-          g.roundRect(b.cx - 30, bot - 70, 60, 70, 6).fill({ color: COL.wallDark });
-          g.circle(b.cx, bot - 40, 16).fill({ color: COL.chrome });
-          g.rect(b.ox + 96, bot - 120, b.ow - 192, 6).fill({ color: COL.chromeDark });
+          g.roundRect(b.cx - 26, bot - 58, 52, 58, 6).fill({ color: COL.wallDark });
+          g.circle(b.cx, bot - 34, 13).fill({ color: COL.chrome });
+          g.rect(b.ox + 92, bot - 96, b.ow - 184, 5).fill({ color: COL.chromeDark });
           break;
         }
         // Two glass columns of lime-tinted water and a pump between them.
@@ -1693,10 +1693,12 @@ export class BaseHooks implements InteriorHooks {
           }
           fixtures.rect(b.ox + 104, b.oy + 82, 78, 4).fill({ color: COL.chromeDark });
         }
-        for (const x of [b.ox + 20, b.ox + b.ow - 80]) {
-          fixtures.rect(x, b.oy + 50, 60, 40).fill({ color: 0x0c1418 });
-          fixtures.rect(x - 3, b.oy + 47, 66, 46).stroke({ color: COL.chromeDark, width: 2.4 });
-          fixtures.rect(x + 26, b.oy + 93, 8, 10).fill({ color: COL.chromeDark });
+        if (!labBenchTex) {
+          for (const x of [b.ox + 20, b.ox + b.ow - 80]) {
+            fixtures.rect(x, b.oy + 50, 60, 40).fill({ color: 0x0c1418 });
+            fixtures.rect(x - 3, b.oy + 47, 66, 46).stroke({ color: COL.chromeDark, width: 2.4 });
+            fixtures.rect(x + 26, b.oy + 93, 8, 10).fill({ color: COL.chromeDark });
+          }
         }
         this.screens.push({ x: b.cx, y: bot - 80, radius: 220, intensity: 0.55, color: [0.7, 1, 0.35], zone: id } as Light);
         break;
@@ -1877,9 +1879,11 @@ export class BaseHooks implements InteriorHooks {
         }
         gl.ellipse(b.cx, py, 180, 40).fill({ color: 0xfff0c0, alpha: 0.14 });
         this.screens.push({ x: b.cx, y: py - 10, radius: 260, intensity: 0.65, color: [1, 0.93, 0.7], zone: id } as Light);
-        for (const x of [b.cx - 220, b.cx + 220]) {
-          g.roundRect(x - 18, bot - 120, 36, 120, 6).fill({ color: COL.wallDark });
-          e.rect(x - 10, bot - 110, 20, 3).fill({ color: 0xfff0c0, alpha: 0.6 });
+        if (!reviveTex) {
+          for (const x of [b.cx - 220, b.cx + 220]) {
+            g.roundRect(x - 18, bot - 120, 36, 120, 6).fill({ color: COL.wallDark });
+            e.rect(x - 10, bot - 110, 20, 3).fill({ color: 0xfff0c0, alpha: 0.6 });
+          }
         }
         addText(sign('REVIVAL POOL', b.cx, b.oy + 36, 10, 0xfff0c0, 0.75));
         break;
@@ -1905,11 +1909,13 @@ export class BaseHooks implements InteriorHooks {
           g.roundRect(b.cx - 60, bot - 70, 120, 70, 8).fill({ color: COL.chromeDark });
           g.roundRect(b.cx - 50, bot - 62, 100, 26, 4).fill({ color: 0x0c1418 });
         }
-        for (const x of [b.ox + 70, b.ox + b.ow - 70]) {
-          g.roundRect(x - 34, bot - 200, 68, 200, 6).fill({ color: COL.wallDark });
-          for (let k = 0; k < 8; k++) {
-            g.rect(x - 26, bot - 190 + k * 22, 52, 14).fill({ color: 0x14181b });
-            e.rect(x - 22, bot - 186 + k * 22, 6 + ((k * 13) % 30), 3).fill({ color: 0xffc860, alpha: 0.6 });
+        if (!signalTex) {
+          for (const x of [b.ox + 70, b.ox + b.ow - 70]) {
+            g.roundRect(x - 34, bot - 200, 68, 200, 6).fill({ color: COL.wallDark });
+            for (let k = 0; k < 8; k++) {
+              g.rect(x - 26, bot - 190 + k * 22, 52, 14).fill({ color: 0x14181b });
+              e.rect(x - 22, bot - 186 + k * 22, 6 + ((k * 13) % 30), 3).fill({ color: 0xffc860, alpha: 0.6 });
+            }
           }
         }
         addText(sign('SIGNAL ARRAY', b.cx, b.oy + 28, 11, 0xffd890, 0.8));
@@ -2094,7 +2100,12 @@ export class BaseHooks implements InteriorHooks {
         }
         const px = b.ox + b.ow - 90;
         const f0 = b.floor(0);
-        for (let i = 0; i < 5; i++) d.rect(px - 36 + i * 16, f0 - 84 + Math.sin(time * 2 + i) * 4, 10, 26).fill({ color: COL.lime, alpha: 0.22 });
+        if (getPropArt().interior.planner) {
+          // Subtle warm-lime tabletop glass glow instead of blocky floating bars.
+          d.ellipse(px, f0 - 44, 34, 6).fill({ color: COL.lime, alpha: 0.14 + 0.05 * Math.sin(time * 2.2) });
+        } else {
+          for (let i = 0; i < 5; i++) d.rect(px - 36 + i * 16, f0 - 84 + Math.sin(time * 2 + i) * 4, 10, 26).fill({ color: COL.lime, alpha: 0.22 });
+        }
       } else if (r.kind === 'storage' || r.kind === 'sorter') {
         // Painted crates fill the racks cleanly as storage fills; procedural rectangles only when crate art is absent.
         const frac = c.storedFrac();
@@ -2118,11 +2129,15 @@ export class BaseHooks implements InteriorHooks {
         this.drawTank(r, d, de, time, on);
       } else if (r.kind === 'filter' && on) {
         const hasVat = !!getPropArt().interior.filter_vat;
-        for (const x of [b.ox + 50, b.ox + b.ow - 90]) {
-          if (!hasVat) d.roundRect(x, bot - 146, 40, 138, 6).fill({ color: 0x5a8a1e, alpha: 0.6 });
-          for (let i = 0; i < 6; i++) de.circle(x + 12 + ((i * 11) % 20), bot - 48 - ((time * 50 + i * 21) % 80), 2.1).fill({ color: 0xe0ff90, alpha: 0.65 });
+        for (const cx of [b.ox + 68, b.ox + b.ow - 68]) {
+          if (!hasVat) d.roundRect(cx - 18, bot - 146, 40, 138, 6).fill({ color: 0x5a8a1e, alpha: 0.6 });
+          for (let i = 0; i < 6; i++) {
+            const bx = hasVat ? cx - 12 + ((i * 9) % 18) : cx - 10 + ((i * 11) % 20);
+            const by = hasVat ? bot - 36 - ((time * 42 + i * 17) % 62) : bot - 48 - ((time * 50 + i * 21) % 80);
+            d.circle(bx, by, 1.9).fill({ color: 0xe0ff90, alpha: 0.65 });
+          }
         }
-        de.circle(b.cx, bot - 40, 6).fill({ color: COL.lime, alpha: 0.8 });
+        d.circle(b.cx, bot - (hasVat ? 34 : 40), 5.5).fill({ color: COL.lime, alpha: 0.85 });
       } else if (r.kind === 'feeder') {
         const lv = c.feederLevels(id);
         const vh = 134;
@@ -2141,10 +2156,12 @@ export class BaseHooks implements InteriorHooks {
         if (run && stroke > 0.95) de.circle(px, bot - 28, 10).fill({ color: 0xffd080, alpha: 0.7 });
       } else if (r.kind === 'lab' && on) {
         const busy = c.stationBusy(id);
-        for (let i = 0; i < 5; i++) de.ellipse(b.cx, bot - 70 - i * 12, 50 - i * 8, 6).stroke({ color: COL.lime, width: 1.5, alpha: busy ? 0.6 : 0.25 });
-        for (const x of [b.ox + 20, b.ox + b.ow - 80]) {
-          d.rect(x, b.oy + 50, 60, 40).fill({ color: 0x5a8a1e, alpha: 0.5 });
-          if (busy) de.rect(x + 4, b.oy + 54 + ((time * 30) % 32), 52, 3).fill({ color: COL.lime, alpha: 0.8 });
+        for (let i = 0; i < 5; i++) d.ellipse(b.cx, bot - 70 - i * 12, 50 - i * 8, 6).stroke({ color: COL.lime, width: 1.5, alpha: busy ? 0.5 : 0.2 });
+        if (!getPropArt().interior.lab_bench) {
+          for (const x of [b.ox + 20, b.ox + b.ow - 80]) {
+            d.rect(x, b.oy + 50, 60, 40).fill({ color: 0x5a8a1e, alpha: 0.5 });
+            if (busy) d.rect(x + 4, b.oy + 54 + ((time * 30) % 32), 52, 3).fill({ color: COL.lime, alpha: 0.8 });
+          }
         }
       } else if (r.kind === 'workshop') {
         const busy = on && c.stationBusy(id);
