@@ -14,7 +14,7 @@ export type VehicleArtKey = 'sub' | 'drone' | 'buoy' | 'buoy_anchor';
 export type BaseArtKey =
   | 'dome' | 'dock' | 'lab' | 'workshop' | 'nursery' | 'turbine' | 'portal'
   | 'corridor' | 'junction' | 'storage' | 'thermal' | 'hatch' | 'farm' | 'revive' | 'signal'
-  | 'filter' | 'feeder' | 'press';
+  | 'filter' | 'feeder' | 'press' | 'sorter' | 'recomp' | 'crane' | 'lantern';
 export type FoeArtKey = 'tick' | 'drone' | 'keeper';
 export type KestrelArtKey =
   | 'head' | 'torso' | 'chest' | 'pelvis' | 'pack' | 'pack_single' | 'pack_quad'
@@ -139,7 +139,7 @@ const VEHICLE_KEYS: readonly VehicleArtKey[] = ['sub', 'drone', 'buoy', 'buoy_an
 const BASE_KEYS: readonly BaseArtKey[] = [
   'dome', 'dock', 'lab', 'workshop', 'nursery', 'turbine', 'portal',
   'corridor', 'junction', 'storage', 'thermal', 'hatch', 'farm', 'revive', 'signal',
-  'filter', 'feeder', 'press',
+  'filter', 'feeder', 'press', 'sorter', 'recomp', 'crane', 'lantern',
 ];
 const WRECK_KEYS: readonly WreckArtKey[] = ['fulmar', 'corvina'];
 const INTERIOR_KEYS: readonly InteriorArtKey[] = [

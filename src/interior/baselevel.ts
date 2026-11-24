@@ -1026,13 +1026,16 @@ export class BaseHooks implements InteriorHooks {
       g.circle(p.x, p.y, 16.5).fill({ color: 0x102730 });
       g.circle(p.x, p.y - 2, 14.5).fill({ color: 0x215564, alpha: 0.85 });
       g.circle(p.x - 2, p.y - 5, 10).fill({ color: 0x3c848c, alpha: 0.45 });
-      g.arc(p.x, p.y, 13, Math.PI * 1.1, Math.PI * 1.55).stroke({ color: 0xcbe8e2, width: 1.8, alpha: 0.42, cap: 'round' });
+      const ga0 = Math.PI * 1.1;
+      g.moveTo(p.x + Math.cos(ga0) * 13, p.y + Math.sin(ga0) * 13)
+        .arc(p.x, p.y, 13, ga0, Math.PI * 1.55)
+        .stroke({ color: 0xcbe8e2, width: 1.8, alpha: 0.42, cap: 'round' });
       g.circle(p.x, p.y, 16.5).stroke({ color: 0x0b161a, width: 1.8 });
     }
   }
 
   /** Conveyors and feed pipes along the ceilings, with a junction box where they meet a machine. */
-  private drawRoutes(g: Graphics, e: Graphics): void {
+  private drawRoutes(g: Graphics, _e: Graphics): void {
     for (const r of this.routes) {
       const belt = r.kind === 'belt';
       const w = belt ? 9 : 6;
@@ -1066,12 +1069,11 @@ export class BaseHooks implements InteriorHooks {
         }
         if (i > 1) g.circle(ax, ay, w / 2 + 2).fill({ color: COL.chrome });
       }
-      // Drops into the machines at each end.
-      for (const [px, py, out] of [[r.pts[0][0], r.pts[0][1], true], [r.pts[r.pts.length - 1][0], r.pts[r.pts.length - 1][1], false]] as const) {
+      // Drops into the machines at each end (clean brass collar, no floating V arrows over tanks).
+      for (const [px, py] of [[r.pts[0][0], r.pts[0][1]], [r.pts[r.pts.length - 1][0], r.pts[r.pts.length - 1][1]]] as const) {
         g.rect(px - 3, py, 6, 34).fill({ color: belt ? COL.chromeDark : 0x8a5028 });
         g.roundRect(px - 11, py + 30, 22, 12, 3).fill({ color: COL.chrome });
         g.rect(px - 11, py + 30, 22, 2.5).fill({ color: COL.chromeHi, alpha: 0.7 });
-        e.moveTo(px - 5, py + 33).lineTo(px, py + 39).lineTo(px + 5, py + 33).stroke({ color: out ? COL.gold : COL.lime, width: 1.6, alpha: 0.9 });
       }
     }
   }
@@ -1599,27 +1601,32 @@ export class BaseHooks implements InteriorHooks {
         break;
       }
       case 'feeder': {
-        // Upper level: the fibre hopper. Lower level: the mash vat and its pump.
+        // Upper level: riveted cast-iron & brass tapered fibre hopper. Lower level: riveted mash sight vat.
         const f0 = b.floor(0);
-        g.poly([b.ox + 80, f0 - 150, b.ox + b.ow - 30, f0 - 150, b.ox + b.ow - 70, f0 - 40, b.ox + 120, f0 - 40]).fill({ color: COL.wallDark });
-        g.rect(b.ox + 80, f0 - 150, b.ow - 110, 5).fill({ color: COL.chrome });
-        g.roundRect(b.ox + 80, bot - 150, b.ow - 110, 150, 10).fill({ color: COL.chrome });
-        g.roundRect(b.ox + 88, bot - 142, b.ow - 126, 134, 8).fill({ color: 0x1a2a1c });
+        const hx0 = b.ox + 80;
+        const hx1 = b.ox + b.ow - 30;
+        g.poly([hx0, f0 - 150, hx1, f0 - 150, hx1 - 40, f0 - 40, hx0 + 40, f0 - 40])
+          .fill({ color: 0x1e2729 }).stroke({ color: 0x101618, width: 2 });
+        g.poly([hx0 + 4, f0 - 146, hx1 - 4, f0 - 146, hx1 - 42, f0 - 44, hx0 + 42, f0 - 44])
+          .fill({ color: 0x141b1d });
+        g.roundRect(hx0 - 2, f0 - 153, hx1 - hx0 + 4, 7, 2).fill({ color: 0x8f723c }).stroke({ color: 0x1a150c, width: 1.2 });
+        g.roundRect(b.ox + 80, bot - 150, b.ow - 110, 150, 10).fill({ color: 0x333e40 }).stroke({ color: 0x121a1c, width: 2.2 });
+        g.roundRect(b.ox + 83, bot - 147, b.ow - 116, 144, 8).stroke({ color: 0x8f723c, width: 1.5, alpha: 0.85 });
+        g.roundRect(b.ox + 88, bot - 142, b.ow - 126, 134, 8).fill({ color: 0x162418 });
         // Hopper ribs and a chute down to the vat; the vat's bolted bands and a sight window.
         for (let i = 1; i < 5; i++) {
           const yy = f0 - 150 + i * 22;
           const inset = (i * 22 * 40) / 110;
-          g.rect(b.ox + 80 + inset, yy, b.ow - 110 - inset * 2, 3).fill({ color: COL.chromeDark });
+          g.rect(hx0 + inset, yy, hx1 - hx0 - inset * 2, 3).fill({ color: 0x455052 });
         }
-        pipeUp(g, b.cx + 20, f0 - 40, bot - 150, 6, COL.chromeDark, COL.chrome);
+        pipeUp(g, b.cx + 20, f0 - 40, bot - 150, 6, 0x263032, 0x7b6334);
         for (const yy of [bot - 110, bot - 50]) {
-          g.rect(b.ox + 82, yy, b.ow - 114, 5).fill({ color: COL.chromeDark });
+          g.rect(b.ox + 82, yy, b.ow - 114, 5).fill({ color: 0x2a3335 });
           bolts(g, b.ox + 90, yy + 2.5, b.ox + b.ow - 40, yy + 2.5, 30, 1);
         }
-        g.roundRect(b.ox + b.ow - 80, bot - 96, 18, 40, 4).fill({ color: 0x2a4a22 });
-        g.roundRect(b.ox + b.ow - 80, bot - 96, 18, 40, 4).stroke({ color: COL.chrome, width: 2 });
+        g.roundRect(b.ox + b.ow - 80, bot - 96, 18, 40, 4).fill({ color: 0x223c1e }).stroke({ color: 0x8f723c, width: 1.8 });
         hazard(g, b.ox + 80, bot - 6, b.ow - 110, 6);
-        addText(sign('MASH', b.ox + 80 + (b.ow - 110) / 2, bot - 160, 9, 0xc6f03a, 0.7));
+        addText(sign('MASH', b.ox + 80 + (b.ow - 110) / 2, bot - 160, 9, 0xd8c882, 0.85));
         break;
       }
       case 'press': {
@@ -2067,7 +2074,10 @@ export class BaseHooks implements InteriorHooks {
       // Subtle swirling water current arcs inside the cavity.
       for (let i = 0; i < 3; i++) {
         const wa = a0 * 0.7 + (i / 3) * Math.PI * 2;
-        d.arc(t.x, t.y, t.r * 0.72, wa, wa + 0.85).stroke({ color: 0x7ac4c4, width: 1.4, alpha: 0.18, cap: 'round' });
+        const wr = t.r * 0.72;
+        d.moveTo(t.x + Math.cos(wa) * wr, t.y + Math.sin(wa) * wr)
+          .arc(t.x, t.y, wr, wa, wa + 0.85)
+          .stroke({ color: 0x7ac4c4, width: 1.4, alpha: 0.18, cap: 'round' });
       }
       for (let i = 0; i < 4; i++) {
         const a = a0 + (i / 4) * Math.PI * 2;
@@ -2095,7 +2105,11 @@ export class BaseHooks implements InteriorHooks {
         d.circle(t.x + Math.cos(ra) * 10.5, t.y + Math.sin(ra) * 10.5, 1.3).fill({ color: 0x241d10 });
       }
       // Subtle glass reflection crescent across the upper-left of the porthole.
-      d.arc(t.x, t.y, t.r - 5, Math.PI * 1.12, Math.PI * 1.58).stroke({ color: 0xd2ece6, width: 2.2, alpha: 0.24, cap: 'round' });
+      const gr = t.r - 5;
+      const ta0 = Math.PI * 1.12;
+      d.moveTo(t.x + Math.cos(ta0) * gr, t.y + Math.sin(ta0) * gr)
+        .arc(t.x, t.y, gr, ta0, Math.PI * 1.58)
+        .stroke({ color: 0xd2ece6, width: 2.2, alpha: 0.24, cap: 'round' });
     }
     for (const r of this.level.rooms) {
       const b = this.box(r);
@@ -2211,11 +2225,27 @@ export class BaseHooks implements InteriorHooks {
         d.circle(b.cx, bot - (hasVat ? 34 : 40), 5.5).fill({ color: COL.lime, alpha: 0.85 });
       } else if (r.kind === 'feeder') {
         const lv = c.feederLevels(id);
-        const vh = 134;
-        d.roundRect(b.ox + 88, bot - 8 - vh * lv.mash, b.ow - 126, vh * lv.mash, 6).fill({ color: 0x6a8a2a, alpha: 0.85 });
+        const vh = 130;
+        const mh = Math.max(0, vh * lv.mash);
+        if (mh > 1) {
+          d.roundRect(b.ox + 90, bot - 10 - mh, b.ow - 130, mh, 5).fill({ color: 0x628028, alpha: 0.86 });
+          d.rect(b.ox + 92, bot - 10 - mh, b.ow - 134, 3).fill({ color: 0x9ec048, alpha: 0.65 });
+        }
+        // Tapered trapezoidal fibre fill matching the hopper's sloped inner walls.
         const f0 = b.floor(0);
-        d.rect(b.ox + 100, f0 - 46 - 90 * lv.hopper, b.ow - 150, 90 * lv.hopper).fill({ color: 0xc9a24a, alpha: 0.85 });
-        if (lv.run && on) de.circle(b.ox + b.ow - 50, bot - 170, 4).fill({ color: COL.lime });
+        const fillFrac = Math.max(0, Math.min(1, lv.hopper));
+        if (fillFrac > 0.01) {
+          const yBot = f0 - 45;
+          const yTop = yBot - 98 * fillFrac;
+          const topInset = 40 * (1 - fillFrac);
+          const lxBot = b.ox + 123;
+          const rxBot = b.ox + b.ow - 73;
+          const lxTop = b.ox + 86 + topInset;
+          const rxTop = b.ox + b.ow - 36 - topInset;
+          d.poly([lxTop, yTop, rxTop, yTop, rxBot, yBot, lxBot, yBot]).fill({ color: 0xb8923e, alpha: 0.88 });
+          d.moveTo(lxTop + 2, yTop + 1.5).lineTo(rxTop - 2, yTop + 1.5).stroke({ color: 0xecd080, width: 2.5, alpha: 0.72, cap: 'round' });
+        }
+        if (lv.run && on) d.circle(b.ox + b.ow - 50, bot - 170, 4).fill({ color: COL.lime });
       } else if (r.kind === 'press') {
         const px = b.ox + 160;
         const run = on && c.pressing(id);

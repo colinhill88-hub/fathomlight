@@ -614,6 +614,22 @@ function drawLantern(n: number): PieceArt {
   const windows = new Graphics();
   const windowGlow = new Graphics();
   const c = CELL / 2;
+  const painted = getPropArt().base.lantern;
+  if (painted) {
+    tubeH(g, 0, CELL, c, 0);
+    tubeV(g, 0, CELL, c, 0);
+    const spr = new Sprite(painted);
+    spr.anchor.set(0.5);
+    const sc = Math.min((CELL - 12) / Math.max(1, painted.width), (CELL - 12) / Math.max(1, painted.height));
+    spr.scale.set(sc);
+    spr.position.set(c, c);
+    body.addChild(spr);
+    windows.circle(c, c, 15).fill({ color: 0xa27cff, alpha: 0.45 });
+    windows.circle(c, c, 8).fill({ color: 0x5ff0ff, alpha: 0.72 });
+    windowGlow.circle(c, c, 44).fill({ color: 0xa27cff, alpha: 0.48 });
+    body.addChild(stencil(`CL-${n}`, c, c + 46, 6));
+    return { body, windows, windowGlow, lamp: { x: CELL - 24, y: 24 } };
+  }
   tubeH(g, 0, CELL, c, 0);
   tubeV(g, 0, CELL, c, 0);
   const D = TUBE + 14;
@@ -884,6 +900,18 @@ function drawSorter(n: number, livingBases: boolean): PieceArt {
   tubeH(g, CELL - 18, CELL, c, 1);
   tubeV(g, 0, 14, c, 1);
   tubeV(g, CELL - 12, CELL, c, 1);
+  const painted = getPropArt().base.sorter;
+  if (painted) {
+    const spr = new Sprite(painted);
+    spr.anchor.set(0.5);
+    const sc = Math.min((CELL - 14) / Math.max(1, painted.width), (CELL - 14) / Math.max(1, painted.height));
+    spr.scale.set(sc);
+    spr.position.set(c, c + 2);
+    body.addChild(spr);
+    windowGlow.rect(24, 48, CELL - 48, 36).fill({ color: PAL.warm, alpha: 0.14 });
+    body.addChild(stencil(`SP-${n}`, c, 20, 6));
+    return { body, windows, windowGlow, lamp: { x: c, y: 12 } };
+  }
   drawMachineShell(g, 12, 14, CELL - 24, CELL - 26, 8, livingBases);
   g.roundRect(16, 18, 8, CELL - 34, 4).fill({ color: 0xffffff, alpha: 0.12 });
   g.rect(12, 26, CELL - 24, 4).fill({ color: 0xc88a2a });
@@ -920,6 +948,19 @@ function drawRecomp(n: number): PieceArt {
   const windowGlow = new Graphics();
   tubeH(g, 0, 18, H / 2, 1);
   tubeH(g, W - 18, W, H / 2, 1);
+  const painted = getPropArt().base.recomp;
+  if (painted) {
+    const spr = new Sprite(painted);
+    spr.anchor.set(0.5);
+    const sc = Math.min((W - 14) / Math.max(1, painted.width), (H - 8) / Math.max(1, painted.height));
+    spr.scale.set(sc);
+    spr.position.set(W / 2, H / 2 + 2);
+    body.addChild(spr);
+    windows.circle(W / 2 - 36, H / 2 + 3, 12).fill({ color: 0xffe8b0, alpha: 0.35 });
+    windowGlow.circle(W / 2 - 36, H / 2 + 3, 28).fill({ color: PAL.warm, alpha: 0.28 });
+    body.addChild(stencil(`RC-${n}`, W / 2 + 44, H - 16, 6));
+    return { body, windows, windowGlow, lamp: { x: W - 30, y: 14 } };
+  }
   g.roundRect(14, 14, W - 28, H - 24, (H - 24) / 2).fill({ color: 0x7a6a4a });
   g.roundRect(20, 18, W - 40, 10, 5).fill({ color: 0xffffff, alpha: 0.1 });
   for (const bx of [34, W / 2 - 4, W - 42]) g.rect(bx, 14, 8, H - 24).fill({ color: 0xa8822e });
@@ -950,6 +991,19 @@ function drawCrane(n: number, livingBases: boolean): PieceArt {
   const windowGlow = new Graphics();
   tubeH(g, 0, 18, H - CELL / 2, 1);
   tubeH(g, W - 18, W, H - CELL / 2, 1);
+  const painted = getPropArt().base.crane;
+  if (painted) {
+    const spr = new Sprite(painted);
+    spr.anchor.set(0.5, 0.96);
+    const sc = Math.min((W - 8) / Math.max(1, painted.width), (H - 8) / Math.max(1, painted.height));
+    spr.scale.set(sc);
+    spr.position.set(W / 2, H - 4);
+    body.addChild(spr);
+    windows.roundRect(30, 50, 22, 10, 2).fill({ color: 0xffd98a, alpha: 0.45 });
+    windowGlow.roundRect(22, 42, 38, 28, 6).fill({ color: PAL.warm, alpha: 0.24 });
+    body.addChild(stencil(`SC-${n}`, W / 2 + 20, H - 14, 6));
+    return { body, windows, windowGlow, lamp: { x: 45, y: 22 } };
+  }
   // Base and breaking floor.
   drawMachineShell(g, 10, H - 60, W - 20, 52, 6, livingBases);
   hazardBand(g, 10, H - 60, W - 20, 8);
@@ -1208,6 +1262,29 @@ function drawFilter(n: number, livingBases: boolean): PieceArt {
   tubeH(g, 0, 22, c, 1);
   tubeH(g, CELL - 22, CELL, c, 1);
   tubeV(g, 0, 18, c, 1);
+  const painted = getPropArt().base.filter;
+  if (painted) {
+    const spr = new Sprite(painted);
+    spr.anchor.set(0.5, 0.54);
+    const sc = Math.min((CELL - 10) / Math.max(1, painted.width), (CELL - 8) / Math.max(1, painted.height));
+    spr.scale.set(sc);
+    spr.position.set(c, c + 4);
+    body.addChild(spr);
+    const rotor = new Container();
+    const rg = rotor.addChild(new Graphics());
+    for (let i = 0; i < 4; i++) {
+      const a = (i / 4) * Math.PI * 2;
+      rg.poly([Math.cos(a) * 2.5, Math.sin(a) * 2.5, Math.cos(a + 0.5) * 14, Math.sin(a + 0.5) * 14, Math.cos(a + 0.85) * 12, Math.sin(a + 0.85) * 12])
+        .fill({ color: 0x9c8248, alpha: 0.88 }).stroke({ color: 0x1a2022, width: 1 });
+    }
+    rg.circle(0, 0, 3.8).fill({ color: 0xc9a85c }).stroke({ color: 0x1a2022, width: 1 });
+    rotor.position.set(c - 12, 49);
+    body.addChild(rotor);
+    body.addChild(stencil(`FP-${n}`, c + 24, 68, 6, -Math.PI / 2));
+    windows.circle(c - 12, 49, 15).fill({ color: 0xb8e6a0, alpha: 0.14 });
+    windowGlow.circle(c - 12, 49, 24).fill({ color: 0xb8e6a0, alpha: 0.16 });
+    return { body, rotor, windows, windowGlow, lamp: { x: c + 26, y: 38 }, whorlAt: { x: 26, y: 30 } };
+  }
   // Drum.
   drawMachineShell(g, 16, 18, CELL - 32, CELL - 30, 10, livingBases);
   g.roundRect(20, 22, 8, CELL - 40, 4).fill({ color: 0xffffff, alpha: 0.12 });
@@ -1262,6 +1339,35 @@ function drawFeeder(n: number, livingBases: boolean): PieceArt {
   const cy = H - CELL / 2;
   tubeH(g, 0, 18, cy, 1);
   tubeH(g, W - 18, W, cy, 1);
+  const painted = getPropArt().base.feeder;
+  if (painted) {
+    const spr = new Sprite(painted);
+    spr.anchor.set(0.5, 0.96);
+    const sc = Math.min((W - 4) / Math.max(1, painted.width), (H - 8) / Math.max(1, painted.height));
+    spr.scale.set(sc);
+    spr.position.set(W / 2, H - 4);
+    body.addChild(spr);
+    const hopper = { x: 26, y: 20, w: 28, h: 24 };
+    const mash = { x: 43, y: 146, w: 12, h: 42 };
+    const rotor = new Container();
+    const rg = rotor.addChild(new Graphics());
+    const teeth: number[] = [];
+    for (let i = 0; i < 16; i++) {
+      const a = (i / 16) * Math.PI * 2;
+      const rr = i % 2 ? 9 : 12;
+      teeth.push(Math.cos(a) * rr, Math.sin(a) * rr);
+    }
+    rg.poly(teeth).fill({ color: 0xa68746, alpha: 0.85 }).stroke({ color: 0x1a2022, width: 1 });
+    rg.circle(0, 0, 5).fill({ color: 0x3b4444 }).stroke({ color: 0x1a2022, width: 1 });
+    rg.circle(0, 0, 2.2).fill({ color: 0xd6b86e });
+    rotor.position.set(42, 95);
+    const levels = { g: new Graphics(), hopper, mash };
+    body.addChild(rotor, levels.g);
+    body.addChild(stencil(`AF-${n}`, 72, 150, 6, -Math.PI / 2));
+    windows.rect(W - 40, 140, 10, 4).fill({ color: 0xfff1d0, alpha: 0.7 });
+    windowGlow.rect(W - 46, 132, 24, 18).fill({ color: PAL.warm, alpha: 0.25 });
+    return { body, rotor, windows, windowGlow, lamp: { x: W - 34, y: 182 }, levels, whorlAt: { x: 80, y: 112 } };
+  }
   // Frame posts the whole height.
   g.rect(12, 20, 7, H - 26).fill({ color: PAL.steelDark });
   g.rect(W - 26, 20, 7, H - 26).fill({ color: PAL.steelDark });
@@ -1348,6 +1454,37 @@ function drawPress(n: number): PieceArt {
   const cy = H / 2;
   tubeH(g, 0, 16, cy, 1);
   tubeH(g, W - 16, W, cy, 1);
+  const painted = getPropArt().base.press;
+  if (painted) {
+    const spr = new Sprite(painted);
+    spr.anchor.set(0.5, 0.94);
+    const sc = Math.min((W - 8) / Math.max(1, painted.width), (H - 4) / Math.max(1, painted.height));
+    spr.scale.set(sc);
+    spr.position.set(W / 2, H - 6);
+    body.addChild(spr);
+    const ram = new Container();
+    const rg = ram.addChild(new Graphics());
+    rg.rect(-3, 0, 6, 16).fill({ color: 0x9ca4a2 }).stroke({ color: 0x1a2022, width: 1 });
+    rg.roundRect(-18, 14, 36, 8, 2).fill({ color: 0x3b4444 }).stroke({ color: 0x1a2022, width: 1.2 });
+    rg.rect(-17, 15, 34, 2).fill({ color: 0xc29e52 });
+    ram.position.set(W / 2 - 2, 46);
+    const scrap = { x: 36, y: 16, w: 11, h: 28 };
+    const copper = { x: 53, y: 16, w: 11, h: 28 };
+    const rack = { x: W - 76, y: H - 40, w: 46 };
+    const levels = new Graphics();
+    body.addChild(ram, levels);
+    body.addChild(stencil(`PP-${n}`, W / 2, 18, 7));
+    windows.rect(W / 2 + 30, 14, 10, 4).fill({ color: 0xfff1d0, alpha: 0.7 });
+    windowGlow.rect(W / 2 + 24, 8, 22, 16).fill({ color: PAL.warm, alpha: 0.25 });
+    return {
+      body,
+      windows,
+      windowGlow,
+      lamp: { x: W / 2 - 34, y: 14 },
+      whorlAt: { x: W / 2 + 30, y: 38 },
+      press: { g: levels, ram, scrap, copper, rack },
+    };
+  }
   // Bed with a hazard band.
   g.roundRect(10, H - 34, W - 20, 22, 4).fill({ color: PAL.steelDark });
   g.rect(12, H - 33, W - 24, 3).fill({ color: 0xffffff, alpha: 0.1 });

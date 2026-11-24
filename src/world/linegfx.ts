@@ -72,39 +72,51 @@ function drawBelt(g: Graphics, pts: [number, number][], tier = 1): void {
     const len = horiz ? Math.abs(bx - ax) : Math.abs(by - ay);
     if (len < 1) continue;
     if (horiz) {
-      g.rect(x0, ay - BELT / 2 - 2, len, BELT + 5).fill({ color: 0x3b4448 });
-      g.rect(x0, ay - BELT / 2, len, BELT).fill({ color: 0x2b2a26 });
-      g.rect(x0, ay - BELT / 2, len, 2).fill({ color: 0x5a5850, alpha: 0.9 });
-      g.rect(x0, ay + BELT / 2, len, 3).fill({ color: 0x5b6467 });
-      for (let x = x0 + 8; x < x0 + len - 4; x += 20) g.circle(x, ay + BELT / 2 + 1.5, 2.2).fill({ color: 0x8a9496 });
-      if (tier > 1) for (let x = x0; x < x0 + len - 6; x += 12) g.rect(x, ay + BELT / 2, Math.min(6, x0 + len - x), 3).fill({ color: x % 24 < 12 ? 0xb8923f : 0x1c1c1a });
+      g.rect(x0, ay - BELT / 2 - 2.5, len, BELT + 6).fill({ color: 0x161e20 });
+      g.rect(x0, ay - BELT / 2 - 1.5, len, BELT + 4).fill({ color: 0x333d3e });
+      g.rect(x0, ay - BELT / 2, len, BELT).fill({ color: 0x22221e });
+      g.rect(x0, ay - BELT / 2 + 0.5, len, 1.8).fill({ color: 0x625e52, alpha: 0.78 });
+      g.rect(x0, ay + BELT / 2, len, 3).fill({ color: 0x555e5d });
+      for (let x = x0 + 8; x < x0 + len - 4; x += 20) {
+        g.circle(x, ay + BELT / 2 + 1.5, 2.4).fill({ color: 0x1d2426 });
+        g.circle(x - 0.3, ay + BELT / 2 + 1.2, 1.4).fill({ color: 0xb69452 });
+      }
+      if (tier > 1) for (let x = x0; x < x0 + len - 6; x += 12) g.rect(x, ay + BELT / 2, Math.min(6, x0 + len - x), 3).fill({ color: x % 24 < 12 ? 0xc29a48 : 0x1a1c1a });
     } else {
-      g.rect(ax - BELT / 2 - 2, y0, BELT + 5, len).fill({ color: 0x3b4448 });
-      g.rect(ax - BELT / 2, y0, BELT, len).fill({ color: 0x2b2a26 });
-      g.rect(ax - BELT / 2, y0, 2, len).fill({ color: 0x5a5850, alpha: 0.9 });
-      g.rect(ax + BELT / 2, y0, 3, len).fill({ color: 0x5b6467 });
-      for (let y = y0 + 8; y < y0 + len - 4; y += 20) g.circle(ax + BELT / 2 + 1.5, y, 2.2).fill({ color: 0x8a9496 });
-      if (tier > 1) for (let y = y0; y < y0 + len - 6; y += 12) g.rect(ax + BELT / 2, y, 3, Math.min(6, y0 + len - y)).fill({ color: y % 24 < 12 ? 0xb8923f : 0x1c1c1a });
+      g.rect(ax - BELT / 2 - 2.5, y0, BELT + 6, len).fill({ color: 0x161e20 });
+      g.rect(ax - BELT / 2 - 1.5, y0, BELT + 4, len).fill({ color: 0x333d3e });
+      g.rect(ax - BELT / 2, y0, BELT, len).fill({ color: 0x22221e });
+      g.rect(ax - BELT / 2 + 0.5, y0, 1.8, len).fill({ color: 0x625e52, alpha: 0.78 });
+      g.rect(ax + BELT / 2, y0, 3, len).fill({ color: 0x555e5d });
+      for (let y = y0 + 8; y < y0 + len - 4; y += 20) {
+        g.circle(ax + BELT / 2 + 1.5, y, 2.4).fill({ color: 0x1d2426 });
+        g.circle(ax + BELT / 2 + 1.2, y - 0.3, 1.4).fill({ color: 0xb69452 });
+      }
+      if (tier > 1) for (let y = y0; y < y0 + len - 6; y += 12) g.rect(ax + BELT / 2, y, 3, Math.min(6, y0 + len - y)).fill({ color: y % 24 < 12 ? 0xc29a48 : 0x1a1c1a });
     }
     // Rust streaks and algae specks.
     for (let k = 0; k < len / 40; k++) {
       const t = rand();
       const x = horiz ? x0 + t * len : ax + R(-4, 4);
       const y = horiz ? ay + BELT / 2 + R(1, 4) : y0 + t * len;
-      g.rect(x, y, 1.2, R(3, 9)).fill({ color: 0x8a3a20, alpha: 0.45 });
-      if (rand() < 0.4) g.circle(x + R(-2, 2), y - R(0, 3), R(1, 2)).fill({ color: 0x5e7a3c, alpha: 0.7 });
+      g.rect(x, y, 1.2, R(3, 9)).fill({ color: 0x7e371f, alpha: 0.42 });
+      if (rand() < 0.4) g.circle(x + R(-2, 2), y - R(0, 3), R(1, 2)).fill({ color: 0x546f38, alpha: 0.65 });
     }
   }
-  // Transfer boxes at the bends, and chutes at both ends.
+  // Riveted cast-iron & brass transfer boxes at the bends, and tapered chutes at both ends.
   for (let i = 1; i < pts.length - 1; i++) {
     const [x, y] = pts[i];
-    g.roundRect(x - 9, y - 9, 18, 18, 3).fill({ color: 0x5b6467 });
-    g.roundRect(x - 9, y - 9, 18, 4, 2).fill({ color: 0xb8923f });
-    for (const [dx, dy] of [[-5, -1], [5, -1], [-5, 6], [5, 6]]) g.circle(x + dx, y + dy, 1.1).fill({ color: 0x2a3033 });
+    g.roundRect(x - 10, y - 10, 20, 20, 3.5).fill({ color: 0x2e383a }).stroke({ color: 0x141b1d, width: 1.6 });
+    g.roundRect(x - 9, y - 9, 18, 4.5, 2).fill({ color: 0xb08a42 });
+    g.rect(x - 8, y - 8.5, 16, 1.2).fill({ color: 0xebd18c, alpha: 0.5 });
+    for (const [dx, dy] of [[-5.5, -1], [5.5, -1], [-5.5, 6], [5.5, 6]]) {
+      g.circle(x + dx, y + dy, 1.4).fill({ color: 0x151d1f });
+      g.circle(x + dx - 0.3, y + dy - 0.3, 0.55).fill({ color: 0xd0b068 });
+    }
   }
   for (const [x, y] of [pts[0], pts[pts.length - 1]]) {
-    g.poly([x - 11, y - 8, x + 11, y - 8, x + 7, y + 4, x - 7, y + 4]).fill({ color: 0x5b6467 });
-    g.rect(x - 11, y - 8, 22, 2).fill({ color: 0xffffff, alpha: 0.15 });
+    g.poly([x - 11, y - 8, x + 11, y - 8, x + 7, y + 4, x - 7, y + 4]).fill({ color: 0x3b4648 }).stroke({ color: 0x141b1d, width: 1.4 });
+    g.rect(x - 10, y - 7.5, 20, 2.2).fill({ color: 0xb6924a, alpha: 0.85 });
   }
 }
 
@@ -118,40 +130,51 @@ function drawPipe(g: Graphics, pts: [number, number][], tier = 1): void {
     const len = horiz ? Math.abs(bx - ax) : Math.abs(by - ay);
     if (len < 1) continue;
     if (horiz) {
-      if (tier > 1) g.rect(x0, ay - PIPE / 2 - 2, len, PIPE + 4).fill({ color: 0x5b6467 });
-      g.rect(x0, ay - PIPE / 2, len, PIPE).fill({ color: 0x8a6a3a });
-      g.rect(x0, ay - PIPE / 2 + 1, len, 2.2).fill({ color: 0xd4aa6a, alpha: 0.55 });
-      g.rect(x0, ay + PIPE / 2 - 3, len, 3).fill({ color: 0x4a3820, alpha: 0.6 });
+      g.rect(x0, ay - PIPE / 2 - 1.4, len, PIPE + 2.8).fill({ color: 0x1d160c });
+      if (tier > 1) g.rect(x0, ay - PIPE / 2 - 2.2, len, PIPE + 4.4).fill({ color: 0x3c4749 }).stroke({ color: 0x141b1d, width: 1 });
+      g.rect(x0, ay - PIPE / 2, len, PIPE).fill({ color: 0x866634 });
+      g.rect(x0, ay - PIPE / 2 + 1, len, 2.4).fill({ color: 0xdcb46c, alpha: 0.65 });
+      g.rect(x0, ay + PIPE / 2 - 3, len, 3).fill({ color: 0x3f2e17, alpha: 0.72 });
       for (let x = x0 + 24; x < x0 + len - 10; x += 48) {
-        g.rect(x - 2, ay - PIPE / 2 - 2.5, 4, PIPE + 5).fill({ color: tier > 1 ? 0x8e9a9c : 0xa88a4a });
-        g.rect(x - 2, ay - PIPE / 2 - 2.5, 1.2, PIPE + 5).fill({ color: 0xffffff, alpha: 0.2 });
+        g.roundRect(x - 3, ay - PIPE / 2 - 3, 6, PIPE + 6, 1.5).fill({ color: tier > 1 ? 0x6f7c7e : 0xa68542 }).stroke({ color: 0x1d160c, width: 1.1 });
+        g.rect(x - 2, ay - PIPE / 2 - 2, 1.4, PIPE + 4).fill({ color: 0xf4dca0, alpha: 0.45 });
+        g.circle(x, ay - PIPE / 2 - 1, 0.9).fill({ color: 0x261d10 });
+        g.circle(x, ay + PIPE / 2 + 1, 0.9).fill({ color: 0x261d10 });
       }
     } else {
-      if (tier > 1) g.rect(ax - PIPE / 2 - 2, y0, PIPE + 4, len).fill({ color: 0x5b6467 });
-      g.rect(ax - PIPE / 2, y0, PIPE, len).fill({ color: 0x8a6a3a });
-      g.rect(ax - PIPE / 2 + 1, y0, 2.2, len).fill({ color: 0xd4aa6a, alpha: 0.55 });
-      g.rect(ax + PIPE / 2 - 3, y0, 3, len).fill({ color: 0x4a3820, alpha: 0.6 });
+      g.rect(ax - PIPE / 2 - 1.4, y0, PIPE + 2.8, len).fill({ color: 0x1d160c });
+      if (tier > 1) g.rect(ax - PIPE / 2 - 2.2, y0, PIPE + 4.4, len).fill({ color: 0x3c4749 }).stroke({ color: 0x141b1d, width: 1 });
+      g.rect(ax - PIPE / 2, y0, PIPE, len).fill({ color: 0x866634 });
+      g.rect(ax - PIPE / 2 + 1, y0, 2.4, len).fill({ color: 0xdcb46c, alpha: 0.65 });
+      g.rect(ax + PIPE / 2 - 3, y0, 3, len).fill({ color: 0x3f2e17, alpha: 0.72 });
       for (let y = y0 + 24; y < y0 + len - 10; y += 48) {
-        g.rect(ax - PIPE / 2 - 2.5, y - 2, PIPE + 5, 4).fill({ color: tier > 1 ? 0x8e9a9c : 0xa88a4a });
-        g.rect(ax - PIPE / 2 - 2.5, y - 2, PIPE + 5, 1.2).fill({ color: 0xffffff, alpha: 0.2 });
+        g.roundRect(ax - PIPE / 2 - 3, y - 3, PIPE + 6, 6, 1.5).fill({ color: tier > 1 ? 0x6f7c7e : 0xa68542 }).stroke({ color: 0x1d160c, width: 1.1 });
+        g.rect(ax - PIPE / 2 - 2, y - 2, PIPE + 4, 1.4).fill({ color: 0xf4dca0, alpha: 0.45 });
+        g.circle(ax - PIPE / 2 - 1, y, 0.9).fill({ color: 0x261d10 });
+        g.circle(ax + PIPE / 2 + 1, y, 0.9).fill({ color: 0x261d10 });
       }
     }
-    // Verdigris.
+    // Patina & verdigris.
     for (let k = 0; k < len / 34; k++) {
       const t = rand();
       const x = horiz ? x0 + t * len : ax + R(-3, 3);
       const y = horiz ? ay + R(-3, 3) : y0 + t * len;
-      g.ellipse(x, y, R(2, 6), R(1, 3)).fill({ color: 0x5e8a6e, alpha: R(0.3, 0.6) });
+      g.ellipse(x, y, R(2, 5.5), R(1, 2.5)).fill({ color: 0x548266, alpha: R(0.28, 0.55) });
     }
   }
+  // Bolted brass elbow collars at every bend.
   for (let i = 1; i < pts.length - 1; i++) {
     const [x, y] = pts[i];
-    g.circle(x, y, PIPE / 2 + 2).fill({ color: 0x8a6a3a });
-    g.circle(x - 1, y - 1, 2.5).fill({ color: 0xd4aa6a, alpha: 0.4 });
+    g.circle(x, y, PIPE / 2 + 3.2).fill({ color: 0x7c5e2d }).stroke({ color: 0x1d160c, width: 1.4 });
+    g.circle(x - 1.2, y - 1.2, 2.8).fill({ color: 0xe6c478, alpha: 0.55 });
+    g.circle(x, y, 1.4).fill({ color: 0x2b2010 });
   }
+  // Riveted brass end-flanges where the pipe enters a module.
   for (const [x, y] of [pts[0], pts[pts.length - 1]]) {
-    g.roundRect(x - 8, y - 4, 16, 8, 2).fill({ color: 0xa88a4a });
-    g.circle(x, y, 2).fill({ color: 0x3a3020 });
+    g.roundRect(x - 9, y - 4.5, 18, 9, 2.5).fill({ color: 0x9c7c3e }).stroke({ color: 0x1d160c, width: 1.4 });
+    g.rect(x - 7.5, y - 3.5, 15, 1.8).fill({ color: 0xedd28c, alpha: 0.55 });
+    g.circle(x - 5.5, y, 1.1).fill({ color: 0x2b2010 });
+    g.circle(x + 5.5, y, 1.1).fill({ color: 0x2b2010 });
   }
 }
 

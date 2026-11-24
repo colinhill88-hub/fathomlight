@@ -61,31 +61,61 @@ export function drawObservationCrown(g: Graphics, lamps: Graphics, glow: Graphic
   }
 }
 
-/** The same chamfered pressure yoke reads through either side of the observation window. */
+const bezelIron = new FillGradient({
+  type: 'linear', start: { x: 0.15, y: 0 }, end: { x: 0.85, y: 1 },
+  colorStops: [
+    { offset: 0, color: 0x4f5a58 },
+    { offset: 0.35, color: 0x313c3d },
+    { offset: 0.8, color: 0x1e282a },
+    { offset: 1, color: 0x131b1e },
+  ],
+});
+
+const bezelBrass = new FillGradient({
+  type: 'linear', start: { x: 0, y: 0 }, end: { x: 0, y: 1 },
+  colorStops: [{ offset: 0, color: 0xd0ae64 }, { offset: 0.5, color: 0x8c6e38 }, { offset: 1, color: 0x4b3b1e }],
+});
+
+/** Sleek riveted cast-iron & tarnished-brass recessed viewport bezel. */
 export function drawHabitatFrame(g: Graphics, b: WaterBox, rim: number): void {
   const { x, y, w, h } = b;
-  const x0 = x - rim, x1 = x + w + rim, y0 = y - rim, y1 = y + h + rim;
-  const chamfer = rim * 2.1;
-  g.poly([x0 + chamfer, y0, x1 - chamfer, y0, x1, y0 + chamfer, x1, y1 - chamfer,
-    x1 - chamfer, y1, x0 + chamfer, y1, x0, y1 - chamfer, x0, y0 + chamfer])
-    .fill(enamel);
-  g.roundRect(x - rim * 0.42, y - rim * 0.42, w + rim * 0.84, h + rim * 0.84, rim)
-    .fill(0x263c41);
-  g.roundRect(x, y, w, h, 4).fill(0x265755);
-  g.moveTo(x0 + chamfer, y0 + rim * 0.26).lineTo(x1 - chamfer, y0 + rim * 0.26)
-    .stroke({ color: 0xdad0a3, width: rim * 0.14, alpha: 0.72 });
-  g.moveTo(x0 + chamfer, y1 - rim * 0.25).lineTo(x1 - chamfer, y1 - rim * 0.25)
-    .stroke({ color: 0xa27445, width: rim * 0.32, alpha: 0.87 });
-  for (const side of [-1, 1]) {
-    const bx = side < 0 ? x0 : x1;
-    for (const u of [0.27, 0.75]) {
-      const by = y + h * u;
-      g.moveTo(bx, by - rim * 1.25).lineTo(bx + side * rim * 0.44, by - rim * 0.64)
-        .lineTo(bx + side * rim * 0.44, by + rim * 0.64).lineTo(bx, by + rim)
-        .lineTo(bx - side * rim * 0.75, by + rim * 0.63).lineTo(bx - side * rim * 0.75, by - rim * 0.67)
-        .fill(0x7b6953);
-      g.moveTo(bx - side * rim * 0.66, by - rim * 0.69).lineTo(bx + side * rim * 0.36, by - rim * 0.56)
-        .stroke({ color: 0xcaa77c, width: rim * 0.18, alpha: 0.82 });
-    }
+  const r = Math.min(rim, 11);
+  const x0 = x - r;
+  const y0 = y - r;
+  const fw = w + r * 2;
+  const fh = h + r * 2;
+  const cr = Math.max(6, r * 1.15);
+
+  // Outer recessed drop-shadow & riveted cast-iron frame.
+  g.roundRect(x0 - 1.5, y0 - 1.5, fw + 3, fh + 3, cr + 1.5).fill({ color: 0x0d1518 });
+  g.roundRect(x0, y0, fw, fh, cr).fill(bezelIron).stroke({ color: 0x121b1e, width: 1.6 });
+
+  // Subtle tarnished-brass inner lip & deep shadow recess around the glass.
+  g.roundRect(x - 2.5, y - 2.5, w + 5, h + 5, Math.max(4, cr * 0.55))
+    .fill({ color: 0x111a1d })
+    .stroke({ fill: bezelBrass, width: Math.max(1.6, r * 0.24), alpha: 0.88 });
+  g.roundRect(x, y, w, h, 4).fill(0x132f37);
+
+  // Subtle top bevel sheen along the upper bezel edge.
+  g.moveTo(x0 + cr, y0 + 1.5).lineTo(x0 + fw - cr, y0 + 1.5)
+    .stroke({ color: 0x9aa69a, width: 1.1, alpha: 0.42, cap: 'round' });
+
+  // Neat perimeter brass rivets spaced evenly along the top, bottom, and sides.
+  const inset = r * 0.52;
+  const rivetDot = (rx: number, ry: number) => {
+    g.circle(rx, ry, Math.max(1.3, r * 0.17)).fill({ color: 0x141c1e });
+    g.circle(rx - 0.35, ry - 0.35, Math.max(0.6, r * 0.08)).fill({ color: 0xd4b46c, alpha: 0.85 });
+  };
+  const hCount = Math.max(2, Math.floor((w - 16) / 56));
+  for (let i = 0; i <= hCount; i++) {
+    const rx = x + 8 + ((w - 16) * i) / hCount;
+    rivetDot(rx, y0 + inset);
+    rivetDot(rx, y0 + fh - inset);
+  }
+  const vCount = Math.max(2, Math.floor((h - 16) / 54));
+  for (let i = 1; i < vCount; i++) {
+    const ry = y + 8 + ((h - 16) * i) / vCount;
+    rivetDot(x0 + inset, ry);
+    rivetDot(x0 + fw - inset, ry);
   }
 }

@@ -45,6 +45,7 @@ class OceanAperture {
   private readonly ridge = new Container();
   private readonly moving = new Graphics();
   private readonly flakes: { x: number; y: number; phase: number; size: number }[] = [];
+  private readonly fish: { x: number; y: number; speed: number; size: number; dir: number; phase: number }[] = [];
   private readonly sprite?: Sprite;
   private readonly live = new Sprite();
 
@@ -136,8 +137,21 @@ class OceanAperture {
     }
     this.scene.addChild(this.moving);
     const rand = mulberry32(Math.round(x * 9151 + y * 7717));
-    for (let i = 0, n = pool ? 19 : kind === 'port' ? 13 : 4; i < n; i++) {
+    for (let i = 0, n = pool ? 19 : kind === 'port' ? 13 : 6; i < n; i++) {
       this.flakes.push({ x: rand(), y: rand(), phase: rand() * 7, size: 0.7 + rand() * 1.7 });
+    }
+    if (kind === 'panorama' || kind === 'port') {
+      const fishCount = w > 220 ? 5 : 2;
+      for (let i = 0; i < fishCount; i++) {
+        this.fish.push({
+          x: rand(),
+          y: 0.24 + rand() * 0.52,
+          speed: 7 + rand() * 9,
+          size: 3.2 + rand() * 2.6,
+          dir: rand() < 0.5 ? 1 : -1,
+          phase: rand() * 6.28,
+        });
+      }
     }
   }
 
@@ -187,7 +201,34 @@ class OceanAperture {
       for (let i = 0; i < 3; i++) {
         const px = w * (0.13 + i * 0.25) + Math.sin(time * 0.48 + i) * 17;
         g.moveTo(px, 4).quadraticCurveTo(px + 4, h * 0.3, px + w * 0.14, h * 0.72)
-          .stroke({ color: 0xb0dad6, width: 4 + i * 2, alpha: 0.12 * (0.7 + 0.3 * Math.sin(time * 0.8 + i)), cap: 'round' });
+          .stroke({ color: 0xc2e6da, width: 4 + i * 2, alpha: 0.13 * (0.7 + 0.3 * Math.sin(time * 0.8 + i)), cap: 'round' });
+      }
+    }
+    // Gentle swaying kelp fronds & distant fish silhouettes gliding behind the window glass (always behind Kestrel).
+    if (this.kind === 'panorama' || this.kind === 'port') {
+      const kelpCount = w > 240 ? 4 : 2;
+      for (let i = 0; i < kelpCount; i++) {
+        const kx = w * (i % 2 === 0 ? 0.08 + i * 0.07 : 0.92 - i * 0.06);
+        const kh = h * (0.28 + (i % 2) * 0.12);
+        const sway = Math.sin(time * 1.15 + i * 1.9) * 8;
+        g.moveTo(kx, h + 2)
+          .quadraticCurveTo(kx + sway * 0.5, h - kh * 0.55, kx + sway, h - kh)
+          .stroke({ color: 0x2b5c49, width: 4.2, alpha: 0.48, cap: 'round' });
+        g.moveTo(kx + 1, h + 2)
+          .quadraticCurveTo(kx + sway * 0.5 + 1, h - kh * 0.55, kx + sway + 0.5, h - kh)
+          .stroke({ color: 0x6ba068, width: 1.4, alpha: 0.32, cap: 'round' });
+      }
+      for (const f of this.fish) {
+        const span = w + 36;
+        const raw = ((f.x * span + time * f.speed * f.dir) % span + span) % span;
+        const fx = raw - 18;
+        const fy = f.y * h + Math.sin(time * 1.6 + f.phase) * 3.5;
+        const s = f.size;
+        const d = f.dir;
+        const wag = Math.sin(time * 7.5 + f.phase) * s * 0.45;
+        g.ellipse(fx, fy, s * 1.4, s * 0.62).fill({ color: 0x1c4a54, alpha: 0.42 });
+        g.poly([fx - d * s * 1.2, fy, fx - d * s * 2.2, fy - s * 0.65 + wag, fx - d * s * 2.2, fy + s * 0.65 + wag])
+          .fill({ color: 0x1c4a54, alpha: 0.38 });
       }
     }
     if (pool) {
