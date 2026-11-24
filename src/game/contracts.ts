@@ -181,10 +181,15 @@ export function claimContract(
   if (c.bonus === 'egg') {
     const pool = discoveredSpecies(save);
     const sp = pool.length ? pool[Math.floor(Math.random() * pool.length)] : SPECIES_ORDER[0];
-    giftEgg(save, sp, true);
+    const colour = Math.random() < 0.65 ? 3 : Math.floor(Math.random() * 4);
+    const pattern = Math.random() < 0.65 ? 2 : Math.floor(Math.random() * 3);
+    const radiant = Math.random() < 0.4;
+    giftEgg(save, sp, { colour, pattern, radiant });
     bonusText = ` + Rare ${SPECIES[sp].name} Egg`;
   } else if (c.bonus === 'whorl') {
-    save.whorls = (save.whorls ?? 0) + 1;
+    let n = 1;
+    while (save.whorls.includes(`contract:${n}`)) n++;
+    save.whorls.push(`contract:${n}`);
     bonusText = ' + 1 Echo Whorl';
   }
   save.contractsDone = (save.contractsDone ?? 0) + 1;

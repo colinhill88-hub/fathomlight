@@ -1149,10 +1149,10 @@ export class Diver {
   static readonly WALK_K = 0.9 * Diver.KESTREL_SIZE;
   /**
    * The swimming body's drawing scale. It was 0.86, which drew the swimmer's
-   * helmet about twice the walker's on screen; SWIM_MATCH makes them the same
-   * size, then KESTREL_SIZE shrinks both.
+   * helmet about twice the walker's on screen; SWIM_MATCH brings swim form up
+   * ~14% (Colin, Nov 23, 2026) to match the mag-boots walker's visual presence.
    */
-  private static readonly SWIM_MATCH = 0.5;
+  private static readonly SWIM_MATCH = 0.57;
   private static readonly SCALE = 0.86 * Diver.SWIM_MATCH * Diver.KESTREL_SIZE;
   /** The swimmer's size against the old one, for distances tuned at the old size. */
   static readonly SWIM_K = Diver.SWIM_MATCH * Diver.KESTREL_SIZE;
