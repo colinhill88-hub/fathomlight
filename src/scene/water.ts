@@ -78,21 +78,15 @@ void main() {
     col += shaftTint * net * uShimmer * exp(-max(d, 0.0) / 190.0) * vis * smoothstep(8.0, 60.0, d) * (0.35 + 0.65 * noise(wp * 0.008 + uTime * 0.05)) * 0.08;
   }
 
-  // The surface seen from below, and the sweeping painted sky above the waterline.
+  // The crisp horizon separating ocean water (below wave) from pure steady open sky (above wave).
   float wave = d > 65.0 ? 0.0 : waterline(wp.x, uTime);
   float surfaceDistance = d - wave;
-  float edge = mix(1.5, max(0.25, 0.9 * uView.y / uResolution.y), uFidelity);
+  float edge = mix(1.2, max(0.25, 0.85 * uView.y / uResolution.y), uFidelity);
   float above = 1.0 - smoothstep(-edge, edge, surfaceDistance);
   float ripple = noise(vec2(wp.x * 0.03 + uTime * 0.4, wp.y * 0.08 - uTime * 0.3));
-  vec3 surfDay = mix(vec3(0.70, 0.86, 0.84), vec3(0.93, 0.98, 0.96), ripple);
-  vec3 surfDusk = mix(vec3(0.76, 0.54, 0.48), vec3(1.0, 0.82, 0.60), ripple);
-  vec3 surfNight = mix(vec3(0.16, 0.24, 0.34), vec3(0.38, 0.50, 0.64), ripple);
-  vec3 surf = mix(surfNight, surfDay, dayAmt);
-  surf = mix(surf, surfDusk, duskAmt * 0.85);
-  surf *= 0.94 + 0.06 * sin(wp.x * 0.05 + uTime * 1.5);
 
-  // Sweeping painterly sky above the waterline: 3-stop zenith/mid/horizon gradient, Sun, Moon, Stars & Clouds!
-  float skyH = clamp((wave - d) / max(240.0, uView.y * 0.42), 0.0, 1.0);
+  // Sweeping painterly sky above the waterline: steady horizon (never distorted by water ripples!).
+  float skyH = clamp(-d / max(240.0, uView.y * 0.42), 0.0, 1.0);
   // Screen-horizontal coordinate with gentle parallax so sun/moon/clouds sit infinitely far away.
   float sx = (vUV.x - 0.5) * (uResolution.x / max(1.0, uResolution.y));
   float parX = vUV.x + uCam.x * 0.000018;
@@ -116,29 +110,23 @@ void main() {
   vec3 sky = mix(cHor, cMid, smoothstep(0.0, 0.42, skyH));
   sky = mix(sky, cZen, smoothstep(0.32, 1.0, skyH));
 
-  // Sun arc across the sky (rises east/right, arcs overhead, sets west/left).
+  // Sun atmospheric glow (the high-fidelity painted Sun disc renders cleanly on top in SkyLife).
   float sunX = -cos(sunAngle) * 0.56;
-  float sunY = clamp(sunElev * 0.88 + 0.06, -0.25, 0.92);
+  float sunY = clamp(sunElev * 0.84 + 0.10, -0.25, 0.90);
   vec2 sunVec = vec2(sx - sunX, skyH - sunY);
   float sunDist = length(sunVec);
   float sunVis = smoothstep(-0.18, 0.02, sunElev);
-  // Wide atmospheric sunrise/sunset horizon bloom around the sun.
   vec3 sunAuraCol = mix(vec3(1.0, 0.95, 0.82), vec3(1.0, 0.58, 0.28), duskAmt);
-  sky += sunAuraCol * exp(-sunDist * 2.6) * (0.42 + 0.55 * duskAmt) * sunVis;
-  sky += vec3(1.0, 0.88, 0.62) * exp(-sunDist * 11.0) * 0.85 * sunVis;
-  // Crisp glowing solar disc.
-  float sunDisc = 1.0 - smoothstep(0.038, 0.054, sunDist);
-  sky = mix(sky, mix(vec3(1.0, 0.98, 0.90), vec3(1.0, 0.86, 0.58), duskAmt * 0.7), sunDisc * sunVis);
+  sky += sunAuraCol * exp(-sunDist * 2.5) * (0.40 + 0.55 * duskAmt) * sunVis;
+  sky += vec3(1.0, 0.88, 0.62) * exp(-sunDist * 9.5) * 0.55 * sunVis;
 
-  // Silver Moon arcing across the night sky.
+  // Moon atmospheric aura (the high-fidelity painted Moon disc renders cleanly on top in SkyLife).
   float moonElev = -sunElev;
   float moonVis = smoothstep(-0.08, 0.14, moonElev);
   float moonX = cos(sunAngle) * 0.48;
-  float moonY = clamp(moonElev * 0.82 + 0.10, -0.2, 0.88);
+  float moonY = clamp(moonElev * 0.80 + 0.12, -0.2, 0.88);
   float moonDist = length(vec2(sx - moonX, skyH - moonY));
-  sky += vec3(0.55, 0.72, 0.92) * exp(-moonDist * 4.5) * 0.36 * moonVis;
-  float moonDisc = 1.0 - smoothstep(0.028, 0.038, moonDist);
-  sky = mix(sky, vec3(0.92, 0.96, 1.0), moonDisc * moonVis);
+  sky += vec3(0.52, 0.70, 0.92) * exp(-moonDist * 4.2) * 0.34 * moonVis;
 
   // Twinkling stars emerging across the upper night & twilight sky.
   if (nightAmt + duskAmt * 0.45 > 0.05) {
@@ -156,19 +144,23 @@ void main() {
   vec2 cloudUV = vec2(parX * 3.8 + uTime * 0.0045, skyH * 4.2);
   float c1 = noise(cloudUV);
   float c2 = noise(cloudUV * 2.3 + vec2(4.2, -1.7));
-  float cloudShape = smoothstep(0.46, 0.78, c1 * 0.68 + c2 * 0.32) * smoothstep(0.05, 0.26, skyH) * (1.0 - smoothstep(0.74, 0.98, skyH));
+  float cloudShape = smoothstep(0.46, 0.78, c1 * 0.68 + c2 * 0.32) * smoothstep(0.06, 0.26, skyH) * (1.0 - smoothstep(0.74, 0.98, skyH));
   vec3 cloudBase = mix(vec3(0.16, 0.22, 0.32), vec3(0.94, 0.95, 0.94), dayAmt);
   vec3 cloudLit = mix(vec3(0.32, 0.42, 0.56), vec3(1.0, 0.98, 0.94), dayAmt);
   cloudBase = mix(cloudBase, vec3(0.46, 0.30, 0.42), duskAmt * 0.85);
   cloudLit = mix(cloudLit, vec3(1.0, 0.72, 0.46), duskAmt * 0.95);
   float sunRim = exp(-sunDist * 2.2) * sunVis;
   vec3 cloudCol = mix(cloudBase, cloudLit, clamp(0.35 + (1.0 - skyH) * 0.55 + sunRim * 0.6, 0.0, 1.0));
-  sky = mix(sky, cloudCol, cloudShape * 0.58);
+  sky = mix(sky, cloudCol, cloudShape * 0.56);
 
-  surf = mix(surf, sky, smoothstep(0.02, 0.22, skyH));
-  col = mix(col, surf, above);
+  // Underwater murk stays strictly below the waterline so it never mottles or distorts the sky!
+  float murk = noise(vec2(wp.x / 280.0 + uTime * 0.02, wp.y / 280.0 - uTime * 0.01));
+  col *= 0.93 + 0.1 * murk;
 
-  // Shimmering sun/moon glitter path along the water surface!
+  // Clean separation: pure sky above the wave crest, rippling ocean below.
+  col = mix(col, sky, above);
+
+  // Shimmering sun/moon glitter path & crisp sea-foam ribbon strictly along the water surface!
   float reflX = sunVis > 0.1 ? sunX : moonX;
   float reflSpread = mix(0.18, 0.34, duskAmt);
   float rx = (sx - reflX) / reflSpread;
@@ -178,11 +170,7 @@ void main() {
     float film = exp(-(d - wave) * 0.072) * (0.4 + 0.6 * ripple);
     col += film * mix(vec3(0.105, 0.18, 0.16), vec3(0.24, 0.16, 0.10), duskAmt * 0.7) * vis;
   }
-  col += mix(vec3(1.0), reflCol, 0.7) * (1.0 - smoothstep(0.0, 4.2, abs(surfaceDistance))) * (0.24 + 0.42 * glitter * (sunVis + moonVis * 0.55));
-
-  // Slow murk so the water never looks like a flat gradient.
-  float murk = noise(vec2(wp.x / 280.0 + uTime * 0.02, wp.y / 280.0 - uTime * 0.01));
-  col *= 0.93 + 0.1 * murk;
+  col += mix(vec3(0.92, 0.97, 0.96), reflCol, 0.65) * (1.0 - smoothstep(0.0, 3.0, abs(surfaceDistance))) * (0.28 + 0.42 * glitter * (sunVis + moonVis * 0.55));
 
   // Tiny per-pixel noise hides colour banding on smooth gradients.
   col += (hash(vUV * uResolution + fract(uTime)) - 0.5) / 255.0;

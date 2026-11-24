@@ -229,8 +229,8 @@ export const PIECES: Record<PieceKind, PieceDef> = {
     job: 'Builds, berths, repairs and refits the submersible. The sub rises into the pool from the open berth underneath.',
     cost: { plate: 6, scrap: 4, copper: 3, quartz: 2 },
     buildTime: 45,
-    // The hall is the top row (collars there); the bottom row is the open berth.
-    shapes: [{ w: 3, h: 2, collars: [{ cx: 0, cy: 1, dir: 'L' }, { cx: 2, cy: 1, dir: 'R' }] }],
+    // The hall is the top row (collars there); the bottom row splits into the KS-1 Sub Berth (left) and Diver Entry Well (right).
+    shapes: [{ w: 4, h: 2, collars: [{ cx: 0, cy: 1, dir: 'L' }, { cx: 3, cy: 1, dir: 'R' }] }],
   },
   // Milestone 7: the first gear gate.
   lab: {
@@ -480,7 +480,7 @@ export const SORT_BAY = 12;
 /** Where a docked sub sits in a Moon pool dock (milestone 6): its hull in the berth, its dome up in the pool. */
 export function berthOf(p: { kind: PieceKind; gx: number; gy: number; rot: number }): { x: number; y: number } {
   const r = pieceRect(p);
-  return { x: r.x + r.w / 2, y: r.y + r.h - 74 };
+  return { x: r.x + r.w * 0.36, y: r.y + r.h - 74 };
 }
 
 /** How many materials each storage pod holds, all kinds together. */

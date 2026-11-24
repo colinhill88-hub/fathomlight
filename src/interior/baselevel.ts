@@ -94,7 +94,7 @@ export function baseSignature(layout: BaseLayout): string {
 }
 
 function poolLadderTile(room: Room): number {
-  return room.tx0 + room.tw / 2 + 2;
+  return room.tx0 + Math.round(room.tw * 0.80);
 }
 
 export function buildBaseLevel(layout: BaseLayout, livingBases = false): BaseLevel | null {
@@ -649,6 +649,14 @@ export class BaseHooks implements InteriorHooks {
     return r ? { x: (poolLadderTile(r) + 0.5) * T, y: this.box(r).floor(0) + 2 * T } : null;
   }
 
+  /** Where Kestrel climbs down into a berthed KS-1 in the left Sub Berth bay. */
+  subBerthPos(dockId: number): { x: number; y: number } | null {
+    const r = this.level.rooms.find((q) => q.kind === 'dock' && q.piece.id === dockId);
+    if (!r) return null;
+    const b = this.box(r);
+    return { x: b.ox + b.ow * 0.36, y: b.floor(0) + 2.2 * T };
+  }
+
   moonpoolAt(x: number, y: number): Placed | undefined {
     return this.level.rooms.find((r) => {
       if (r.kind !== 'dock' || Math.abs(x - (poolLadderTile(r) + 0.5) * T) >= T / 2) return false;
@@ -802,9 +810,9 @@ export class BaseHooks implements InteriorHooks {
         add(b.cx, b.bottom, 'station', 110);
         break;
       case 'dock':
-        // Dock controls cleanly on the far left of the catwalk; boarding KS-1 sits right over the sub hatch/ladder.
-        add(b.ox + 96, b.floor(0), 'dock', 68);
-        if (this.ctx.subDocked(id)) add(b.cx + 16, b.floor(0), 'board', 72);
+        // 4-wide Moon Pool: Dock Controls on far left, KS-1 Sub Berth left-center, Diver Swim-Up Ladder on the right.
+        add(b.ox + 92, b.floor(0), 'dock', 68);
+        if (this.ctx.subDocked(id)) add(b.ox + b.ow * 0.36, b.floor(0), 'board', 82);
         break;
       case 'recomp':
         add(b.ox + b.ow * 0.62, b.bottom, 'recomp', 70);
@@ -1811,7 +1819,21 @@ export class BaseHooks implements InteriorHooks {
           if (!getPropArt().interior.wall_bulkhead) {
             drawPressureRib(g, b.cx - 243, roof - 1, 486, 12, true);
           }
-          for (const x of [b.cx - 151, b.cx + 151]) {
+          const subX = b.ox + b.ow * 0.36;
+          const divX = b.ox + b.ow * 0.67;
+          // Riveted steel & tarnished-brass vertical divider pier in the flooded lower bay separating Sub Berth from Diver Entry Well.
+          g.rect(divX - 16, f0 + 8, 32, bot - f0 - 8).fill({ color: 0x263638 });
+          g.rect(divX - 16, f0 + 8, 4, bot - f0 - 8).fill({ color: 0x162224 });
+          g.rect(divX + 12, f0 + 8, 4, bot - f0 - 8).fill({ color: 0x162224 });
+          g.moveTo(divX, f0 + 18).lineTo(divX, bot - 12).stroke({ color: 0xb89347, width: 2.4, alpha: 0.8 });
+          for (let ry = f0 + 28; ry < bot - 16; ry += 28) {
+            rivet(g, divX - 9, ry, 1.5);
+            rivet(g, divX + 9, ry, 1.5);
+          }
+          e.roundRect(divX - 6, poolY + 12, 12, 4, 2).fill({ color: 0x9ef5d8, alpha: 0.9 });
+          gl.ellipse(divX, poolY + 14, 22, 14).fill({ color: 0x7ce6c4, alpha: 0.28 });
+
+          for (const x of [subX - 118, subX + 118]) {
             g.roundRect(x - 19, roof, 38, 16, 4).fill(0x8f7253);
             g.moveTo(x, roof + 16).lineTo(x, f0 - 50).stroke({ color: 0x88998d, width: 2 });
             g.circle(x, f0 - 50, 6).stroke({ color: 0xb7af8d, width: 3 });
@@ -1823,15 +1845,15 @@ export class BaseHooks implements InteriorHooks {
             g.rect(x, f0 - 8, w, 8).fill(0x789084);
             g.rect(x, f0 - 8, w, 2).fill(0xc7a775);
           }
-          for (const x of [b.cx - 224, b.cx + 224]) {
-            e.roundRect(x - 13, f0 - 13, 26, 5, 2).fill(0xffc887);
-            gl.ellipse(x, f0 - 8, 32, 19).fill({ color: 0xffbc7d, alpha: 0.38 });
+          for (const x of [subX - 150, divX, ladder + T / 2]) {
+            e.roundRect(x - 13, f0 - 13, 26, 5, 2).fill(x > divX ? 0x9ef5d8 : 0xffc887);
+            gl.ellipse(x, f0 - 8, 32, 19).fill({ color: x > divX ? 0x7ce6c4 : 0xffbc7d, alpha: 0.34 });
           }
-          if (this.ocean) for (const x of [b.ox + 43, b.cx - 209, b.cx - 40, b.cx + 191, b.ox + b.ow - 79]) {
+          if (this.ocean) for (const x of [b.ox + 43, subX - 120, subX + 90, divX + 24, b.ox + b.ow - 79]) {
             g.roundRect(x, f0 - 22, 36, 10, 3).fill(0x574e3b);
             e.roundRect(x + 4, f0 - 19, 28, 3.5, 1.5).fill({ color: 0xf6c991, alpha: 0.7 });
           }
-          const dockConX = b.ox + 96;
+          const dockConX = b.ox + 92;
           const dockConTex = getPropArt().interior.hatch_console ?? getPropArt().interior.console_habitat;
           if (dockConTex) {
             const spr = new Sprite(dockConTex);
@@ -1844,8 +1866,8 @@ export class BaseHooks implements InteriorHooks {
             g.roundRect(dockConX - 17, f0 - 58, 34, 22, 3).fill({ color: 0x162b22 }).stroke({ color: 0x8f723c, width: 1.2 });
           }
           addText(sign('DOCK CONTROLS', dockConX, f0 - 92, 10, 0xe5c397, 0.9));
-          addText(sign('↓ SWIM LADDER', ladder + T / 2, f0 - 15, 9, 0xffd7a1, 0.92));
-          addText(sign('KS-1 BERTH', b.cx - 46, f0 - 49, 10, 0xb3c6bd, 0.78));
+          addText(sign('KS-1 SUB BERTH', subX, f0 - 49, 10, 0xe5c397, 0.86));
+          addText(sign('↓ DIVER ENTRY', ladder + T / 2, f0 - 15, 9.5, 0x9ef5d8, 0.95));
           break;
         }
         g.rect(b.ox, f0 - 40, b.ow, 4).fill({ color: COL.chrome });
@@ -2305,9 +2327,9 @@ export class BaseHooks implements InteriorHooks {
         d.circle(b.ox + 112, f0 - 54, 2.8).fill({ color: on ? (docked ? 0x9ef0b8 : 0xffc860) : 0x6b5638, alpha: on ? 0.72 + 0.22 * Math.sin(time * 2.8) : 0.45 });
       }
       if (r.kind === 'dock' && c.subDocked(id)) {
-        // KS-1 berthed in the moon pool: painted sub.webp when available, procedural silhouette otherwise.
+        // KS-1 berthed in the left Sub Berth bay of the 4-wide Moon Pool.
         const sy = bot - 30;
-        const sx = b.cx;
+        const sx = b.ox + b.ow * 0.36;
         const subTex = getPropArt().vehicles.sub;
         if (subTex) {
           let subSpr = this.habitatForeground.children.find((ch): ch is Sprite => ch instanceof Sprite && ch.label === `docked-sub-${id}`);

@@ -9,6 +9,7 @@ import { PostStack, ZoneWeights } from './fx/post';
 import { Bench, BENCH, BENCH_SCENES, STILL, scenePos, seedBenchSave } from './dev/bench';
 import { FxToggles, loadChoice, loadFx, pixelRatioFor, renderBoost, renderScale, RENDER_SCALE_MIN, Preset, PresetChoice, resolveChoice, saveChoice, saveFx } from './presets';
 import { Water } from './scene/water';
+import { SkyLife } from './scene/skyLife';
 import { isWaterAir, ventLensAt, WaterMotion } from './scene/waterMotion';
 import { SurfaceMotion } from './fx/surfaceMotion';
 import { moonpoolOf, POOL_HALF_WIDTH } from './world/moonpool';
@@ -622,7 +623,8 @@ async function boot(): Promise<void> {
   const surroundCapture = housingSea ? new OceanCapture(renderer, litCam, oceanScenery,
     (bounds, w, h, at) => housingSea.prepare(bounds, w, h, at)) : undefined;
 
-  const worldLayers = [water.view, backdrop.view, zoneBackdrop.view];
+  const skyLife = new SkyLife();
+  const worldLayers = [water.view, skyLife.view, backdrop.view, zoneBackdrop.view];
   if (shallowsBackdrop) worldLayers.push(shallowsBackdrop.view);
   worldLayers.push(lighting.view, emissiveCam, glowSprite, snow.view);
   hdrRoot.addChild(...worldLayers);
@@ -4284,6 +4286,7 @@ async function boot(): Promise<void> {
       fidelity,
     });
     water.update(time, camX, camY, viewW, viewH, app.canvas.width, app.canvas.height);
+    skyLife.update(dt, time, camX, camY, viewW, viewH, cssW, cssH);
     backdrop.update(camCX, camCY, zoom, cssW, cssH);
     const shallowsCover = shallowsBackdrop ? shallowsBackdrop.update(camCX, camCY, zoom, cssW, cssH) : 0;
     zoneBackdrop.view.visible = fx.zones;
@@ -4820,15 +4823,15 @@ async function boot(): Promise<void> {
         hud.toast('The hull is breached. Repair it at the dock panel before taking it out.', 'warn');
         return;
       }
-      const lad = save.sub.dock != null ? baseHooks?.moonpoolLadder(save.sub.dock) : null;
-      if (inside === 'base' && lad) {
+      const berth = save.sub.dock != null ? baseHooks?.subBerthPos(save.sub.dock) : null;
+      if (inside === 'base' && berth) {
         poolBoard = {
           t: 0,
           x0: interior.walker.x,
           y0: interior.walker.y,
-          lx: lad.x,
+          lx: berth.x,
           topY: interior.walker.y,
-          botY: lad.y + 68,
+          botY: berth.y + 52,
         };
         return;
       }

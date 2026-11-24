@@ -715,6 +715,14 @@ export function loadSave(spawnX: number, spawnY: number): { data: SaveData; load
       }
       data.site = 2;
     }
+    // Moon Pool grew from 3 to 4 segments wide (separate Sub Berth & Diver Entry Well).
+    // If an existing dock would overlap a right-hand neighbor at gx + 3, nudge it 1 cell left into open water.
+    for (const p of data.pieces) {
+      if (p.kind !== 'dock') continue;
+      const hitRight = data.pieces.some((o) => o !== p && o.gx === p.gx + 3 && o.gy >= p.gy && o.gy <= p.gy + 1);
+      const hitLeft = data.pieces.some((o) => o !== p && o.gx === p.gx - 1 && o.gy >= p.gy && o.gy <= p.gy + 1);
+      if (hitRight && !hitLeft) p.gx -= 1;
+    }
     // Saves from before the kit was found piece by piece: whoever got going already keeps
     // the jar (once they have kept or caught a creature) and the first thruster.
     if (!d.kit) {

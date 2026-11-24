@@ -1,11 +1,11 @@
 import { pieceRect, type Placed } from '../game/base';
 import type { Graphics } from 'pixi.js';
 
-/** Local positions in the side cutaway of the dock, also used by the exterior art. */
-export const POOL_HALF_WIDTH = 64;
+/** Local positions in the side cutaway of the 4-wide dock (Sub Berth left, Diver Entry Well right). */
+export const POOL_HALF_WIDTH = 50;
 export const POOL_SURFACE_Y = 91;
 export const POOL_MOUTH_Y = 142;
-export const POOL_LADDER_X = 30;
+export const POOL_LADDER_X = 0;
 
 /** Same skewed berth brace from the outside and through the flooded cutaway. */
 export function drawDockBrace(g: Graphics, x: number, roofY: number, side: number, scale = 1): void {
@@ -25,6 +25,6 @@ export function drawDockBrace(g: Graphics, x: number, roofY: number, side: numbe
 
 export function moonpoolOf(dock: Placed) {
   const r = pieceRect(dock);
-  const x = r.x + r.w / 2;
+  const x = r.x + r.w * 0.80;
   return { x, y: r.y + POOL_SURFACE_Y, mouth: r.y + POOL_MOUTH_Y, ladder: x + POOL_LADDER_X };
 }

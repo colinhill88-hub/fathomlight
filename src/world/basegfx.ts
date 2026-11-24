@@ -1568,77 +1568,111 @@ function drawPress(n: number): PieceArt {
  * on the pillars show the way in.
  */
 function drawPressureDock(n: number, housingOcean: boolean, panorama: boolean): PieceArt {
-  const W = 3 * CELL;
+  const W = 4 * CELL;
   const H = 2 * CELL;
   const cx = W / 2;
+  const subCx = W * 0.36; // Dedicated KS-1 Submersible Berth (left bay)
+  const divX = W * 0.665; // Riveted divider pier between Sub Berth & Diver Entry Well
+  const diverCx = W * 0.80; // Dedicated Diver Swim-Up Entry Well (right bay)
   const body = new Container();
   const g = body.addChild(new Graphics());
   const windows = new Graphics();
   const windowGlow = new Graphics();
   tubeH(g, 0, 26, CELL / 2, 1);
   tubeH(g, W - 26, W, CELL / 2, 1);
-  for (const s of [-1, 1]) {
-    const x = cx + s * 143;
+
+  // Outer heavy side pillars (left of Sub Berth & right of Diver Entry Well).
+  for (const [x, s] of [[24, -1], [W - 24, 1]] as const) {
     g.poly([x - 13, 92, x + 13, 92, x + 13 + s * 7, H - 5, x - 13 + s * 7, H - 5]).fill(pressureShell);
     g.moveTo(x, 110).lineTo(x + s * 7, H - 8).stroke({ color: 0xb19a73, alpha: 0.75, width: 2 });
     g.roundRect(x + s * 7 - 22, H - 10, 44, 10, 3).fill(0x395354);
-    if (housingOcean) drawDockBrace(g, cx, 0, s);
-    else g.moveTo(x + s * 5, H - 33).lineTo(cx + s * 102, 105).stroke({ color: 0x3f6a65, width: 9 });
-    const clamp = cx + s * 74;
-    g.poly([clamp - 6, 103, clamp + 6, 103, clamp + 6, 137, clamp - s * 16, 151,
-      clamp - s * 21, 145, clamp - 6, 134]).fill(0x816954);
-    g.circle(clamp, 137, 5).fill(0xaea98e);
     for (const y of [152, 194]) {
       windows.roundRect(x - 5, y, 10, 4, 2).fill(0xffbd72);
       windowGlow.ellipse(x, y + 2, 12, 10).fill({ color: 0xffb76e, alpha: 0.35 });
     }
   }
+  // Riveted structural divider pier separating the Sub Berth (left) from the Diver Entry Well (right).
+  g.rect(divX - 11, 92, 22, H - 97).fill(pressureShell);
+  g.rect(divX - 11, 92, 3, H - 97).fill({ color: 0x203236, alpha: 0.7 });
+  g.rect(divX + 8, 92, 3, H - 97).fill({ color: 0x203236, alpha: 0.7 });
+  g.moveTo(divX, 106).lineTo(divX, H - 10).stroke({ color: 0xb89347, alpha: 0.78, width: 2 });
+  g.roundRect(divX - 18, H - 10, 36, 10, 3).fill(0x395354);
+  for (const y of [138, 178]) {
+    windows.roundRect(divX - 4, y, 8, 4, 2).fill(0x9ee8c8);
+    windowGlow.ellipse(divX, y + 2, 11, 9).fill({ color: 0x7fd8b8, alpha: 0.34 });
+  }
+
+  // Skewed berth braces & hydraulic clamps framing the KS-1 Sub Berth on the left.
+  for (const s of [-1, 1]) {
+    if (housingOcean) drawDockBrace(g, subCx, 0, s);
+    else g.moveTo(subCx + s * 136, H - 33).lineTo(subCx + s * 96, 105).stroke({ color: 0x3f6a65, width: 9 });
+    const clamp = subCx + s * 74;
+    g.poly([clamp - 6, 103, clamp + 6, 103, clamp + 6, 137, clamp - s * 16, 151,
+      clamp - s * 21, 145, clamp - 6, 134]).fill(0x816954);
+    g.circle(clamp, 137, 5).fill(0xaea98e);
+  }
+
+  // Upper pressurised hall shell spanning all 4 segments, with TWO distinct recessed bay openings below!
+  const subHalf = 64;
+  const divHalf = POOL_HALF_WIDTH - 4;
   g.moveTo(13, 97).lineTo(23, 40).quadraticCurveTo(30, 16, 66, 15).lineTo(W - 66, 15)
     .quadraticCurveTo(W - 30, 16, W - 23, 40).lineTo(W - 13, 97).lineTo(W - 13, 109)
-    .lineTo(cx + 72, 109).lineTo(cx + 64, 82).lineTo(cx - 64, 82).lineTo(cx - 72, 109)
+    .lineTo(diverCx + divHalf + 6, 109).lineTo(diverCx + divHalf, 82).lineTo(diverCx - divHalf, 82).lineTo(diverCx - divHalf - 6, 109)
+    .lineTo(subCx + subHalf + 8, 109).lineTo(subCx + subHalf, 82).lineTo(subCx - subHalf, 82).lineTo(subCx - subHalf - 8, 109)
     .lineTo(13, 109).closePath().fill(pressureShell);
   g.moveTo(33, 40).quadraticCurveTo(35, 24, 70, 24).lineTo(W - 70, 24).quadraticCurveTo(W - 35, 24, W - 33, 40)
     .stroke({ color: 0xc6bf9e, width: 2, alpha: 0.72 });
-  drawPressureRib(g, 88, 22, 83, 10);
-  drawPressureRib(g, W - 98, 22, 83, 10);
-  for (const x of [29, W - 81]) {
-    drawHabitatFrame(g, { x, y: 55, w: 52, h: 25 }, 5);
-    windows.roundRect(x + 3, 59, 46, 16, 3).fill({ color: 0xffcb88, alpha: 0.6 });
-    windowGlow.ellipse(x + 26, 68, 34, 20).fill({ color: 0xffc081, alpha: 0.26 });
-  }
+  drawPressureRib(g, 84, 22, 83, 10);
+  drawPressureRib(g, divX - 5, 22, 83, 10);
+  drawPressureRib(g, W - 54, 22, 83, 10);
+
+  // Left control-room observation window.
+  drawHabitatFrame(g, { x: 29, y: 55, w: 50, h: 25 }, 5);
+  windows.roundRect(32, 59, 44, 16, 3).fill({ color: 0xffcb88, alpha: 0.6 });
+  windowGlow.ellipse(54, 68, 32, 20).fill({ color: 0xffc081, alpha: 0.26 });
   if (panorama) {
-    for (const x of [37, W - 93]) {
-      const panel = { x, y: 44, w: 56, h: 34 };
-      drawHabitatFrame(g, panel, 5);
-      g.roundRect(panel.x, panel.y, panel.w, panel.h, 5).fill(0x376565);
-      g.moveTo(x + 7, 54).quadraticCurveTo(x + 27, 45, x + 48, 49).stroke({ color: 0xb9cabb, width: 2, alpha: 0.61 });
-    }
+    const panel = { x: 34, y: 44, w: 48, h: 34 };
+    drawHabitatFrame(g, panel, 5);
+    g.roundRect(panel.x, panel.y, panel.w, panel.h, 5).fill(0x376565);
+    g.moveTo(40, 54).quadraticCurveTo(58, 45, 76, 49).stroke({ color: 0xb9cabb, width: 2, alpha: 0.61 });
   }
-  g.roundRect(cx - POOL_HALF_WIDTH, 44, POOL_HALF_WIDTH * 2, POOL_SURFACE_Y - 43, 8).fill(0x19383d);
-  g.rect(cx - POOL_HALF_WIDTH + 4, POOL_SURFACE_Y, (POOL_HALF_WIDTH - 4) * 2, 3).fill({ color: 0x7baca5, alpha: 0.42 });
-  g.rect(cx - 55, 49, 110, 4).fill(0x687e73);
-  g.roundRect(cx - 18, 47, 36, 14, 3).fill(0x97704e);
-  g.moveTo(cx, 61).lineTo(cx, 79).stroke({ color: 0xadbaaa, width: 2 });
-  const ladder = cx + POOL_LADDER_X;
-  for (const x of [ladder - 9, ladder + 9]) {
-    g.moveTo(x, 59).lineTo(x, 121).stroke({ color: 0x94876a, width: 3 });
-  }
-  for (let y = 63; y < 121; y += 9) {
-    g.moveTo(ladder - 9, y).lineTo(ladder + 9, y).stroke({ color: 0xbba480, width: 2.5 });
-  }
-  g.moveTo(cx - 74, 108).lineTo(cx - 64, 82).lineTo(cx + 64, 82).lineTo(cx + 74, 108)
+
+  // Left Bay: KS-1 Submersible Berth pool, overhead crane & amber guide lights.
+  g.roundRect(subCx - subHalf, 44, subHalf * 2, POOL_SURFACE_Y - 43, 8).fill(0x19383d);
+  g.rect(subCx - subHalf + 4, POOL_SURFACE_Y, (subHalf - 4) * 2, 3).fill({ color: 0x7baca5, alpha: 0.42 });
+  g.rect(subCx - 55, 49, 110, 4).fill(0x687e73);
+  g.roundRect(subCx - 18, 47, 36, 14, 3).fill(0x97704e);
+  g.moveTo(subCx, 61).lineTo(subCx, 79).stroke({ color: 0xadbaaa, width: 2 });
+  g.moveTo(subCx - subHalf - 10, 108).lineTo(subCx - subHalf, 82).lineTo(subCx + subHalf, 82).lineTo(subCx + subHalf + 10, 108)
     .stroke({ color: 0xcf9c65, width: 4, alpha: 0.86, join: 'round' });
-  for (const x of [cx - 49, cx + 49]) {
+  for (const x of [subCx - 48, subCx + 48]) {
     windows.rect(x - 7, 81, 14, 3).fill({ color: 0xffdb9e, alpha: 0.92 });
     windowGlow.ellipse(x, 95, 22, 18).fill({ color: 0xffcd8e, alpha: 0.25 });
   }
+
+  // Right Bay: Dedicated Diver Swim-Up Entry Well with illuminated teal-amber arch & brass swim ladder!
+  g.roundRect(diverCx - divHalf, 44, divHalf * 2, POOL_SURFACE_Y - 43, 8).fill(0x143b42);
+  g.rect(diverCx - divHalf + 4, POOL_SURFACE_Y, (divHalf - 4) * 2, 3.2).fill({ color: 0x8be2ce, alpha: 0.58 });
+  const ladder = diverCx + POOL_LADDER_X;
+  for (const x of [ladder - 9, ladder + 9]) {
+    g.moveTo(x, 54).lineTo(x, 128).stroke({ color: 0x94876a, width: 3 });
+  }
+  for (let y = 59; y < 128; y += 9) {
+    g.moveTo(ladder - 9, y).lineTo(ladder + 9, y).stroke({ color: 0xd4b272, width: 2.5 });
+  }
+  g.moveTo(diverCx - divHalf - 8, 108).lineTo(diverCx - divHalf, 82).lineTo(diverCx + divHalf, 82).lineTo(diverCx + divHalf + 8, 108)
+    .stroke({ color: 0x88cfb8, width: 3.6, alpha: 0.85, join: 'round' });
+  windows.rect(diverCx - 12, 81, 24, 3).fill({ color: 0x9ef5d8, alpha: 0.92 });
+  windowGlow.ellipse(diverCx, 98, 28, 20).fill({ color: 0x7ce6c4, alpha: 0.28 });
+
   body.addChild(stencil(`MP-${n} · MOONPOOL`, cx, 34, 9));
-  body.addChild(stencil('KS-1', W - 54, 94, 6));
-  return { body, windows, windowGlow, lamp: { x: cx + 44, y: 32 } };
+  body.addChild(stencil('KS-1 BERTH', subCx, 95, 6));
+  body.addChild(stencil('DIVER ENTRY', diverCx, 95, 5.8));
+  return { body, windows, windowGlow, lamp: { x: diverCx, y: 32 } };
 }
 
 function drawDock(n: number): PieceArt {
-  const W = CELL * 3;
+  const W = CELL * 4;
   const H = CELL * 2;
   const HALL = CELL; // the hall is the top row
   const body = new Container();
@@ -1960,56 +1994,95 @@ function drawPaintedHero(kind: PieceKind, n: number, rot: number, housingOcean: 
     return { body, windows, windowGlow, lamp: { x: cx, y: Math.max(12, H - spr.height + 6) } };
   }
   if (kind === 'dock' && baseArt.dock) {
-    const W = CELL * 3;
+    const W = CELL * 4;
     const H = CELL * 2;
     const cx = W / 2;
+    const subCx = W * 0.36; // Left 2.7 segments: KS-1 Submersible Berth
+    const divX = W * 0.665; // Structural divider pier
+    const diverCx = W * 0.80; // Right segment: Dedicated Diver Swim-Up Entry Well
     const body = new Container();
     const g = body.addChild(new Graphics());
     const windows = new Graphics();
     const windowGlow = new Graphics();
-    // Open underwater berth below the hall: pillars, braces, clamps, guide lamps, ladder & water ripples.
-    for (const s of [-1, 1]) {
-      const x = cx + s * 143;
+    tubeH(g, W - 24, W, CELL / 2, 1);
+
+    // Outer heavy support pillars (left of Sub Berth & right of Diver Entry Well).
+    for (const [x, s] of [[24, -1], [W - 24, 1]] as const) {
       g.poly([x - 13, 92, x + 13, 92, x + 13 + s * 7, H - 5, x - 13 + s * 7, H - 5]).fill({ color: PAL.steel });
       g.moveTo(x, 110).lineTo(x + s * 7, H - 8).stroke({ color: 0xb19a73, alpha: 0.75, width: 2 });
       g.roundRect(x + s * 7 - 22, H - 10, 44, 10, 3).fill({ color: PAL.steelDark });
-      if (housingOcean) drawDockBrace(g, cx, 0, s);
-      else g.moveTo(x + s * 5, H - 33).lineTo(cx + s * 102, 105).stroke({ color: 0x3b484a, width: 8 });
-      const clamp = cx + s * 74;
-      g.poly([clamp - 6, 104, clamp + 6, 104, clamp + 6, 138, clamp - s * 16, 152, clamp - s * 21, 146, clamp - 6, 135]).fill({ color: 0x8a7248 });
-      g.circle(clamp, 138, 4.5).fill({ color: PAL.chrome });
       for (const y of [152, 194]) {
         windows.roundRect(x - 5, y, 10, 4, 2).fill(0xffbd72);
         windowGlow.ellipse(x, y + 2, 12, 10).fill({ color: 0xffb76e, alpha: 0.35 });
       }
     }
-    // Painted upper moon-pool hall spanning row 1, leaving the lower berth open to the ocean.
+    // Riveted divider pier separating the KS-1 Sub Berth (left) from the Diver Entry Well (right).
+    g.rect(divX - 11, 92, 22, H - 97).fill({ color: PAL.steel });
+    g.rect(divX - 11, 92, 3, H - 97).fill({ color: PAL.steelDeep, alpha: 0.7 });
+    g.rect(divX + 8, 92, 3, H - 97).fill({ color: PAL.steelDeep, alpha: 0.7 });
+    g.moveTo(divX, 108).lineTo(divX, H - 10).stroke({ color: 0xb89347, alpha: 0.8, width: 2 });
+    g.roundRect(divX - 18, H - 10, 36, 10, 3).fill({ color: PAL.steelDark });
+    for (const y of [138, 178]) {
+      windows.roundRect(divX - 4, y, 8, 4, 2).fill(0x9ee8c8);
+      windowGlow.ellipse(divX, y + 2, 11, 9).fill({ color: 0x7fd8b8, alpha: 0.35 });
+    }
+    // Berth braces & hydraulic docking clamps centered on the KS-1 Sub Berth.
+    for (const s of [-1, 1]) {
+      if (housingOcean) drawDockBrace(g, subCx, 0, s);
+      else g.moveTo(subCx + s * 136, H - 33).lineTo(subCx + s * 96, 105).stroke({ color: 0x3b484a, width: 8 });
+      const clamp = subCx + s * 74;
+      g.poly([clamp - 6, 104, clamp + 6, 104, clamp + 6, 138, clamp - s * 16, 152, clamp - s * 21, 146, clamp - 6, 135]).fill({ color: 0x8a7248 });
+      g.circle(clamp, 138, 4.5).fill({ color: PAL.chrome });
+    }
+
+    // Riveted steel & tarnished-brass Diver Entry Annex on the right segment (x = divX .. W).
+    const annex = body.addChild(new Graphics());
+    const ax0 = divX - 8;
+    const aw = W - ax0 - 10;
+    annex.roundRect(ax0, 14, aw, CELL - 4, 14).fill({ color: 0x2c3b3d }).stroke({ color: 0x162022, width: 1.8 });
+    annex.roundRect(ax0 + 4, 18, aw - 8, 14, 6).fill({ color: 0x45585a, alpha: 0.55 });
+    annex.rect(ax0, 14, aw, 4).fill({ color: 0xb89347, alpha: 0.85 });
+    annex.rect(ax0, CELL + 4, aw, 5).fill({ color: 0x9e7d3a, alpha: 0.85 });
+    // Illuminated glass observation porthole on the Diver Entry Annex.
+    annex.roundRect(diverCx - 30, 34, 60, 26, 5).fill({ color: 0x12262a }).stroke({ color: 0xb89347, width: 2 });
+    windows.roundRect(diverCx - 26, 38, 52, 18, 3).fill({ color: 0x8be2ce, alpha: 0.35 });
+    windowGlow.ellipse(diverCx, 48, 34, 18).fill({ color: 0x7ce6c4, alpha: 0.22 });
+    rivets(annex, ax0 + 8, 22, ax0 + aw - 8, 22, 6);
+    rivets(annex, ax0 + 8, CELL + 2, ax0 + aw - 8, CELL + 2, 6);
+
+    // Painted upper moon-pool hall spanning the left Sub Berth cleanly (un-stretched!).
     const spr = new Sprite(baseArt.dock);
-    spr.width = W + 8;
+    spr.width = divX + 16;
     spr.height = CELL + 16;
     spr.position.set(-4, 0);
     body.addChild(spr);
-    // Shimmering water surface & ripples inside the open moon-pool arch at the waterline.
+
+    // Shimmering water surface & ripples inside BOTH bays (Sub Berth left, Diver Entry Well right).
     const wg = body.addChild(new Graphics());
-    const poolW = POOL_HALF_WIDTH * 1.15;
     const waterY = POOL_SURFACE_Y + 6;
-    wg.roundRect(cx - poolW, waterY, poolW * 2, 18, 4).fill({ color: 0x16383e, alpha: 0.72 });
-    wg.rect(cx - poolW + 6, waterY + 1, (poolW - 6) * 2, 2.6).fill({ color: 0x9cd8ca, alpha: 0.65 });
-    wg.ellipse(cx - 26, waterY + 7, 22, 2.2).stroke({ color: 0xbcece0, width: 1.2, alpha: 0.48 });
-    wg.ellipse(cx + 22, waterY + 10, 18, 1.8).stroke({ color: 0xbcece0, width: 1.1, alpha: 0.4 });
-    wg.ellipse(cx, waterY + 14, 28, 2.2).stroke({ color: 0x8cc8bc, width: 1, alpha: 0.35 });
-    // Entry ladder descending into the moon pool water.
-    const ladder = cx + POOL_LADDER_X;
-    for (const x of [ladder - 8, ladder + 8]) wg.moveTo(x, 70).lineTo(x, 126).stroke({ color: 0x94876a, width: 2.8 });
-    for (let y = 74; y < 126; y += 9) wg.moveTo(ladder - 8, y).lineTo(ladder + 8, y).stroke({ color: 0xbba480, width: 2.2 });
-    for (const lx of [W * 0.272, W * 0.728]) {
+    // Left bay water sheen (Sub Berth).
+    const subPoolW = 62;
+    wg.roundRect(subCx - subPoolW, waterY, subPoolW * 2, 16, 4).fill({ color: 0x16383e, alpha: 0.65 });
+    wg.rect(subCx - subPoolW + 6, waterY + 1, (subPoolW - 6) * 2, 2.4).fill({ color: 0x9cd8ca, alpha: 0.55 });
+    // Right bay water well (Diver Entry Well) with brighter teal-amber guide light & brass swim ladder.
+    const divPoolW = POOL_HALF_WIDTH - 4;
+    wg.roundRect(diverCx - divPoolW, waterY - 4, divPoolW * 2, 22, 4).fill({ color: 0x143e46, alpha: 0.82 });
+    wg.rect(diverCx - divPoolW + 5, waterY, (divPoolW - 5) * 2, 3).fill({ color: 0x9ef5d8, alpha: 0.78 });
+    wg.ellipse(diverCx, waterY + 9, 26, 2.4).stroke({ color: 0xbcece0, width: 1.2, alpha: 0.55 });
+    const ladder = diverCx + POOL_LADDER_X;
+    for (const x of [ladder - 8, ladder + 8]) wg.moveTo(x, 66).lineTo(x, 132).stroke({ color: 0x94876a, width: 2.8 });
+    for (let y = 70; y < 132; y += 9) wg.moveTo(ladder - 8, y).lineTo(ladder + 8, y).stroke({ color: 0xd4b272, width: 2.3 });
+
+    for (const lx of [subCx - 66, subCx + 66]) {
       windows.roundRect(lx - 3.5, 25, 7, 11, 2.5).fill({ color: 0xc6f03a, alpha: 0.75 });
       windowGlow.circle(lx, 30, 13).fill({ color: 0xc6f03a, alpha: 0.25 });
     }
-    windows.rect(cx - poolW + 10, waterY + 1, (poolW - 10) * 2, 2).fill({ color: 0xbfe8dc, alpha: 0.5 });
-    windowGlow.ellipse(cx, waterY + 6, poolW * 0.9, 14).fill({ color: 0x8cd0c4, alpha: 0.24 });
+    windows.rect(diverCx - divPoolW + 8, waterY, (divPoolW - 8) * 2, 2.4).fill({ color: 0x9ef5d8, alpha: 0.72 });
+    windowGlow.ellipse(diverCx, waterY + 6, divPoolW * 0.95, 16).fill({ color: 0x7ce6c4, alpha: 0.32 });
     body.addChild(stencil(`MP-${n}`, cx, 14, 8));
-    return { body, windows, windowGlow, lamp: { x: cx + 52, y: 16 } };
+    body.addChild(stencil('KS-1 BERTH', subCx, 102, 5.8));
+    body.addChild(stencil('DIVER ENTRY', diverCx, 78, 5.8));
+    return { body, windows, windowGlow, lamp: { x: diverCx, y: 16 } };
   }
   if (kind === 'lab' && baseArt.lab) {
     const W = CELL;
