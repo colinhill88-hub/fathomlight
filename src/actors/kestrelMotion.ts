@@ -49,7 +49,7 @@ export class KestrelSwimMotion {
     }
     const extension = start * (this.compact ? smoothstep(this.launchTime / 0.19) : 1);
     this.reach = approach(this.reach, extension, extension > this.reach ? (this.compact ? 18 : 11) : 4, dt);
-    this.stroke = (this.stroke + dt * (surfaced ? 5.5 : 1.5 + input * 2.7 + this.power * (this.compact ? 7.6 : 5.8))) % (Math.PI * 2);
+    this.stroke = (this.stroke + dt * (surfaced ? 5.8 : 2.1 + input * 3.8 + this.power * (this.compact ? 6.8 : 5.4))) % (Math.PI * 2);
     this.relief = surfaced ? smoothstep(surfaceTime / 0.16) * (1 - smoothstep((surfaceTime - 0.29) / 0.93)) * (0.6 + impact * 0.4) : 0;
 
     const idle = !surfaced && action === 'free' && input < 0.08 && speed < 40;

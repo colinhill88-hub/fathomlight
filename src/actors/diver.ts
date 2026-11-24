@@ -424,7 +424,7 @@ function buildLeg(far: boolean, redesigned: boolean, compact: boolean, detailed:
   // further on its own joint (follow-through in the water).
   const fin = new Container();
   fin.x = 22;
-  fin.scale.set(0.88, 1);
+  fin.scale.set(1.08, 1.06);
   const fg = new Graphics();
   fg.roundRect(-5, -6, 12, 12, 4).fill({ color: C.rubber });
   fg.moveTo(2, -6).lineTo(19, -7).lineTo(19, 5.1).lineTo(4, 5).closePath().fill({ color: C.rubber });
@@ -1876,7 +1876,8 @@ export class Diver {
     this.helmet.rotation = flex * 0.54 - motion.relief * 0.17 - motion.trim * 0.18;
     this.helmet.position.set((this.compact ? 51 : 57) - motion.brake * (this.compact ? 9 : 5) + motion.reach * 2.4, 17 + flex * 13 - motion.relief * 2);
     this.view.scale.x = Math.sign(this.view.scale.x) * Math.max(this.compact ? 0.47 : 0.26, Math.abs(this.view.scale.x));
-    this.body.y += Math.sin(this.time * 1.7) * 1.75 * (1 - motion.travel) - motion.relief * 2.2;
+    this.body.y += Math.sin(this.time * 1.7) * 1.75 * (1 - motion.travel) + Math.sin(motion.stroke * 2 - 0.5) * (1.8 * motion.travel) - motion.relief * 2.2;
+    this.body.rotation += Math.sin(motion.stroke * 2) * (0.038 * motion.travel + 0.025 * motion.power);
     this.nearArm.upper.position.set(25 - motion.brake * 2.4, 8 + flex * 16);
     this.farArm.upper.position.set(27 - motion.brake * 3.1, 1 + flex * 12);
     this.nearLeg.thigh.position.set(-26 + motion.brake * 1.5, 7 + motion.brake * 3);
@@ -1895,27 +1896,32 @@ export class Diver {
     const scanning = this.visualAction === 'scan';
     const grappling = this.visualAction === 'grapple';
     const nearFloor = !this.surfaced && isSolid(this.x - this.face * 48 * Diver.SWIM_K, this.y + 29 * Diver.SWIM_K);
-    const spread = (this.surfaced ? 0.35 : 0.12 + power * 0.43) * (nearFloor ? 0.58 : 1);
+    // Expressive flutter kick: gentle tread while hovering, clear rhythmic scissor kick while swimming, strong surge on boost.
+    const spread = (this.surfaced ? 0.44 : 0.20 + travel * 0.26 + power * 0.34) * (nearFloor ? 0.65 : 1);
     for (let i = 0; i < 2; i++) {
       const near = i === 0;
       const leg = near ? this.nearLeg : this.farLeg;
       const arm = near ? this.nearArm : this.farArm;
       const phase = stroke + i * Math.PI;
       const beat = Math.sin(phase);
-      const delay = Math.sin(phase - 0.76);
-      // Power travels from the hip to the knee and then out through the two fin joints.
-      leg.thigh.rotation = Math.PI - hover * (0.38 + i * 0.19) + spread * beat
+      const kneeWave = Math.sin(phase - 0.88);
+      const ankleWave = Math.sin(phase - 1.48);
+      const tipWave = Math.sin(phase - 2.08);
+      // Power travels naturally down the leg: hip -> knee -> ankle -> flexible fin blade tip.
+      leg.thigh.rotation = Math.PI - hover * (0.34 + i * 0.16) + spread * beat
         - brake * (0.69 + i * 0.23) + trim * 0.24 - relief * 0.18;
-      leg.shin.rotation = 0.10 + hover * (0.55 + 0.14 * i) + spread * (0.55 + delay * 0.55)
+      leg.shin.rotation = 0.14 + hover * (0.48 + 0.12 * i) + spread * (0.44 + kneeWave * 0.68)
         + brake * 0.49 - reach * 0.14;
       if (this.compact) {
         leg.thigh.rotation -= brake * 0.55 + motion.compression * 0.48;
         leg.shin.rotation += brake * 0.75 + motion.compression * 0.78;
       }
-      const target = -0.11 - hover * 0.23 - delay * spread * 1.1 + brake * 0.25 - this.visualCurrent * hover * 0.12;
-      leg.finAng = approach(leg.finAng, target, 9, dt);
+      const target = -0.08 - hover * 0.18 - ankleWave * (0.24 + spread * 1.15) + brake * 0.25 - this.visualCurrent * hover * 0.12;
+      leg.finAng = approach(leg.finAng, target, 16, dt);
       leg.fin.rotation = leg.finAng;
-      leg.tip.rotation = approach(leg.tip.rotation, (leg.finAng - target) * 0.63 - delay * spread * 0.34, 13, dt);
+      const tipTarget = -tipWave * (0.22 + spread * 1.18) + (leg.finAng - target) * 0.55;
+      leg.tip.rotation = approach(leg.tip.rotation, tipTarget, 18, dt);
+      const delay = kneeWave;
 
       // An easy figure-eight scull becomes a longer recovery and pull as speed builds.
       const pull = 0.5 + 0.5 * Math.sin(phase - 0.33);
