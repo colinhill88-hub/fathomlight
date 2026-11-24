@@ -1307,10 +1307,12 @@ export class BaseHooks implements InteriorHooks {
           const inset = upright ? 37 : 21;
           const port = this.ctx.panorama ? { x: b.ox + inset, y: b.oy + 19, w: b.ow - inset * 2, h: bot - b.oy - 47 }
             : upright ? { x: b.cx - 34, y, w: 68, h: 108 } : { x: b.cx - 72, y, w: 144, h: 82 };
-          g.rect(b.ox, b.oy + 16, b.ow, b.oh - 29).fill({ color: 0x4f7067, alpha: 0.68 });
-          g.rect(b.ox, bot - 48, b.ow, 35).fill(0x314b4a);
-          for (const x of [b.ox + 8, b.ox + b.ow - 26]) drawPressureRib(g, x, b.oy + 12, b.oh - 20, 18);
-          drawHabitatFrame(g, port, 11);
+          if (!getPropArt().interior.wall_bulkhead) {
+            g.rect(b.ox, b.oy + 16, b.ow, b.oh - 29).fill({ color: 0x4f7067, alpha: 0.68 });
+            g.rect(b.ox, bot - 48, b.ow, 35).fill(0x314b4a);
+            for (const x of [b.ox + 8, b.ox + b.ow - 26]) drawPressureRib(g, x, b.oy + 12, b.oh - 20, 18);
+          }
+          drawHabitatFrame(g, port, 9);
           if (this.ctx.panorama) this.ocean?.add('panorama', port, undefined, { clear: true, lookDown: this.routeLookDown });
           else {
             g.roundRect(port.x + 2, port.y + 2, port.w - 4, port.h - 4, 5).fill(0x234b50);
@@ -1319,9 +1321,11 @@ export class BaseHooks implements InteriorHooks {
             if (upright) drawPressureRib(g, port.x, port.y + port.h / 2, port.w, 7, true);
             else drawPressureRib(g, b.cx - 4, port.y, port.h, 8);
           }
-          for (const x of [b.ox + 39, b.ox + b.ow - 56]) {
-            e.roundRect(x, bot - 44, 17, 4, 2).fill({ color: 0xffcf93, alpha: 0.9 });
-            gl.ellipse(x + 8, bot - 41, 23, 19).fill({ color: 0xffc081, alpha: 0.33 });
+          if (!getPropArt().interior.wall_bulkhead) {
+            for (const x of [b.ox + 39, b.ox + b.ow - 56]) {
+              g.roundRect(x, bot - 44, 17, 4, 2).fill({ color: 0xffcf93, alpha: 0.9 });
+              gl.ellipse(x + 8, bot - 41, 23, 19).fill({ color: 0xffc081, alpha: 0.33 });
+            }
           }
           addText(sign(code, b.cx, bot - 30, 11, 0xe6c49b, 0.84));
           break;
@@ -1356,43 +1360,56 @@ export class BaseHooks implements InteriorHooks {
         break;
       }
       case 'thermal': {
-        // Milestone 12: the core generator's room. A sealed porthole onto its glowing core, heat fins either side.
+        // Milestone 12: the core generator's room. Riveted tarnished-brass core viewport (behind Kestrel on g).
         const y = b.floor(0) - 92;
-        g.circle(b.cx, y, 70).fill({ color: COL.chrome });
-        g.circle(b.cx, y, 70).stroke({ color: COL.chromeDark, width: 3 });
+        g.circle(b.cx, y, 72).fill({ color: 0x161f22 });
+        g.circle(b.cx, y, 70).fill({ color: 0x3b4546 }).stroke({ color: 0x12191b, width: 2.2 });
+        g.circle(b.cx, y, 66).stroke({ color: 0x8f723c, width: 5.5 });
         g.circle(b.cx, y, 58).fill({ color: 0x3a1408 });
-        e.circle(b.cx, y, 52).fill({ color: 0xff6a1a, alpha: 0.75 });
-        e.circle(b.cx - 8, y + 6, 30).fill({ color: 0xffa040, alpha: 0.85 });
-        e.circle(b.cx + 6, y - 8, 12).fill({ color: 0xffe0a0 });
+        g.circle(b.cx, y, 52).fill({ color: 0xff6a1a, alpha: 0.78 });
+        g.circle(b.cx - 8, y + 6, 30).fill({ color: 0xffa040, alpha: 0.85 });
+        g.circle(b.cx + 6, y - 8, 12).fill({ color: 0xffe0a0 });
         gl.circle(b.cx, y, 110).fill({ color: 0xff7a2a, alpha: 0.35 });
+        for (let i = 0; i < 12; i++) {
+          const a = (i / 12) * Math.PI * 2;
+          g.circle(b.cx + Math.cos(a) * 66, y + Math.sin(a) * 66, 2.5).fill({ color: 0x2b2110 });
+          g.circle(b.cx + Math.cos(a) * 66 - 0.5, y + Math.sin(a) * 66 - 0.5, 1.1).fill({ color: 0xe6ca80, alpha: 0.85 });
+        }
         for (let k = 0; k < 8; k++) {
-          g.rect(b.cx - 120, y - 60 + k * 16, 30, 6).fill({ color: COL.wallDark });
-          g.rect(b.cx + 90, y - 60 + k * 16, 30, 6).fill({ color: COL.wallDark });
+          g.rect(b.cx - 120, y - 60 + k * 16, 30, 6).fill({ color: 0x222b2c }).stroke({ color: 0x101618, width: 1 });
+          g.rect(b.cx + 90, y - 60 + k * 16, 30, 6).fill({ color: 0x222b2c }).stroke({ color: 0x101618, width: 1 });
         }
         break;
       }
       case 'lantern': {
-        // Milestone 11: the Choir lantern's room. A ring of pale stone on the back wall holds the seed of light.
-        g.circle(b.cx, b.oy + 62, 34).fill({ color: 0xb8c0d8 });
-        g.circle(b.cx, b.oy + 62, 34).stroke({ color: COL.chromeDark, width: 3 });
-        for (const r of [28, 22]) g.circle(b.cx, b.oy + 62, r).stroke({ color: 0x5a5e78, width: 1.2 });
+        // Milestone 11: the Choir lantern's room. Carved nacre stone ring on the back wall (behind Kestrel on g).
+        g.circle(b.cx, b.oy + 62, 36).fill({ color: 0x8f723c }).stroke({ color: 0x2a2110, width: 2 });
+        g.circle(b.cx, b.oy + 62, 32).fill({ color: 0xb8c0d8 }).stroke({ color: 0x454a60, width: 1.5 });
+        for (const r of [26, 21]) g.circle(b.cx, b.oy + 62, r).stroke({ color: 0x5a5e78, width: 1.2 });
         g.circle(b.cx, b.oy + 62, 17).fill({ color: 0x14102c });
-        e.circle(b.cx, b.oy + 62, 14).fill({ color: 0xa27cff, alpha: 0.7 });
-        e.circle(b.cx, b.oy + 62, 8).fill({ color: 0x5ff0ff, alpha: 0.9 });
-        e.circle(b.cx, b.oy + 62, 3).fill({ color: 0xf4fbff });
+        g.circle(b.cx, b.oy + 62, 14).fill({ color: 0xa27cff, alpha: 0.7 });
+        g.circle(b.cx, b.oy + 62, 8).fill({ color: 0x5ff0ff, alpha: 0.9 });
+        g.circle(b.cx, b.oy + 62, 3).fill({ color: 0xf4fbff });
         gl.circle(b.cx, b.oy + 62, 50).fill({ color: 0xa27cff, alpha: 0.4 });
         break;
       }
       case 'junction': {
-        // A hub chamber: a chrome ring on the back wall with arrows to the four ways out, and a gold trace.
-        g.circle(b.cx, b.oy + 62, 30).fill({ color: COL.chrome });
-        g.circle(b.cx, b.oy + 62, 30).stroke({ color: COL.chromeDark, width: 3 });
-        g.circle(b.cx, b.oy + 62, 22).fill({ color: COL.glassSea });
-        e.circle(b.cx, b.oy + 62, 8).fill({ color: COL.lime, alpha: 0.5 });
+        // A hub chamber: sleek riveted cast-iron & tarnished-brass 4-way conduit manifold (behind Kestrel on g).
+        const jx = b.cx;
+        const jy = b.oy + 66;
         for (const [dx, dy] of [[0, -1], [1, 0], [0, 1], [-1, 0]] as const) {
-          const ax = b.cx + dx * 44;
-          const ay = b.oy + 62 + dy * 44;
-          e.poly([ax + dx * 7, ay + dy * 7, ax - dy * 5 - dx * 3, ay + dx * 5 - dy * 3, ax + dy * 5 - dx * 3, ay - dx * 5 - dy * 3]).fill({ color: COL.gold, alpha: 0.6 });
+          g.moveTo(jx, jy).lineTo(jx + dx * 34, jy + dy * 34).stroke({ color: 0x161e20, width: 9 });
+          g.moveTo(jx, jy).lineTo(jx + dx * 34, jy + dy * 34).stroke({ color: 0x8a6d32, width: 6 });
+          g.roundRect(jx + dx * 28 - (dy ? 7 : 3), jy + dy * 28 - (dx ? 7 : 3), dy ? 14 : 6, dx ? 14 : 6, 1.5)
+            .fill({ color: 0x3b4646 }).stroke({ color: 0x141c1e, width: 1.2 });
+        }
+        g.roundRect(jx - 22, jy - 22, 44, 44, 7).fill({ color: 0x263032 }).stroke({ color: 0x12191b, width: 2 });
+        g.roundRect(jx - 18, jy - 18, 36, 36, 5).stroke({ color: 0x8f723c, width: 1.5, alpha: 0.85 });
+        g.circle(jx, jy, 9).fill({ color: 0x1a2224 }).stroke({ color: 0xb6944e, width: 1.8 });
+        g.circle(jx, jy, 4).fill({ color: 0x9bb83c, alpha: 0.72 });
+        for (const [ox, oy] of [[-14, -14], [14, -14], [-14, 14], [14, 14]]) {
+          g.circle(jx + ox, jy + oy, 1.8).fill({ color: 0x141c1e });
+          g.circle(jx + ox - 0.4, jy + oy - 0.4, 0.8).fill({ color: 0xd2b068 });
         }
         break;
       }
@@ -1694,14 +1711,16 @@ export class BaseHooks implements InteriorHooks {
             g.poly([x, f0 + T, x + 18, f0 + T, x + 11, bot, x - 7, bot]).fill({ color: 0x263f44, alpha: 0.8 });
           }
           g.rect(b.ox, poolY, b.ow, 3).fill({ color: 0xb7e2cc, alpha: 0.55 });
-          g.rect(b.ox, roof, b.ow, f0 - roof).fill(0x2a4747);
-          for (const x of [b.ox + 20, b.cx - 230, b.cx + 206, b.ox + b.ow - 42]) {
-            drawPressureRib(g, x, roof - 6, f0 - roof + 6, 22);
+          if (!getPropArt().interior.wall_bulkhead) {
+            g.rect(b.ox, roof, b.ow, f0 - roof).fill(0x2a4747);
+            for (const x of [b.ox + 20, b.cx - 230, b.cx + 206, b.ox + b.ow - 42]) {
+              drawPressureRib(g, x, roof - 6, f0 - roof + 6, 22);
+            }
           }
           const port = this.ctx.panorama ? { x: b.ox + 42, y: roof - 5, w: b.ow - 84, h: f0 - roof - 38 }
             : this.ocean ? { x: b.ox + 87, y: roof + 1, w: b.ow - 174, h: f0 - roof - 44 }
             : { x: b.cx - 195, y: roof + 22, w: 390, h: 90 };
-          drawHabitatFrame(g, port, 12);
+          drawHabitatFrame(g, port, 10);
           if (this.ocean) {
             this.ocean.add('port', port, undefined, { lookDown: this.routeLookDown });
             const poolTop = f0 + T;
@@ -1712,7 +1731,9 @@ export class BaseHooks implements InteriorHooks {
               .stroke({ color: 0x6a9690, width: 12, alpha: 0.22 });
             for (const x of [b.cx - 69, b.cx + 61]) drawPressureRib(g, x, port.y, port.h, 8);
           }
-          drawPressureRib(g, b.cx - 243, roof - 1, 486, 12, true);
+          if (!getPropArt().interior.wall_bulkhead) {
+            drawPressureRib(g, b.cx - 243, roof - 1, 486, 12, true);
+          }
           for (const x of [b.cx - 151, b.cx + 151]) {
             g.roundRect(x - 19, roof, 38, 16, 4).fill(0x8f7253);
             g.moveTo(x, roof + 16).lineTo(x, f0 - 50).stroke({ color: 0x88998d, width: 2 });
@@ -2093,6 +2114,32 @@ export class BaseHooks implements InteriorHooks {
         for (let dd = off; dd < r.len; dd += 60) {
           const [x, y] = pointAlong(r.pts, dd);
           de.circle(x, y, 3.4).fill({ color: 0xd8e6a0, alpha: 0.75 });
+        }
+      }
+    }
+    // Moving ocean water shimmer & rising micro-bubbles inside every round brass porthole (behind Kestrel on d).
+    for (const p of this.level.ports) {
+      if (!near(p.x - 24, p.y - 24, p.x + 24, p.y + 24)) continue;
+      const seed = p.x * 0.017 + p.y * 0.023;
+      // Two gentle drifting underwater caustic wave bands clipped cleanly inside the 14px glass opening.
+      for (let i = 0; i < 2; i++) {
+        const wy = p.y - 5 + i * 7 + Math.sin(time * 1.45 + seed + i * 2.1) * 2.6;
+        const dy = wy - p.y;
+        const half = Math.sqrt(Math.max(0, 14 * 14 - dy * dy)) - 1.5;
+        if (half > 3) {
+          const shift = Math.sin(time * 1.1 + seed + i * 1.7) * 2.2;
+          d.moveTo(p.x - half, wy)
+            .quadraticCurveTo(p.x + shift, wy - 2.4, p.x + half, wy)
+            .stroke({ color: 0x9ce2dc, width: 1.6, alpha: 0.28 + i * 0.08, cap: 'round' });
+        }
+      }
+      // Two tiny rising bubbles drifting lazily across the glass.
+      for (let b = 0; b < 2; b++) {
+        const frac = ((time * (0.28 + b * 0.12) + seed + b * 0.47) % 1 + 1) % 1;
+        const by = p.y + 11 - frac * 22;
+        const bx = p.x + Math.sin(time * 1.8 + seed + b * 3.1) * 5.5 + (b ? 3 : -3);
+        if (Math.hypot(bx - p.x, by - p.y) < 13) {
+          d.circle(bx, by, 1.1 + b * 0.35).fill({ color: 0xd8f5ee, alpha: 0.42 * Math.sin(frac * Math.PI) });
         }
       }
     }

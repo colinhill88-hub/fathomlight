@@ -1868,11 +1868,13 @@ function drawPaintedHero(kind: PieceKind, n: number, rot: number, housingOcean: 
     body.addChild(spr);
     const windows = new Graphics();
     const windowGlow = new Graphics();
-    // Match corridor.jpg's slightly below-centre brass porthole (rotates left when vertical).
-    const px = vert ? c - 4 : c;
-    const py = vert ? c : c + 4;
-    windows.circle(px, py, 8.5).fill({ color: PAL.glass, alpha: 0.45 });
-    windowGlow.circle(px, py, 18).fill({ color: PAL.glass, alpha: 0.28 });
+    // Match corridor.jpg's oval brass porthole snugly inside the bezel.
+    const px = vert ? c - 1 : c;
+    const py = vert ? c : c + 1;
+    const rx = vert ? 7.2 : 5.2;
+    const ry = vert ? 5.2 : 7.2;
+    windows.ellipse(px, py, rx, ry).fill({ color: PAL.glass, alpha: 0.42 });
+    windowGlow.ellipse(px, py, rx + 6, ry + 6).fill({ color: PAL.glass, alpha: 0.24 });
     const lamp = vert ? { x: c + 14, y: CELL - 24 } : { x: CELL - 24, y: c - 14 };
     body.addChild(stencil(`C-${String(n).padStart(2, '0')}`, vert ? c - 20 : c + 26, vert ? c + 28 : c + 24, 6, vert ? -Math.PI / 2 : 0));
     return { body, windows, windowGlow, lamp };
@@ -1897,8 +1899,8 @@ function drawPaintedHero(kind: PieceKind, n: number, rot: number, housingOcean: 
       spr.position.set(c, cy);
       spr.rotation = Math.PI / 2;
       body.addChild(spr);
-      windows.circle(c - 4, cy, 8.5).fill({ color: PAL.glass, alpha: 0.45 });
-      windowGlow.circle(c - 4, cy, 18).fill({ color: PAL.glass, alpha: 0.28 });
+      windows.ellipse(c - 1, cy, 7.2, 5.2).fill({ color: PAL.glass, alpha: 0.42 });
+      windowGlow.ellipse(c - 1, cy, 13, 11).fill({ color: PAL.glass, alpha: 0.24 });
     }
     body.addChild(stencil(`S-${String(n).padStart(2, '0')}`, c - 20, CELL + c + 28, 6, -Math.PI / 2));
     return { body, windows, windowGlow, lamp: { x: c + 14, y: CELL * 3 - 24 } };

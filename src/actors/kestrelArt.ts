@@ -131,12 +131,13 @@ export function kestrelLimb(length: number, width: number, type: 'thigh' | 'shin
       cap.scale.set(11 / Math.max(1, kArt.joint_shoulder.width));
       cap.position.set(0, 0);
       c.addChild(cap);
-    } else if (type === 'thigh' && kArt.joint_knee) {
+    } else if (type === 'shin' && kArt.joint_knee) {
+      // Mounted on the shin's origin (the knee pivot) so it renders cleanly OVER both thigh and shin!
       const pad = new Sprite(kArt.joint_knee);
       pad.anchor.set(0.5);
-      pad.scale.set(12 / Math.max(1, kArt.joint_knee.width));
+      pad.scale.set(12.5 / Math.max(1, kArt.joint_knee.width));
       pad.rotation = -Math.PI * 0.5;
-      pad.position.set(length - 1, -1.5);
+      pad.position.set(1, -2.5);
       c.addChild(pad);
     }
     return c;
@@ -210,14 +211,14 @@ export function kestrelHand(compact = false, detailed = false): Container {
 
 export function kestrelFin(standing: boolean, tip: boolean, compact = false, detailed = false): Container {
   const kArt = getPropArt().kestrel;
-  // Walking inside the base: brass-toed dive boots only (no flippers).
+  // Walking inside the base: brass-toed dive boots only (no flippers), collar snug over the lower shin.
   if (standing && kArt.boot) {
     const c = new Container();
     if (!tip) {
       const spr = new Sprite(kArt.boot);
-      spr.anchor.set(0.32, 0.88);
-      spr.scale.set(17.5 / Math.max(1, kArt.boot.width));
-      spr.position.set(0, 5);
+      spr.anchor.set(0.30, 0.78);
+      spr.scale.set(19.5 / Math.max(1, kArt.boot.width));
+      spr.position.set(1.5, 5.2);
       c.addChild(spr);
     }
     return c;

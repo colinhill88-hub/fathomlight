@@ -26,7 +26,7 @@ import type { HousingHull } from './housingHull';
 
 export const T = 40;
 export const BASE_ZOOM_MIN = 0.64;
-export const BASE_ZOOM_MAX = 1.55;
+export const BASE_ZOOM_MAX = 2.8;
 const HEART_UPPER_VAULTS = [[9, 595, 328, -0.065], [22, 430, 264, 0.08], [35, 424, 290, -0.08],
   [46, 352, 318, 0.07], [58, 557, 308, 0.06], [74, 595, 320, -0.05]];
 export const GRAVITY = 1900;
