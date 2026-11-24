@@ -72,7 +72,7 @@ async function loadGroup<K extends string>(
   prefix: string,
   keys: readonly K[],
   maxDim: number,
-  mipmaps: boolean,
+  _mipmaps: boolean,
 ): Promise<Partial<Record<K, Texture>>> {
   const entries = await Promise.all(
     keys.map(async (key) => {
@@ -110,12 +110,12 @@ async function loadGroup<K extends string>(
           canvas.width = tw;
           canvas.height = ch;
           canvas.getContext('2d')!.drawImage(tmp, 0, y0, tw, ch, 0, 0, tw, ch);
-          const tex = Texture.from({ resource: canvas, autoGenerateMipmaps: mipmaps });
+          const tex = Texture.from({ resource: canvas, autoGenerateMipmaps: true });
           tex.source.style.addressMode = 'repeat';
           return [key, tex] as const;
         }
         const stripHoles = !(prefix === 'kestrel' && key === 'head');
-        return [key, keyOutWhiteAndCrop(img, mipmaps, maxDim, stripHoles)] as const;
+        return [key, keyOutWhiteAndCrop(img, true, maxDim, stripHoles)] as const;
       } catch {
         return null;
       }

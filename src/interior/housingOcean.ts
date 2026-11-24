@@ -67,8 +67,8 @@ class OceanAperture {
     const { tone, clear } = glazing;
     base.rect(0, 0, w, h).fill(pool ? floodedSea : tone === 'deep' ? deepSea : tone === 'violet' ? violetSea : sea);
     if (basin && !tone) {
-      this.sprite = this.scene.addChild(new Sprite({ texture: basin, alpha: pool ? 0.56 : 0.72, tint: 0x86b8ca }));
-      this.sprite.width = Math.max(w + 120, 210);
+      this.sprite = this.scene.addChild(new Sprite({ texture: basin, alpha: pool ? 0.74 : 0.94, tint: 0xd8eee8 }));
+      this.sprite.width = Math.max(w + 140, 260);
       this.sprite.height = this.sprite.width * basin.height / basin.width;
     }
     this.scene.addChild(this.ridge);
@@ -87,8 +87,8 @@ class OceanAperture {
     }
 
     this.live.visible = false;
-    this.live.alpha = pool ? 0.67 : 0.84;
-    this.live.tint = pool ? 0x5397ab : tone === 'deep' ? 0x627786 : tone === 'violet' ? 0x9390bd : 0x739faf;
+    this.live.alpha = pool ? 0.40 : 0.84;
+    this.live.tint = pool ? 0x62a4b4 : tone === 'deep' ? 0x627786 : tone === 'violet' ? 0x9390bd : 0x739faf;
     this.scene.addChild(this.live);
 
     const near = this.scene.addChild(new Graphics());
@@ -158,8 +158,11 @@ class OceanAperture {
     const { x, y, w, h } = this.area;
     this.root.visible = this.inView(camera);
     if (!this.root.visible) return;
-    this.live.visible = !!image;
-    if (image) {
+    // When the painted watercolor basin vista is loaded, let it shine cleanly through dry windows
+    // instead of smearing the low-res exterior ocean capture on top of it.
+    const showLive = !!image && (!this.sprite || this.kind === 'pool');
+    this.live.visible = showLive;
+    if (showLive && image) {
       this.live.texture = image.texture;
       this.live.position.set(image.rect.x - x, image.rect.y - y - (this.glazing.lookDown ?? 0));
       this.live.width = image.rect.w;

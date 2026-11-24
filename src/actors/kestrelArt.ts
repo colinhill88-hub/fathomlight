@@ -33,8 +33,9 @@ export function kestrelTorso(compact = false, detailed = false): Container {
     const hips = new Container();
     const pSpr = new Sprite(kArt.pelvis);
     pSpr.anchor.set(0.5, 0.5);
-    pSpr.scale.set(27 / Math.max(1, kArt.pelvis.height));
-    pSpr.position.set(0.5, -5);
+    pSpr.scale.set(23 / Math.max(1, kArt.pelvis.height));
+    pSpr.position.set(2, -9.5);
+    pSpr.rotation = 0.12;
     hips.addChild(pSpr);
 
     const chest = new Container({ label: 'kestrelChest' });
@@ -209,34 +210,27 @@ export function kestrelHand(compact = false, detailed = false): Container {
 
 export function kestrelFin(standing: boolean, tip: boolean, compact = false, detailed = false): Container {
   const kArt = getPropArt().kestrel;
-  // Split articulated boot + flexible flipper blade (unlocks real toe-off bend & water-lag whip).
-  if (kArt.boot && kArt.fin_blade) {
+  // Walking inside the base: brass-toed dive boots only (no flippers).
+  if (standing && kArt.boot) {
     const c = new Container();
     if (!tip) {
       const spr = new Sprite(kArt.boot);
-      if (standing) {
-        spr.anchor.set(0.32, 0.86);
-        spr.scale.set(16 / Math.max(1, kArt.boot.width));
-        spr.position.set(0, 5);
-      } else {
-        spr.anchor.set(0.24, 0.52);
-        spr.scale.set(17 / Math.max(1, kArt.boot.width));
-        spr.position.set(-1, 0);
-      }
+      spr.anchor.set(0.32, 0.88);
+      spr.scale.set(17.5 / Math.max(1, kArt.boot.width));
+      spr.position.set(0, 5);
       c.addChild(spr);
-    } else {
-      const spr = new Sprite(kArt.fin_blade);
-      if (standing) {
-        // Compress vertically into a thin flat side-profile blade flush along the floor during walking & toe-off.
-        const sc = 15.5 / Math.max(1, kArt.fin_blade.width);
-        spr.anchor.set(0.08, 0.92);
-        spr.scale.set(sc, sc * 0.34);
-        spr.position.set(-1.5, 0.5);
-      } else {
-        spr.anchor.set(0.08, 0.5);
-        spr.scale.set(24 / Math.max(1, kArt.fin_blade.width));
-        spr.position.set(-1.5, 0);
-      }
+    }
+    return c;
+  }
+  // Swimming in the water: seamless dive flippers only (no heavy boots, zero ankle gap).
+  if (!standing && (kArt.fin || kArt.fin_blade)) {
+    const c = new Container();
+    if (!tip) {
+      const tex = kArt.fin ?? kArt.fin_blade!;
+      const spr = new Sprite(tex);
+      spr.anchor.set(0.10, 0.5);
+      spr.scale.set(36 / Math.max(1, tex.width));
+      spr.position.set(-2.5, 0);
       c.addChild(spr);
     }
     return c;

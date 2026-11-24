@@ -1,5 +1,5 @@
 import { Container, FillGradient, Graphics, Sprite, Text, type Texture } from 'pixi.js';
-import { DC, bolts, ceilingBeam, flangeRect, floorGrime, hazard, pipeRun, pipeUp, rivet, skirting, wallPanels } from './detail';
+import { DC, bolts, ceilingBeam, floorGrime, hazard, pipeRun, pipeUp, rivet, skirting, wallPanels } from './detail';
 import type { Light } from '../fx/lighting';
 import { T, type InteriorAct, type InteriorHooks } from './interior';
 import { BaseLayout, CELL, GRID_BASE, GRID_X0, collarsOf, isDone, PieceKind, PIECES, pieceCode, Placed, shapeOf } from '../game/base';
@@ -1013,12 +1013,21 @@ export class BaseHooks implements InteriorHooks {
       }
       e.rect(l.x + 16, l.y - 108, 3, 3).fill({ color: COL.red });
     }
-    // Open collars on the outside: a round window onto the water.
+    // Open collars on the outside: recessed riveted brass-bezel portholes onto the water (behind Kestrel).
     for (const p of this.level.ports) {
-      g.circle(p.x, p.y, 22).fill({ color: COL.chrome });
-      g.circle(p.x, p.y, 17).fill({ color: COL.glassSea });
-      g.circle(p.x, p.y, 16).fill({ color: 0x2a7080, alpha: 0.85 });
-      e.circle(p.x - 6, p.y - 6, 4).fill({ color: 0x9ae0e0, alpha: 0.25 });
+      g.circle(p.x, p.y, 23).fill({ color: 0x192224 });
+      g.circle(p.x, p.y, 21.5).fill({ color: 0x7b6334 }).stroke({ color: 0x3b2d14, width: 1.6 });
+      g.circle(p.x, p.y, 19).stroke({ color: 0xc8a962, width: 1.1, alpha: 0.72 });
+      for (let i = 0; i < 6; i++) {
+        const a = (i / 6) * Math.PI * 2 + 0.25;
+        g.circle(p.x + Math.cos(a) * 19.8, p.y + Math.sin(a) * 19.8, 1.5).fill({ color: 0x382a12 });
+        g.circle(p.x + Math.cos(a) * 19.8 - 0.4, p.y + Math.sin(a) * 19.8 - 0.4, 0.6).fill({ color: 0xe6ca84, alpha: 0.85 });
+      }
+      g.circle(p.x, p.y, 16.5).fill({ color: 0x102730 });
+      g.circle(p.x, p.y - 2, 14.5).fill({ color: 0x215564, alpha: 0.85 });
+      g.circle(p.x - 2, p.y - 5, 10).fill({ color: 0x3c848c, alpha: 0.45 });
+      g.arc(p.x, p.y, 13, Math.PI * 1.1, Math.PI * 1.55).stroke({ color: 0xcbe8e2, width: 1.8, alpha: 0.42, cap: 'round' });
+      g.circle(p.x, p.y, 16.5).stroke({ color: 0x0b161a, width: 1.8 });
     }
   }
 
@@ -1083,12 +1092,18 @@ export class BaseHooks implements InteriorHooks {
       const ceil = k === 0 || tallTank ? b.oy : b.floor(k - 1) + T;
       if (this.ctx.livingBases && r.kind !== 'dome' && r.kind !== 'dock' && r.kind !== 'corridor' && r.kind !== 'tank' && r.kind !== 'gtank') {
         const height = f - ceil;
-        g.rect(b.ox, ceil, b.ow, height).fill(workBayWall);
-        g.rect(b.ox, f - 32, b.ow, 27).fill({ color: 0x283d3c, alpha: 0.71 });
-        for (let x = b.ox + 8; x < b.ox + b.ow - 17; x += CW * T) {
-          drawPressureRib(g, x, ceil + 10, height - 23, 12);
+        if (getPropArt().interior.wall_bulkhead) {
+          // Painted riveted bulkhead wall is already tiled behind this room — add only subtle warm depth vignette.
+          g.rect(b.ox, ceil, b.ow, 18).fill({ color: 0x0d1517, alpha: 0.42 });
+          g.rect(b.ox, f - 24, b.ow, 24).fill({ color: 0x0e1719, alpha: 0.34 });
+        } else {
+          g.rect(b.ox, ceil, b.ow, height).fill(workBayWall);
+          g.rect(b.ox, f - 32, b.ow, 27).fill({ color: 0x283d3c, alpha: 0.71 });
+          for (let x = b.ox + 8; x < b.ox + b.ow - 17; x += CW * T) {
+            drawPressureRib(g, x, ceil + 10, height - 23, 12);
+          }
+          g.rect(b.ox + 19, ceil + 46, b.ow - 38, 2).fill({ color: 0xb79b69, alpha: 0.5 });
         }
-        g.rect(b.ox + 19, ceil + 46, b.ow - 38, 2).fill({ color: 0xb79b69, alpha: 0.5 });
       }
       // Grime gathers along the floor; a skirting plate; a gold line at waist height.
       floorGrime(g, b.ox, b.ow, f, rand);
@@ -1352,31 +1367,65 @@ export class BaseHooks implements InteriorHooks {
         break;
       }
       case 'turbine': {
-        // Upper level: a round window onto the impeller (it turns in animate). A gold spine runs the full height.
+        // Upper level: heavy cast-iron & tarnished-brass riveted turbine housing onto a deep recessed water cavity.
         const t = this.turbines.find((q) => q.id === id)!;
-        g.circle(t.x, t.y, t.r + 14).fill({ color: COL.chrome });
-        g.circle(t.x, t.y, t.r + 14).stroke({ color: COL.chromeDark, width: 3 });
-        g.circle(t.x, t.y, t.r).fill({ color: COL.glassSea });
-        g.circle(t.x, t.y, t.r).fill({ color: 0x2a7080, alpha: 0.85 });
+        g.circle(t.x, t.y, t.r + 16).fill({ color: 0x161f22 });
+        g.circle(t.x, t.y, t.r + 14).fill({ color: 0x3b4546 }).stroke({ color: 0x12191b, width: 2.2 });
+        g.circle(t.x, t.y, t.r + 11).stroke({ color: 0x8f723c, width: 5.5 });
+        g.circle(t.x, t.y, t.r + 13.5).stroke({ color: 0xcba860, width: 1.2, alpha: 0.75 });
+        g.circle(t.x, t.y, t.r + 8).stroke({ color: 0x2a2110, width: 1.6 });
+        // Recessed deep-ocean water cavity with layered depth shading.
+        g.circle(t.x, t.y, t.r).fill({ color: 0x0b1f27 });
+        g.circle(t.x, t.y - 6, t.r * 0.88).fill({ color: 0x18424f, alpha: 0.82 });
+        g.circle(t.x - 8, t.y - 14, t.r * 0.62).fill({ color: 0x2a6975, alpha: 0.45 });
+        // Subtle recessed intake grille bars inside the water tunnel behind the impeller.
+        for (let k = -2; k <= 2; k++) {
+          const gy = t.y + k * 20;
+          const half = Math.sqrt(Math.max(0, t.r * t.r - (k * 20) * (k * 20))) - 3;
+          g.moveTo(t.x - half, gy).lineTo(t.x + half, gy).stroke({ color: 0x0b1a20, width: 2.5, alpha: 0.45 });
+        }
+        g.circle(t.x, t.y, t.r).stroke({ color: 0x091317, width: 3.5 });
+        // 12 raised tarnished-brass rivets around the turbine bezel.
         for (let i = 0; i < 12; i++) {
           const a = (i / 12) * Math.PI * 2;
-          g.circle(t.x + Math.cos(a) * (t.r + 7), t.y + Math.sin(a) * (t.r + 7), 2.4).fill({ color: COL.chromeDark });
+          const rx = t.x + Math.cos(a) * (t.r + 11);
+          const ry = t.y + Math.sin(a) * (t.r + 11);
+          g.circle(rx, ry, 2.7).fill({ color: 0x2b2110 });
+          g.circle(rx - 0.6, ry - 0.6, 1.3).fill({ color: 0xe6ca80, alpha: 0.9 });
         }
         const sx = b.ox + b.ow - 12;
-        g.rect(sx - 9, b.oy, 18, b.oh).fill({ color: COL.wallDark });
-        // Drawn on the back wall (g) so Kestrel always walks cleanly in front of the gold power spine.
-        g.rect(sx - 3, b.oy, 6, b.oh).fill({ color: 0xe8b040, alpha: 0.8 });
-        gl.rect(sx - 8, b.oy, 16, b.oh).fill({ color: 0xffb030, alpha: 0.1 });
-        for (let y = b.oy + 30; y < b.oy + b.oh; y += 70) g.rect(sx - 12, y, 24, 10).fill({ color: COL.chrome });
-        // Lower level: the generator housing, with lime grille vents.
-        g.roundRect(b.ox + 110, bot - 120, b.ow - 140, 120, 6).fill({ color: COL.wallDark });
-        g.rect(b.ox + 110, bot - 120, b.ow - 140, 4).fill({ color: COL.chrome });
-        for (let i = 0; i < 6; i++) g.rect(b.ox + 124, bot - 106 + i * 14, b.ow - 168, 7).fill({ color: COL.lime, alpha: 0.55 });
-        gl.rect(b.ox + 120, bot - 110, b.ow - 160, 84).fill({ color: COL.lime, alpha: 0.2 });
-        flangeRect(g, b.ox + 110, bot - 120, b.ow - 140, 120, 6);
-        // Cable trunking from the generator up to the window's hub.
-        pipeUp(g, b.ox + 140, b.floor(0) + T, bot - 120, 5, COL.chromeDark, COL.chrome);
-        this.screens.push({ x: b.cx + 30, y: bot - 70, radius: 200, intensity: 0.5, color: [0.75, 1, 0.3], zone: id } as Light);
+        g.rect(sx - 9, b.oy, 18, b.oh).fill({ color: 0x1d2526 }).stroke({ color: 0x101618, width: 1.2 });
+        // Drawn on the back wall (g) so Kestrel always walks cleanly in front of the brass power conduit.
+        g.rect(sx - 3.5, b.oy, 7, b.oh).fill({ color: 0xb68b3e, alpha: 0.9 });
+        g.rect(sx - 1.5, b.oy, 2.2, b.oh).fill({ color: 0xf0d284, alpha: 0.55 });
+        gl.rect(sx - 8, b.oy, 16, b.oh).fill({ color: 0xffb030, alpha: 0.08 });
+        for (let y = b.oy + 30; y < b.oy + b.oh; y += 70) {
+          g.roundRect(sx - 12, y, 24, 9, 2).fill({ color: 0x455050 }).stroke({ color: 0x141c1e, width: 1.2 });
+          g.circle(sx - 7, y + 4.5, 1.3).fill({ color: 0xc9a860 });
+          g.circle(sx + 7, y + 4.5, 1.3).fill({ color: 0xc9a860 });
+        }
+        // Lower level: weathered riveted cast-iron & brass capacitor cabinet with recessed warm-amber vacuum cells.
+        const cx0 = b.ox + 110;
+        const cw = b.ow - 140;
+        const cy0 = bot - 120;
+        g.roundRect(cx0, cy0, cw, 120, 6).fill({ color: 0x222b2c }).stroke({ color: 0x101618, width: 2.2 });
+        g.roundRect(cx0 + 3, cy0 + 3, cw - 6, 114, 4).stroke({ color: 0x876b38, width: 1.6, alpha: 0.85 });
+        g.rect(cx0 + 2, cy0 + 2, cw - 4, 8).fill({ color: 0x4a5554 });
+        g.rect(cx0 + 2, cy0 + 2, cw - 4, 2).fill({ color: 0x8e9a92, alpha: 0.5 });
+        for (let i = 0; i < 5; i++) {
+          const gy = cy0 + 18 + i * 18;
+          g.roundRect(cx0 + 14, gy, cw - 28, 11, 3).fill({ color: 0x101718 }).stroke({ color: 0x3b4444, width: 1 });
+          g.roundRect(cx0 + 16, gy + 2, cw - 32, 7, 2).fill({ color: 0x9bb83c, alpha: 0.58 });
+          g.rect(cx0 + 18, gy + 3, cw - 36, 2).fill({ color: 0xe4f598, alpha: 0.55 });
+        }
+        for (const [rx, ry] of [[cx0 + 7, cy0 + 7], [cx0 + cw - 7, cy0 + 7], [cx0 + 7, bot - 7], [cx0 + cw - 7, bot - 7]]) {
+          g.circle(rx, ry, 2.1).fill({ color: 0x141b1c });
+          g.circle(rx - 0.5, ry - 0.5, 0.9).fill({ color: 0xd2b068 });
+        }
+        gl.rect(cx0 + 12, cy0 + 16, cw - 24, 92).fill({ color: 0xb8d840, alpha: 0.14 });
+        // Cable trunking from the generator up to the turbine's hub.
+        pipeUp(g, b.ox + 140, b.floor(0) + T, bot - 120, 5, 0x263032, 0x7b6334);
+        this.screens.push({ x: b.cx + 30, y: bot - 70, radius: 200, intensity: 0.48, color: [0.78, 0.96, 0.36], zone: id } as Light);
         break;
       }
       case 'storage':
@@ -2012,19 +2061,41 @@ export class BaseHooks implements InteriorHooks {
         }
       }
     }
-    // Turbines: the impeller turns, slower without anything to power.
+    // Turbines: weathered cast-bronze & steel curved impeller blades turning behind recessed glass.
     for (const t of this.turbines) {
-      const a0 = time * 1.6;
+      const a0 = time * 1.45;
+      // Subtle swirling water current arcs inside the cavity.
       for (let i = 0; i < 3; i++) {
-        const a = a0 + (i / 3) * Math.PI * 2;
+        const wa = a0 * 0.7 + (i / 3) * Math.PI * 2;
+        d.arc(t.x, t.y, t.r * 0.72, wa, wa + 0.85).stroke({ color: 0x7ac4c4, width: 1.4, alpha: 0.18, cap: 'round' });
+      }
+      for (let i = 0; i < 4; i++) {
+        const a = a0 + (i / 4) * Math.PI * 2;
         const ca = Math.cos(a);
         const sa = Math.sin(a);
         const P = (u: number, v: number) => [t.x + ca * u - sa * v, t.y + sa * u + ca * v];
-        d.poly([...P(12, -10), ...P(t.r * 0.6, -22), ...P(t.r - 6, -8), ...P(t.r - 8, 6), ...P(14, 8)]).fill({ color: 0x5a646a });
-        d.poly([...P(14, 0), ...P(t.r - 8, 0), ...P(t.r - 8, 6), ...P(14, 8)]).fill({ color: 0x3a4248 });
+        // Shaded back-face & weathered bronze-gunmetal blade body with crisp dark ink outline.
+        d.poly([...P(13, -7), ...P(t.r * 0.55, -18), ...P(t.r - 5, -9), ...P(t.r - 7, 5), ...P(14, 7)])
+          .fill({ color: 0x5c5540 }).stroke({ color: 0x161c1d, width: 1.8 });
+        // Sunlit tarnished-brass leading bevel.
+        d.poly([...P(15, -6), ...P(t.r * 0.55, -16), ...P(t.r - 7, -8), ...P(t.r * 0.58, -5), ...P(15, -1)])
+          .fill({ color: 0xb69452, alpha: 0.65 });
+        // Shaded trailing lower face.
+        d.poly([...P(14, 0), ...P(t.r - 7, -1), ...P(t.r - 8, 5), ...P(14, 7)])
+          .fill({ color: 0x262e30, alpha: 0.72 });
       }
-      d.circle(t.x, t.y, 16).fill({ color: COL.chrome });
-      d.circle(t.x, t.y, 6).fill({ color: COL.chromeDark });
+      // Riveted tarnished-brass central spinner hub.
+      d.circle(t.x, t.y, 16.5).fill({ color: 0x2c2414 }).stroke({ color: 0x111718, width: 2 });
+      d.circle(t.x, t.y, 14).fill({ color: 0x8f713a });
+      d.circle(t.x - 2, t.y - 2, 9).fill({ color: 0xc9a85c, alpha: 0.7 });
+      d.circle(t.x, t.y, 6).fill({ color: 0x3b3322 }).stroke({ color: 0x181c1d, width: 1.4 });
+      d.circle(t.x - 1.5, t.y - 1.5, 2.2).fill({ color: 0xf0d998, alpha: 0.85 });
+      for (let i = 0; i < 6; i++) {
+        const ra = a0 + (i / 6) * Math.PI * 2;
+        d.circle(t.x + Math.cos(ra) * 10.5, t.y + Math.sin(ra) * 10.5, 1.3).fill({ color: 0x241d10 });
+      }
+      // Subtle glass reflection crescent across the upper-left of the porthole.
+      d.arc(t.x, t.y, t.r - 5, Math.PI * 1.12, Math.PI * 1.58).stroke({ color: 0xd2ece6, width: 2.2, alpha: 0.24, cap: 'round' });
     }
     for (const r of this.level.rooms) {
       const b = this.box(r);
