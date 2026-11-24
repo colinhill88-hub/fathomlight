@@ -231,6 +231,11 @@ export class Drone {
   private armUpper = new Container();
   private armFore = new Container();
   private antenna = new Graphics();
+  private propG = new Graphics();
+  private wakeG = new Graphics();
+  private propPhase = 0;
+  private wakeClock = 0;
+  private wakeBubbles: { x: number; y: number; vx: number; vy: number; r: number; life: number; max: number }[] = [];
   private fanL = new Graphics();
   private fanR = new Graphics();
   private tangle = new Graphics();
@@ -296,11 +301,20 @@ export class Drone {
       spr.scale.set(sc);
       spr.position.set(0, -1);
       this.armUpper.alpha = 0.01;
-      this.body.addChild(this.armUpper, this.pouchG, this.cradleG, spr);
+      // Cute tarnished-brass spring bobble antenna mounted cleanly on top of his dome.
+      this.antenna.clear();
+      this.antenna.moveTo(0, 0).lineTo(0, -7.5).stroke({ color: 0x262015, width: 2.2, cap: 'round' });
+      this.antenna.moveTo(0, 0).lineTo(0, -7.5).stroke({ color: 0xb6944e, width: 1.1, cap: 'round' });
+      this.antenna.circle(0, -8.4, 2.2).fill({ color: 0xcba85c }).stroke({ color: 0x262015, width: 1.0 });
+      this.antenna.circle(-0.5, -9.0, 0.7).fill({ color: 0xf4e0a0, alpha: 0.85 });
+      this.antenna.position.set(1.5, -10.8);
+      // Spinning brass rear propeller sits right on the rear thruster port.
+      this.propG.position.set(-20.5, -1);
+      this.body.addChild(this.propG, this.antenna, this.armUpper, this.pouchG, this.cradleG, spr);
     } else {
       this.body.addChild(this.antenna, this.armUpper, this.pouchG, this.cradleG, buildBody(), this.fanL, this.fanR, buildGlass());
     }
-    this.view.addChild(this.body);
+    this.view.addChild(this.wakeG, this.body);
 
     // Old cable tangled round it in the wreck (gone once it is freed).
     rand = mulberry32(WORLD_SEED ^ 0x7a961e);
@@ -315,12 +329,10 @@ export class Drone {
     t.ellipse(0, 13, 24, 4).fill({ color: 0xb7a47a, alpha: 0.55 }); // sand drifted against it
     this.body.addChild(this.tangle);
 
-    // Glowing parts: the eye (a round lens, or a smiling arc when happy), torch, antenna tip.
+    // Glowing parts: on the painted drone, drop the fake eye dot and keep only a soft lens glow halo.
     if (painted) {
-      this.eye.circle(12, 8, 2.2).fill({ color: 0xdcff72, alpha: 0.65 });
-      this.smile.moveTo(9, 9).quadraticCurveTo(12, 5.5, 15, 9).stroke({ color: 0xdcff72, width: 1.8, cap: 'round' });
       this.smile.visible = false;
-      this.eyeHalo.circle(12, 8, 11).fill({ color: 0xc6f03a, alpha: 0.45 });
+      this.eyeHalo.circle(0, 0, 9.5).fill({ color: 0xc6f03a, alpha: 0.28 });
     } else {
       this.eye.circle(0, 0, 3.3).fill({ color: 0xffc070 });
       this.eye.circle(-1, -1.1, 1).fill({ color: 0xfff4dc });
@@ -783,6 +795,71 @@ export class Drone {
       if (this.sparkClock <= 0) {
         this.sparkClock = 0.06;
         this.burst(nx, ny, 2);
+      }
+    }
+    // Spinning tarnished-brass rear propeller + bubbly underwater wake trail on the painted drone.
+    if (getPropArt().vehicles.drone) {
+      const spd = Math.hypot(this.vx, this.vy);
+      if (running) this.propPhase += dt * (11 + Math.min(28, spd * 0.09));
+      const pg = this.propG.clear();
+      // Small brass drive shaft stub connecting rear port to the spinner hub.
+      pg.rect(-2.5, -1.6, 5, 3.2).fill({ color: 0x5c4b28 }).stroke({ color: 0x1b1810, width: 0.9 });
+      // Two counter-foreshortened brass blades rotating smoothly in side profile.
+      for (const offset of [0, Math.PI]) {
+        const s = Math.sin(this.propPhase + offset);
+        const h = Math.max(1.4, Math.abs(s) * 8.2);
+        const yOff = s * 3.8;
+        pg.ellipse(-2.8, yOff, 1.8, h * 0.52).fill({ color: s >= 0 ? 0xc4a054 : 0x7e6432 }).stroke({ color: 0x1b1810, width: 0.85 });
+      }
+      pg.circle(-2.2, 0, 2.1).fill({ color: 0xdab86c }).stroke({ color: 0x1b1810, width: 0.9 });
+
+      // Emit cute shimmering foam bubbles from the spinning rear propeller.
+      if (running) {
+        const rate = 0.06 + 0.14 * Math.exp(-spd / 90);
+        this.wakeClock -= dt;
+        if (this.wakeClock <= 0) {
+          this.wakeClock = rate;
+          const [px, py] = this.toWorld(-24, -1 + (Math.random() - 0.5) * 4);
+          const dir = -this.face;
+          this.wakeBubbles.push({
+            x: px,
+            y: py,
+            vx: dir * (16 + spd * 0.15) + (Math.random() - 0.5) * 10,
+            vy: -10 - Math.random() * 14,
+            r: 0.9 + Math.random() * 1.45,
+            life: 0,
+            max: 0.45 + Math.random() * 0.45,
+          });
+        }
+      }
+      const wg = this.wakeG.clear();
+      // Subtle translucent prop-wash cone right behind the spinning blades while moving.
+      if (running && spd > 18) {
+        const wash = Math.min(1, spd / 160);
+        const [p0x, p0y] = this.toWorld(-23, -1);
+        const [p1x, p1y] = this.toWorld(-34 - wash * 14, -1 - 4.5 - wash * 3);
+        const [p2x, p2y] = this.toWorld(-34 - wash * 14, -1 + 4.5 + wash * 3);
+        wg.poly([
+          p0x - this.view.x, p0y - this.view.y,
+          p1x - this.view.x, p1y - this.view.y,
+          p2x - this.view.x, p2y - this.view.y,
+        ]).fill({ color: 0xd4efe6, alpha: 0.14 * wash });
+      }
+      for (let i = this.wakeBubbles.length - 1; i >= 0; i--) {
+        const b = this.wakeBubbles[i];
+        b.life += dt;
+        if (b.life >= b.max) {
+          this.wakeBubbles.splice(i, 1);
+          continue;
+        }
+        b.vx *= Math.exp(-dt * 3.5);
+        b.x += b.vx * dt;
+        b.y += b.vy * dt;
+        const a = (1 - b.life / b.max) * 0.52;
+        const bx = b.x - this.view.x;
+        const by = b.y - this.view.y;
+        wg.circle(bx, by, b.r).stroke({ color: 0xd8f4ec, width: 0.9, alpha: a });
+        wg.circle(bx - b.r * 0.3, by - b.r * 0.3, b.r * 0.32).fill({ color: 0xffffff, alpha: a * 0.9 });
       }
     }
     this.updateSparks(dt);
