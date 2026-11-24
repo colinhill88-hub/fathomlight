@@ -1174,6 +1174,16 @@ export const TANK_INNER = { x: 16, y: 16, w: CELL * 2 - 32, h: CELL - 30 };
 /** Milestone 7 part 2: the Grand tank's water, 3 × 2 cells. */
 export const GTANK_INNER = { x: 16, y: 16, w: CELL * 3 - 32, h: CELL * 2 - 30 };
 export function tankInner(kind: PieceKind): { x: number; y: number; w: number; h: number } {
+  if (getPropArt().base.nursery) {
+    const W = CELL * (kind === 'gtank' ? 3 : 2);
+    const H = CELL * (kind === 'gtank' ? 2 : 1);
+    return {
+      x: Math.round(W * 0.215),
+      y: Math.round(H * 0.185),
+      w: Math.round(W * 0.57),
+      h: Math.round(H * 0.535),
+    };
+  }
   return kind === 'gtank' ? GTANK_INNER : TANK_INNER;
 }
 
@@ -2042,7 +2052,7 @@ function drawPaintedHero(kind: PieceKind, n: number, rot: number, housingOcean: 
     const grand = kind === 'gtank';
     const W = CELL * (grand ? 3 : 2);
     const H = CELL * (grand ? 2 : 1);
-    const I = grand ? GTANK_INNER : TANK_INNER;
+    const I = tankInner(kind);
     const body = new Container();
     const spr = new Sprite(baseArt.nursery);
     spr.width = W + 8;

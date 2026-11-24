@@ -1047,33 +1047,56 @@ export class BaseHooks implements InteriorHooks {
         const horiz = Math.abs(by - ay) < 0.5;
         const len = horiz ? Math.abs(bx - ax) : Math.abs(by - ay);
         if (belt) {
-          // A dark belt on a chrome cradle.
+          // A weathered dark belt on a riveted cast-iron cradle with brass rollers.
           if (horiz) {
-            g.rect(x0, ay - w / 2 - 2, len, w + 4).fill({ color: COL.chromeDark });
-            g.rect(x0, ay - w / 2, len, w).fill({ color: 0x15191b });
-            g.rect(x0, ay - w / 2, len, 1.5).fill({ color: 0x40484d });
-            for (let x = x0 + 6; x < x0 + len - 3; x += 16) g.circle(x, ay + w / 2 + 2.5, 1.8).fill({ color: COL.chrome });
+            g.rect(x0, ay - w / 2 - 2.5, len, w + 5).fill({ color: 0x141b1d });
+            g.rect(x0, ay - w / 2 - 1.5, len, w + 3).fill({ color: 0x333e40 });
+            g.rect(x0, ay - w / 2, len, w).fill({ color: 0x1b1e1c });
+            g.rect(x0, ay - w / 2 + 0.5, len, 1.5).fill({ color: 0x5c5a50, alpha: 0.75 });
+            for (let x = x0 + 6; x < x0 + len - 3; x += 16) {
+              g.circle(x, ay + w / 2 + 2, 1.9).fill({ color: 0x1a2224 });
+              g.circle(x - 0.3, ay + w / 2 + 1.7, 1.0).fill({ color: 0xb69452 });
+            }
           } else {
-            g.rect(ax - w / 2 - 2, y0, w + 4, len).fill({ color: COL.chromeDark });
-            g.rect(ax - w / 2, y0, w, len).fill({ color: 0x15191b });
-            for (let y = y0 + 6; y < y0 + len - 3; y += 16) g.circle(ax + w / 2 + 2.5, y, 1.8).fill({ color: COL.chrome });
+            g.rect(ax - w / 2 - 2.5, y0, w + 5, len).fill({ color: 0x141b1d });
+            g.rect(ax - w / 2 - 1.5, y0, w + 3, len).fill({ color: 0x333e40 });
+            g.rect(ax - w / 2, y0, w, len).fill({ color: 0x1b1e1c });
+            for (let y = y0 + 6; y < y0 + len - 3; y += 16) {
+              g.circle(ax + w / 2 + 2, y, 1.9).fill({ color: 0x1a2224 });
+              g.circle(ax + w / 2 + 1.7, y - 0.3, 1.0).fill({ color: 0xb69452 });
+            }
           }
         } else if (horiz) {
-          g.rect(x0, ay - w / 2, len, w).fill({ color: 0xb06a3a });
-          g.rect(x0, ay - w / 2, len, 1.6).fill({ color: 0xf0b078, alpha: 0.8 });
-          for (let x = x0 + 14; x < x0 + len - 4; x += 60) g.rect(x, ay - w / 2 - 2, 4, w + 4).fill({ color: COL.chrome });
+          // Tarnished brass pipe matching CT-1's brass conduit, with riveted dark-iron collars.
+          g.rect(x0, ay - w / 2 - 1.2, len, w + 2.4).fill({ color: 0x161e20 });
+          g.rect(x0, ay - w / 2, len, w).fill({ color: 0x9c7b38 });
+          g.rect(x0, ay - w / 2 + 0.8, len, 1.8).fill({ color: 0xe6ca80, alpha: 0.6 });
+          g.rect(x0, ay + w / 2 - 1.8, len, 1.8).fill({ color: 0x453518, alpha: 0.65 });
+          for (let x = x0 + 14; x < x0 + len - 4; x += 60) {
+            g.roundRect(x - 1, ay - w / 2 - 2.2, 6, w + 4.4, 1.2).fill({ color: 0x3b4646 }).stroke({ color: 0x141c1e, width: 1 });
+            g.circle(x + 2, ay, 0.9).fill({ color: 0xd2b068 });
+          }
         } else {
-          g.rect(ax - w / 2, y0, w, len).fill({ color: 0xb06a3a });
-          g.rect(ax - w / 2, y0, 1.6, len).fill({ color: 0xf0b078, alpha: 0.8 });
-          for (let y = y0 + 14; y < y0 + len - 4; y += 60) g.rect(ax - w / 2 - 2, y, w + 4, 4).fill({ color: COL.chrome });
+          g.rect(ax - w / 2 - 1.2, y0, w + 2.4, len).fill({ color: 0x161e20 });
+          g.rect(ax - w / 2, y0, w, len).fill({ color: 0x9c7b38 });
+          g.rect(ax - w / 2 + 0.8, y0, 1.8, len).fill({ color: 0xe6ca80, alpha: 0.6 });
+          g.rect(ax + w / 2 - 1.8, y0, 1.8, len).fill({ color: 0x453518, alpha: 0.65 });
+          for (let y = y0 + 14; y < y0 + len - 4; y += 60) {
+            g.roundRect(ax - w / 2 - 2.2, y - 1, w + 4.4, 6, 1.2).fill({ color: 0x3b4646 }).stroke({ color: 0x141c1e, width: 1 });
+            g.circle(ax, y + 2, 0.9).fill({ color: 0xd2b068 });
+          }
         }
-        if (i > 1) g.circle(ax, ay, w / 2 + 2).fill({ color: COL.chrome });
+        if (i > 1) {
+          g.circle(ax, ay, w / 2 + 2.6).fill({ color: 0x3b4646 }).stroke({ color: 0x141c1e, width: 1.2 });
+          g.circle(ax - 0.6, ay - 0.6, 1.4).fill({ color: 0xd6b66e, alpha: 0.85 });
+        }
       }
-      // Drops into the machines at each end (clean brass collar, no floating V arrows over tanks).
+      // Drops into the machines at each end (clean riveted cast-iron & brass collar).
       for (const [px, py] of [[r.pts[0][0], r.pts[0][1]], [r.pts[r.pts.length - 1][0], r.pts[r.pts.length - 1][1]]] as const) {
-        g.rect(px - 3, py, 6, 34).fill({ color: belt ? COL.chromeDark : 0x8a5028 });
-        g.roundRect(px - 11, py + 30, 22, 12, 3).fill({ color: COL.chrome });
-        g.rect(px - 11, py + 30, 22, 2.5).fill({ color: COL.chromeHi, alpha: 0.7 });
+        g.rect(px - 3.5, py, 7, 34).fill({ color: 0x161e20 });
+        g.rect(px - 2.5, py, 5, 34).fill({ color: belt ? 0x333e40 : 0x8a6d32 });
+        g.roundRect(px - 10, py + 30, 20, 10, 2.5).fill({ color: 0x3b4646 }).stroke({ color: 0x141c1e, width: 1.2 });
+        g.rect(px - 9, py + 31, 18, 2).fill({ color: 0xb6944e, alpha: 0.78 });
       }
     }
   }
@@ -1120,8 +1143,13 @@ export class BaseHooks implements InteriorHooks {
         for (let x = b.ox + 40; x < b.ox + b.ow - 40; x += 150) trace(circuit, x, circuitY, 90, rand, tankWindow ? 0.18 : 0.45);
       }
       if (conduit && f - ceil > 180) pipeRun(g, b.ox, b.ox + b.ow, ceil + 66, 3.5, DC.steel, DC.chrome, rand);
-      // The ceiling beam with its cables, and a lamp hung under it in each cell.
-      ceilingBeam(g, b.ox, b.ow, ceil, rand);
+      // Sleek recessed dark-iron ceiling trim when painted walls are active (else legacy grey girder).
+      if (getPropArt().interior.wall_bulkhead) {
+        g.rect(b.ox, ceil, b.ow, 5).fill({ color: 0x1a2224 });
+        g.rect(b.ox, ceil + 4, b.ow, 1.4).fill({ color: 0x8c6e38, alpha: 0.52 });
+      } else {
+        ceilingBeam(g, b.ox, b.ow, ceil, rand);
+      }
       for (let c = 0; c < r.w; c++) addLamp((r.tx0 + c * CW + 5.5) * T, ceil + 16, id);
     }
     // The room's stencil code, high on the back wall.
