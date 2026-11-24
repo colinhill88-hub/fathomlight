@@ -1341,32 +1341,18 @@ function drawFeeder(n: number, livingBases: boolean): PieceArt {
   tubeH(g, W - 18, W, cy, 1);
   const painted = getPropArt().base.feeder;
   if (painted) {
+    tubeH(g, 0, 26, cy, 1);
+    tubeH(g, W - 26, W, cy, 1);
     const spr = new Sprite(painted);
-    spr.anchor.set(0.5, 0.96);
-    const sc = Math.min((W - 4) / Math.max(1, painted.width), (H - 8) / Math.max(1, painted.height));
+    spr.anchor.set(0.5, 0.97);
+    const sc = Math.min((W - 4) / Math.max(1, painted.width), (H - 4) / Math.max(1, painted.height));
     spr.scale.set(sc);
-    spr.position.set(W / 2, H - 4);
+    spr.position.set(W / 2, H - 3);
     body.addChild(spr);
-    const hopper = { x: 26, y: 20, w: 28, h: 24 };
-    const mash = { x: 43, y: 146, w: 12, h: 42 };
-    const rotor = new Container();
-    const rg = rotor.addChild(new Graphics());
-    const teeth: number[] = [];
-    for (let i = 0; i < 16; i++) {
-      const a = (i / 16) * Math.PI * 2;
-      const rr = i % 2 ? 9 : 12;
-      teeth.push(Math.cos(a) * rr, Math.sin(a) * rr);
-    }
-    rg.poly(teeth).fill({ color: 0xa68746, alpha: 0.85 }).stroke({ color: 0x1a2022, width: 1 });
-    rg.circle(0, 0, 5).fill({ color: 0x3b4444 }).stroke({ color: 0x1a2022, width: 1 });
-    rg.circle(0, 0, 2.2).fill({ color: 0xd6b86e });
-    rotor.position.set(42, 95);
-    const levels = { g: new Graphics(), hopper, mash };
-    body.addChild(rotor, levels.g);
     body.addChild(stencil(`AF-${n}`, 72, 150, 6, -Math.PI / 2));
-    windows.rect(W - 40, 140, 10, 4).fill({ color: 0xfff1d0, alpha: 0.7 });
-    windowGlow.rect(W - 46, 132, 24, 18).fill({ color: PAL.warm, alpha: 0.25 });
-    return { body, rotor, windows, windowGlow, lamp: { x: W - 34, y: 182 }, levels, whorlAt: { x: 80, y: 112 } };
+    windows.rect(W - 40, 140, 10, 4).fill({ color: 0xfff1d0, alpha: 0.55 });
+    windowGlow.rect(W - 46, 132, 24, 18).fill({ color: PAL.warm, alpha: 0.22 });
+    return { body, windows, windowGlow, lamp: { x: W - 34, y: 182 }, whorlAt: { x: 80, y: 112 } };
   }
   // Frame posts the whole height.
   g.rect(12, 20, 7, H - 26).fill({ color: PAL.steelDark });
@@ -1456,33 +1442,36 @@ function drawPress(n: number): PieceArt {
   tubeH(g, W - 16, W, cy, 1);
   const painted = getPropArt().base.press;
   if (painted) {
+    // Extend side collar stubs so the painted press joins flush with adjacent connectors on both sides.
+    tubeH(g, 0, 28, cy, 1);
+    tubeH(g, W - 28, W, cy, 1);
     const spr = new Sprite(painted);
-    spr.anchor.set(0.5, 0.94);
-    const sc = Math.min((W - 8) / Math.max(1, painted.width), (H - 4) / Math.max(1, painted.height));
-    spr.scale.set(sc);
-    spr.position.set(W / 2, H - 6);
+    spr.anchor.set(0.5, 0.95);
+    const targetW = W - 24;
+    const scX = targetW / Math.max(1, painted.width);
+    const scY = Math.min(scX, (H + 16) / Math.max(1, painted.height));
+    spr.scale.set(scX, scY);
+    spr.position.set(W / 2, H - 4);
     body.addChild(spr);
     const ram = new Container();
     const rg = ram.addChild(new Graphics());
     rg.rect(-3, 0, 6, 16).fill({ color: 0x9ca4a2 }).stroke({ color: 0x1a2022, width: 1 });
     rg.roundRect(-18, 14, 36, 8, 2).fill({ color: 0x3b4444 }).stroke({ color: 0x1a2022, width: 1.2 });
     rg.rect(-17, 15, 34, 2).fill({ color: 0xc29e52 });
-    ram.position.set(W / 2 - 2, 46);
-    const scrap = { x: 36, y: 16, w: 11, h: 28 };
-    const copper = { x: 53, y: 16, w: 11, h: 28 };
-    const rack = { x: W - 76, y: H - 40, w: 46 };
+    ram.position.set(W / 2 - 2, 42);
+    const empty = { x: 0, y: 0, w: 0, h: 0 };
     const levels = new Graphics();
     body.addChild(ram, levels);
-    body.addChild(stencil(`PP-${n}`, W / 2, 18, 7));
-    windows.rect(W / 2 + 30, 14, 10, 4).fill({ color: 0xfff1d0, alpha: 0.7 });
-    windowGlow.rect(W / 2 + 24, 8, 22, 16).fill({ color: PAL.warm, alpha: 0.25 });
+    body.addChild(stencil(`PP-${n}`, W / 2, 16, 7));
+    windows.rect(W / 2 + 30, 12, 10, 4).fill({ color: 0xfff1d0, alpha: 0.6 });
+    windowGlow.rect(W / 2 + 24, 6, 22, 16).fill({ color: PAL.warm, alpha: 0.22 });
     return {
       body,
       windows,
       windowGlow,
-      lamp: { x: W / 2 - 34, y: 14 },
+      lamp: { x: W / 2 - 34, y: 12 },
       whorlAt: { x: W / 2 + 30, y: 38 },
-      press: { g: levels, ram, scrap, copper, rack },
+      press: { g: levels, ram, scrap: empty, copper: empty, rack: { x: 0, y: 0, w: 0 } },
     };
   }
   // Bed with a hazard band.
@@ -2718,7 +2707,7 @@ export class BaseView {
                 for (let i = 1; i < b.w; i += 4) g.circle(b.x + i + 1, b.y + b.h - h + 2, 1.6).fill({ color: hi, alpha: 0.8 });
               }
             }
-            for (let i = 0; i < pr.plates; i++) {
+            if (pa.rack.w > 0) for (let i = 0; i < pr.plates; i++) {
               const y = pa.rack.y - 6 - i * 7;
               g.rect(pa.rack.x, y, pa.rack.w, 6).fill({ color: 0x8e9a9c });
               g.rect(pa.rack.x, y, pa.rack.w, 1.5).fill({ color: 0xffffff, alpha: 0.3 });
