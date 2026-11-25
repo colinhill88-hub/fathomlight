@@ -2013,8 +2013,8 @@ export class Scenery {
     }
 
     // The two small sealed wrecks and the great wreck of the Corvina.
-    this.drawTrawler(dg(WRECKS[0].x0), WRECKS[0]);
-    this.drawBarge(dg(WRECKS[1].x0), WRECKS[1]);
+    this.drawTrawler(dg(WRECKS[0].x0), WRECKS[0], decorLayer);
+    this.drawBarge(dg(WRECKS[1].x0), WRECKS[1], decorLayer);
     this.drawCorvina(decor2, this.livingBases);
     for (const w of WRECKS) {
       const x = w.hatchX;
@@ -2409,9 +2409,22 @@ export class Scenery {
     }
   }
 
-  private drawTrawler(g: Graphics, w: { x0: number; x1: number; hatchX: number }): void {
+  private drawTrawler(g: Graphics, w: { x0: number; x1: number; hatchX: number }, layer: Container): void {
     const f = (x: number) => gy(x) + 20;
     const { x0, x1 } = w;
+    const tex = getPropArt().wrecks.trawler;
+    if (tex) {
+      const spr = new Sprite(tex);
+      spr.anchor.set(0.5, 0.94);
+      const targetW = (x1 - x0) + 46;
+      const sc = targetW / Math.max(1, tex.width);
+      spr.scale.set(sc);
+      spr.position.set((x0 + x1) / 2, (gy(x0) + gy(x1)) / 2 + 28);
+      spr.rotation = Math.atan2(gy(x1) - gy(x0), x1 - x0);
+      layer.addChild(spr);
+      this.slices.push({ obj: spr, x0: x0 - 140, x1: x1 + 140 });
+      return;
+    }
     // A small fishing boat, keeled over a little and half sunk in silt.
     this.hull(g, [x0, f(x0) - 150, x1 - 90, f(x1) - 160, x1, f(x1) - 210, x1 - 40, f(x1), x0 + 30, f(x0)], 0x5e4a40);
     g.rect(x0, f(x0) - 152, x1 - x0 - 80, 8).fill({ color: 0x8a3a28 });
@@ -2426,9 +2439,22 @@ export class Scenery {
     rustStreaks(g, x0 + 40, x1 - 60, f(x0) - 130, 16, 40);
   }
 
-  private drawBarge(g: Graphics, w: { x0: number; x1: number; hatchX: number }): void {
+  private drawBarge(g: Graphics, w: { x0: number; x1: number; hatchX: number }, layer: Container): void {
     const f = (x: number) => gy(x) + 18;
     const { x0, x1 } = w;
+    const tex = getPropArt().wrecks.barge;
+    if (tex) {
+      const spr = new Sprite(tex);
+      spr.anchor.set(0.5, 0.94);
+      const targetW = (x1 - x0) + 56;
+      const sc = targetW / Math.max(1, tex.width);
+      spr.scale.set(sc);
+      spr.position.set((x0 + x1) / 2, (gy(x0) + gy(x1)) / 2 + 26);
+      spr.rotation = Math.atan2(gy(x1) - gy(x0), x1 - x0);
+      layer.addChild(spr);
+      this.slices.push({ obj: spr, x0: x0 - 160, x1: x1 + 160 });
+      return;
+    }
     this.hull(g, [x0, f(x0) - 130, x1, f(x1) - 140, x1 - 30, f(x1), x0 + 20, f(x0)], 0x544c46);
     g.rect(x0, f(x0) - 132, x1 - x0, 7).fill({ color: 0x6a6460 });
     // A toppled deck crane and cargo boxes.

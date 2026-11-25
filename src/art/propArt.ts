@@ -24,7 +24,7 @@ export type KestrelArtKey =
   | 'jar' | 'thruster' | 'thruster_mk2' | 'harpoon'
   | 'rivet' | 'rivet_bolt' | 'dart' | 'stun_dart' | 'flare' | 'resonator' | 'magboots' | 'satchel'
   | 'lamp' | 'hose';
-export type WreckArtKey = 'fulmar' | 'corvina';
+export type WreckArtKey = 'fulmar' | 'corvina' | 'barge' | 'trawler';
 export type InteriorArtKey =
   | 'console_habitat' | 'tray_collection' | 'crate'
   | 'airlock' | 'bunk' | 'planner' | 'galley'
@@ -144,7 +144,7 @@ const BASE_KEYS: readonly BaseArtKey[] = [
   'corridor', 'junction', 'storage', 'thermal', 'hatch', 'farm', 'revive', 'signal',
   'filter', 'feeder', 'press', 'sorter', 'recomp', 'crane', 'lantern',
 ];
-const WRECK_KEYS: readonly WreckArtKey[] = ['fulmar', 'corvina'];
+const WRECK_KEYS: readonly WreckArtKey[] = ['fulmar', 'corvina', 'barge', 'trawler'];
 const INTERIOR_KEYS: readonly InteriorArtKey[] = [
   'console_habitat', 'tray_collection', 'crate',
   'airlock', 'bunk', 'planner', 'galley',
