@@ -390,13 +390,12 @@ body.touch {
 }
 
 #inventory {
-  display: flex;
-  flex-direction: column;
-  flex-wrap: wrap;
-  align-content: flex-start;
-  /* Milestone 7: seven materials now; past five rows they wrap into a second column. */
-  max-height: 142px;
-  gap: 4px;
+  display: grid;
+  grid-template-columns: repeat(2, max-content);
+  align-items: center;
+  width: fit-content;
+  max-height: none;
+  gap: 4px 5px;
   margin-top: 6px;
 }
 
@@ -7191,5 +7190,62 @@ body.sanctuary-open canvas {
   }
   .sanct-lock-plaque span {
     font-size: 9.5px;
+  }
+  /* Compact mobile top-left Dive Watch + Materials tray + top-right HUD so nothing overlaps or clips! */
+  body.touch {
+    --watch: 84px;
+  }
+  #watch-wrap {
+    top: calc(var(--safe-top) + 6px);
+    left: calc(var(--safe-left) + 8px);
+    gap: 6px;
+    max-width: calc(100vw - var(--safe-left) - var(--safe-right) - 180px);
+  }
+  #inventory {
+    grid-template-columns: repeat(3, max-content);
+    padding: 4px 6px;
+    gap: 3px;
+    margin-top: 2px;
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+  #inventory .chip {
+    padding: 2px 5px;
+    gap: 3px;
+    font-size: 11px;
+    min-height: 22px;
+  }
+  #inventory .chip canvas.mat-art {
+    width: 15px;
+    height: 15px;
+  }
+  #jar-chip {
+    font-size: 11px;
+    padding: 3px 7px;
+  }
+  #hud {
+    top: calc(var(--safe-top) + 6px);
+    right: calc(var(--safe-right) + 8px);
+  }
+  .hud-buttons {
+    gap: 5px;
+  }
+  #settings-btn,
+  #kit-btn,
+  #log-btn {
+    width: 40px;
+    height: 40px;
+  }
+  #build-btn,
+  #tend-btn,
+  #dock-btn,
+  #station-btn {
+    height: 40px;
+    padding: 0 10px 0 8px;
+    font-size: 12px;
+  }
+  .sanct-top {
+    width: 100%;
+    box-sizing: border-box;
   }
 }
