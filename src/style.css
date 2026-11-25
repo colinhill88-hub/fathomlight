@@ -6732,3 +6732,218 @@ body.on-foot #btn-dart {
   border-color: #ffe39a;
   font-weight: 800;
 }
+
+/* ---- Grand Sanctuary Tank Full-Screen HUD (Colin, Nov 25, 2026) ---- */
+body.sanctuary-open #watch,
+body.sanctuary-open #suit-bar,
+body.sanctuary-open #depth-chip,
+body.sanctuary-open #hud-top,
+body.sanctuary-open #ctrl-helper,
+body.sanctuary-open #bag-hud,
+body.sanctuary-open #tags {
+  display: none !important;
+}
+
+#sanctuary-hud {
+  position: fixed;
+  inset: 0;
+  z-index: 35;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: calc(var(--safe-top) + 16px) 20px calc(var(--safe-bottom) + 16px);
+  font-family: inherit;
+  color: #eef5ee;
+}
+#sanctuary-hud[hidden] {
+  display: none;
+}
+.sanct-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.sanct-title-card {
+  pointer-events: auto;
+  padding: 10px 16px;
+  border-radius: 14px;
+  background: rgba(9, 24, 29, 0.78);
+  border: 1.5px solid rgba(212, 178, 102, 0.55);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.38);
+  backdrop-filter: blur(8px);
+}
+.sanct-eyebrow {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  color: #f0d084;
+  margin-bottom: 3px;
+}
+.sanct-stats {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 12.5px;
+  color: rgba(232, 245, 240, 0.9);
+  font-variant-numeric: tabular-nums;
+}
+.sanct-stars {
+  color: #ffd870;
+  letter-spacing: 1px;
+  font-size: 14px;
+}
+.sanct-actions {
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.sanct-btn {
+  padding: 9px 14px;
+  border-radius: 11px;
+  border: 1.5px solid rgba(212, 178, 102, 0.5);
+  background: rgba(9, 24, 29, 0.8);
+  color: #f4ebd2;
+  font: 600 13px/1 inherit;
+  cursor: pointer;
+  backdrop-filter: blur(8px);
+  transition: transform 0.12s, background 0.15s, border-color 0.15s;
+}
+.sanct-btn:hover {
+  background: rgba(24, 52, 58, 0.92);
+  border-color: #ffe29a;
+  transform: translateY(-1px);
+}
+.sanct-close {
+  border-color: rgba(235, 130, 105, 0.6);
+  color: #ffd8cc;
+}
+.sanct-inspector {
+  pointer-events: auto;
+  align-self: flex-start;
+  margin-top: 10px;
+  padding: 12px 15px;
+  min-width: 240px;
+  border-radius: 14px;
+  background: rgba(9, 24, 29, 0.86);
+  border: 1.5px solid rgba(255, 218, 132, 0.55);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.42);
+  backdrop-filter: blur(8px);
+}
+.sanct-insp-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+.sanct-insp-head strong {
+  font-size: 15px;
+  color: #ffe294;
+}
+.sanct-insp-head span {
+  font-size: 12px;
+  opacity: 0.78;
+  flex: 1;
+}
+.sanct-insp-x {
+  border: none;
+  background: none;
+  color: #dcebe6;
+  font-size: 15px;
+  cursor: pointer;
+}
+.sanct-insp-sub {
+  font-size: 12.5px;
+  color: #cfe4dc;
+  margin-bottom: 5px;
+}
+.sanct-insp-bars {
+  font-size: 12px;
+  color: #a9cfc4;
+  margin-bottom: 8px;
+}
+.sanct-bottom {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+.sanct-tray {
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+  max-width: min(880px, 94vw);
+  padding: 9px 14px;
+  border-radius: 14px;
+  background: rgba(9, 24, 29, 0.86);
+  border: 1.5px solid rgba(212, 178, 102, 0.5);
+  backdrop-filter: blur(8px);
+}
+.sanct-tray-empty {
+  font-size: 12.5px;
+  color: rgba(224, 238, 232, 0.8);
+}
+.sanct-slot-pill {
+  font-size: 11.5px;
+  color: #f0d084;
+  padding: 0 6px;
+}
+.sanct-chip {
+  padding: 6px 11px;
+  border-radius: 999px;
+  border: 1px solid rgba(212, 178, 102, 0.45);
+  background: rgba(255, 255, 255, 0.06);
+  color: #f2ebd6;
+  font: 600 12px/1 inherit;
+  cursor: pointer;
+}
+.sanct-chip.on {
+  background: rgba(216, 178, 86, 0.25);
+  border-color: #ffd87a;
+  color: #fff2c2;
+}
+.sanct-chip:disabled {
+  opacity: 0.72;
+  cursor: default;
+}
+.sanct-toolbar {
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: center;
+  padding: 7px 14px;
+  border-radius: 999px;
+  background: rgba(9, 24, 29, 0.84);
+  border: 1.5px solid rgba(212, 178, 102, 0.55);
+  box-shadow: 0 8px 26px rgba(0, 0, 0, 0.42);
+  backdrop-filter: blur(8px);
+}
+.sanct-tool {
+  padding: 7px 13px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: #dcebe5;
+  font: 600 12.5px/1 inherit;
+  cursor: pointer;
+}
+.sanct-tool.active {
+  background: linear-gradient(180deg, #e5bf62, #b88a32);
+  color: #102022;
+  border-color: #ffe39a;
+  font-weight: 800;
+}
+.sanct-hint {
+  font-size: 11.5px;
+  color: rgba(214, 232, 226, 0.78);
+  padding: 0 6px;
+}

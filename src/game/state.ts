@@ -207,6 +207,10 @@ export interface TankData {
   level?: number;
   /** Phase 20: aquarium decorations placed in this tank (src/game/collection.ts). */
   decor?: DecorId[];
+  /** Grand Sanctuary Tank (Colin, Nov 25, 2026): all biome plants grown in the unified tank. */
+  sanctuaryPlants?: PlantId[];
+  /** Grand Sanctuary Tank: freely positioned painted decorations (normalised 0..1 coords). */
+  sanctuaryDecor?: { id: DecorId; x: number; y: number; flip?: boolean }[];
   /** Research Exchange: playSeconds until Rich Kelp Tonic wears off (faster breeding & boosted rare odds). */
   tonicUntil?: number;
 }

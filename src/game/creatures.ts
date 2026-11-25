@@ -57,7 +57,7 @@ export const SPECIES: Record<SpeciesId, SpeciesDef> = {
     home: 'the dark grotto under the ledge',
     plant: 'coral',
     company: 'same',
-    dislikes: ['puffcap'],
+    dislikes: [],
     makes: 'quartz',
     makesText: 'nibbles crystal grit off the tank rocks and leaves clean quartz',
     scan: 'glowfin',
@@ -69,8 +69,8 @@ export const SPECIES: Record<SpeciesId, SpeciesDef> = {
     eggName: 'puffcap polyp',
     home: 'the open water over the drop-off',
     plant: 'kelp',
-    company: 'space',
-    dislikes: ['crab'],
+    company: 'any',
+    dislikes: [],
     makes: 'fibre',
     makesText: 'sheds tough threads from its frill that twist into kelp fibre',
     scan: 'puffcap',
@@ -124,7 +124,7 @@ export const SPECIES: Record<SpeciesId, SpeciesDef> = {
     home: 'the vent field in the trench',
     plant: 'lumen',
     company: 'same',
-    dislikes: ['crab'],
+    dislikes: [],
     makes: 'ore',
     makesText: 'grazes mineral crust off the tank rocks and sheds it, cooled, as vent ore',
     scan: 'snail',
@@ -138,7 +138,7 @@ export const SPECIES: Record<SpeciesId, SpeciesDef> = {
     home: "the trench floor's east end, past the Fulmar's stern",
     plant: 'lumen',
     company: 'any',
-    dislikes: ['puffcap'],
+    dislikes: [],
     makes: 'brass',
     makesText: 'noses through the tank gravel for old metal and polishes it into bright brass fittings',
     scan: 'eel',
@@ -152,7 +152,7 @@ export const SPECIES: Record<SpeciesId, SpeciesDef> = {
     home: "the antechamber at the sanctum's edge",
     plant: 'grass',
     company: 'same',
-    dislikes: ['crab'],
+    dislikes: [],
     makes: 'bloom',
     makesText: 'hums to the seagrass at night, and now and then a glowing bloom opens where it sleeps',
     scan: 'horse',
@@ -299,12 +299,12 @@ export function upgradeTank(save: SaveData, layout: BaseLayout, id: number): str
   tankDataFor(save, id).level = tankLevel(save, id) + 1;
   return null;
 }
-/** Decorations a tank has room for: 2 in a small tank, 3 in a Grand tank, one more extended, 6 in the display aquarium. */
+/** Decorations a tank has room for: expanded for the unified Grand Sanctuary Tank. */
 export function decorSlots(save: SaveData, layout: BaseLayout, id: number): number {
   const grand = layout.pieces.find((p) => p.id === id)?.kind === 'gtank';
   const lv = tankLevel(save, id);
-  if (grand && lv >= 2) return 6;
-  return (grand ? 3 : 2) + (lv >= 1 ? 1 : 0);
+  if (grand && lv >= 2) return 12;
+  return (grand ? 8 : 6) + (lv >= 1 ? 2 : 0);
 }
 /**
  * How many creatures a tank can hold while a puffcap still has room to drift
@@ -402,14 +402,46 @@ export interface TankHarmony {
  * decorations, thriving care, and rare/diverse residents each add a star and
  * boost both rare-trait breeding odds and material production speed.
  */
+export function tankHasPlant(td: TankData, p: PlantId): boolean {
+  return td.plant === p || td.plant2 === p || !!td.sanctuaryPlants?.includes(p);
+}
+
+/** Gather all creatures, plants, and decor from other tanks into one unified Sanctuary tank (save-safe). */
+export function gatherAllIntoSanctuary(save: SaveData, layout: BaseLayout, targetId: number): number {
+  const cap = Math.max(24, tankCapacity(layout, targetId, save));
+  const td = tankDataFor(save, targetId);
+  td.sanctuaryPlants ??= [];
+  if (td.plant && !td.sanctuaryPlants.includes(td.plant)) td.sanctuaryPlants.push(td.plant);
+  if (td.plant2 && !td.sanctuaryPlants.includes(td.plant2)) td.sanctuaryPlants.push(td.plant2);
+  let moved = 0;
+  for (const c of save.creatures) {
+    if (c.tank !== targetId && creaturesIn(save, targetId).length < cap) {
+      c.tank = targetId;
+      moved++;
+    }
+  }
+  for (const t of tanks(layout)) {
+    if (t.id === targetId) continue;
+    const otd = tankDataFor(save, t.id);
+    for (const p of [otd.plant, otd.plant2, ...(otd.sanctuaryPlants ?? [])]) {
+      if (p && !td.sanctuaryPlants.includes(p)) td.sanctuaryPlants.push(p);
+    }
+    if (otd.decor?.length) {
+      td.decor ??= [];
+      for (const d of otd.decor) if (!td.decor.includes(d) && td.decor.length < 12) td.decor.push(d);
+    }
+  }
+  return moved;
+}
+
 export function tankHarmony(save: SaveData, tankId: number): TankHarmony {
   const here = creaturesIn(save, tankId).filter((c) => c.stage !== 'egg');
   if (!here.length) {
     return { stars: 0, rareBonus: 0, yieldBonus: 0, flora: false, decor: false, thriving: false, showcase: false, nextTip: 'Add a creature to start building Harmony.' };
   }
   const td = tankDataFor(save, tankId);
-  const flora = here.some((c) => td.plant === SPECIES[c.species].plant || td.plant2 === SPECIES[c.species].plant);
-  const decorCount = td.decor?.length ?? 0;
+  const flora = here.some((c) => tankHasPlant(td, SPECIES[c.species].plant));
+  const decorCount = (td.sanctuaryDecor?.length ?? 0) || (td.decor?.length ?? 0);
   const decor = decorCount >= 2;
   const thriving = td.water >= 0.72 && here.every((c) => c.fed >= 0.65 && c.comfort >= 0.65);
   const speciesCount = new Set(here.map((c) => c.species)).size;
@@ -519,7 +551,7 @@ export function comfortTarget(save: SaveData, layout: BaseLayout, c: CreatureDat
   const all = creaturesIn(save, c.tank);
   const notes: ComfortNote[] = [];
   let t = 0.5;
-  if (td.plant === sp.plant || td.plant2 === sp.plant) {
+  if (tankHasPlant(td, sp.plant)) {
     t += 0.3;
     notes.push({ text: `${PLANTS[sp.plant].name} to shelter in`, good: true });
   } else notes.push({ text: `Wants ${PLANTS[sp.plant].name.toLowerCase()} in the tank`, good: false });

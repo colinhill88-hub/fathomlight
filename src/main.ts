@@ -149,6 +149,7 @@ import { readyContractCount, recordContractEvent } from './game/contracts';
 import { Escort } from './actors/escort';
 import { Critter } from './actors/critters';
 import { CareMode } from './ui/care';
+import { SanctuaryView } from './scene/sanctuaryView';
 import { CreatureCard } from './ui/creatureCard';
 import { HatchReveal } from './ui/hatchReveal';
 import { an, book, claimBookRewards, matchesRequest, hatchTier, kindName, record, requestText, restock, rewardText, showToLinnea, sweepBook, topUpRequests } from './game/collection';
@@ -646,6 +647,28 @@ async function boot(): Promise<void> {
   hdrRoot.addChild(...worldLayers);
   // On the stage after the post pass, so the scanner, the build grid and the collect rings stay crisp.
   app.stage.addChild(post.view, overlayCam);
+  const sanctuary = new SanctuaryView(worldArt, {
+    onSave: () => {
+      tankLife.sync(save, layout);
+      baseHooks?.syncTanks();
+      persist();
+    },
+    onToast: (msg) => hud.toast(msg),
+    onSound: (kind) => {
+      if (kind === 'pickup') sound.find('bag');
+      else if (kind === 'feed') sound.toast('item');
+      else if (kind === 'bubble') sound.release();
+      else sound.clip();
+    },
+    onOpenClassic: (id) => {
+      care.setAvailable(id);
+      care.open(id);
+    },
+    onClose: () => {
+      document.body.classList.remove('sanctuary-open');
+    },
+  });
+  app.stage.addChild(sanctuary.view);
   // After milestone 8 part 2: dry interiors on foot, drawn over the (hidden) world.
   const interior = new Interior(renderer, paintedFace, paintedSuit?.walker, worldArt, redesigned, compact, livingBases, fidelity);
   hdrRoot.addChild(interior.view);
@@ -1023,7 +1046,7 @@ async function boot(): Promise<void> {
       /* storage blocked */
     }
   };
-  const zoomFree = () => (!inside || inside === 'base') && !peek && !build.active && !care.active && !dockUI.active &&
+  const zoomFree = () => (!inside || inside === 'base') && !peek && !build.active && !care.active && !sanctuary.active && !dockUI.active &&
     !station.active && !hatchPanel.active && !contact.active && !hud.reading && !zoneMap.open && !rates.open &&
     !menus.paused && settingsPanel.hidden && logPanel.hidden && !padNav.active;
   const adjustZoom = (factor: number) => {
@@ -1768,7 +1791,7 @@ async function boot(): Promise<void> {
     buildId: __BUILD_ID__,
     onPause: (p) => audio.setPaused(p),
     panelOpen: () =>
-      build.active || care.active || dockUI.active || station.active || hatchPanel.active || contact.active || zoneMap.open || hud.reading || rates.open || fieldKit.open || exchangePanel.open || !settingsPanel.hidden || !logPanel.hidden,
+      build.active || care.active || sanctuary.active || dockUI.active || station.active || hatchPanel.active || contact.active || zoneMap.open || hud.reading || rates.open || fieldKit.open || exchangePanel.open || !settingsPanel.hidden || !logPanel.hidden,
   });
   window.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && !logPanel.hidden) document.getElementById('log-btn')!.click();
@@ -2386,6 +2409,7 @@ async function boot(): Promise<void> {
     const tankHere = null as Placed | null;
     care.setAvailable(tankHere?.id ?? (care.active ? care.tankId : null));
     care.update(dt);
+    if (sanctuary.active) sanctuary.update(dt, cssW, cssH);
     hatchReveal.update(dt);
     // Milestone 6: the Dock button at a finished Moon pool dock (or berthed in one).
     const dockHere =
@@ -2417,7 +2441,7 @@ async function boot(): Promise<void> {
         'big',
       );
     }
-    input.suspended = build.active || care.active || dockUI.active || station.active || padNav.active;
+    input.suspended = build.active || care.active || sanctuary.active || dockUI.active || station.active || padNav.active;
     if (atSite && !save.tips.includes('build') && blackout === 0) {
       save.tips.push('build');
       hud.toast(
@@ -4881,11 +4905,10 @@ async function boot(): Promise<void> {
       interior.startRide(x, y);
       sound.clamps(true);
     },
-    // Milestone 9 (Colin): tending stays indoors. The camera eases in on the tank
-    // room's window and the care panel opens beside it.
+    // Grand Sanctuary Tank (Colin, Nov 25, 2026): opens the full-screen interactive aquarium directly!
     tend: (id) => {
-      care.setAvailable(id);
-      care.open(id);
+      document.body.classList.add('sanctuary-open');
+      sanctuary.open(save, layout, id, cssW, cssH);
     },
     // The Lab and Workshop panel opens indoors too (Colin, after the terrain pass):
     // the camera frames the room and the walker waits while it is open.
@@ -5183,7 +5206,7 @@ async function boot(): Promise<void> {
   function helperMode(): HelperMode {
     if (menus.paused || blackout > 0 || boarding || hud.reading || zoneMap.open || contact.active || padNav.active) return 'none';
     if (build.active) return 'build';
-    if (care.active || dockUI.active || station.active || hatchPanel.active || rates.open || !settingsPanel.hidden || !logPanel.hidden) return 'none';
+    if (care.active || sanctuary.active || dockUI.active || station.active || hatchPanel.active || rates.open || !settingsPanel.hidden || !logPanel.hidden) return 'none';
     if (interior.active) return interior.swinging ? 'swing' : interior.pos.climbing ? 'climb' : 'foot';
     return save.sub?.aboard ? 'sub' : diver.clamped ? 'boots' : 'swim';
   }
@@ -5496,7 +5519,8 @@ async function boot(): Promise<void> {
       mateCritter.update(dt, time, mx, my, toward * (8 + g * 20), 0, { vigour: 0.6 + g * 0.4, sick: 0, size: Math.max(0.05, k) * 1.9, notice: g });
       mateCritter.glow.alpha = 0.6 + g * 0.8;
     }
-    const frozen = care.active || hatchPanel.active || station.active || contact.active || knockout > 0 || !!poolBoard;
+    if (sanctuary.active) sanctuary.update(dt, cssW, cssH);
+    const frozen = care.active || sanctuary.active || hatchPanel.active || station.active || contact.active || knockout > 0 || !!poolBoard;
     const poolAt = livingBases && inside === 'base' ? baseHooks?.moonpoolAt(interior.walker.x, interior.walker.y) : undefined;
     // The resonator sings at the song-lock, and while you answer the Choir.
     {
