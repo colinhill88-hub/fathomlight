@@ -52,10 +52,10 @@ void main() {
   float du = (sunElev - 0.04) / 0.22;
   float duskAmt = exp(-(du * du)); // peaks warmly at both sunrise & sunset
   float sunsetSide = smoothstep(0.45, 0.55, dayPhase); // 0 = sunrise (east/right), 1 = sunset (west/left)
-  // Dynamic coastal weather cycle (4.5-min loop: ~70% clear sunny skies, ~30% passing overcast rain squalls).
-  float wPhase = fract(uTime / 270.0 + 0.15);
-  float rainAmt = smoothstep(0.64, 0.72, wPhase) * (1.0 - smoothstep(0.90, 0.98, wPhase));
-  float overcast = smoothstep(0.56, 0.70, wPhase) * (1.0 - smoothstep(0.92, 1.0, wPhase));
+  // Dynamic coastal weather (shared with surfaceMotion.ts): clear, windy, rainy, or Wind+Rain storm combo!
+  float rainAmt = weatherRain(uTime);
+  float overcast = weatherOvercast(uTime);
+  float windAmt = weatherWind(uTime);
 
   // Light shafts: slanted bands that sway slowly and tint warmly during sunrise/sunset.
   float x = (wp.x * 0.8 + d * 0.42) / 560.0;
@@ -168,8 +168,8 @@ void main() {
     }
   }
 
-  // Soft painted drifting coastal cloud banks (thicken into darker storm clouds during rain squalls).
-  vec2 cloudUV = vec2(parX * 3.8 + uTime * (0.0045 + rainAmt * 0.006), skyH * 4.2);
+  // Soft painted drifting coastal cloud banks (scud faster in coastal winds & thicken during rain squalls).
+  vec2 cloudUV = vec2(parX * 3.8 + uTime * (0.0045 + windAmt * 0.011 + rainAmt * 0.004), skyH * 4.2);
   float c1 = noise(cloudUV);
   float c2 = noise(cloudUV * 2.3 + vec2(4.2, -1.7));
   float cloudShape = smoothstep(mix(0.46, 0.24, overcast), mix(0.78, 0.66, overcast), c1 * 0.68 + c2 * 0.32) * smoothstep(0.04, 0.24, skyH) * (1.0 - smoothstep(0.74, 0.99, skyH));
@@ -202,7 +202,11 @@ void main() {
     float film = exp(-(d - wave) * 0.072) * (0.4 + 0.6 * ripple);
     col += film * mix(vec3(0.105, 0.18, 0.16), vec3(0.24, 0.16, 0.10), duskAmt * 0.7) * vis;
   }
-  col += mix(vec3(0.92, 0.97, 0.96), reflCol, 0.65) * (1.0 - smoothstep(0.0, 3.0, abs(surfaceDistance))) * (0.28 + 0.42 * glitter * (sunVis + moonVis * 0.55));
+  // Whitecap sea-foam intensifies along tall wind-driven wave crests!
+  float whitecap = windAmt * smoothstep(-4.0, -14.0, wave) * (0.55 + 0.45 * ripple);
+  col += mix(vec3(0.92, 0.97, 0.96), reflCol, 0.65 - whitecap * 0.45)
+    * (1.0 - smoothstep(0.0, 3.0 + whitecap * 3.5, abs(surfaceDistance)))
+    * (0.28 + 0.42 * glitter * (sunVis + moonVis * 0.55) + whitecap * 0.42);
 
   // Tiny per-pixel noise hides colour banding on smooth gradients.
   col += (hash(vUV * uResolution + fract(uTime)) - 0.5) / 255.0;

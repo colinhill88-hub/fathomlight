@@ -4,7 +4,7 @@ import { getPropArt } from '../art/propArt';
 import { mulberry32, WORLD_SEED } from '../rng';
 import { groundY, WORLD_W, WORLD_X0 } from './terrain';
 import { drawHabitatFrame, drawObservationCrown, drawPressureRib } from './habitatFrame';
-import { drawDockBrace, POOL_HALF_WIDTH, POOL_LADDER_X, POOL_SURFACE_Y } from './moonpool';
+import { drawDockBrace, drawDockClamp, POOL_HALF_WIDTH, POOL_LADDER_X, POOL_SURFACE_Y } from './moonpool';
 import {
   BaseLayout,
   CELL,
@@ -1602,14 +1602,11 @@ function drawPressureDock(n: number, housingOcean: boolean, panorama: boolean): 
     windowGlow.ellipse(divX, y + 2, 11, 9).fill({ color: 0x7fd8b8, alpha: 0.34 });
   }
 
-  // Skewed berth braces & hydraulic clamps framing the KS-1 Sub Berth on the left.
+  // Skewed berth braces & oversized mirrored hydraulic clamps framing the KS-1 Sub Berth on the left.
   for (const s of [-1, 1]) {
     if (housingOcean) drawDockBrace(g, subCx, 0, s);
     else g.moveTo(subCx + s * 136, H - 33).lineTo(subCx + s * 96, 105).stroke({ color: 0x3f6a65, width: 9 });
-    const clamp = subCx + s * 74;
-    g.poly([clamp - 6, 103, clamp + 6, 103, clamp + 6, 137, clamp - s * 16, 151,
-      clamp - s * 21, 145, clamp - 6, 134]).fill(0x816954);
-    g.circle(clamp, 137, 5).fill(0xaea98e);
+    drawDockClamp(g, subCx, 102, s, 1.18, true, windows);
   }
 
   // Upper pressurised hall shell spanning all 4 segments, with TWO distinct recessed bay openings below!
@@ -2026,13 +2023,11 @@ function drawPaintedHero(kind: PieceKind, n: number, rot: number, housingOcean: 
       windows.roundRect(divX - 4, y, 8, 4, 2).fill(0x9ee8c8);
       windowGlow.ellipse(divX, y + 2, 11, 9).fill({ color: 0x7fd8b8, alpha: 0.35 });
     }
-    // Berth braces & hydraulic docking clamps centered on the KS-1 Sub Berth.
+    // Berth braces & oversized mirrored hydraulic docking clamps centered on the KS-1 Sub Berth.
     for (const s of [-1, 1]) {
       if (housingOcean) drawDockBrace(g, subCx, 0, s);
       else g.moveTo(subCx + s * 136, H - 33).lineTo(subCx + s * 96, 105).stroke({ color: 0x3b484a, width: 8 });
-      const clamp = subCx + s * 74;
-      g.poly([clamp - 6, 104, clamp + 6, 104, clamp + 6, 138, clamp - s * 16, 152, clamp - s * 21, 146, clamp - 6, 135]).fill({ color: 0x8a7248 });
-      g.circle(clamp, 138, 4.5).fill({ color: PAL.chrome });
+      drawDockClamp(g, subCx, 102, s, 1.18, true, windows);
     }
 
     // Riveted steel & tarnished-brass Diver Entry Annex on the right segment (x = divX .. W).

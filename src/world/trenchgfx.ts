@@ -1,4 +1,5 @@
 import { Container, Graphics, Sprite, Text } from 'pixi.js';
+import { getPropArt } from '../art/propArt';
 import { materialFill, type WorldArt } from '../art/worldArt';
 import type { WaterMotion } from '../scene/waterMotion';
 import { BottomAnimal, type BottomKind } from '../actors/bottomLife';
@@ -61,6 +62,8 @@ export class TrenchScenery {
   private plugGlow = new Graphics();
   private cleftOpen = new Graphics();
   private stationLamp: { core: Graphics; halo: Graphics; light: PointLight } | null = null;
+  private probeBeacon: { body: Graphics; core: Graphics; halo: Graphics; ring: Graphics; light: PointLight; taken: boolean; x: number; y: number } | null = null;
+  private buoyBeacon: { core: Graphics; halo: Graphics; ring: Graphics; light: PointLight; taken: boolean; x: number; y: number } | null = null;
   private hatchShut = new Graphics();
   private hatchOpen = new Graphics();
   private specks: { g: Graphics; x0: number; x1: number }[] = [];
@@ -230,30 +233,113 @@ export class TrenchScenery {
       t.position.set(x, y - 22);
       this.view.addChild(t);
       this.slices.push({ obj: t, x0: x - 600, x1: x + 600 });
+      // Pulsing amber recorder beacon on FULMAR RELAY 4 so its pattern spool is easy to spot in the dark.
+      const bx = x + 38;
+      const by = y - 48;
+      const bCore = new Graphics().circle(bx, by, 5).fill({ color: 0xffe494 }).circle(bx, by, 2.5).fill({ color: 0xffffff });
+      const bHalo = new Graphics().circle(bx, by, 26).fill({ color: 0xffb848, alpha: 0.48 });
+      const bRing = new Graphics();
+      this.emissive.addChild(bCore, bRing);
+      this.glow.addChild(bHalo);
+      const bLight: PointLight = { x: bx, y: by, radius: 240, intensity: 0.85, color: [1, 0.78, 0.35] };
+      this.lights.push(bLight);
+      this.buoyBeacon = { core: bCore, halo: bHalo, ring: bRing, light: bLight, taken: false, x: bx, y: by };
       this.scanPoints.sigbuoy.push({ x, y: y - 40 });
     }
 
-    // ---- Ledge A: the crushed deep probe ----
+    // ---- Ledge A: the crushed deep probe (FULMAR DP-2) + glowing Stress Recorder canister ----
     {
       const g = dg(TR_PROBE.x);
       const x = TR_PROBE.x;
       const y = gy(x);
-      // A pressure sphere in a frame, crumpled in on one side.
-      g.moveTo(x - 90, y).lineTo(x - 70, y - 120).lineTo(x + 80, y - 110).lineTo(x + 96, y).stroke({ color: 0x4a4440, width: 6 });
-      g.moveTo(x - 80, y - 60).lineTo(x + 88, y - 56).stroke({ color: 0x4a4440, width: 4 });
-      g.poly([x - 52, y - 70, x - 40, y - 108, x, y - 122, x + 38, y - 106, x + 22, y - 84, x + 50, y - 62, x + 30, y - 24, x - 8, y - 14, x - 46, y - 30]).fill({ color: 0xa88a40 });
-      g.poly([x + 22, y - 84, x + 50, y - 62, x + 30, y - 24, x + 8, y - 50]).fill({ color: 0x6a5530 });
-      g.circle(x - 14, y - 70, 18).fill({ color: 0x0c1214 });
-      g.circle(x - 14, y - 70, 18).stroke({ color: 0x5a4a30, width: 3 });
-      for (let k = 0; k < 4; k++) g.moveTo(x - 28 + k * 9, y - 82).lineTo(x - 24 + k * 9, y - 60).stroke({ color: 0x88d0d8, width: 0.6, alpha: 0.25 });
-      rustStreaks(g, x - 40, x + 40, y - 90, 10, 20);
-      const t = new Text({ text: 'FULMAR DP-2', style: { fontFamily: 'monospace', fontSize: 11, fill: 0x2a2620, fontWeight: 'bold', letterSpacing: 2 } });
-      t.alpha = 0.7;
+      const probeTex = getPropArt().landmarks.probe;
+      if (probeTex) {
+        const spr = new Sprite(probeTex);
+        spr.anchor.set(0.5, 0.94);
+        const sc = 215 / Math.max(1, probeTex.width);
+        spr.scale.set(sc);
+        spr.position.set(x, y + 10);
+        this.view.addChild(spr);
+        this.slices.push({ obj: spr, x0: x - 600, x1: x + 600 });
+      } else {
+        // Heavy riveted steel roll-cage frame & bumper skids resting in silt.
+        g.roundRect(x - 102, y - 10, 204, 14, 5).fill({ color: 0x262a2c }).stroke({ color: 0x121618, width: 2 });
+        g.moveTo(x - 90, y - 4).lineTo(x - 72, y - 122).lineTo(x + 76, y - 112).lineTo(x + 94, y - 4)
+          .stroke({ color: 0x181c1e, width: 10, join: 'round' });
+        g.moveTo(x - 90, y - 4).lineTo(x - 72, y - 122).lineTo(x + 76, y - 112).lineTo(x + 94, y - 4)
+          .stroke({ color: 0x4c4842, width: 6, join: 'round' });
+        g.moveTo(x - 82, y - 62).lineTo(x + 86, y - 56).stroke({ color: 0x3a3632, width: 5 });
+        // Corner gusset plates & bolts.
+        for (const [gx, gy2] of [[x - 72, y - 120], [x + 74, y - 110]] as const) {
+          g.circle(gx, gy2, 6).fill({ color: 0x5c554c }).stroke({ color: 0x1a1e20, width: 1.5 });
+          g.circle(gx, gy2, 2).fill({ color: 0x8f8472 });
+        }
+        // Crushed bathysphere pressure hull (smooth curved weathered-ochre sphere buckled inward on the right).
+        const hullPts: number[] = [];
+        for (let i = 0; i <= 22; i++) {
+          const a = -Math.PI * 0.15 + (i / 22) * Math.PI * 1.48;
+          hullPts.push(x - 4 + Math.cos(a) * 54, y - 66 + Math.sin(a) * 52);
+        }
+        // Dramatic pressure-implosion crease on the right flank.
+        hullPts.push(x + 28, y - 92, x + 16, y - 72, x + 44, y - 58, x + 36, y - 34);
+        g.poly(hullPts).fill({ color: 0xa4853b }).stroke({ color: 0x1a1c1a, width: 2.4 });
+        // Upper-left specular dome highlight & lower-right deep buckle shadow.
+        g.ellipse(x - 18, y - 92, 26, 14).fill({ color: 0xd4b668, alpha: 0.34 });
+        g.poly([x + 28, y - 92, x + 16, y - 72, x + 44, y - 58, x + 28, y - 28, x + 2, y - 54]).fill({ color: 0x524222, alpha: 0.72 });
+        // Riveted brass equatorial belt & seam rivets.
+        g.moveTo(x - 56, y - 66).quadraticCurveTo(x - 10, y - 54, x + 22, y - 68)
+          .stroke({ color: 0x6a5426, width: 6, cap: 'round' });
+        g.moveTo(x - 56, y - 66).quadraticCurveTo(x - 10, y - 54, x + 22, y - 68)
+          .stroke({ color: 0xc29e4c, width: 2.2, cap: 'round' });
+        for (let r = -46; r <= 14; r += 12) g.circle(x + r, y - 62, 1.3).fill({ color: 0x262014 });
+        // Thick riveted brass circular viewport with dark cracked glass & specular glint.
+        g.circle(x - 18, y - 70, 22).fill({ color: 0x7a6232 }).stroke({ color: 0x1e1a12, width: 2 });
+        g.circle(x - 18, y - 70, 17).fill({ color: 0x0b1216 }).stroke({ color: 0xb89648, width: 1.6 });
+        g.arc(x - 18, y - 70, 13, -2.5, -1.2).stroke({ color: 0x9cd2d8, width: 2.2, alpha: 0.35, cap: 'round' });
+        // Spiderweb pressure cracks across the dark glass.
+        g.moveTo(x - 24, y - 78).lineTo(x - 15, y - 68).lineTo(x - 6, y - 73)
+          .moveTo(x - 15, y - 68).lineTo(x - 19, y - 56).moveTo(x - 15, y - 68).lineTo(x - 9, y - 60)
+          .stroke({ color: 0xa0d8dc, width: 0.9, alpha: 0.42 });
+        for (let k = 0; k < 8; k++) {
+          const a = (k / 8) * Math.PI * 2;
+          g.circle(x - 18 + Math.cos(a) * 19.5, y - 70 + Math.sin(a) * 19.5, 1.3).fill({ color: 0x2b2416 });
+        }
+        // Dangling torn cable & barnacle/rust weathering.
+        g.moveTo(x + 42, y - 56).bezierCurveTo(x + 62, y - 40, x + 56, y - 16, x + 76, y - 6)
+          .stroke({ color: 0x222628, width: 2.6, cap: 'round' });
+        rustStreaks(g, x - 48, x + 36, y - 92, 12, 24);
+      }
+      const t = new Text({ text: 'FULMAR DP-2', style: { fontFamily: 'monospace', fontSize: 11, fill: 0xe6d6a8, fontWeight: 'bold', letterSpacing: 2 } });
+      t.alpha = 0.8;
       t.anchor.set(0.5);
-      t.position.set(x + 4, y - 40);
-      t.rotation = -0.2;
+      t.position.set(x - 6, y - 26);
+      t.rotation = -0.1;
       this.view.addChild(t);
       this.slices.push({ obj: t, x0: x - 600, x1: x + 600 });
+
+      // Highly visible glowing Stress Recorder canister & pulsing amber distress beacon!
+      const rx = x + 48;
+      const ry = y - 104;
+      const pBody = new Graphics();
+      pBody.roundRect(rx - 13, ry - 18, 26, 30, 5).fill({ color: 0x2e3638 }).stroke({ color: 0xd4a84e, width: 2.2 });
+      pBody.rect(rx - 9, ry - 12, 18, 8).fill({ color: 0x10181a });
+      pBody.moveTo(rx + 6, ry - 18).lineTo(rx + 6, ry - 32).stroke({ color: 0xc29e4c, width: 2.2, cap: 'round' });
+      this.view.addChild(pBody);
+      this.slices.push({ obj: pBody, x0: x - 600, x1: x + 600 });
+
+      const pCore = new Graphics()
+        .roundRect(rx - 7, ry - 10, 14, 4, 2).fill({ color: 0xffe488 })
+        .circle(rx + 6, ry - 33, 5.5).fill({ color: 0xffd268 })
+        .circle(rx + 6, ry - 33, 2.8).fill({ color: 0xffffff });
+      const pHalo = new Graphics()
+        .circle(rx + 6, ry - 33, 34).fill({ color: 0xffae3a, alpha: 0.55 })
+        .circle(rx, ry - 6, 22).fill({ color: 0xffc858, alpha: 0.32 });
+      const pRing = new Graphics();
+      this.emissive.addChild(pCore, pRing);
+      this.glow.addChild(pHalo);
+      const pLight: PointLight = { x: rx + 4, y: ry - 26, radius: 300, intensity: 1.05, color: [1, 0.78, 0.34] };
+      this.lights.push(pLight);
+      this.probeBeacon = { body: pBody, core: pCore, halo: pHalo, ring: pRing, light: pLight, taken: false, x: rx + 6, y: ry - 33 };
       this.scanPoints.probe.push({ x, y: y - 70 });
     }
 
@@ -438,6 +524,23 @@ export class TrenchScenery {
     this.hatchShut.visible = !open;
     this.hatchOpen.visible = open;
   }
+  setProbeLogs(taken: boolean): void {
+    if (!this.probeBeacon) return;
+    this.probeBeacon.taken = taken;
+    this.probeBeacon.body.visible = !taken;
+    this.probeBeacon.core.visible = !taken;
+    this.probeBeacon.halo.visible = !taken;
+    this.probeBeacon.ring.visible = !taken;
+    if (taken) this.probeBeacon.light.intensity = 0;
+  }
+  setBuoySpool(taken: boolean): void {
+    if (!this.buoyBeacon) return;
+    this.buoyBeacon.taken = taken;
+    this.buoyBeacon.core.visible = !taken;
+    this.buoyBeacon.halo.visible = !taken;
+    this.buoyBeacon.ring.visible = !taken;
+    if (taken) this.buoyBeacon.light.intensity = 0;
+  }
 
   update(time: number, viewX0: number, viewX1: number, motion: WaterMotion | undefined, diverX: number, diverY: number): void {
     for (const s of this.slices) s.obj.visible = s.x1 > viewX0 && s.x0 < viewX1;
@@ -461,6 +564,24 @@ export class TrenchScenery {
       this.stationLamp.core.alpha = on;
       this.stationLamp.halo.alpha = on;
       this.stationLamp.light.intensity = 0.9 * on;
+    }
+    if (this.probeBeacon && !this.probeBeacon.taken) {
+      const pb = this.probeBeacon;
+      const pulse = 0.55 + 0.45 * Math.sin(time * 4.2);
+      const ping = (time * 0.72) % 1;
+      pb.core.alpha = 0.75 + 0.25 * pulse;
+      pb.halo.alpha = 0.55 + 0.45 * pulse;
+      pb.light.intensity = 0.85 + 0.45 * pulse;
+      pb.ring.clear().circle(pb.x, pb.y, 10 + ping * 44).stroke({ color: 0xffd268, width: 2.2 * (1 - ping * 0.5), alpha: (1 - ping) * 0.85 });
+    }
+    if (this.buoyBeacon && !this.buoyBeacon.taken) {
+      const bb = this.buoyBeacon;
+      const pulse = 0.5 + 0.5 * Math.sin(time * 3.6 + 1.1);
+      const ping = ((time * 0.65) + 0.35) % 1;
+      bb.core.alpha = 0.7 + 0.3 * pulse;
+      bb.halo.alpha = 0.5 + 0.45 * pulse;
+      bb.light.intensity = 0.75 + 0.35 * pulse;
+      bb.ring.clear().circle(bb.x, bb.y, 8 + ping * 36).stroke({ color: 0xffd268, width: 1.8 * (1 - ping * 0.5), alpha: (1 - ping) * 0.75 });
     }
     // Shimmering plumes over the vents.
     const g = this.plumes.clear();

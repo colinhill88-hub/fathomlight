@@ -1999,7 +1999,8 @@ export class Scenery {
       for (let c = 0; c < 4; c++) g.ellipse(r.x + 6, r.y + 22 + c * 8, 2.6, 4).stroke({ color: 0x6a4a38, width: 1.4 });
       this.scanPoints.ring.push({ x: r.x, y: r.y });
     }
-    this.scanPoints.race.push({ x: 20300, y: 1300 }, { x: 21300, y: 1350 });
+    // Place Race scan points at the calm west & east approaches right beside the current so scanning isn't blown off-target.
+    this.scanPoints.race.push({ x: 19380, y: 1220 }, { x: 21980, y: 1320 }, { x: 20600, y: 1300 });
     this.scanPoints.wshelf.push({ x: 22200, y: 1400 }, { x: 24000, y: 1350 });
 
     // Lurker dens: dark holes under a rusted plate or a rock lip.

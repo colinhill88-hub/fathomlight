@@ -79,6 +79,15 @@ export class CombatLayer implements InteriorCombat {
     this.shotSprites.clear();
   }
 
+  /** Remove all combat sprites and the overlay container when leaving or switching interior sections. */
+  detach(): void {
+    this.clearFoeSprites();
+    if (this.foeLayer) {
+      this.foeLayer.destroy({ children: true });
+      this.foeLayer = null;
+    }
+  }
+
   /** A fresh visit: every small machine is back, the keeper too unless beaten; no lamps lit yet. */
   begin(): void {
     this.clearFoeSprites();
@@ -261,7 +270,7 @@ export class CombatLayer implements InteriorCombat {
     for (const f of this.field.foes) {
       const tex = f.kind === 'spider' ? spiderTex : foeArt[f.kind];
       if (tex && this.foeLayer) {
-        if (f.dead && f.kind !== 'keeper') {
+        if (f.dead && (f.kind !== 'keeper' || f.deadT > 3.4)) {
           const old = this.foeSprites.get(f);
           if (old) {
             old.destroy();
@@ -294,21 +303,25 @@ export class CombatLayer implements InteriorCombat {
           spr.position.set(f.x + (reel ? Math.sin(time * 40) * 2.5 : 0), f.y + Math.sin(time * 4.2) * 3);
           spr.rotation = reel ? Math.sin(time * 24) * 0.18 : Math.sin(time * 2.1) * 0.04;
         } else {
-          // Hull Keeper boss.
+          // Hull Keeper boss: topples onto its side and powers down cleanly when beaten, then clears the deck.
           const open = f.state === 'stuck' || f.state === 'stagger';
           const windS = f.state === 'windSlam' ? Math.min(1, f.t / KEEPER.windSlam) : 0;
           const windC = f.state === 'windCharge' ? Math.min(1, f.t / KEEPER.windCharge) : 0;
-          const sink = f.dead ? Math.min(1, f.deadT * 1.5) * 24 : 0;
+          const fall = f.dead ? Math.min(1, f.deadT / 1.05) : 0;
+          const fallEase = fall * fall * (3 - 2 * fall);
+          const fadeOut = f.dead && f.deadT > 2.2 ? Math.max(0, 1 - (f.deadT - 2.2) / 1.2) : 1;
+          const sink = f.dead ? fallEase * 14 : 0;
           const stomp = !f.dead && Math.abs(f.vx) > 5 ? Math.abs(Math.sin(time * 8)) * 4 : 0;
-          const shake = (windC > 0 ? Math.sin(time * 60) * 1.8 * windC : 0) + (f.state === 'stagger' ? Math.sin(time * 30) * 2.2 : 0);
+          const dieShake = f.dead && f.deadT < 0.7 ? Math.sin(time * 55) * 3.5 * (1 - f.deadT / 0.7) : 0;
+          const shake = dieShake + (windC > 0 ? Math.sin(time * 60) * 1.8 * windC : 0) + (f.state === 'stagger' ? Math.sin(time * 30) * 2.2 : 0);
           const sc = 176 / Math.max(1, tex.width);
           spr.anchor.set(0.45, 0.96);
           spr.scale.set(sc * f.face, sc * (open ? 0.94 : 1));
           spr.position.set(f.x + shake, f.y + sink - stomp);
-          spr.rotation = (f.dead ? 0.16 : f.state === 'charge' ? 0.12 : -windC * 0.14 - windS * 0.1) * f.face;
-          spr.alpha = f.dead ? 0.72 : 1;
+          spr.rotation = (f.dead ? fallEase * 1.38 : f.state === 'charge' ? 0.12 : -windC * 0.14 - windS * 0.1) * f.face;
+          spr.alpha = f.dead ? fadeOut * 0.88 : 1;
         }
-        spr.tint = f.flash > 0 ? 0xffdfa8 : f.dead ? 0x8a8682 : 0xffffff;
+        spr.tint = f.flash > 0 ? 0xffdfa8 : f.dead ? 0x5c5a58 : 0xffffff;
         drawFoeFx(f, em, glow, time);
       } else {
         drawFoe(f, back, em, glow, time);

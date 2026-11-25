@@ -2688,6 +2688,8 @@ async function boot(): Promise<void> {
     cleft.open = save.cleftOpen;
     scenery.trench.setCleft(save.cleftOpen);
     scenery.trench.setFulmar(save.fulmar.open);
+    scenery.trench.setProbeLogs(save.finds.includes('hulllogs') || save.blueprints.includes('plating') || jobRunning(save, 'research:plating'));
+    scenery.trench.setBuoySpool(save.signals.found.includes('sig1'));
     // Milestone 11: the sanctum's doors and the Choir gates.
     if (sanctum.door !== save.sanctum.door) scenery.sanctum.setDoor(save.sanctum.door);
     if (sanctum.locks.some((l, i) => l !== save.sanctum.locks[i])) scenery.sanctum.setLocks(save.sanctum.locks);

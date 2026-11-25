@@ -14,6 +14,7 @@ import type { TankArt } from '../art/tankArt';
 import { getPropArt } from '../art/propArt';
 import { getCreatureArt } from '../art/creatureArt';
 import { drawHabitatFrame, drawObservationCrown, drawPressureRib } from '../world/habitatFrame';
+import { drawDockClamp } from '../world/moonpool';
 import { HousingOcean } from './housingOcean';
 import { HousingHull } from './housingHull';
 import type { OceanRegistration, OceanSource } from './oceanCapture';
@@ -2263,8 +2264,13 @@ export class BaseHooks implements InteriorHooks {
             }
           }
         }
-        addText(sign('SIGNAL ARRAY', b.cx, b.oy + 28, 11, 0xffd890, 0.8));
-        this.screens.push({ x: b.cx, y: sy, radius: 300, intensity: 0.5, color: [1, 0.85, 0.6], zone: id } as Light);
+        addText(sign('SIGNAL ARRAY · DECODER', b.cx, b.oy + 28, 11.5, 0xffe098, 0.95));
+        // Clear luminous decoder ring & beacon glow so the Signal Array decoder stands out unmistakably.
+        e.circle(b.cx, sy, 46).stroke({ color: 0xffd878, width: 2.2, alpha: 0.75 });
+        e.circle(b.cx, sy, 28).stroke({ color: 0xffeab0, width: 1.4, alpha: 0.55 });
+        e.roundRect(b.cx - 38, bot - 54, 76, 8, 3).fill({ color: 0xffd470, alpha: 0.85 });
+        gl.circle(b.cx, sy, 68).fill({ color: 0xffc860, alpha: 0.24 });
+        this.screens.push({ x: b.cx, y: sy, radius: 340, intensity: 0.78, color: [1, 0.85, 0.6], zone: id } as Light);
         break;
       }
       case 'crane': {
@@ -2443,6 +2449,13 @@ export class BaseHooks implements InteriorHooks {
         const f0 = b.floor(0);
         const docked = c.subDocked(id);
         d.circle(b.ox + 112, f0 - 54, 2.8).fill({ color: on ? (docked ? 0x9ef0b8 : 0xffc860) : 0x6b5638, alpha: on ? 0.72 + 0.22 * Math.sin(time * 2.8) : 0.45 });
+      }
+      if (r.kind === 'dock') {
+        // Large mirrored hydraulic docking clamps gripping KS-1 in the left Sub Berth bay (swing open when undocked!).
+        const sx = b.ox + b.ow * 0.36;
+        const mountY = b.floor(0) + 12;
+        const docked = c.subDocked(id);
+        for (const side of [-1, 1]) drawDockClamp(d, sx, mountY, side, 1.65, docked, de);
       }
       if (r.kind === 'dock' && c.subDocked(id)) {
         // KS-1 berthed in the left Sub Berth bay of the 4-wide Moon Pool.

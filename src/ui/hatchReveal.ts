@@ -3,7 +3,7 @@ import type { KindNews } from '../game/collection';
 import type { CreatureData } from '../game/state';
 import { COLOURS, PATTERNS, SHAPES, traitsOf } from '../game/traits';
 import { rarityTags } from './creatureCard';
-import { snapImg, snapUrl } from './creatureSnap';
+import { snapImg } from './creatureSnap';
 
 /*
  * Phase 20: the hatching moment. Every egg that hatches gets a short reveal: the egg
@@ -73,12 +73,9 @@ export class HatchReveal {
     return !!this.job;
   }
 
-  /** Queue a reveal. `where` is "in TANK 2" or "in the Hatchery". */
-  show(c: CreatureData, news: KindNews, tier: Job['tier'], where: string): void {
-    // Start drawing its portrait now, so it is ready when the shell bursts.
-    snapUrl(c.species, traitsOf(c), 'young');
-    this.queue.push({ c, news, tier, where });
-    if (!this.job) this.next();
+  /** Queue a reveal. Bottom modal pop-ups removed (Colin, Nov 25, 2026): auto-keep the suggested name silently. */
+  show(c: CreatureData, _news: KindNews, _tier: Job['tier'], _where: string): void {
+    this.deps.named(c);
   }
 
   private next(): void {

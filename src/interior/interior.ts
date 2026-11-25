@@ -167,6 +167,7 @@ export interface InteriorCombat {
   step(dt: number, walker: Walker, ev: InteriorEvent[]): void;
   draw(back: Graphics, front: Graphics, emissive: Graphics, glow: Graphics, time: number): void;
   lights(): Light[];
+  detach?(): void;
 }
 const CORVINA_LABELS: Record<string, string> = {
   '1': 'Take the sonar test logs',
@@ -425,6 +426,8 @@ export class Interior {
 
   /** Build a level and step into it at its 'S' tile. */
   enter(map: string[], state: InteriorState, hooks: InteriorHooks | null = null, opts: InteriorOptions | null = null, ocean?: OceanSource): void {
+    const nextCombat = opts?.combat;
+    if (this.opts.combat && this.opts.combat !== nextCombat) this.opts.combat.detach?.();
     if (opts) this.opts = opts;
     else if (!hooks) this.opts = { labels: CORVINA_LABELS, sign: { ch: '1', text: 'SURVEY LAB' } };
     else this.opts = {};
@@ -579,6 +582,8 @@ export class Interior {
   }
 
   leave(): void {
+    this.opts.combat?.detach?.();
+    this.opts = {};
     this.baseSkin.mask = null;
     this.hooks?.detach?.();
     this.hooks = null;
@@ -1197,7 +1202,26 @@ export class Interior {
         tk.circle(x, y + 3, 1.6).fill({ color: 0x262018 });
       } else if (s.ch === '1') tk.roundRect(x - 10, y - 10, 20, 14, 2).fill({ color: 0x3a3e40 }).roundRect(x - 7, y - 8, 14, 9, 1).fill({ color: 0x9ab070 });
       else if (s.ch === '2') tk.roundRect(x - 16, y - 6, 32, 8, 4).fill({ color: 0xd8d0b8 });
-      else if (s.ch === '3' || s.ch === '7') tk.roundRect(x - 11, y - 8, 22, 10, 1).fill({ color: 0x6a3a2a });
+      else if (s.ch === '3' || s.ch === '7') {
+        // Open brass-clasped Ship's Logbook resting on a small nautical reading stand.
+        // Lectern base & brass pedestal.
+        tk.roundRect(x - 14, y + 6, 28, 4, 1.5).fill({ color: 0x3b352e }).stroke({ color: 0x161412, width: 1.2 });
+        tk.rect(x - 3, y - 4, 6, 10).fill({ color: 0x9c7b38 }).stroke({ color: 0x261d0e, width: 1 });
+        // Oxblood leather hardcover boards with brass corner clasps.
+        tk.poly([x - 19, y - 6, x, y - 2, x + 19, y - 6, x + 17, y + 2, x, y + 5, x - 17, y + 2])
+          .fill({ color: 0x6b2820 }).stroke({ color: 0x1d1210, width: 1.6 });
+        for (const cx of [x - 17, x + 17]) tk.circle(cx, y - 4, 2.1).fill({ color: 0xd8b158 });
+        // Splayed cream parchment pages & sepia handwritten log lines.
+        tk.poly([x - 16, y - 7, x - 1, y - 4, x - 1, y + 1, x - 15, y - 1]).fill({ color: 0xf2e6c8 }).stroke({ color: 0x8a7554, width: 0.9 });
+        tk.poly([x + 1, y - 4, x + 16, y - 7, x + 15, y - 1, x + 1, y + 1]).fill({ color: 0xede0be }).stroke({ color: 0x8a7554, width: 0.9 });
+        for (let row = 0; row < 3; row++) {
+          const ly = y - 5.2 + row * 2.1;
+          tk.moveTo(x - 13, ly).lineTo(x - 3.5, ly + 1.2).moveTo(x + 3.5, ly + 1.2).lineTo(x + 13, ly)
+            .stroke({ color: 0x5c4632, width: 0.85, alpha: 0.72 });
+        }
+        // Frayed crimson silk ribbon bookmark draping over the bottom spine.
+        tk.moveTo(x, y - 2).lineTo(x + 2, y + 8).lineTo(x - 1, y + 6.5).stroke({ color: 0xc2382e, width: 2, cap: 'round' });
+      }
       else if (s.ch === '4' || s.ch === '5') tk.circle(x, y - 3, 7).stroke({ color: 0xc9a24a, width: 2.4 }).circle(x, y - 3, 2).fill({ color: 0x4a4e50 });
       else if (s.ch === '6') tk.roundRect(x - 16, y - 6, 32, 8, 4).fill({ color: 0xd8d0b8 });
       else tk.rect(x - 8, y - 6, 16, 4).fill({ color: 0xa8822e });
@@ -2087,6 +2111,32 @@ export class Interior {
     else if (this.livingBases && !this.hooks && this.power) this.animateWreckInstruments(de, viewW, viewH);
     if (this.opts.animate) this.opts.animate(d, de, this.time);
     const dg = this.dynGlow.clear();
+    // Underwater-style golden pickup sparkles & warm shimmer motes on all untaken interior finds (including Corvina's logbook!).
+    if (!this.opts.plainFinds && !this.hooks) {
+      for (const s of this.spots) {
+        if (!isFind(s.ch) || this.state.taken.includes(s.ch)) continue;
+        const fx = s.x;
+        const fy = s.y - 24;
+        const ph = s.x * 0.037 + s.y * 0.019;
+        const pulse = 0.55 + 0.45 * Math.sin(this.time * 4.4 + ph);
+        const glint = Math.pow(0.5 + 0.5 * Math.sin(this.time * 3.1 + ph * 1.7), 3);
+        const isLog = s.ch === '3' || s.ch === '7';
+        const r = (isLog ? 9 : 6.5) * (0.65 + glint * 0.65);
+        dg.circle(fx, fy + 2, isLog ? 32 : 24).fill({ color: 0xffd268, alpha: (isLog ? 0.34 : 0.24) * pulse });
+        // Crisp 4-point golden star glint.
+        de.moveTo(fx - r, fy).lineTo(fx + r, fy).moveTo(fx, fy - r).lineTo(fx, fy + r)
+          .stroke({ color: 0xfff0b2, width: 1.6, alpha: 0.45 + glint * 0.55, cap: 'round' });
+        de.circle(fx, fy, 2.2 + glint * 1.4).fill({ color: 0xffffff, alpha: 0.65 + glint * 0.35 });
+        // Rising drifting golden sparkle motes like underwater pickups.
+        for (let k = 0; k < (isLog ? 3 : 2); k++) {
+          const t = ((this.time * 0.65 + ph + k * 0.37) % 1);
+          const mx = fx + Math.sin(t * 6.2 + k * 2.4 + ph) * (10 + k * 4);
+          const my = fy + 6 - t * 28;
+          const ma = Math.sin(t * Math.PI) * 0.85;
+          de.circle(mx, my, 1.3 + (k % 2) * 0.6).fill({ color: 0xffe698, alpha: ma });
+        }
+      }
+    }
     if (this.opts.combat) this.opts.combat.draw(d, this.front, de, dg, this.time);
     if (this.hooks) {
       de.clear();

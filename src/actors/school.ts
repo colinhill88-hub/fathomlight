@@ -20,6 +20,7 @@ interface Fish {
   tail?: Graphics;
   silverbar?: Silverbar;
   isJelly?: boolean;
+  baseScale: number;
   x: number;
   y: number;
   vx: number;
@@ -34,13 +35,23 @@ function drawFish(kind: AmbientSpecies = 'silverbar'): { g: Container; tail?: Gr
   const g = new Container();
   const body = new Graphics();
   if (kind === 'jelly') {
-    // Translucent pulsing Moon Jelly drifter (warm amber-ivory bell + trailing silk tentacles).
-    body.moveTo(-7, 1).arc(0, 1, 7.5, Math.PI, 0).quadraticCurveTo(0, 3.2, -7, 1).closePath()
-      .fill({ color: 0xf4e4c4, alpha: 0.52 }).stroke({ color: 0xffd28a, width: 1.1, alpha: 0.72 });
-    body.ellipse(0, -1.2, 4.2, 2.2).fill({ color: 0xfff6dc, alpha: 0.45 });
+    // Delicate translucent pulsing Moon Jelly drifter (smooth dome bell + glowing clover core + wispy silk tentacles).
+    const domePts: number[] = [];
+    for (let i = 0; i <= 20; i++) {
+      const a = Math.PI + (i / 20) * Math.PI;
+      domePts.push(Math.cos(a) * 8.5, 1 + Math.sin(a) * 6.5);
+    }
+    domePts.push(4.5, 2.2, 0, 1.4, -4.5, 2.2);
+    body.poly(domePts)
+      .fill({ color: 0xf6e6c8, alpha: 0.44 })
+      .stroke({ color: 0xffd592, width: 0.9, alpha: 0.68 });
+    body.ellipse(0, -1.6, 5.2, 2.6).fill({ color: 0xfff8e2, alpha: 0.36 });
+    body.circle(-1.6, -1.4, 1.3).fill({ color: 0xffe4a4, alpha: 0.52 });
+    body.circle(1.6, -1.4, 1.3).fill({ color: 0xffe4a4, alpha: 0.52 });
     const tail = new Graphics();
-    for (const tx of [-4, -1.4, 1.4, 4]) {
-      tail.moveTo(tx, 1).quadraticCurveTo(tx + 1.5, 6, tx - 1, 12).stroke({ color: 0xffe0a8, width: 0.95, alpha: 0.58, cap: 'round' });
+    for (const [tx, len, w] of [[-4.8, 11, 0.7], [-1.8, 15, 0.85], [1.8, 14, 0.85], [4.8, 10.5, 0.7]] as const) {
+      tail.moveTo(tx, 1.4).bezierCurveTo(tx + 1.8, len * 0.4, tx - 1.8, len * 0.75, tx + 0.6, len)
+        .stroke({ color: 0xffe2ac, width: w, alpha: 0.52, cap: 'round' });
     }
     g.addChild(tail, body);
     return { g, tail, isJelly: true };
@@ -108,10 +119,12 @@ export class School {
       const { g, tail, isJelly } = useSilverbarRig ? { g: new Container(), tail: undefined, isJelly: false } : drawFish(this.species);
       const a = this.random() * Math.PI * 2;
       const r = Math.sqrt(this.random());
+      const size = (0.85 + this.random() * 0.35) * visualSize;
       const f: Fish = {
         g,
         tail,
         isJelly,
+        baseScale: size,
         ox: Math.cos(a) * r * (isJelly ? 95 : 70),
         oy: Math.sin(a) * r * (isJelly ? 52 : 34),
         x: this.cx,
@@ -123,7 +136,6 @@ export class School {
       };
       f.x += f.ox;
       f.y += f.oy;
-      const size = (0.85 + this.random() * 0.35) * visualSize;
       g.scale.set(size);
       if (useSilverbarRig) f.silverbar = new Silverbar(g, f.phase, size);
       this.view.addChild(g);
@@ -169,8 +181,9 @@ export class School {
       const fx = f.x - diverX;
       const fy = f.y - diverY;
       const fd = Math.hypot(fx, fy);
-      if (fd < 95) {
-        const k = (1 - fd / 95) * (f.isJelly ? 340 : 880);
+      const closeR = f.isJelly ? 120 : 95;
+      if (fd < closeR) {
+        const k = (1 - fd / closeR) * (f.isJelly ? 460 : 880);
         ax += (fx / (fd || 1)) * k;
         ay += (fy / (fd || 1)) * k;
       } else if (fd < 265 && !f.isJelly) {
@@ -185,7 +198,7 @@ export class School {
       f.vx += ax * dt;
       f.vy += ay * dt;
       const sp = Math.hypot(f.vx, f.vy);
-      const max = f.isJelly ? 55 : fd < 105 ? 250 : fd < 265 ? 145 : 92;
+      const max = f.isJelly ? (fd < 120 ? 120 : 55) : fd < 105 ? 250 : fd < 265 ? 145 : 92;
       if (sp > max) {
         f.vx *= max / sp;
         f.vy *= max / sp;
@@ -214,12 +227,11 @@ export class School {
         }
       } else if (f.isJelly && f.tail) {
         const pulse = Math.sin(time * 2.8 + f.phase);
-        const baseSc = Math.abs(f.g.scale.y);
-        f.g.scale.set(baseSc * (1 + pulse * 0.09), baseSc * (1 - pulse * 0.08));
-        f.g.rotation = Math.max(-0.35, Math.min(0.35, f.vx * 0.004));
+        f.g.scale.set(f.baseScale * (1 + pulse * 0.10), f.baseScale * (1 - pulse * 0.08));
+        f.g.rotation = Math.max(-0.35, Math.min(0.35, f.vx * 0.005));
         f.tail.scale.y = 0.88 + 0.16 * Math.sin(time * 2.8 + f.phase - 0.7);
       } else if (f.tail) {
-        f.g.scale.x = Math.abs(f.g.scale.y) * f.face;
+        f.g.scale.set(f.baseScale * f.face, f.baseScale);
         f.g.rotation = Math.atan2(f.vy, Math.abs(f.vx) + 15) * 0.6 * f.face;
         f.tail.rotation = Math.sin(time * (8 + Math.min(sp, 200) * 0.06) + f.phase) * 0.4;
       }

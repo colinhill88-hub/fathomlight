@@ -1,5 +1,6 @@
 import { Container, Graphics, Sprite, Texture } from 'pixi.js';
 import { mulberry32 } from '../rng';
+import { baseWaveHeight, weatherAt } from '../fx/surfaceMotion';
 
 /**
  * SkyLife (Colin, Nov 24, 2026): high-fidelity painterly Sun, Moon, and
@@ -407,25 +408,23 @@ export class SkyLife {
   update(dt: number, time: number, camX: number, camY: number, viewW: number, viewH: number, cssW: number, cssH: number): void {
     const zoom = cssH / Math.max(1, viewH);
     const horizonScreenY = (0 - camY) * zoom;
-    // If the ocean horizon is above the top of the screen, nothing in the sky is visible.
-    if (horizonScreenY <= 2) {
+    const { rain: rainAmt, overcast, wind: windAmt } = weatherAt(time);
+    // If the ocean horizon (including tall storm wave troughs) is above the top of the screen, nothing in the sky is visible.
+    if (horizonScreenY + (4 + windAmt * 26) * zoom <= 2) {
       this.view.visible = false;
       return;
     }
     this.view.visible = true;
-    // Clip cleanly right at the horizon so Sun, Moon, and Seagulls never appear underwater.
-    this.clipMask.clear().rect(0, 0, cssW, Math.min(cssH, horizonScreenY + 3)).fill({ color: 0xffffff });
+    // Clip cleanly along the ocean horizon (with trough allowance during windy swells so rain reaches the wave valleys).
+    this.clipMask.clear().rect(0, 0, cssW, Math.min(cssH, horizonScreenY + (3 + windAmt * 16) * zoom)).fill({ color: 0xffffff });
 
-    // Exact same Day / Night & Weather clock as src/scene/water.ts.
+    // Exact same Day / Night & Weather clock as src/scene/water.ts & src/fx/surfaceMotion.ts.
     const dayPhase = (((time / DAY_CYCLE_SEC) + DAY_START_OFFSET) % 1 + 1) % 1;
     const sunAngle = (dayPhase - 0.25) * Math.PI * 2;
     const sunElev = Math.sin(sunAngle);
     const dayAmt = smoothstep(-0.14, 0.28, sunElev);
     const du = (sunElev - 0.04) / 0.22;
     const duskAmt = Math.exp(-(du * du));
-    const wPhase = (((time / 270) + 0.15) % 1 + 1) % 1;
-    const rainAmt = smoothstep(0.64, 0.72, wPhase) * (1 - smoothstep(0.90, 0.98, wPhase));
-    const overcast = smoothstep(0.56, 0.70, wPhase) * (1 - smoothstep(0.92, 1.0, wPhase));
     const sunVis = smoothstep(-0.18, 0.02, sunElev) * (1 - overcast * 0.72);
 
     const skySpanWorld = Math.max(240, viewH * 0.42);
@@ -541,35 +540,71 @@ export class SkyLife {
       this.ufoSprite.visible = false;
     }
 
-    // 3. Passing Coastal Rain Squall: wind-driven rain streaks + animated water-surface crown splashes & expanding ripples!
+    // 3. Coastal Weather FX: sweeping wind-gust ribbons, wave-crest sea spray, and wind-slanted rain + animated surface splashes!
     const rf = this.rainFx.clear();
     const spf = this.splashFx.clear();
+    if (windAmt > 0.08 && horizonScreenY > 18) {
+      // Translucent gust ribbons curling across the coastal sky during breezy / storm weather.
+      const gustCount = Math.round(4 + windAmt * 9);
+      const gustCol = dayAmt > 0.3 ? 0xeaf6f4 : 0x9ab4c4;
+      const skySpan = Math.max(60, horizonScreenY - 8);
+      for (let i = 0; i < gustCount; i++) {
+        const seed = i * 113.7 + 17;
+        const speed = 260 + windAmt * 320 + (i % 4) * 55;
+        const gx = (((seed * 71 - time * speed) % (cssW + 260)) + (cssW + 260)) % (cssW + 260) - 130;
+        const gy = Math.max(12, ((seed * 41.3) % 1) * skySpan * 0.88);
+        const len = 55 + windAmt * 75 + (i % 3) * 24;
+        const lift = Math.sin(time * 3.4 + seed) * (6 + windAmt * 6);
+        rf.moveTo(gx, gy)
+          .quadraticCurveTo(gx + len * 0.45, gy - lift, gx + len, gy + lift * 0.3)
+          .stroke({ color: gustCol, width: 1.15, alpha: (0.10 + (i % 3) * 0.04) * windAmt, cap: 'round' });
+      }
+      // Fine sea-spray flecks whipping off the crests of large wind-driven waves!
+      if (horizonScreenY < cssH + 24) {
+        const sprayCount = Math.round(6 + windAmt * 18);
+        for (let i = 0; i < sprayCount; i++) {
+          const seed = i * 57.3;
+          const sx = (((seed * 131 - time * (110 + windAmt * 190)) % cssW) + cssW) % cssW;
+          const wx = camX + sx / zoom;
+          const wy = baseWaveHeight(wx, time);
+          if (wy < -4) {
+            const sy = (wy - camY) * zoom;
+            const drift = ((time * 2.4 + seed) % 1);
+            spf.circle(sx - drift * (18 + windAmt * 22), sy - 2 - Math.sin(drift * Math.PI) * (5 + windAmt * 8), 1.05 + (i % 2) * 0.45)
+              .fill({ color: 0xeefaf8, alpha: (1 - drift) * windAmt * 0.42 });
+          }
+        }
+      }
+    }
     if (rainAmt > 0.02) {
-      const dropCount = Math.round(40 + rainAmt * 110);
+      const stormBoost = rainAmt * windAmt;
+      const dropCount = Math.round(45 + rainAmt * 115 + stormBoost * 55);
       const skyTop = -40;
       const skySpan = Math.max(80, horizonScreenY + 40);
       const rainCol = dayAmt > 0.3 ? 0xd8eaee : 0x9ab4c4;
+      const slant = 0.24 + windAmt * 0.42;
+      const windDrift = 155 + windAmt * 310;
       for (let i = 0; i < dropCount; i++) {
         const seed = i * 73.137;
-        const speed = 580 + (i % 7) * 58;
+        const speed = 580 + windAmt * 180 + (i % 7) * 58;
         const u = ((time * speed + seed * 19) % skySpan) / skySpan;
-        const rx = (((seed * 97.3 - time * 165) % (cssW + 120)) + (cssW + 120)) % (cssW + 120) - 60;
+        const rx = (((seed * 97.3 - time * windDrift) % (cssW + 180)) + (cssW + 180)) % (cssW + 180) - 90;
         const ry = skyTop + u * skySpan;
-        const len = 16 + (i % 4) * 6;
-        rf.moveTo(rx, ry).lineTo(rx - len * 0.28, ry + len)
+        const len = 16 + windAmt * 10 + (i % 4) * 6;
+        rf.moveTo(rx, ry).lineTo(rx - len * slant, ry + len)
           .stroke({ color: rainCol, width: i % 3 === 0 ? 1.35 : 0.95, alpha: (0.18 + (i % 5) * 0.06) * rainAmt, cap: 'round' });
       }
-      // Spawn lively raindrop impact splashes right along the ocean waterline.
-      if (horizonScreenY > 8 && horizonScreenY < cssH + 16) {
-        const spawns = Math.min(4, Math.floor((rainAmt * 38) * dt + Math.random()));
+      // Spawn lively raindrop impact splashes riding the actual animated ocean waves!
+      if (horizonScreenY > 8 && horizonScreenY < cssH + 28) {
+        const spawns = Math.min(6, Math.floor((rainAmt * (38 + stormBoost * 24)) * dt + Math.random()));
         for (let k = 0; k < spawns; k++) {
-          if (this.rainSplashes.length < 48) {
+          if (this.rainSplashes.length < 60) {
             this.rainSplashes.push({
               x: Math.random() * cssW,
-              dy: (Math.random() - 0.4) * 8,
+              dy: (Math.random() - 0.4) * 7,
               life: 0,
               max: 0.34 + Math.random() * 0.22,
-              size: 8 + Math.random() * 10,
+              size: 8 + Math.random() * 10 + stormBoost * 4,
             });
           }
         }
@@ -580,9 +615,10 @@ export class SkyLife {
       sp.life += dt;
       if (sp.life >= sp.max) continue;
       const p = sp.life / sp.max;
-      const sy = horizonScreenY + sp.dy;
+      const waveScreenY = (baseWaveHeight(camX + sp.x / zoom, time) - camY) * zoom;
+      const sy = waveScreenY + sp.dy;
       const alpha = (1 - p) * Math.max(0.25, rainAmt);
-      // Expanding elliptical ripple ring on the ocean surface.
+      // Expanding elliptical ripple ring on the moving wave surface.
       spf.ellipse(sp.x, sy, 2 + sp.size * p, 0.8 + sp.size * 0.24 * p)
         .stroke({ color: 0xe6f8f4, width: 1.15 * (1 - p * 0.5), alpha: alpha * 0.72 });
       // Tiny bouncing crown-splash droplets during the first 45% of impact!
@@ -590,16 +626,17 @@ export class SkyLife {
         const cp = p / 0.45;
         const hop = Math.sin(cp * Math.PI) * (5 + sp.size * 0.35);
         const spread = cp * (3 + sp.size * 0.35);
-        spf.circle(sp.x - spread, sy - hop, 1.15).fill({ color: 0xf4fffc, alpha: (1 - cp) * 0.85 });
-        spf.circle(sp.x + spread, sy - hop * 0.9, 1.15).fill({ color: 0xf4fffc, alpha: (1 - cp) * 0.85 });
-        spf.circle(sp.x, sy - hop * 1.25, 1.0).fill({ color: 0xffffff, alpha: (1 - cp) * 0.75 });
+        const windPush = cp * windAmt * 7;
+        spf.circle(sp.x - spread - windPush, sy - hop, 1.15).fill({ color: 0xf4fffc, alpha: (1 - cp) * 0.85 });
+        spf.circle(sp.x + spread - windPush, sy - hop * 0.9, 1.15).fill({ color: 0xf4fffc, alpha: (1 - cp) * 0.85 });
+        spf.circle(sp.x - windPush * 0.6, sy - hop * 1.25, 1.0).fill({ color: 0xffffff, alpha: (1 - cp) * 0.75 });
       }
       keptSplashes.push(sp);
     }
     this.rainSplashes = keptSplashes;
 
-    // 4. Articulated daytime coastal Seagulls (active during clear day & golden hour; shelter during heavy rain & night).
-    const gullVis = clamp01(dayAmt + duskAmt * 0.72) * (1 - rainAmt * 0.9);
+    // 4. Articulated daytime coastal Seagulls (active during clear/breezy day & golden hour; shelter during heavy rain/gales & night).
+    const gullVis = clamp01(dayAmt + duskAmt * 0.72) * (1 - Math.min(1, rainAmt * 0.9 + windAmt * rainAmt * 0.5));
     this.gullLayer.visible = gullVis > 0.02;
     if (!this.gullLayer.visible) return;
 
