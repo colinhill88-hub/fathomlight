@@ -80,7 +80,7 @@ export const SITE = (() => {
 /** How many cells of the site are open water. */
 export const OPEN_CELLS = OPEN.filter(Boolean).length;
 
-export type PieceKind = 'dome' | 'corridor' | 'turbine' | 'storage' | 'tank' | 'filter' | 'feeder' | 'press' | 'dock' | 'lab' | 'workshop' | 'gtank' | 'sorter' | 'recomp' | 'crane' | 'hatch' | 'farm' | 'revive' | 'shaft' | 'junction' | 'bracket' | 'signal' | 'lantern' | 'thermal';
+export type PieceKind = 'dome' | 'corridor' | 'turbine' | 'storage' | 'tank' | 'filter' | 'feeder' | 'press' | 'dock' | 'lab' | 'workshop' | 'gtank' | 'sorter' | 'recomp' | 'crane' | 'hatch' | 'farm' | 'revive' | 'shaft' | 'junction' | 'bracket' | 'signal' | 'lantern' | 'thermal' | 'bedroom';
 /** Creature tanks of either size (milestone 7 part 2 added the Grand tank). */
 export function isTankKind(k: PieceKind): boolean {
   return k === 'tank' || k === 'gtank';
@@ -123,6 +123,25 @@ export const PIECES: Record<PieceKind, PieceDef> = {
     cost: { scrap: 3, quartz: 4, fibre: 2 },
     buildTime: 40,
     shapes: [{ w: 2, h: 2, collars: [{ cx: 0, cy: 0, dir: 'L' }, { cx: 1, cy: 0, dir: 'R' }] }],
+  },
+  bedroom: {
+    kind: 'bedroom',
+    name: 'Crew quarters',
+    job: 'Spacious 3×2 personal quarters with your bunk, panoramic lounge, and a built-in display shelf for collectibles, lamps, and enemy figurines from EX-1.',
+    cost: { plate: 4, scrap: 3, copper: 2, fibre: 3 },
+    buildTime: 34,
+    shapes: [
+      {
+        w: 3,
+        h: 2,
+        collars: [
+          { cx: 0, cy: 0, dir: 'L' },
+          { cx: 2, cy: 0, dir: 'R' },
+          { cx: 0, cy: 1, dir: 'L' },
+          { cx: 2, cy: 1, dir: 'R' },
+        ],
+      },
+    ],
   },
   corridor: {
     kind: 'corridor',
@@ -473,7 +492,7 @@ export const PIECES: Record<PieceKind, PieceDef> = {
     ],
   },
 };
-export const PIECE_ORDER: PieceKind[] = ['dome', 'corridor', 'turbine', 'storage', 'tank', 'filter', 'feeder', 'press', 'dock', 'lab', 'workshop', 'gtank', 'sorter', 'recomp', 'crane', 'hatch', 'farm', 'revive', 'signal', 'thermal', 'lantern', 'shaft', 'junction', 'bracket'];
+export const PIECE_ORDER: PieceKind[] = ['dome', 'bedroom', 'corridor', 'turbine', 'storage', 'tank', 'filter', 'feeder', 'press', 'dock', 'lab', 'workshop', 'gtank', 'sorter', 'recomp', 'crane', 'hatch', 'farm', 'revive', 'signal', 'thermal', 'lantern', 'shaft', 'junction', 'bracket'];
 /** Each sorting pod's bay for every material. */
 export const SORT_BAY = 12;
 
@@ -573,7 +592,7 @@ export const POWER_MAKE: Partial<Record<PieceKind, number>> = { turbine: 12, the
 /** The Kestrel current only drives this many turbines in all; the rest stand idle. */
 export const TURBINE_LIMIT = 3;
 export const POWER_DRAW: Record<PieceKind, number> = {
-  dome: 1, corridor: 0, turbine: 0, storage: 1, tank: 1, filter: 1, feeder: 1, press: 3, dock: 3, lab: 2, workshop: 3,
+  dome: 1, bedroom: 1, corridor: 0, turbine: 0, storage: 1, tank: 1, filter: 1, feeder: 1, press: 3, dock: 3, lab: 2, workshop: 3,
   gtank: 2, sorter: 2, recomp: 2, crane: 3, hatch: 2, farm: 1, revive: 2, shaft: 0, junction: 0, bracket: 0, signal: 4, lantern: 0, thermal: 0,
 };
 export interface PowerNet {
@@ -784,6 +803,7 @@ export function pay(kind: PieceKind, bag: Record<MaterialId, number>, stored: Re
 /** The stencil prefix painted on each kind of piece (see src/world/basegfx.ts). */
 const CODE_PREFIX: Record<PieceKind, string> = {
   dome: 'HAB-0',
+  bedroom: 'BR-',
   corridor: 'C-',
   turbine: 'CT-',
   storage: 'STORE 0',

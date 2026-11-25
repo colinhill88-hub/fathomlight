@@ -6,6 +6,7 @@ import {
   applyTonic,
   buyExchangeDecor,
   buyMysteryEgg,
+  buyRoomDecor,
   buySupply,
   creatureValue,
   creditsOf,
@@ -16,10 +17,11 @@ import {
   EXCHANGE_DECOR,
   EXCHANGE_SUPPLIES,
   MYSTERY_EGG_COST,
+  ROOM_DECOR_SHOP,
   TONIC_COST,
   tonicRemaining,
 } from '../game/exchange';
-import type { CreatureData, DecorId, SaveData, SpeciesId } from '../game/state';
+import type { CreatureData, DecorId, RoomDecorId, SaveData, SpeciesId } from '../game/state';
 import { isRare, traitsOf, traitText } from '../game/traits';
 import { snapImg } from './creatureSnap';
 
@@ -75,6 +77,7 @@ export class ExchangePanel {
       } else if (act === 'send-dups') this.sendDuplicates();
       else if (act === 'send') this.sendOne(Number(id));
       else if (act === 'buy-decor') this.buyDecor(id as DecorId);
+      else if (act === 'buy-room') this.buyRoom(id as RoomDecorId);
       else if (act === 'buy-tonic') this.buyTonic(Number(id));
       else if (act === 'buy-supply') this.buySupply(id as (typeof EXCHANGE_SUPPLIES)[number]['id']);
       else if (act === 'buy-egg') this.buyEgg(id as SpeciesId);
@@ -173,6 +176,18 @@ export class ExchangePanel {
     }
     this.deps.persist();
     this.deps.onBuy('decor', DECOR[id].name, 'Ready to place at any Habitat console.');
+    this.render();
+  }
+
+  private buyRoom(id: RoomDecorId): void {
+    const s = this.deps.save();
+    const res = buyRoomDecor(s, id);
+    if (!res.ok) {
+      this.deps.toast(res.why, 'warn');
+      return;
+    }
+    this.deps.persist();
+    this.deps.onBuy('decor', res.offer.name, 'Displayed automatically in your Crew Quarters (BR-1)!');
     this.render();
   }
 
@@ -325,7 +340,24 @@ export class ExchangePanel {
           .join('')
       : '<p class="ex-empty">Scan or raise a species first to order mystery rare eggs.</p>';
 
+    const roomCards = ROOM_DECOR_SHOP.map((o) => {
+      const owned = s.roomDecor?.includes(o.id) ?? false;
+      const lock = o.lockHint?.(s) ?? null;
+      const disabled = owned || !!lock || sc < o.cost;
+      const btnText = owned ? 'Owned' : lock ? 'Locked' : `${o.cost} SC`;
+      return `<div class="ex-shop-card${owned ? ' owned' : ''}">
+        <div class="ex-shop-meta">
+          <b>${o.name}</b>
+          <p>${o.line}</p>
+          ${owned ? '<small class="ex-owned">Displayed in Crew Quarters (BR-1)</small>' : lock ? `<small class="ex-owned">${lock}</small>` : ''}
+        </div>
+        <button type="button" class="ex-buy" data-ex="buy-room" data-id="${o.id}" ${disabled ? 'disabled' : ''}>${btnText}</button>
+      </div>`;
+    }).join('');
+
     return `
+      <h3 class="ex-sec-title">Crew Quarters · Decor & Collectibles <span>Build Crew Quarters (BR-1) to display shelves, lamps & enemy figurines</span></h3>
+      <div class="ex-grid">${roomCards}</div>
       <h3 class="ex-sec-title">Exclusive Tank Decorations <span>Place in any tank at its Habitat console</span></h3>
       <div class="ex-grid">${decorCards}</div>
       <h3 class="ex-sec-title">Rich Kelp Tonic <span>1.6× breeding speed & boosted rare odds for 15 min · ${TONIC_COST} SC</span></h3>

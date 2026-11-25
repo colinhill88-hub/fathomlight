@@ -1,9 +1,9 @@
 import { Matrix, Rectangle, Texture, type FillStyle } from 'pixi.js';
 import { loadImageTexture } from './imageAssets';
 
-const files = import.meta.glob<string>('./painterly-world/*.webp', { eager: true, import: 'default', query: '?url&no-inline' });
+const files = import.meta.glob<string>('./painterly-world/*.{webp,jpg}', { eager: true, import: 'default', query: '?url&no-inline' });
 
-const plates = ['basin', 'meadow', 'cliff', 'forest-east', 'shelf', 'shelf-east', 'trench', 'abyss', 'caves', 'sanctum'] as const;
+const plates = ['basin', 'meadow', 'grotto-mid', 'cliff', 'forest-east', 'shelf', 'shelf-east', 'trench', 'trench-mid', 'abyss', 'caves', 'sanctum'] as const;
 const materials = ['shale', 'limestone', 'grotto', 'forest', 'silt', 'basalt', 'cave', 'nacre', 'kestrel', 'corvina', 'fulmar', 'heart'] as const;
 type Plate = typeof plates[number];
 export type Material = typeof materials[number];
@@ -18,7 +18,7 @@ export interface WorldArt {
 }
 
 async function optionalTexture(name: string, width: number, height: number): Promise<Texture | undefined> {
-  const url = files[`./painterly-world/${name}.webp`];
+  const url = files[`./painterly-world/${name}.webp`] ?? files[`./painterly-world/${name}.jpg`];
   if (!url) return undefined;
   try {
     return await loadImageTexture(url, width, height);

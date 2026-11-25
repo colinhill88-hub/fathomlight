@@ -41,8 +41,10 @@ void main() {
   float vis = texture(uMask, clamp((wp - uOrigin) / uWorld, 0.0, 1.0)).r;
   col *= mix(0.45, 1.0, vis);
 
-  // ---- Dynamic Day / Night Cycle (6-minute loop, starting in golden late afternoon gliding into sunset -> starry night -> golden sunrise) ----
-  float dayPhase = fract(uTime / 360.0 + 0.715); // 0.0 = midnight, 0.25 = sunrise, 0.50 = noon, 0.75 = sunset
+  // ---- Dynamic Day / Night Cycle (6-minute loop with 4 bespoke Sunrise/Sunset palettes per in-game day!) ----
+  float dayTotal = uTime / 360.0 + 0.715;
+  float dayPhase = fract(dayTotal); // 0.0 = midnight, 0.25 = sunrise, 0.50 = noon, 0.75 = sunset
+  float dayTheme = mod(floor(dayTotal), 4.0); // Cycles 0..3 so every day has a distinct Zelda-inspired sunrise/sunset
   float sunAngle = (dayPhase - 0.25) * 6.2831853; // 0 at sunrise, PI/2 at noon, PI at sunset
   float sunElev = sin(sunAngle); // +1 noon, 0 horizon, -1 midnight
   float dayAmt = smoothstep(-0.14, 0.28, sunElev);
@@ -50,6 +52,10 @@ void main() {
   float du = (sunElev - 0.04) / 0.22;
   float duskAmt = exp(-(du * du)); // peaks warmly at both sunrise & sunset
   float sunsetSide = smoothstep(0.45, 0.55, dayPhase); // 0 = sunrise (east/right), 1 = sunset (west/left)
+  // Dynamic coastal weather cycle (4.5-min loop: ~70% clear sunny skies, ~30% passing overcast rain squalls).
+  float wPhase = fract(uTime / 270.0 + 0.15);
+  float rainAmt = smoothstep(0.64, 0.72, wPhase) * (1.0 - smoothstep(0.90, 0.98, wPhase));
+  float overcast = smoothstep(0.56, 0.70, wPhase) * (1.0 - smoothstep(0.92, 1.0, wPhase));
 
   // Light shafts: slanted bands that sway slowly and tint warmly during sunrise/sunset.
   float x = (wp.x * 0.8 + d * 0.42) / 560.0;
@@ -62,7 +68,7 @@ void main() {
   shafts *= exp(-max(d, 0.0) / 430.0) * vis;
   vec3 shaftTint = mix(vec3(0.42, 0.62, 0.82), vec3(0.75, 0.92, 0.88), dayAmt);
   shaftTint = mix(shaftTint, vec3(1.0, 0.72, 0.46), duskAmt * 0.82);
-  col += shaftTint * shafts * mix(0.11, 0.26, dayAmt + duskAmt * 0.35);
+  col += shaftTint * shafts * mix(0.11, 0.26, dayAmt + duskAmt * 0.35) * (1.0 - overcast * 0.48);
 
   // Brightness just under the surface (warm golden-peach at sunrise/sunset, cool silver at night).
   vec3 underGlow = mix(vec3(0.42, 0.58, 0.74), vec3(0.8, 0.95, 0.9), dayAmt);
@@ -95,17 +101,39 @@ void main() {
   vec3 dayMid = vec3(0.54, 0.77, 0.89);
   vec3 dayZen = vec3(0.28, 0.54, 0.76);
 
-  vec3 duskHor = mix(vec3(1.00, 0.72, 0.42), vec3(0.98, 0.54, 0.38), sunsetSide);
+  // 4 bespoke sunrise/sunset palettes rotating each in-game day:
+  // 0 = Coral & Burnished Gold, 1 = Crimson Ember, 2 = Peach & Lavender Mist, 3 = Rose-Quartz & Copper Dawn
+  vec3 duskHor = mix(vec3(1.00, 0.72, 0.42), vec3(0.98, 0.54, 0.36), sunsetSide);
   vec3 duskMid = mix(vec3(0.84, 0.50, 0.52), vec3(0.68, 0.38, 0.54), sunsetSide);
   vec3 duskZen = vec3(0.18, 0.22, 0.40);
+  if (dayTheme > 0.5 && dayTheme < 1.5) {
+    duskHor = mix(vec3(1.00, 0.58, 0.26), vec3(0.96, 0.38, 0.28), sunsetSide);
+    duskMid = mix(vec3(0.76, 0.32, 0.36), vec3(0.54, 0.24, 0.40), sunsetSide);
+    duskZen = vec3(0.14, 0.16, 0.34);
+  } else if (dayTheme > 1.5 && dayTheme < 2.5) {
+    duskHor = mix(vec3(1.00, 0.80, 0.58), vec3(0.96, 0.68, 0.62), sunsetSide);
+    duskMid = mix(vec3(0.76, 0.58, 0.76), vec3(0.58, 0.48, 0.72), sunsetSide);
+    duskZen = vec3(0.20, 0.24, 0.48);
+  } else if (dayTheme >= 2.5) {
+    duskHor = mix(vec3(1.00, 0.84, 0.56), vec3(0.96, 0.60, 0.50), sunsetSide);
+    duskMid = mix(vec3(0.86, 0.54, 0.58), vec3(0.60, 0.44, 0.58), sunsetSide);
+    duskZen = vec3(0.14, 0.26, 0.42);
+  }
 
   vec3 nightHor = vec3(0.10, 0.16, 0.26);
   vec3 nightMid = vec3(0.06, 0.10, 0.19);
   vec3 nightZen = vec3(0.03, 0.05, 0.11);
 
-  vec3 cHor = mix(mix(nightHor, dayHor, dayAmt), duskHor, duskAmt);
-  vec3 cMid = mix(mix(nightMid, dayMid, dayAmt), duskMid, duskAmt);
-  vec3 cZen = mix(mix(nightZen, dayZen, dayAmt), duskZen, duskAmt);
+  vec3 cHor = mix(mix(nightHor, dayHor, dayAmt), duskHor, duskAmt * (1.0 - overcast * 0.55));
+  vec3 cMid = mix(mix(nightMid, dayMid, dayAmt), duskMid, duskAmt * (1.0 - overcast * 0.55));
+  vec3 cZen = mix(mix(nightZen, dayZen, dayAmt), duskZen, duskAmt * (1.0 - overcast * 0.55));
+  // Overcast rain-squall sky softening (cool moody silver-slate storm canopy).
+  vec3 stormHor = mix(vec3(0.12, 0.17, 0.22), vec3(0.52, 0.60, 0.64), dayAmt);
+  vec3 stormMid = mix(vec3(0.08, 0.11, 0.16), vec3(0.34, 0.42, 0.48), dayAmt);
+  vec3 stormZen = mix(vec3(0.04, 0.06, 0.10), vec3(0.20, 0.27, 0.34), dayAmt);
+  cHor = mix(cHor, stormHor, overcast * 0.78);
+  cMid = mix(cMid, stormMid, overcast * 0.82);
+  cZen = mix(cZen, stormZen, overcast * 0.82);
 
   vec3 sky = mix(cHor, cMid, smoothstep(0.0, 0.42, skyH));
   sky = mix(sky, cZen, smoothstep(0.32, 1.0, skyH));
@@ -140,18 +168,22 @@ void main() {
     }
   }
 
-  // Soft painted drifting coastal cloud banks lit from beneath by sunrise/sunset.
-  vec2 cloudUV = vec2(parX * 3.8 + uTime * 0.0045, skyH * 4.2);
+  // Soft painted drifting coastal cloud banks (thicken into darker storm clouds during rain squalls).
+  vec2 cloudUV = vec2(parX * 3.8 + uTime * (0.0045 + rainAmt * 0.006), skyH * 4.2);
   float c1 = noise(cloudUV);
   float c2 = noise(cloudUV * 2.3 + vec2(4.2, -1.7));
-  float cloudShape = smoothstep(0.46, 0.78, c1 * 0.68 + c2 * 0.32) * smoothstep(0.06, 0.26, skyH) * (1.0 - smoothstep(0.74, 0.98, skyH));
+  float cloudShape = smoothstep(mix(0.46, 0.24, overcast), mix(0.78, 0.66, overcast), c1 * 0.68 + c2 * 0.32) * smoothstep(0.04, 0.24, skyH) * (1.0 - smoothstep(0.74, 0.99, skyH));
   vec3 cloudBase = mix(vec3(0.16, 0.22, 0.32), vec3(0.94, 0.95, 0.94), dayAmt);
   vec3 cloudLit = mix(vec3(0.32, 0.42, 0.56), vec3(1.0, 0.98, 0.94), dayAmt);
   cloudBase = mix(cloudBase, vec3(0.46, 0.30, 0.42), duskAmt * 0.85);
   cloudLit = mix(cloudLit, vec3(1.0, 0.72, 0.46), duskAmt * 0.95);
-  float sunRim = exp(-sunDist * 2.2) * sunVis;
+  cloudBase = mix(cloudBase, mix(vec3(0.10, 0.13, 0.18), vec3(0.26, 0.32, 0.38), dayAmt), overcast * 0.82);
+  cloudLit = mix(cloudLit, mix(vec3(0.18, 0.23, 0.29), vec3(0.46, 0.53, 0.58), dayAmt), overcast * 0.82);
+  float sunRim = exp(-sunDist * 2.2) * sunVis * (1.0 - overcast * 0.75);
   vec3 cloudCol = mix(cloudBase, cloudLit, clamp(0.35 + (1.0 - skyH) * 0.55 + sunRim * 0.6, 0.0, 1.0));
-  sky = mix(sky, cloudCol, cloudShape * 0.56);
+  sky = mix(sky, cloudCol, cloudShape * mix(0.56, 0.84, overcast));
+  // Soft coastal rain-mist veil hovering just over the waves during a squall.
+  sky = mix(sky, stormHor, rainAmt * (1.0 - smoothstep(0.0, 0.35, skyH)) * 0.32);
 
   // Underwater murk stays strictly below the waterline so it never mottles or distorts the sky!
   float murk = noise(vec2(wp.x / 280.0 + uTime * 0.02, wp.y / 280.0 - uTime * 0.01));

@@ -12,7 +12,7 @@ import { keyOutWhiteAndCrop, loadImage } from './creatureArt';
  */
 export type VehicleArtKey = 'sub' | 'drone' | 'buoy' | 'buoy_anchor';
 export type BaseArtKey =
-  | 'dome' | 'dock' | 'lab' | 'workshop' | 'nursery' | 'turbine' | 'portal'
+  | 'dome' | 'dock' | 'bedroom' | 'lab' | 'workshop' | 'nursery' | 'turbine' | 'portal'
   | 'corridor' | 'junction' | 'storage' | 'thermal' | 'hatch' | 'farm' | 'revive' | 'signal'
   | 'filter' | 'feeder' | 'press' | 'sorter' | 'recomp' | 'crane' | 'lantern';
 export type FoeArtKey = 'tick' | 'drone' | 'keeper';
@@ -140,7 +140,7 @@ const KESTREL_KEYS: readonly KestrelArtKey[] = [
 ];
 const VEHICLE_KEYS: readonly VehicleArtKey[] = ['sub', 'drone', 'buoy', 'buoy_anchor'];
 const BASE_KEYS: readonly BaseArtKey[] = [
-  'dome', 'dock', 'lab', 'workshop', 'nursery', 'turbine', 'portal',
+  'dome', 'dock', 'bedroom', 'lab', 'workshop', 'nursery', 'turbine', 'portal',
   'corridor', 'junction', 'storage', 'thermal', 'hatch', 'farm', 'revive', 'signal',
   'filter', 'feeder', 'press', 'sorter', 'recomp', 'crane', 'lantern',
 ];

@@ -215,6 +215,19 @@ export interface TankData {
 export type DecorId =
   | 'arch' | 'amphora' | 'helmet' | 'chest' | 'driftwood' | 'clam' | 'lantern' | 'wheel'
   | 'anchor' | 'coralarch' | 'astrolabe' | 'floats' | 'bell' | 'belljar' | 'cairn' | 'kelplantern';
+/** Purchasable Crew Quarters (BR-1) collectibles, Beacon Lamp & defeated-enemy figurines (EX-1 shop). */
+export type RoomDecorId =
+  | 'beacon_lamp'
+  | 'mini_anchor'
+  | 'mini_sled'
+  | 'mini_corvina'
+  | 'mini_fulmar'
+  | 'mini_sub'
+  | 'mini_buoy'
+  | 'fig_tick'
+  | 'fig_drone'
+  | 'fig_keeper'
+  | 'fig_spider';
 
 /** Supply Buoy EX-1 rotating Field Contract (save-safe, no time limits). */
 export interface FieldContract {
@@ -514,6 +527,10 @@ export interface SaveData {
   displayKits?: number;
   /** Research Exchange (Supply Buoy): Survey Credits earned by dispatching surplus raised creatures. */
   credits?: number;
+  /** Owned Crew Quarters (BR-1) room cosmetics, shelf trinkets & enemy figurines. */
+  roomDecor?: RoomDecorId[];
+  /** Enemy kinds defeated at least once (unlocks trophy figurines in the EX-1 shop). */
+  defeatedFoes?: string[];
   /** Supply Buoy EX-1 rotating Field Contracts (optional, save-safe). */
   contracts?: FieldContract[];
   contractsDone?: number;
@@ -698,6 +715,8 @@ export function loadSave(spawnX: number, spawnY: number): { data: SaveData; load
       tankKits: typeof d.tankKits === 'number' ? d.tankKits : undefined,
       displayKits: typeof d.displayKits === 'number' ? d.displayKits : undefined,
       credits: typeof d.credits === 'number' && Number.isFinite(d.credits) && d.credits >= 0 ? Math.floor(d.credits) : undefined,
+      roomDecor: Array.isArray(d.roomDecor) ? d.roomDecor : [],
+      defeatedFoes: Array.isArray(d.defeatedFoes) ? d.defeatedFoes : [],
       relays: Array.isArray(d.relays) ? d.relays.filter((r: { x?: unknown; y?: unknown }) => typeof r?.x === 'number' && typeof r?.y === 'number') : [],
     } as SaveData;
     // Phase 22: new trait fields are optional; anything malformed is dropped (old creatures stay ordinary).

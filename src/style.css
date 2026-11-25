@@ -5970,6 +5970,82 @@ body.on-foot #btn-dart {
   box-shadow: 0 0 12px rgba(242, 212, 136, 0.55), inset 0 1px 0 rgba(255, 252, 232, 0.65);
 }
 
+/* ---- Compact Ori-Inspired Car-Dashboard Control HUD ---- */
+#ctl-helper.skin-sonar {
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 18px;
+}
+#ctl-helper.skin-sonar::before,
+#ctl-helper.skin-sonar::after {
+  display: none;
+}
+#ctl-helper.skin-sonar .dash-offers {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+}
+#ctl-helper.skin-sonar .dash-cluster {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 2px 4px;
+}
+#ctl-helper.skin-sonar .dash-pod {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  min-width: 40px;
+  padding: 5px 7px 4px;
+  border-radius: 10px;
+  background: linear-gradient(180deg, rgba(24, 38, 42, 0.88), rgba(11, 20, 23, 0.94));
+  border: 1px solid rgba(182, 148, 78, 0.42);
+  box-shadow: inset 0 1px 0 rgba(255, 238, 195, 0.14), 0 2px 6px rgba(0, 0, 0, 0.42);
+  transition: opacity 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease;
+}
+#ctl-helper.skin-sonar .dash-pod.dash-lit {
+  color: #e6f4c8;
+  border-color: rgba(212, 177, 104, 0.62);
+  box-shadow: inset 0 0 10px rgba(198, 240, 58, 0.08), 0 2px 8px rgba(0, 0, 0, 0.45);
+}
+#ctl-helper.skin-sonar .dash-pod.dash-lit .dash-ico {
+  color: #d8f294;
+  filter: drop-shadow(0 0 4px rgba(198, 240, 58, 0.45));
+}
+#ctl-helper.skin-sonar .dash-pod.dash-locked {
+  opacity: 0.26;
+  border-style: dashed;
+  border-color: rgba(140, 155, 160, 0.35);
+  filter: grayscale(0.8);
+}
+#ctl-helper.skin-sonar .dash-ico {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 17px;
+  height: 17px;
+}
+#ctl-helper.skin-sonar .dash-svg {
+  width: 16px;
+  height: 16px;
+}
+#ctl-helper.skin-sonar .dash-pod kbd {
+  font-size: 0.72em;
+  min-width: 1.55em;
+  padding: 0.08em 0.38em;
+  border-radius: 5px;
+}
+#ctl-helper.skin-sonar .dash-pod .cluster {
+  transform: scale(0.76);
+  margin: -3px -4px;
+}
+
 /* ---- Top-left HUD dive-computer resource pills ---- */
 #inventory {
   padding: 6px 9px;

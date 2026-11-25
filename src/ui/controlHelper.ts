@@ -73,6 +73,37 @@ export interface HelperRow {
   hold?: boolean;
   /** Offered by the world right now (vs. the standing movement set). */
   context?: boolean;
+  /** Optional dashboard icon id for compact car-dashboard mode. */
+  icon?: string;
+  /** True when this upgrade pod is not yet built (shown dimmed on the dashboard). */
+  locked?: boolean;
+}
+
+/** Crisp 18×18 inline SVG icons for the Ori-inspired car-dashboard HUD. */
+function dashIcon(id: string): string {
+  const s = (d: string) => `<svg class="dash-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
+  if (id.startsWith('collect:')) return s('<path d="M12 4v11m-4-4 4 4 4-4"/><rect x="5" y="17" width="14" height="3" rx="1"/>');
+  if (id.startsWith('board:')) return s('<ellipse cx="12" cy="13" rx="8" ry="4.5"/><path d="M9 8.5V6h6v2.5"/><circle cx="15" cy="13" r="1.4" fill="currentColor"/>');
+  if (id.startsWith('scan')) return s('<circle cx="12" cy="12" r="2.2" fill="currentColor"/><path d="M7.8 7.8a6 6 0 0 0 0 8.4M16.2 7.8a6 6 0 0 1 0 8.4M4.8 4.8a10 10 0 0 0 0 14.4M19.2 4.8a10 10 0 0 1 0 14.4"/>');
+  if (id.startsWith('release:')) return s('<path d="M12 19V7m-4 4 4-4 4 4"/><path d="M7 19h10"/>');
+  switch (id) {
+    case 'move': case 'walk': case 'pan': return s('<path d="M12 3v18M3 12h18M9 6l3-3 3 3M9 18l3 3 3-3M6 9l-3 3 3 3M18 9l3 3-3 3"/>');
+    case 'boost': case 'sprint': return s('<path d="M13 2 4 14h7l-1 8 9-12h-7l1-8z"/>');
+    case 'jump': case 'hop': return s('<path d="M12 19V5m-5 5 5-5 5 5"/>');
+    case 'lamp': return s('<circle cx="12" cy="11" r="4"/><path d="M12 3v2M12 19v2M4 11h2M18 11h2M6.3 5.3l1.4 1.4M16.3 5.3l-1.4 1.4M9.5 16h5"/>');
+    case 'flare': return s('<path d="M12 3c2 3 4 5.2 4 8a4 4 0 0 1-8 0c0-1.6.7-3.1 1.7-4.5.4 1.3 1.2 2 2.3 2-.5-2 0-3.8 0-5.5z"/><path d="M9 20h6"/>');
+    case 'dart': return s('<path d="M4 20 20 4m0 0-6 1m6-1-1 6M7 13l4 4"/>');
+    case 'haul': return s('<rect x="6" y="8" width="12" height="7" rx="3.5"/><path d="M12 5v3M4 11h2M18 11h2M9 18l3-3 3 3"/>');
+    case 'boots': case 'unclamp': return s('<path d="M7 5v7l-2 4v3h14v-3l-3-2H12V5z"/>');
+    case 'kit': return s('<rect x="4" y="7" width="16" height="13" rx="2.5"/><path d="M9 7V5a3 3 0 0 1 6 0v2M4 12h16"/>');
+    case 'shoot': return s('<circle cx="12" cy="12" r="7"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/><circle cx="12" cy="12" r="1.6" fill="currentColor"/>');
+    case 'brace': return s('<path d="M12 3 5 6v6c0 4.5 3 7.5 7 9 4-1.5 7-4.5 7-9V6l-7-3z"/>');
+    case 'ladder': case 'climb': return s('<path d="M8 3v18M16 3v18M8 7h8M8 12h8M8 17h8"/>');
+    case 'zoom': case 'bzoom': return s('<circle cx="11" cy="11" r="6"/><path d="m20 20-4.2-4.2M9 11h4"/>');
+    case 'build': case 'bplace': return s('<path d="M14.7 6.3a4 4 0 0 0-5.4 5.4l-5.3 5.3 2.5 2.5 5.3-5.3a4 4 0 0 0 5.4-5.4l-2.3 2.3-2.5-2.5 2.3-2.3z"/>');
+    case 'tend': case 'dock': case 'lab': return s('<rect x="4" y="4" width="16" height="16" rx="2.5"/><path d="M8 9h8M8 13h5M8 17h3"/>');
+    default: return s('<circle cx="12" cy="12" r="6"/>');
+  }
 }
 
 /** The rows for a situation, most important first (pure: used by the helper and the tests). */
@@ -98,13 +129,14 @@ export function helperRows(c: HelperContext): HelperRow[] {
     case 'swim':
       add({ id: 'move', keys: ['move'], label: 'Swim' });
       add({ id: 'boost', keys: ['boost'], label: 'Boost' });
-      if (!c.scan) add({ id: 'scan', keys: ['scan'], label: c.sonar ? 'Scan · sonar pulse' : 'Scan', hold: false });
+      if (!c.scan) add({ id: 'scan', keys: ['scan'], label: c.sonar ? 'Scan · Sonar' : 'Scan', hold: false });
       add({ id: 'lamp', keys: ['lamp'], label: 'Lamp' });
-      if (c.flare) add({ id: 'flare', keys: ['flare'], label: 'Flare' });
-      if (c.dart) add({ id: 'dart', keys: ['dart'], label: 'Stun dart' });
+      // Dynamic upgrade dashboard slots: illuminate once unlocked/built, subtly recessed while locked.
+      add({ id: 'flare', keys: ['flare'], label: 'Flare', locked: !c.flare });
+      add({ id: 'dart', keys: ['dart'], label: 'Stun dart', locked: !c.dart });
+      add({ id: 'boots', keys: ['boots'], label: 'Mag-boots', locked: c.boots !== 'own' && c.boots !== 'offer' });
       if (c.haul) add({ id: 'haul', keys: ['haul'], label: 'Send KD-1 home' });
-      if (c.release) add({ id: 'release:' + c.release, keys: ['release'], label: `Release ${c.release}` });
-      if (c.boots === 'own') add({ id: 'boots', keys: ['boots'], label: 'Mag-boots' });
+      if (c.release) add({ id: 'release:' + c.release, keys: ['release'], label: `Release ${c.release}`, context: true });
       add({ id: 'kit', keys: ['kit'], label: 'Field kit' });
       break;
     case 'boots':
@@ -255,7 +287,7 @@ export class ControlHelper {
     // Uninterrupted play: in Always mode the row dims rather than vanishing.
     this.el.classList.toggle('quiet', this.pref === 'always' && this.busy > 10 && !shown.some((row) => row.context));
     this.el.classList.toggle('show', shown.length > 0);
-    const sig = `${bindingsVersion()}|${c.device}|${shown.map((s) => s.id + (s.context ? '*' : '')).join(',')}`;
+    const sig = `${bindingsVersion()}|${c.device}|${shown.map((s) => s.id + (s.context ? '*' : '') + (s.locked ? '!' : '')).join(',')}`;
     if (sig === this.sig) return;
     this.sig = sig;
     for (const row of shown) if (!this.seen.has(row.id)) this.seen.set(row.id, this.time);
@@ -267,12 +299,24 @@ export class ControlHelper {
       this.pingAt = this.time;
       this.onOffer?.();
     }
-    this.el.innerHTML = shown
+    const ctxRows = shown.filter((row) => row.context);
+    const dashRows = shown.filter((row) => !row.context);
+    const ctxHtml = ctxRows
       .map((row) => {
-        const fresh = row.context && this.time - (this.seen.get(row.id) ?? 0) < 0.2;
-        return `<div class="ctl${row.context ? ' ctx' : ''}${fresh ? ' fresh' : ''}"><span class="caps">${this.caps(row, c.device)}${row.hold ? '<em>hold</em>' : ''}</span><span class="lbl">${escapeHtml(row.label)}</span></div>`;
+        const fresh = this.time - (this.seen.get(row.id) ?? 0) < 0.2;
+        return `<div class="ctl ctx${fresh ? ' fresh' : ''}"><span class="dash-ico">${dashIcon(row.id)}</span><span class="caps">${this.caps(row, c.device)}${row.hold ? '<em>hold</em>' : ''}</span><span class="lbl">${escapeHtml(row.label)}</span></div>`;
       })
       .join('');
+    const dashHtml = dashRows
+      .map((row) => {
+        const locked = !!row.locked;
+        const tip = locked ? `${row.label} (craft in Workshop to unlock)` : row.label;
+        return `<div class="ctl dash-pod${locked ? ' dash-locked' : ' dash-lit'}" title="${escapeHtml(tip)}"><span class="dash-ico">${dashIcon(row.id)}</span><span class="caps">${this.caps(row, c.device)}${row.hold ? '<em>hold</em>' : ''}</span></div>`;
+      })
+      .join('');
+    this.el.innerHTML =
+      (ctxHtml ? `<div class="dash-offers">${ctxHtml}</div>` : '') +
+      (dashHtml ? `<div class="dash-cluster">${dashHtml}</div>` : '');
   }
 
   private caps(row: HelperRow, device: Device): string {

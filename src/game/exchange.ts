@@ -1,6 +1,6 @@
 import { addDecor, DECOR, giftEgg, matchesRequest } from './collection';
 import { creatureName, SPECIES, SPECIES_ORDER, tankDataFor } from './creatures';
-import type { CreatureData, DecorId, MaterialId, SaveData, SpeciesId } from './state';
+import type { CreatureData, DecorId, MaterialId, RoomDecorId, SaveData, SpeciesId } from './state';
 import { isRare, isUncommon, traitsOf } from './traits';
 
 /**
@@ -36,6 +36,83 @@ export const EXCHANGE_DECOR: readonly ExchangeDecorOffer[] = [
   { id: 'belljar', cost: 110 },
   { id: 'kelplantern', cost: 120 },
 ];
+
+export interface RoomDecorOffer {
+  id: RoomDecorId;
+  name: string;
+  line: string;
+  cost: number;
+  /** Optional progression check (returns null if unlocked, or a short hint string if locked). */
+  lockHint?: (s: SaveData) => string | null;
+}
+
+export const ROOM_DECOR_SHOP: readonly RoomDecorOffer[] = [
+  { id: 'beacon_lamp', name: 'Survey Beacon Table Lamp', line: 'A warm glowing bedside lamp modeled after the reef exploration beacon.', cost: 35 },
+  { id: 'mini_anchor', name: 'Brass Anchor Keepsake', line: 'A miniature cast-brass ship anchor for your Quarters display shelf.', cost: 30 },
+  { id: 'mini_buoy', name: 'Mooring Buoy Paperweight', line: 'A painted miniature of Kestrel’s surface buoy for your display shelf.', cost: 30 },
+  { id: 'mini_sled', name: 'Survey Sled Scale Model', line: 'A lovingly weathered miniature of Survey Sled 2 for your shelf.', cost: 45 },
+  {
+    id: 'mini_sub',
+    name: 'KS-1 Brass Desk Model',
+    line: 'A finely machined brass scale model of your KS-1 submersible.',
+    cost: 55,
+    lockHint: (s) => (s.sub?.stage === 'built' ? null : 'Build KS-1 first'),
+  },
+  {
+    id: 'mini_corvina',
+    name: 'Corvina Wreck Model',
+    line: 'A collector’s museum miniature of the sunken Corvina.',
+    cost: 65,
+    lockHint: (s) => (s.corvina.open || s.scans.includes('cvlog') ? null : 'Explore the Corvina first'),
+  },
+  {
+    id: 'mini_fulmar',
+    name: 'Fulmar Station Model',
+    line: 'A deep-water scale model of the drowned Fulmar listening station.',
+    cost: 80,
+    lockHint: (s) => (s.fulmar.open || s.scans.includes('fulmarlog') ? null : 'Explore the Fulmar first'),
+  },
+  {
+    id: 'fig_tick',
+    name: 'Rust Tick Figurine',
+    line: 'A cheeky brass-and-iron figurine perched on your shelf corner.',
+    cost: 40,
+    lockHint: (s) => (s.defeatedFoes?.includes('tick') || (s.corvina.engine?.taken.length ?? 0) > 0 ? null : 'Scrap a Rust Tick first'),
+  },
+  {
+    id: 'fig_drone',
+    name: 'Weld Drone Ceiling Mobile',
+    line: 'A miniature Weld Drone suspended from your Quarters ceiling on brass wire.',
+    cost: 55,
+    lockHint: (s) => (s.defeatedFoes?.includes('drone') || (s.corvina.engine?.taken.length ?? 0) > 0 ? null : 'Scrap a Weld Drone first'),
+  },
+  {
+    id: 'fig_spider',
+    name: 'Abyssal Spider Figurine',
+    line: 'A poised deep-station stalker spider figurine for the upper shelf cornice.',
+    cost: 60,
+    lockHint: (s) => (s.defeatedFoes?.includes('spider') ? null : 'Drive off an Abyssal Spider in the Fulmar'),
+  },
+  {
+    id: 'fig_keeper',
+    name: 'Hull Keeper Bronze Statuette',
+    line: 'A proud cast-bronze trophy statuette of the Corvina Hull Keeper on a bedside pedestal.',
+    cost: 95,
+    lockHint: (s) => (s.corvina.engine?.taken.includes('k') ? null : 'Defeat the Corvina Hull Keeper first'),
+  },
+];
+
+export function buyRoomDecor(save: SaveData, id: RoomDecorId): { ok: true; offer: RoomDecorOffer } | { ok: false; why: string } {
+  const offer = ROOM_DECOR_SHOP.find((o) => o.id === id);
+  if (!offer) return { ok: false, why: 'Unknown item' };
+  const owned = (save.roomDecor ??= []);
+  if (owned.includes(id)) return { ok: false, why: 'Already owned' };
+  const lock = offer.lockHint?.(save);
+  if (lock) return { ok: false, why: lock };
+  if (!spendCredits(save, offer.cost)) return { ok: false, why: `Need ${offer.cost} SC` };
+  owned.push(id);
+  return { ok: true, offer };
+}
 
 export interface ExchangeSupplyOffer {
   id: 'plating' | 'brass' | 'bloom' | 'whorl';

@@ -12,6 +12,7 @@ import { ITEM_COLOURS, pointAlong } from '../world/linegfx';
 import { drawPlant, TankLife } from '../world/tanklife';
 import type { TankArt } from '../art/tankArt';
 import { getPropArt } from '../art/propArt';
+import { getCreatureArt } from '../art/creatureArt';
 import { drawHabitatFrame, drawObservationCrown, drawPressureRib } from '../world/habitatFrame';
 import { HousingOcean } from './housingOcean';
 import { HousingHull } from './housingHull';
@@ -258,6 +259,7 @@ export interface BaseCtx {
   build(): void;
   exit(domeId: number): void;
   recompress(): void;
+  restInBed?(): void;
   /** Conveyors and feed pipes, and the live flow on each (part 2). */
   lines(): SavedLine[];
   flow(id: number): { rate: number; item: MaterialId | null } | null;
@@ -360,7 +362,7 @@ interface Spot {
   x: number;
   y: number;
   r: number;
-  what: 'airlock' | 'planner' | 'unload' | 'tank' | 'habitat' | 'habitat-tray' | 'station' | 'dock' | 'recomp' | 'info' | 'sealed' | 'lift' | 'board' | 'tune' | 'hatch' | 'farm' | 'farmtray' | 'revive' | 'signal';
+  what: 'airlock' | 'planner' | 'unload' | 'tank' | 'habitat' | 'habitat-tray' | 'station' | 'dock' | 'recomp' | 'info' | 'sealed' | 'lift' | 'board' | 'tune' | 'hatch' | 'farm' | 'farmtray' | 'revive' | 'signal' | 'rest';
   other?: Placed;
   to?: { x: number; y: number };
   up?: boolean;
@@ -784,6 +786,9 @@ export class BaseHooks implements InteriorHooks {
         add(b.cx, b.bottom, 'airlock', 56);
         add(b.ox + b.ow - 90, b.floor(0), 'planner', 60);
         break;
+      case 'bedroom':
+        add(b.ox + 165, b.floor(0), 'rest', 88);
+        break;
       case 'storage':
       case 'sorter':
         add(b.cx, b.bottom, 'unload', 120);
@@ -920,6 +925,8 @@ export class BaseHooks implements InteriorHooks {
       case 'recomp':
         if (!on) return `${code}: no power`;
         return { key: 'recomp', label: 'Cycle chamber: Acclimated buff (12m: +25% O₂, +15% speed, +10m depth) & 2-hit suit seal', seconds: 1.6, done: () => c.recompress() };
+      case 'rest':
+        return { key: 'rest', label: 'Rest in Quarters (restore suit & advance sky)', seconds: 0.8, done: () => c.restInBed?.() };
       case 'lift': {
         const to = best.to!;
         return {
@@ -1185,6 +1192,126 @@ export class BaseHooks implements InteriorHooks {
       this.ocean.add('panorama', glass);
     }
     switch (r.kind) {
+      case 'bedroom': {
+        // Spacious 3×2 Crew Quarters: upper panoramic loft with bunk, Beacon Lamp & ceiling mobile; lower Collector's Gallery with 3-tier display shelf.
+        const fixtures = this.ctx.panorama ? this.roomFixtures : g;
+        const propArt = getPropArt();
+        const intArt = propArt.interior;
+        const owned = new Set(this.ctx.save.roomDecor ?? []);
+        const f0 = b.floor(0);
+        // Panoramic upper observation window looking out into the reef/sky.
+        if (this.ctx.panorama && this.ocean) {
+          const glass = { x: b.ox + 34, y: b.oy + 22, w: b.ow - 68, h: f0 - b.oy - 82 };
+          drawHabitatFrame(g, glass, 10);
+          this.ocean.add('panorama', glass, undefined, { lookDown: this.seabedSightline(r) });
+        }
+        // Cozy woven rug & riveted timber bunk bed on the upper loft (left).
+        fixtures.roundRect(b.ox + 78, f0 - 4, 230, 5, 2).fill({ color: 0x5c3c2e, alpha: 0.9 });
+        fixtures.rect(b.ox + 88, f0 - 3, 210, 2).fill({ color: 0xc9a24a, alpha: 0.65 });
+        if (intArt.bunk) {
+          const spr = new Sprite(intArt.bunk);
+          spr.anchor.set(0.5, 1);
+          spr.scale.set(174 / Math.max(1, intArt.bunk.width));
+          spr.position.set(b.ox + 165, f0);
+          fixtures.addChild(spr);
+        } else {
+          fixtures.roundRect(b.ox + 85, f0 - 44, 156, 20, 4).fill({ color: COL.chromeDark });
+          fixtures.roundRect(b.ox + 90, f0 - 54, 146, 14, 4).fill({ color: 0x4a5258 });
+          fixtures.roundRect(b.ox + 92, f0 - 58, 34, 10, 4).fill({ color: 0xd8d0c0 });
+        }
+        addText(sign('CREW QUARTERS', b.cx, b.oy + 14, 9.5, 0xe5c397, 0.9));
+
+        // Bedside table (upper loft, beside the bunk) — hosts the functional Survey Beacon Table Lamp!
+        const nightX = b.ox + 292;
+        fixtures.roundRect(nightX - 24, f0 - 38, 48, 38, 3).fill({ color: 0x3b2d22 }).stroke({ color: 0x9e7d3a, width: 1.4 });
+        fixtures.rect(nightX - 26, f0 - 40, 52, 5).fill({ color: 0xb89347 });
+        if (owned.has('beacon_lamp')) {
+          const bTex = propArt.landmarks.beacon;
+          if (bTex) {
+            const lampSpr = new Sprite(bTex);
+            lampSpr.anchor.set(0.5, 1);
+            lampSpr.scale.set(44 / Math.max(1, bTex.height));
+            lampSpr.position.set(nightX, f0 - 39);
+            fixtures.addChild(lampSpr);
+          } else {
+            fixtures.roundRect(nightX - 6, f0 - 66, 12, 26, 3).fill({ color: 0x5c686e });
+          }
+          e.circle(nightX, f0 - 76, 6).fill({ color: 0xffe49c, alpha: 0.95 });
+          gl.circle(nightX, f0 - 76, 38).fill({ color: 0xffc862, alpha: 0.36 });
+          this.screens.push({ x: nightX, y: f0 - 74, radius: 240, intensity: 0.72, color: [1, 0.82, 0.45], zone: id } as Light);
+        }
+
+        // Clever enemy figurine placement #1: Hull Keeper Cast-Bronze Statuette on a loft display pedestal!
+        if (owned.has('fig_keeper')) {
+          const pedX = b.ox + b.ow - 128;
+          fixtures.roundRect(pedX - 24, f0 - 34, 48, 34, 3).fill({ color: 0x2b3438 }).stroke({ color: 0xb89347, width: 1.5 });
+          fixtures.rect(pedX - 28, f0 - 36, 56, 5).fill({ color: 0xc9a24a });
+          const kTex = propArt.foes.keeper;
+          if (kTex) {
+            const ks = new Sprite(kTex);
+            ks.anchor.set(0.5, 1);
+            ks.scale.set(58 / Math.max(1, kTex.height));
+            ks.position.set(pedX, f0 - 35);
+            ks.tint = 0xe8c78a;
+            fixtures.addChild(ks);
+          }
+          addText(sign('HULL KEEPER', pedX, f0 - 14, 6.5, 0xe5c397, 0.85));
+        }
+
+        // Clever enemy figurine placement #2: Weld Drone suspended from the upper ceiling beam on brass wire!
+        if (owned.has('fig_drone')) {
+          const dx = b.cx + 58;
+          const dy = b.oy + 76;
+          fixtures.moveTo(dx, b.oy + 12).lineTo(dx, dy - 16).stroke({ color: 0xb89347, width: 1.4, alpha: 0.85 });
+          const dTex = propArt.foes.drone;
+          if (dTex) {
+            const ds = new Sprite(dTex);
+            ds.anchor.set(0.5, 0.5);
+            ds.scale.set(42 / Math.max(1, dTex.width));
+            ds.position.set(dx, dy);
+            fixtures.addChild(ds);
+          }
+        }
+
+        // Lower deck: Built-in 3-tier walnut & tarnished-brass Collector's Display Shelf!
+        const shX = b.cx - 210;
+        const shW = 420;
+        const shTop = bot - 168;
+        fixtures.roundRect(shX, shTop, shW, 162, 6).fill({ color: 0x261f1a, alpha: 0.94 }).stroke({ color: 0x9e7d3a, width: 2.2 });
+        fixtures.rect(shX + 4, shTop + 4, shW - 8, 12).fill({ color: 0x4b3828 });
+        addText(sign('COLLECTOR’S DISPLAY SHELF', b.cx, shTop - 10, 9, 0xe5c397, 0.9));
+        const tiers = [bot - 114, bot - 62, bot - 14];
+        for (const ty of tiers) {
+          fixtures.rect(shX + 8, ty, shW - 16, 7).fill({ color: 0x5c4430 });
+          fixtures.rect(shX + 8, ty, shW - 16, 2).fill({ color: 0xc9a24a, alpha: 0.8 });
+        }
+        // Recycled-art shelf collectibles placed cleanly across the 3 display tiers.
+        const placeTrinket = (tex: Texture | undefined, tx: number, ty: number, maxH: number, tint = 0xffffff) => {
+          // Small brass museum stand underneath each collectible.
+          fixtures.roundRect(tx - 16, ty - 4, 32, 4, 1.5).fill({ color: 0xb89347 });
+          if (tex) {
+            const s = new Sprite(tex);
+            s.anchor.set(0.5, 1);
+            const sc = Math.min(maxH / Math.max(1, tex.height), 82 / Math.max(1, tex.width));
+            s.scale.set(sc);
+            s.position.set(tx, ty - 3);
+            s.tint = tint;
+            fixtures.addChild(s);
+          }
+        };
+        if (owned.has('mini_anchor')) placeTrinket(propArt.decor.anchor, shX + 68, tiers[0], 42);
+        if (owned.has('mini_buoy')) placeTrinket(propArt.landmarks.mooring_buoy, shX + 160, tiers[0], 42);
+        if (owned.has('mini_sled')) placeTrinket(propArt.landmarks.sled, shX + 265, tiers[0], 40);
+        if (owned.has('mini_sub')) placeTrinket(propArt.vehicles.sub, shX + 356, tiers[0], 38);
+        if (owned.has('mini_corvina')) placeTrinket(propArt.wrecks.corvina, shX + 122, tiers[1], 42);
+        if (owned.has('mini_fulmar')) placeTrinket(propArt.wrecks.fulmar, shX + 296, tiers[1], 42);
+
+        // Clever enemy figurine placement #3: Rust Tick perched cheekily on the lower-right shelf lip!
+        if (owned.has('fig_tick')) placeTrinket(propArt.foes.tick, shX + shW - 54, tiers[2], 34);
+        // Clever enemy figurine placement #4: Abyssal Spider poised on the upper-left shelf cornice!
+        if (owned.has('fig_spider')) placeTrinket(getCreatureArt().spider, shX + 44, shTop + 2, 36);
+        break;
+      }
       case 'dome': {
         // Upper level: the glass dome itself, a lime-tinted window onto the sea, with chrome ribs.
         const f0 = b.floor(0);
@@ -1283,20 +1410,11 @@ export class BaseHooks implements InteriorHooks {
         }
         addText(sign('AIRLOCK', ax, ay - 70, 10));
         hazard(fixtures, ax - 60, bot - 6, 120, 6);
-        // Bunk on the left.
-        if (intArt.bunk) {
-          const spr = new Sprite(intArt.bunk);
-          spr.anchor.set(0.5, 1);
-          spr.scale.set(152 / Math.max(1, intArt.bunk.width));
-          spr.position.set(b.ox + 134, bot);
-          fixtures.addChild(spr);
-        } else {
-          fixtures.roundRect(b.ox + 70, bot - 40, 120, 18, 4).fill({ color: COL.chromeDark });
-          fixtures.roundRect(b.ox + 74, bot - 50, 112, 12, 4).fill({ color: 0x4a5258 });
-          fixtures.roundRect(b.ox + 76, bot - 56, 30, 10, 4).fill({ color: COL.white, alpha: 0.7 });
-          fixtures.rect(b.ox + 70, bot - 22, 6, 22).fill({ color: COL.chromeDark });
-          fixtures.rect(b.ox + 184, bot - 22, 6, 22).fill({ color: COL.chromeDark });
-        }
+        // Airlock dive-gear bench & suit locker on the left (the bunk now lives in Crew Quarters BR-1).
+        fixtures.roundRect(b.ox + 84, bot - 30, 100, 30, 4).fill({ color: 0x2a3438 }).stroke({ color: 0x8f723c, width: 1.4 });
+        fixtures.rect(b.ox + 86, bot - 30, 96, 4).fill({ color: 0xb89347, alpha: 0.75 });
+        for (let i = 0; i < 3; i++) fixtures.roundRect(b.ox + 94 + i * 30, bot - 21, 22, 16, 2).fill({ color: 0x1a2226 });
+        addText(sign('GEAR BENCH', b.ox + 134, bot - 38, 8, 0xc8b88a, 0.72));
         // Console on the right with two screens.
         const cx2 = b.ox + b.ow - 120;
         if (intArt.galley) {

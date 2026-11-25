@@ -413,11 +413,26 @@ async function boot(): Promise<void> {
     // Milestone 7: a wary shoal between the giant kelp.
     new School(18, { x0: 10400, x1: 14200, y0: 520, y1: 1050 }, livingCreatures),
   ];
-  // Ambient life shares its exterior positions as seen through windows. It is outside the scanner roster.
-  const basinSchools = panorama ? [-3600, -1880, 530].map((x, i) => {
-    const bottom = groundY(x);
-    return new School(9, { x0: x - 190, x1: x + 190, y0: bottom - 103, y1: bottom - 37 }, livingCreatures, mulberry32(8210 + i), 0.58);
-  }) : [];
+  // Ambient non-capturable marine life across all biomes (outside the scanner/jar roster; reacts & schools around Kestrel).
+  const basinSchools = [
+    ...(panorama ? [-3600, -1880, 530].map((x, i) => {
+      const bottom = groundY(x);
+      return new School(9, { x0: x - 190, x1: x + 190, y0: bottom - 103, y1: bottom - 37 }, livingCreatures, mulberry32(8210 + i), 0.58, 'silverbar');
+    }) : []),
+    // Sunlit Shallows & Coral Garden: Golden Reef Anthias shoals.
+    new School(18, { x0: 1550, x1: 3600, y0: 140, y1: 360 }, false, mulberry32(8301), 0.88, 'anthias'),
+    new School(14, { x0: 3650, x1: 5200, y0: 210, y1: 420 }, false, mulberry32(8302), 0.92, 'anthias'),
+    // Sunken Grotto: translucent Moon Jelly drifters.
+    new School(9, { x0: 5400, x1: 6900, y0: 420, y1: 780 }, false, mulberry32(8303), 1.05, 'jelly'),
+    // Giant Kelp Forest: Striped Kelp Perch weaving between fronds.
+    new School(16, { x0: 10200, x1: 12600, y0: 360, y1: 860 }, false, mulberry32(8304), 0.95, 'perch'),
+    new School(14, { x0: 12500, x1: 14600, y0: 460, y1: 960 }, false, mulberry32(8305), 0.92, 'perch'),
+    // Wreck Shelf: drifting Moon Jellies & Golden Anthias around the Corvina.
+    new School(10, { x0: 20200, x1: 23800, y0: 820, y1: 1380 }, false, mulberry32(8306), 1.1, 'jelly'),
+    // Deep Trench: glittering Abyssal Lanternfish shoals.
+    new School(18, { x0: 27400, x1: 29800, y0: 1900, y1: 2900 }, false, mulberry32(8307), 0.95, 'lanternfish'),
+    new School(16, { x0: 28600, x1: 31000, y0: 3100, y1: 4100 }, false, mulberry32(8308), 0.98, 'lanternfish'),
+  ];
   boom.open = save.boomOpen;
   const scanner = new Scanner([
     { id: 'silverbar', points: () => schools.map((s) => ({ x: s.cx, y: s.cy })) },
@@ -624,6 +639,7 @@ async function boot(): Promise<void> {
     (bounds, w, h, at) => housingSea.prepare(bounds, w, h, at)) : undefined;
 
   const skyLife = new SkyLife();
+  let skyOffset = 0;
   const worldLayers = [water.view, skyLife.view, backdrop.view, zoneBackdrop.view];
   if (shallowsBackdrop) worldLayers.push(shallowsBackdrop.view);
   worldLayers.push(lighting.view, emissiveCam, glowSprite, snow.view);
@@ -4285,8 +4301,8 @@ async function boot(): Promise<void> {
       sheen: fx.sheen ? preset.sheen : 0,
       fidelity,
     });
-    water.update(time, camX, camY, viewW, viewH, app.canvas.width, app.canvas.height);
-    skyLife.update(dt, time, camX, camY, viewW, viewH, cssW, cssH);
+    water.update(time + skyOffset, camX, camY, viewW, viewH, app.canvas.width, app.canvas.height);
+    skyLife.update(dt, time + skyOffset, camX, camY, viewW, viewH, cssW, cssH);
     backdrop.update(camCX, camCY, zoom, cssW, cssH);
     const shallowsCover = shallowsBackdrop ? shallowsBackdrop.update(camCX, camCY, zoom, cssW, cssH) : 0;
     zoneBackdrop.view.visible = fx.zones;
@@ -4510,6 +4526,10 @@ async function boot(): Promise<void> {
       cue: (c, x, _y, kind) => {
         sound.foe(c, x - interior.walker.x);
         if (c === 'down') {
+          if (kind) {
+            const def = (save.defeatedFoes ??= []);
+            if (!def.includes(kind)) def.push(kind);
+          }
           const bounty = kind === 'drone' ? 15 : 8;
           save.credits = Math.max(0, Math.floor(save.credits ?? 0)) + bounty;
           const finished = recordContractEvent(save, 'foes', 1);
@@ -4599,6 +4619,10 @@ async function boot(): Promise<void> {
       cue: (c, x, _y, kind) => {
         sound.foe(c, x - interior.walker.x);
         if (c === 'down') {
+          if (kind) {
+            const def = (save.defeatedFoes ??= []);
+            if (!def.includes(kind)) def.push(kind);
+          }
           const bounty = kind === 'drone' ? 22 : kind === 'spider' ? 18 : 12;
           save.credits = Math.max(0, Math.floor(save.credits ?? 0)) + bounty;
           const finished = recordContractEvent(save, 'foes', 1);
@@ -4878,6 +4902,15 @@ async function boot(): Promise<void> {
       suitCalm = 99;
       sound.clamps(true);
       hud.toast('Recompression complete: Acclimated for 12 min (+25% O₂, +15% speed, +10 m depth) + 2-hit suit seal!', 'big');
+      persist();
+    },
+    restInBed: () => {
+      save.suit = 1;
+      save.oxygen = maxOxygen(save);
+      suitCalm = 99;
+      skyOffset += 90;
+      sound.clamps(true);
+      hud.toast('Rested in Crew Quarters — suit & oxygen restored, and the ocean sky shifts toward the next horizon.', 'big');
       persist();
     },
     status: (p) => {

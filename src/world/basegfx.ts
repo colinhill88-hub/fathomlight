@@ -2367,6 +2367,33 @@ function drawPaintedHero(kind: PieceKind, n: number, rot: number, housingOcean: 
     body.addChild(stencil(`SA-${n}`, W * 0.62, H - 18, 6));
     return { body, windows, windowGlow, lamp: { x: tipX, y: tipY } };
   }
+  if (kind === 'bedroom' && baseArt.bedroom) {
+    const W = CELL * 3;
+    const H = CELL * 2;
+    const cx = W / 2;
+    const body = new Container();
+    const g = body.addChild(new Graphics());
+    for (const cy of [CELL * 0.5, CELL * 1.5]) {
+      tubeH(g, 0, 20, cy, 1);
+      tubeH(g, W - 20, W, cy, 1);
+    }
+    const spr = new Sprite(baseArt.bedroom);
+    spr.anchor.set(0.5, 0.5);
+    const sc = Math.min((W - 10) / Math.max(1, baseArt.bedroom.width), (H - 8) / Math.max(1, baseArt.bedroom.height));
+    spr.scale.set(sc);
+    spr.position.set(cx, H / 2);
+    body.addChild(spr);
+    const windows = new Graphics();
+    const windowGlow = new Graphics();
+    windows.roundRect(cx - W * 0.25, H * 0.24, W * 0.5, H * 0.24, 10).fill({ color: 0xffd596, alpha: 0.26 });
+    windowGlow.ellipse(cx, H * 0.36, W * 0.32, H * 0.18).fill({ color: 0xffc67a, alpha: 0.26 });
+    for (const px of [cx - W * 0.21, cx, cx + W * 0.21]) {
+      windows.circle(px, H * 0.67, 13).fill({ color: 0xffcf88, alpha: 0.34 });
+      windowGlow.circle(px, H * 0.67, 25).fill({ color: 0xffbc68, alpha: 0.22 });
+    }
+    body.addChild(stencil(`BR-${n}`, cx, H - 15, 6.5));
+    return { body, windows, windowGlow, lamp: { x: cx, y: 18 } };
+  }
   return null;
 }
 
@@ -2395,9 +2422,48 @@ export function drawPiece(kind: PieceKind, n: number, rot: number, seed: number,
   if (kind === 'feeder') return drawFeeder(n, livingBases);
   if (kind === 'press') return drawPress(n);
   if (kind === 'dock') return livingBases ? drawPressureDock(n, housingOcean, panorama) : drawDock(n);
+  if (kind === 'bedroom') return drawBedroom(n);
   if (kind === 'lab') return drawLab(n, livingBases);
   if (kind === 'workshop') return drawWorkshop(n, livingBases);
   return drawStorage(n, livingBases);
+}
+
+function drawBedroom(n: number): PieceArt {
+  const W = CELL * 3;
+  const H = CELL * 2;
+  const cx = W / 2;
+  const body = new Container();
+  const g = body.addChild(new Graphics());
+  const windows = new Graphics();
+  const windowGlow = new Graphics();
+  // Left & right collars on both upper and lower decks.
+  for (const cy of [CELL * 0.5, CELL * 1.5]) {
+    tubeH(g, 0, 22, cy, 1);
+    tubeH(g, W - 22, W, cy, 1);
+  }
+  // Riveted dark-steel & warm tarnished-brass 3×2 Crew Quarters pressure hull.
+  g.roundRect(14, 12, W - 28, H - 24, 24).fill({ color: 0x334145 }).stroke({ color: 0x162022, width: 2.2 });
+  g.roundRect(18, 16, W - 36, 16, 10).fill({ color: 0x52656a, alpha: 0.45 });
+  // Brass horizontal deck belt & vertical pressure ribs.
+  g.rect(16, CELL - 4, W - 32, 8).fill({ color: 0x9e7d3a });
+  g.rect(16, CELL - 4, W - 32, 2).fill({ color: 0xd9b86c, alpha: 0.75 });
+  for (const rx of [96, W - 96]) {
+    drawPressureRib(g, rx - 5, 16, H - 32, 10);
+  }
+  // Upper panoramic lounge observation window (warm cozy amber glow).
+  drawHabitatFrame(g, { x: 38, y: 28, w: W - 76, h: 64 }, 8);
+  windows.roundRect(44, 34, W - 88, 52, 6).fill({ color: 0xffd596, alpha: 0.42 });
+  windowGlow.ellipse(cx, 60, W * 0.36, 36).fill({ color: 0xffc67a, alpha: 0.28 });
+  // Lower deck collector's gallery twin brass portholes.
+  for (const px of [78, cx, W - 78]) {
+    g.circle(px, CELL + 60, 20).fill({ color: 0x263236 }).stroke({ color: 0xb89347, width: 3 });
+    windows.circle(px, CELL + 60, 15).fill({ color: 0xffcf88, alpha: 0.65 });
+    windowGlow.circle(px, CELL + 60, 28).fill({ color: 0xffbc68, alpha: 0.24 });
+  }
+  rivets(g, 26, 20, W - 26, 20, 12);
+  rivets(g, 26, H - 20, W - 26, H - 20, 12);
+  body.addChild(stencil(`BR-${n} · QUARTERS`, cx, CELL + 1, 7.5));
+  return { body, windows, windowGlow, lamp: { x: cx, y: 20 } };
 }
 
 /**
@@ -2534,7 +2600,7 @@ export class BaseView {
       for (const w of l.whorls) this.dropWhorl(w);
       this.live.delete(id);
     }
-    const counts: Record<PieceKind, number> = { dome: 0, corridor: 0, turbine: 0, storage: 0, tank: 0, filter: 0, feeder: 0, press: 0, dock: 0, lab: 0, workshop: 0, gtank: 0, sorter: 0, recomp: 0, crane: 0, hatch: 0, farm: 0, revive: 0, shaft: 0, junction: 0, bracket: 0, signal: 0, lantern: 0, thermal: 0 };
+    const counts: Record<PieceKind, number> = { dome: 0, bedroom: 0, corridor: 0, turbine: 0, storage: 0, tank: 0, filter: 0, feeder: 0, press: 0, dock: 0, lab: 0, workshop: 0, gtank: 0, sorter: 0, recomp: 0, crane: 0, hatch: 0, farm: 0, revive: 0, shaft: 0, junction: 0, bracket: 0, signal: 0, lantern: 0, thermal: 0 };
     for (const p of [...layout.pieces].sort((a, b) => a.id - b.id)) {
       counts[p.kind]++;
       if (this.live.has(p.id)) continue;

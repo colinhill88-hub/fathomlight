@@ -173,6 +173,86 @@ function makeMoonTexture(): Texture {
   return Texture.from(c);
 }
 
+/** Paint a whimsical gouache/watercolor vintage saucer UFO Easter egg onto a 192×96 canvas. */
+function makeUfoTexture(): Texture {
+  const W = 192;
+  const H = 96;
+  const cx = W / 2;
+  const cy = H * 0.56;
+  const c = document.createElement('canvas');
+  c.width = W;
+  c.height = H;
+  const g = c.getContext('2d')!;
+
+  // Soft ethereal greenish-ivory underside glow.
+  const glow = g.createRadialGradient(cx, cy + 8, 6, cx, cy + 12, 54);
+  glow.addColorStop(0, 'rgba(198, 255, 180, 0.42)');
+  glow.addColorStop(0.55, 'rgba(130, 224, 198, 0.14)');
+  glow.addColorStop(1, 'rgba(100, 200, 190, 0)');
+  g.fillStyle = glow;
+  g.fillRect(0, 0, W, H);
+
+  // Translucent glass dome cupola on top.
+  const dome = g.createRadialGradient(cx - 8, cy - 22, 3, cx, cy - 12, 26);
+  dome.addColorStop(0, 'rgba(232, 255, 245, 0.88)');
+  dome.addColorStop(0.6, 'rgba(130, 196, 188, 0.58)');
+  dome.addColorStop(1, 'rgba(54, 92, 98, 0.72)');
+  g.fillStyle = dome;
+  g.beginPath();
+  g.arc(cx, cy - 8, 24, Math.PI, 0);
+  g.closePath();
+  g.fill();
+  g.strokeStyle = '#38464c';
+  g.lineWidth = 2;
+  g.stroke();
+
+  // Painterly brushed-pewter & antique-brass saucer hull.
+  const hull = g.createLinearGradient(cx, cy - 12, cx, cy + 16);
+  hull.addColorStop(0, '#96a9b2');
+  hull.addColorStop(0.45, '#52646c');
+  hull.addColorStop(1, '#263338');
+  g.fillStyle = hull;
+  g.beginPath();
+  g.ellipse(cx, cy, 56, 14, 0, 0, Math.PI * 2);
+  g.fill();
+  g.strokeStyle = '#182226';
+  g.lineWidth = 2;
+  g.stroke();
+
+  // Brass rim belt & glowing warm porthole lights around the saucer equator.
+  g.strokeStyle = '#d4b26a';
+  g.lineWidth = 2.4;
+  g.beginPath();
+  g.ellipse(cx, cy + 1, 52, 9.5, 0, 0.08 * Math.PI, 0.92 * Math.PI);
+  g.stroke();
+  for (let i = -2; i <= 2; i++) {
+    const px = cx + i * 19;
+    const py = cy + 2 + (4 - Math.abs(i)) * 0.7;
+    g.fillStyle = i % 2 === 0 ? '#e6ff9e' : '#ffdb8a';
+    g.beginPath();
+    g.ellipse(px, py, 4.2, 2.5, 0, 0, Math.PI * 2);
+    g.fill();
+  }
+  return Texture.from(c);
+}
+
+interface ShootingStar {
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  life: number;
+  max: number;
+}
+
+interface RainSplash {
+  x: number;
+  dy: number;
+  life: number;
+  max: number;
+  size: number;
+}
+
 interface Gull {
   root: Container;
   body: Graphics;
@@ -270,8 +350,19 @@ export class SkyLife {
   private readonly sunRays: Sprite;
   private readonly sunDisc: Sprite;
   private readonly moonDisc: Sprite;
+  private readonly starFx = new Graphics();
+  private readonly ufoSprite: Sprite;
   private readonly gullLayer = new Container();
+  private readonly rainFx = new Graphics();
+  private readonly splashFx = new Graphics();
+  private readonly skyGroup = new Container();
   private readonly gulls: Gull[] = [];
+  private shootingStars: ShootingStar[] = [];
+  private rainSplashes: RainSplash[] = [];
+  private nextStarAt = 4;
+  private ufoState: { active: boolean; x: number; y: number; vx: number; t: number; nextAt: number } = {
+    active: false, x: 0, y: 0, vx: 0, t: 0, nextAt: 42,
+  };
 
   constructor() {
     const sunTex = makeSunTextures();
@@ -283,8 +374,15 @@ export class SkyLife {
     this.moonDisc = new Sprite(makeMoonTexture());
     this.moonDisc.anchor.set(0.5);
 
-    this.view.addChild(this.clipMask, this.sunRays, this.sunDisc, this.moonDisc, this.gullLayer);
-    this.view.mask = this.clipMask;
+    this.ufoSprite = new Sprite(makeUfoTexture());
+    this.ufoSprite.anchor.set(0.5);
+    this.ufoSprite.visible = false;
+
+    // Sky group (Sun, Moon, stars, UFO, gulls, falling rain) is clipped cleanly above the ocean horizon.
+    this.skyGroup.addChild(this.sunRays, this.sunDisc, this.moonDisc, this.starFx, this.ufoSprite, this.gullLayer, this.rainFx);
+    this.skyGroup.mask = this.clipMask;
+    // Surface rain splashes sit right on top of the waterline (unclipped vertically).
+    this.view.addChild(this.clipMask, this.skyGroup, this.splashFx);
 
     const rng = mulberry32(0x6011);
     for (let i = 0; i < 7; i++) {
@@ -318,14 +416,17 @@ export class SkyLife {
     // Clip cleanly right at the horizon so Sun, Moon, and Seagulls never appear underwater.
     this.clipMask.clear().rect(0, 0, cssW, Math.min(cssH, horizonScreenY + 3)).fill({ color: 0xffffff });
 
-    // Exact same Day / Night clock as src/scene/water.ts.
+    // Exact same Day / Night & Weather clock as src/scene/water.ts.
     const dayPhase = (((time / DAY_CYCLE_SEC) + DAY_START_OFFSET) % 1 + 1) % 1;
     const sunAngle = (dayPhase - 0.25) * Math.PI * 2;
     const sunElev = Math.sin(sunAngle);
     const dayAmt = smoothstep(-0.14, 0.28, sunElev);
     const du = (sunElev - 0.04) / 0.22;
     const duskAmt = Math.exp(-(du * du));
-    const sunVis = smoothstep(-0.18, 0.02, sunElev);
+    const wPhase = (((time / 270) + 0.15) % 1 + 1) % 1;
+    const rainAmt = smoothstep(0.64, 0.72, wPhase) * (1 - smoothstep(0.90, 0.98, wPhase));
+    const overcast = smoothstep(0.56, 0.70, wPhase) * (1 - smoothstep(0.92, 1.0, wPhase));
+    const sunVis = smoothstep(-0.18, 0.02, sunElev) * (1 - overcast * 0.72);
 
     const skySpanWorld = Math.max(240, viewH * 0.42);
     const skySpanPx = skySpanWorld * zoom;
@@ -366,8 +467,139 @@ export class SkyLife {
       this.moonDisc.alpha = moonVis * 0.96;
     }
 
-    // 3. Articulated daytime coastal Seagulls (active during day & golden sunrise/sunset, roosting at night).
-    const gullVis = clamp01(dayAmt + duskAmt * 0.72);
+    // 2b. Night Sky Shooting Stars & Rare Gouache UFO Easter Egg!
+    const nightVis = smoothstep(0.06, -0.22, sunElev);
+    const sfx = this.starFx.clear();
+    if (nightVis > 0.12 && horizonScreenY > 40) {
+      this.nextStarAt -= dt;
+      if (this.nextStarAt <= 0 && this.shootingStars.length < 2) {
+        this.nextStarAt = 4.5 + Math.random() * 8.5;
+        const dir = Math.random() < 0.5 ? 1 : -1;
+        this.shootingStars.push({
+          x: cssW * (0.12 + Math.random() * 0.76),
+          y: Math.max(14, horizonScreenY * (0.08 + Math.random() * 0.42)),
+          vx: dir * (280 + Math.random() * 190),
+          vy: 75 + Math.random() * 85,
+          life: 0,
+          max: 0.55 + Math.random() * 0.45,
+        });
+      }
+      // Rare UFO Easter egg cruising smoothly across the distant night sky.
+      if (!this.ufoState.active) {
+        this.ufoState.nextAt -= dt;
+        if (this.ufoState.nextAt <= 0) {
+          const fromLeft = Math.random() < 0.5;
+          this.ufoState.active = true;
+          this.ufoState.t = 0;
+          this.ufoState.x = fromLeft ? -70 : cssW + 70;
+          this.ufoState.y = Math.max(26, horizonScreenY * (0.18 + Math.random() * 0.34));
+          this.ufoState.vx = (fromLeft ? 1 : -1) * (88 + Math.random() * 34);
+          this.ufoState.nextAt = 95 + Math.random() * 110;
+        }
+      }
+    }
+    const keptStars: ShootingStar[] = [];
+    for (const st of this.shootingStars) {
+      st.life += dt;
+      if (st.life >= st.max) continue;
+      st.x += st.vx * dt;
+      st.y += st.vy * dt;
+      const p = st.life / st.max;
+      const fade = Math.sin(p * Math.PI) * Math.max(0.2, nightVis);
+      const tail = 0.11;
+      sfx.moveTo(st.x, st.y).lineTo(st.x - st.vx * tail, st.y - st.vy * tail)
+        .stroke({ color: 0xfff5d8, width: 2.0, alpha: fade * 0.85, cap: 'round' });
+      sfx.moveTo(st.x, st.y).lineTo(st.x - st.vx * tail * 0.45, st.y - st.vy * tail * 0.45)
+        .stroke({ color: 0xffffff, width: 1.2, alpha: fade, cap: 'round' });
+      sfx.circle(st.x, st.y, 2.2).fill({ color: 0xfffbe8, alpha: fade });
+      keptStars.push(st);
+    }
+    this.shootingStars = keptStars;
+
+    if (this.ufoState.active) {
+      this.ufoState.t += dt;
+      // Gentle cruising bob, then a playful acceleration zip near the far edge!
+      const zip = this.ufoState.t > 5.5 ? 1 + (this.ufoState.t - 5.5) * 1.4 : 1;
+      this.ufoState.x += this.ufoState.vx * zip * dt;
+      const uy = this.ufoState.y + Math.sin(this.ufoState.t * 2.6) * 10;
+      this.ufoSprite.visible = nightVis > 0.05;
+      this.ufoSprite.position.set(this.ufoState.x, uy);
+      const sc = Math.max(0.32, Math.min(0.56, cssH / 1600));
+      this.ufoSprite.scale.set(sc);
+      this.ufoSprite.rotation = Math.sin(this.ufoState.t * 2.1) * 0.08 + (zip > 1 ? Math.sign(this.ufoState.vx) * 0.12 : 0);
+      this.ufoSprite.alpha = Math.min(0.92, nightVis * 1.15);
+      // Soft faint shimmer trail behind the UFO when it zips away.
+      if (zip > 1.05 && this.ufoSprite.visible) {
+        sfx.moveTo(this.ufoState.x, uy).lineTo(this.ufoState.x - this.ufoState.vx * 0.35, uy)
+          .stroke({ color: 0xc8ffbe, width: 3.2, alpha: 0.32 * nightVis, cap: 'round' });
+      }
+      if (this.ufoState.x < -140 || this.ufoState.x > cssW + 140 || nightVis <= 0.02) {
+        this.ufoState.active = false;
+        this.ufoSprite.visible = false;
+      }
+    } else {
+      this.ufoSprite.visible = false;
+    }
+
+    // 3. Passing Coastal Rain Squall: wind-driven rain streaks + animated water-surface crown splashes & expanding ripples!
+    const rf = this.rainFx.clear();
+    const spf = this.splashFx.clear();
+    if (rainAmt > 0.02) {
+      const dropCount = Math.round(40 + rainAmt * 110);
+      const skyTop = -40;
+      const skySpan = Math.max(80, horizonScreenY + 40);
+      const rainCol = dayAmt > 0.3 ? 0xd8eaee : 0x9ab4c4;
+      for (let i = 0; i < dropCount; i++) {
+        const seed = i * 73.137;
+        const speed = 580 + (i % 7) * 58;
+        const u = ((time * speed + seed * 19) % skySpan) / skySpan;
+        const rx = (((seed * 97.3 - time * 165) % (cssW + 120)) + (cssW + 120)) % (cssW + 120) - 60;
+        const ry = skyTop + u * skySpan;
+        const len = 16 + (i % 4) * 6;
+        rf.moveTo(rx, ry).lineTo(rx - len * 0.28, ry + len)
+          .stroke({ color: rainCol, width: i % 3 === 0 ? 1.35 : 0.95, alpha: (0.18 + (i % 5) * 0.06) * rainAmt, cap: 'round' });
+      }
+      // Spawn lively raindrop impact splashes right along the ocean waterline.
+      if (horizonScreenY > 8 && horizonScreenY < cssH + 16) {
+        const spawns = Math.min(4, Math.floor((rainAmt * 38) * dt + Math.random()));
+        for (let k = 0; k < spawns; k++) {
+          if (this.rainSplashes.length < 48) {
+            this.rainSplashes.push({
+              x: Math.random() * cssW,
+              dy: (Math.random() - 0.4) * 8,
+              life: 0,
+              max: 0.34 + Math.random() * 0.22,
+              size: 8 + Math.random() * 10,
+            });
+          }
+        }
+      }
+    }
+    const keptSplashes: RainSplash[] = [];
+    for (const sp of this.rainSplashes) {
+      sp.life += dt;
+      if (sp.life >= sp.max) continue;
+      const p = sp.life / sp.max;
+      const sy = horizonScreenY + sp.dy;
+      const alpha = (1 - p) * Math.max(0.25, rainAmt);
+      // Expanding elliptical ripple ring on the ocean surface.
+      spf.ellipse(sp.x, sy, 2 + sp.size * p, 0.8 + sp.size * 0.24 * p)
+        .stroke({ color: 0xe6f8f4, width: 1.15 * (1 - p * 0.5), alpha: alpha * 0.72 });
+      // Tiny bouncing crown-splash droplets during the first 45% of impact!
+      if (p < 0.45) {
+        const cp = p / 0.45;
+        const hop = Math.sin(cp * Math.PI) * (5 + sp.size * 0.35);
+        const spread = cp * (3 + sp.size * 0.35);
+        spf.circle(sp.x - spread, sy - hop, 1.15).fill({ color: 0xf4fffc, alpha: (1 - cp) * 0.85 });
+        spf.circle(sp.x + spread, sy - hop * 0.9, 1.15).fill({ color: 0xf4fffc, alpha: (1 - cp) * 0.85 });
+        spf.circle(sp.x, sy - hop * 1.25, 1.0).fill({ color: 0xffffff, alpha: (1 - cp) * 0.75 });
+      }
+      keptSplashes.push(sp);
+    }
+    this.rainSplashes = keptSplashes;
+
+    // 4. Articulated daytime coastal Seagulls (active during clear day & golden hour; shelter during heavy rain & night).
+    const gullVis = clamp01(dayAmt + duskAmt * 0.72) * (1 - rainAmt * 0.9);
     this.gullLayer.visible = gullVis > 0.02;
     if (!this.gullLayer.visible) return;
 
