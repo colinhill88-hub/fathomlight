@@ -33,7 +33,7 @@ export type InteriorArtKey =
   | 'wall_bulkhead' | 'deck_grate' | 'ladder_rung' | 'logbook';
 export type PickupArtKey = 'scrap' | 'copper' | 'quartz' | 'fibre' | 'resin' | 'moss' | 'brass' | 'bloom' | 'ore';
 export type BottomArtKey = 'lily' | 'sponge' | 'worm' | 'star' | 'pen';
-export type LandmarkArtKey = 'sled' | 'beacon' | 'lode' | 'cache' | 'winch' | 'winch_wheel' | 'mooring_buoy' | 'relay_buoy' | 'welder_crate' | 'nursery_crate' | 'probe';
+export type LandmarkArtKey = 'sled' | 'beacon' | 'lode' | 'cache' | 'winch' | 'winch_wheel' | 'mooring_buoy' | 'relay_buoy' | 'welder_crate' | 'nursery_crate' | 'probe' | 'shelf_shallows' | 'shelf_kelp' | 'shelf_trench' | 'shelf_sanctum';
 
 export interface PropArt {
   kestrel: Partial<Record<KestrelArtKey, Texture>>;
@@ -159,7 +159,7 @@ const DECOR_KEYS: readonly DecorId[] = [
 const FOE_KEYS: readonly FoeArtKey[] = ['tick', 'drone', 'keeper'];
 const PICKUP_KEYS: readonly PickupArtKey[] = ['scrap', 'copper', 'quartz', 'fibre', 'resin', 'moss', 'brass', 'bloom', 'ore'];
 const BOTTOM_KEYS: readonly BottomArtKey[] = ['lily', 'sponge', 'worm', 'star', 'pen'];
-const LANDMARK_KEYS: readonly LandmarkArtKey[] = ['sled', 'beacon', 'lode', 'cache', 'winch', 'winch_wheel', 'mooring_buoy', 'relay_buoy', 'welder_crate', 'nursery_crate', 'probe'];
+const LANDMARK_KEYS: readonly LandmarkArtKey[] = ['sled', 'beacon', 'lode', 'cache', 'winch', 'winch_wheel', 'mooring_buoy', 'relay_buoy', 'welder_crate', 'nursery_crate', 'probe', 'shelf_shallows', 'shelf_kelp', 'shelf_trench', 'shelf_sanctum'];
 
 export async function loadPropArt(mipmaps = false): Promise<PropArt> {
   const [kestrel, vehicles, base, wrecks, interior, decor, foes, pickups, bottom, landmarks] = await Promise.all([

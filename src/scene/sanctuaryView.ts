@@ -178,6 +178,7 @@ export class SanctuaryView {
   private readonly rayLayer = new Graphics();
   private readonly floraBack = new Container();
   private readonly seabedG = new Graphics();
+  private readonly shelfLayer = new Container();
   private readonly decorLayer = new Container();
   private readonly dropLayer = new Container();
   private readonly fishLayer = new Container();
@@ -248,6 +249,7 @@ export class SanctuaryView {
       this.rayLayer,
       this.floraBack,
       this.seabedG,
+      this.shelfLayer,
       this.decorLayer,
       this.dropLayer,
       this.fishLayer,
@@ -425,6 +427,7 @@ export class SanctuaryView {
     this.bgLayer.removeChildren().forEach((c) => c.destroy({ children: true }));
     this.backdropSprites = [];
     this.floraBack.removeChildren().forEach((c) => c.destroy({ children: true }));
+    this.shelfLayer.removeChildren().forEach((c) => c.destroy({ children: true }));
     this.fgDepthLayer.removeChildren().forEach((c) => c.destroy({ children: true }));
     this.kelpStalks = [];
 
@@ -574,29 +577,42 @@ export class SanctuaryView {
       trench: { body: 0x26292e, rim: 0x7a6a58, shade: 0x121418 },
       sanctum: { body: 0x3a4d5c, rim: 0xaad2dc, shade: 0x1c2834 },
     };
+    const shelfArt = getPropArt().landmarks;
+    const shelfKeyByWing: Record<BiomeWing['id'], 'shelf_shallows' | 'shelf_kelp' | 'shelf_trench' | 'shelf_sanctum'> = {
+      shallows: 'shelf_shallows',
+      kelp: 'shelf_kelp',
+      trench: 'shelf_trench',
+      sanctum: 'shelf_sanctum',
+    };
     this.sockets = socketDefs.map((d) => {
       const x = w * d.nx;
       const y = d.ny !== undefined ? h * d.ny : this.floorY(x) - 2;
       const unlocked = !!wingBy.get(d.wing)?.unlocked;
       if (d.tier !== 'floor') {
-        const st = ledgeStyle[d.wing];
-        const hw = d.w / 2;
-        const th = d.tier === 'ledge' ? 30 : 24;
-        // Sculpted rocky shelf protruding naturally from the tank wall/back.
-        sg.poly([
-          x - hw, y + 4,
-          x - hw + 10, y - 2,
-          x + hw - 10, y - 2,
-          x + hw, y + 4,
-          x + hw - 16, y + th,
-          x + 8, y + th + 6,
-          x - hw + 18, y + th - 2,
-        ]).fill({ color: st.body }).stroke({ color: 0x0e1a1d, width: 2 });
-        // Shaded rocky underside + sunlit top rim ledge where decorations sit flush.
-        sg.poly([x - hw + 14, y + 10, x + hw - 14, y + 10, x + hw - 18, y + th - 1, x - hw + 20, y + th - 3])
-          .fill({ color: st.shade, alpha: 0.65 });
-        sg.moveTo(x - hw + 8, y).quadraticCurveTo(x, y - 3, x + hw - 8, y)
-          .stroke({ color: st.rim, width: 3.2, alpha: unlocked ? 0.65 : 0.22, cap: 'round' });
+        const tex = shelfArt[shelfKeyByWing[d.wing]];
+        if (tex) {
+          const spr = new Sprite(tex);
+          spr.anchor.set(0.5, 0.06);
+          const targetW = d.w * 1.24;
+          const sc = targetW / Math.max(1, tex.width);
+          spr.scale.set(d.tier === 'terrace' ? -sc : sc, sc);
+          spr.position.set(x, y - 2);
+          spr.alpha = unlocked ? 0.96 : 0.34;
+          this.shelfLayer.addChild(spr);
+        } else {
+          const st = ledgeStyle[d.wing];
+          const hw = d.w / 2;
+          const th = d.tier === 'ledge' ? 30 : 24;
+          sg.poly([
+            x - hw, y + 4,
+            x - hw + 10, y - 2,
+            x + hw - 10, y - 2,
+            x + hw, y + 4,
+            x + hw - 16, y + th,
+            x + 8, y + th + 6,
+            x - hw + 18, y + th - 2,
+          ]).fill({ color: st.body }).stroke({ color: 0x0e1a1d, width: 2 });
+        }
       }
       return { id: d.id, wing: d.wing, tier: d.tier, nx: d.nx, ny: y / Math.max(1, h), x, y, w: d.w, unlocked };
     });
@@ -852,6 +868,7 @@ export class SanctuaryView {
     const bgTint = this.lerpHex(0xffffff, 0x263a52, this.nightMix);
     for (const sp of this.backdropSprites) sp.tint = bgTint;
     this.seabedG.tint = this.lerpHex(0xffffff, 0x3b4e64, this.nightMix);
+    this.shelfLayer.tint = this.lerpHex(0xffffff, 0x4a5e74, this.nightMix);
     this.floraBack.tint = this.lerpHex(0xffffff, 0x455c72, this.nightMix);
     this.decorLayer.tint = this.lerpHex(0xffffff, 0x566c80, this.nightMix);
     this.fishLayer.tint = this.lerpHex(0xffffff, 0x7088a0, this.nightMix);
