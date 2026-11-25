@@ -765,7 +765,11 @@ export function loadSave(spawnX: number, spawnY: number): { data: SaveData; load
   }
 }
 
+/** Set after importSave / restoreBackup so pagehide/autosave cannot overwrite the newly loaded save before reload. */
+let saveLocked = false;
+
 export function writeSave(d: SaveData): boolean {
+  if (saveLocked) return false;
   d.savedAt = Date.now();
   if (BENCH_RUN) return true;
   try {
@@ -867,6 +871,7 @@ export function importSave(d: Partial<SaveData>): boolean {
     const old = localStorage.getItem(KEY);
     if (old) localStorage.setItem(BACKUP_KEY, old);
     localStorage.setItem(KEY, JSON.stringify(d));
+    saveLocked = true;
     return true;
   } catch {
     return false;
@@ -890,6 +895,7 @@ export function restoreBackup(): boolean {
     const cur = localStorage.getItem(KEY);
     localStorage.setItem(KEY, b);
     if (cur) localStorage.setItem(BACKUP_KEY, cur);
+    saveLocked = true;
     return true;
   } catch {
     return false;

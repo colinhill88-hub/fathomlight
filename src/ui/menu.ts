@@ -28,6 +28,8 @@ export interface MenuDeps {
   onBegin?(): void;
   /** Replay the claymation opening cutscene from the pause menu. */
   replayIntro?(): void;
+  /** Called right before reloading into an imported or restored save so pagehide doesn't overwrite it. */
+  beforeReload?(): void;
   /** Is any game panel open (so Escape closes that first)? */
   panelOpen(): boolean;
 }
@@ -260,6 +262,7 @@ export class Menus {
           return;
         }
         if (!importSave(d)) return say('This device would not store the save (storage is blocked).', true);
+        this.deps.beforeReload?.();
         say('Loaded. Starting from the new save…');
         this.deps.onPause(true);
         setTimeout(() => location.reload(), 400);
@@ -309,6 +312,7 @@ export class Menus {
       else if (act === 'open') file.click();
       else if (act === 'undo') {
         if (restoreBackup()) {
+          this.deps.beforeReload?.();
           say('The backup is back. Restarting…');
           setTimeout(() => location.reload(), 400);
         }

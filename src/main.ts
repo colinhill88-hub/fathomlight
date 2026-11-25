@@ -1799,6 +1799,9 @@ async function boot(): Promise<void> {
       if (!BENCH && !save.tips.includes('intro') && save.playSeconds < 5) triggerIntro(true);
     },
     replayIntro: () => triggerIntro(false),
+    beforeReload: () => {
+      resetting = true;
+    },
     panelOpen: () =>
       intro.active || build.active || care.active || sanctuary.active || dockUI.active || station.active || hatchPanel.active || contact.active || zoneMap.open || hud.reading || rates.open || fieldKit.open || exchangePanel.open || !settingsPanel.hidden || !logPanel.hidden,
   });
