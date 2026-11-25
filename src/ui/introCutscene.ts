@@ -20,17 +20,13 @@ interface ShotSpec {
   url: string;
   start: number;
   end: number;
-  /** Stop-motion stepped cadence (true for claymation shots, false for final ocean glide). */
-  stopMotion: boolean;
-  /** Start/end camera zoom & pan (percent of frame). */
+  /** Start/end smooth camera zoom & pan (percent of frame). */
   s0: number;
   s1: number;
   x0: number;
   x1: number;
   y0: number;
   y1: number;
-  rot0: number;
-  rot1: number;
   caption?: string;
 }
 
@@ -42,73 +38,58 @@ const SHOTS: ShotSpec[] = [
     url: shot1Url,
     start: 0.0,
     end: 4.5,
-    stopMotion: true,
-    s0: 1.03,
-    s1: 1.11,
-    x0: -0.6,
-    x1: 0.8,
-    y0: 0.4,
-    y1: -0.6,
-    rot0: -0.25,
-    rot1: 0.15,
+    s0: 1.02,
+    s1: 1.09,
+    x0: -0.5,
+    x1: 0.6,
+    y0: 0.3,
+    y1: -0.4,
     caption: 'Every ocean begins somewhere small.',
   },
   {
     url: shot2Url,
     start: 4.5,
     end: 9.2,
-    stopMotion: true,
-    s0: 1.08,
-    s1: 1.15,
-    x0: 1.0,
-    x1: -1.1,
-    y0: -0.5,
-    y1: 0.7,
-    rot0: 0.3,
-    rot1: -0.3,
+    s0: 1.06,
+    s1: 1.13,
+    x0: 0.8,
+    x1: -0.8,
+    y0: -0.3,
+    y1: 0.4,
   },
   {
     url: shot3Url,
     start: 9.2,
     end: 13.2,
-    stopMotion: true,
-    s0: 1.04,
-    s1: 1.14,
-    x0: -0.5,
-    x1: 0.4,
-    y0: -0.4,
-    y1: 0.6,
-    rot0: -0.15,
-    rot1: 0.2,
+    s0: 1.03,
+    s1: 1.11,
+    x0: -0.4,
+    x1: 0.3,
+    y0: -0.3,
+    y1: 0.4,
   },
   {
     url: shot4Url,
     start: 13.2,
     end: 17.5,
-    stopMotion: true,
-    s0: 1.04,
-    s1: 1.14,
-    x0: 0.2,
-    x1: -0.2,
-    y0: -1.8,
-    y1: 2.2,
-    rot0: 0.1,
-    rot1: -0.1,
+    s0: 1.03,
+    s1: 1.12,
+    x0: 0.1,
+    x1: -0.1,
+    y0: -1.4,
+    y1: 1.8,
     caption: 'Into the deep, Kestrel.',
   },
   {
     url: shot5Url,
     start: 17.5,
     end: TOTAL_DURATION,
-    stopMotion: false,
-    s0: 1.05,
-    s1: 1.16,
+    s0: 1.04,
+    s1: 1.14,
     x0: 0.0,
     x1: 0.0,
-    y0: -1.5,
-    y1: 2.5,
-    rot0: 0.0,
-    rot1: 0.0,
+    y0: -1.4,
+    y1: 2.2,
   },
 ];
 
@@ -138,12 +119,6 @@ function clamp01(v: number): number {
 function smoothstep(a: number, b: number, x: number): number {
   const t = clamp01((x - a) / (b - a));
   return t * t * (3 - 2 * t);
-}
-
-/** Deterministic tiny hash for organic claymation frame-to-frame micro-wobble. */
-function hash(n: number): number {
-  const s = Math.sin(n * 127.1 + 311.7) * 43758.5453123;
-  return s - Math.floor(s);
 }
 
 export class IntroCutscene {
@@ -339,21 +314,11 @@ export class IntroCutscene {
         dotEls[i].classList.toggle('on', t >= shot.start - 0.1 && t < shot.end);
 
         if (alpha > 0.002) {
-          const rawP = clamp01((t - shot.start) / (shot.end - shot.start));
-          // 12 fps stop-motion quantization gives authentic claymation charm!
-          const frameIdx = Math.floor(t * 12);
-          const p = shot.stopMotion ? Math.floor(rawP * (shot.end - shot.start) * 12) / ((shot.end - shot.start) * 12) : rawP;
+          const p = clamp01((t - shot.start) / (shot.end - shot.start));
           const s = shot.s0 + (shot.s1 - shot.s0) * p;
           const x = shot.x0 + (shot.x1 - shot.x0) * p;
           const y = shot.y0 + (shot.y1 - shot.y0) * p;
-          const rot = shot.rot0 + (shot.rot1 - shot.rot0) * p;
-
-          // Tiny handmade claymation frame micro-wobble (subtle, charming, never nauseating).
-          const jx = shot.stopMotion ? (hash(frameIdx + i * 31) - 0.5) * 0.14 : 0;
-          const jy = shot.stopMotion ? (hash(frameIdx + i * 73 + 9) - 0.5) * 0.14 : 0;
-          const jrot = shot.stopMotion ? (hash(frameIdx + i * 19 + 3) - 0.5) * 0.18 : 0;
-
-          img.style.transform = `translate3d(${(x + jx).toFixed(2)}%, ${(y + jy).toFixed(2)}%, 0) scale(${s.toFixed(4)}) rotate(${(rot + jrot).toFixed(2)}deg)`;
+          img.style.transform = `translate3d(${x.toFixed(3)}%, ${y.toFixed(3)}%, 0) scale(${s.toFixed(4)})`;
         }
 
         if (shot.caption && t >= shot.start + 0.55 && t <= shot.end - 0.35) {
