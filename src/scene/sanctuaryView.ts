@@ -110,6 +110,18 @@ interface BiomeWing {
   unlocked: boolean;
 }
 
+interface DecorSocket {
+  id: string;
+  wing: BiomeWing['id'];
+  tier: 'ledge' | 'terrace' | 'floor';
+  nx: number;
+  ny: number;
+  x: number;
+  y: number;
+  w: number;
+  unlocked: boolean;
+}
+
 interface ChimeWave {
   x: number;
   y: number;
@@ -211,6 +223,8 @@ export class SanctuaryView {
   private algae: AlgaePatch[] = [];
   private chimes: ChimeWave[] = [];
   private wings: BiomeWing[] = [];
+  private sockets: DecorSocket[] = [];
+  private hoverSocket: DecorSocket | null = null;
   private shineSweep = 0;
   private scrubCelebrated = false;
   private parX = 0;
@@ -533,6 +547,59 @@ export class SanctuaryView {
       else sg.lineTo(x, y + 2);
     }
     sg.stroke({ color: 0x8cc2b4, width: 4, alpha: 0.36, cap: 'round' });
+
+    // 4a. Tiered biome rock ledges & grounded snap sockets (3 tiers per biome: Upper Ledge, Mid Terrace, Seabed Floor)!
+    const wingBy = new Map(this.wings.map((wg) => [wg.id, wg]));
+    const socketDefs: { id: string; wing: BiomeWing['id']; tier: DecorSocket['tier']; nx: number; ny?: number; w: number }[] = [
+      // Wing 1: Sunlit Reef & Shallows
+      { id: 'sh-ledge', wing: 'shallows', tier: 'ledge', nx: 0.085, ny: 0.57, w: 126 },
+      { id: 'sh-terrace', wing: 'shallows', tier: 'terrace', nx: 0.195, ny: 0.70, w: 118 },
+      { id: 'sh-floor', wing: 'shallows', tier: 'floor', nx: 0.14, w: 110 },
+      // Wing 2: Kelp Forest & Grotto
+      { id: 'kp-ledge', wing: 'kelp', tier: 'ledge', nx: 0.335, ny: 0.54, w: 132 },
+      { id: 'kp-terrace', wing: 'kelp', tier: 'terrace', nx: 0.455, ny: 0.68, w: 120 },
+      { id: 'kp-floor', wing: 'kelp', tier: 'floor', nx: 0.39, w: 114 },
+      // Wing 3: Wreck Shelf & Deep Trench
+      { id: 'tr-ledge', wing: 'trench', tier: 'ledge', nx: 0.59, ny: 0.58, w: 128 },
+      { id: 'tr-terrace', wing: 'trench', tier: 'terrace', nx: 0.71, ny: 0.71, w: 122 },
+      { id: 'tr-floor', wing: 'trench', tier: 'floor', nx: 0.645, w: 114 },
+      // Wing 4: Choir Sanctum Alcove
+      { id: 'sa-ledge', wing: 'sanctum', tier: 'ledge', nx: 0.85, ny: 0.55, w: 128 },
+      { id: 'sa-terrace', wing: 'sanctum', tier: 'terrace', nx: 0.935, ny: 0.69, w: 116 },
+      { id: 'sa-floor', wing: 'sanctum', tier: 'floor', nx: 0.89, w: 112 },
+    ];
+    const ledgeStyle: Record<BiomeWing['id'], { body: number; rim: number; shade: number }> = {
+      shallows: { body: 0x3b5c58, rim: 0x8cc6b4, shade: 0x1a3030 },
+      kelp: { body: 0x2c4a3e, rim: 0x7cb888, shade: 0x142620 },
+      trench: { body: 0x26292e, rim: 0x7a6a58, shade: 0x121418 },
+      sanctum: { body: 0x3a4d5c, rim: 0xaad2dc, shade: 0x1c2834 },
+    };
+    this.sockets = socketDefs.map((d) => {
+      const x = w * d.nx;
+      const y = d.ny !== undefined ? h * d.ny : this.floorY(x) - 2;
+      const unlocked = !!wingBy.get(d.wing)?.unlocked;
+      if (d.tier !== 'floor') {
+        const st = ledgeStyle[d.wing];
+        const hw = d.w / 2;
+        const th = d.tier === 'ledge' ? 30 : 24;
+        // Sculpted rocky shelf protruding naturally from the tank wall/back.
+        sg.poly([
+          x - hw, y + 4,
+          x - hw + 10, y - 2,
+          x + hw - 10, y - 2,
+          x + hw, y + 4,
+          x + hw - 16, y + th,
+          x + 8, y + th + 6,
+          x - hw + 18, y + th - 2,
+        ]).fill({ color: st.body }).stroke({ color: 0x0e1a1d, width: 2 });
+        // Shaded rocky underside + sunlit top rim ledge where decorations sit flush.
+        sg.poly([x - hw + 14, y + 10, x + hw - 14, y + 10, x + hw - 18, y + th - 1, x - hw + 20, y + th - 3])
+          .fill({ color: st.shade, alpha: 0.65 });
+        sg.moveTo(x - hw + 8, y).quadraticCurveTo(x, y - 3, x + hw - 8, y)
+          .stroke({ color: st.rim, width: 3.2, alpha: unlocked ? 0.65 : 0.22, cap: 'round' });
+      }
+      return { id: d.id, wing: d.wing, tier: d.tier, nx: d.nx, ny: y / Math.max(1, h), x, y, w: d.w, unlocked };
+    });
 
     // 4b. Soft-focus foreground framing kelp & corner rock overhangs for rich 3D parallax depth!
     const fgG = new Graphics();
@@ -1148,6 +1215,26 @@ export class SanctuaryView {
       }
     }
 
+    // Render glowing geography snap-sockets whenever Arrange Decor mode is active!
+    if (this.tool === 'decor') {
+      const pulse = 0.55 + 0.45 * Math.sin(this.time * 4.5);
+      for (const sk of this.sockets) {
+        if (!sk.unlocked) continue;
+        const occ = this.socketOccupied(sk, this.draggingDecor?.id);
+        const hovered = this.hoverSocket?.id === sk.id;
+        if (occ && !hovered) continue;
+        const col = hovered ? 0xffe488 : 0x9ef5d8;
+        const alpha = hovered ? 0.95 : 0.42 + pulse * 0.28;
+        fx.ellipse(sk.x, sk.y - 2, hovered ? 36 : 26, hovered ? 9 : 6.5)
+          .fill({ color: col, alpha: hovered ? 0.26 : 0.12 })
+          .stroke({ color: col, width: hovered ? 2.6 : 1.6, alpha });
+        if (hovered) {
+          fx.moveTo(sk.x - 7, sk.y - 18).lineTo(sk.x, sk.y - 10).lineTo(sk.x + 7, sk.y - 18)
+            .stroke({ color: 0xfff0b2, width: 2.2, alpha: 0.95, cap: 'round', join: 'round' });
+        }
+      }
+    }
+
     // Subtle selection ring around inspected creature or dragged decoration.
     if (this.selectedFishId !== null) {
       const sel = this.swimmers.find((s) => s.data.id === this.selectedFishId);
@@ -1199,6 +1286,24 @@ export class SanctuaryView {
     if (otherFish > 0) gatherBtn.textContent = `🐠 Gather All (${otherFish})`;
     const nightBtn = this.hudEl.querySelector<HTMLButtonElement>('[data-act="night"]')!;
     nightBtn.textContent = this.nightMode ? '☀ Day Light' : '🌙 Night Glow';
+  }
+
+  private socketOccupied(sk: DecorSocket, ignoreId?: DecorId): boolean {
+    return this.placedDecor.some((d) => d.id !== ignoreId && Math.hypot(d.view.x - sk.x, d.view.y - sk.y) < 22);
+  }
+
+  private nearestOpenSocket(x: number, y: number, ignoreId?: DecorId): DecorSocket | null {
+    let best: DecorSocket | null = null;
+    let bestD = Infinity;
+    for (const sk of this.sockets) {
+      if (!sk.unlocked || this.socketOccupied(sk, ignoreId)) continue;
+      const d = Math.hypot(sk.x - x, sk.y - y);
+      if (d < bestD) {
+        bestD = d;
+        best = sk;
+      }
+    }
+    return best;
   }
 
   private seedAlgae(): void {
@@ -1315,7 +1420,7 @@ export class SanctuaryView {
         : 'Click two grown, well-fed creatures of the same species to pair them and lay an egg right in the tank';
       this.trayEl.hidden = true;
     } else if (this.tool === 'decor') {
-      hint.textContent = 'Drag placed decor anywhere on the seabed · Right-click a piece to flip it';
+      hint.textContent = 'Drag decor to snap onto glowing rock ledges & seabed tiers · Right-click a piece to flip';
       this.renderDecorTray();
       this.trayEl.hidden = false;
     } else {
@@ -1469,11 +1574,14 @@ export class SanctuaryView {
             return;
           }
           if ((bag[id] ?? 0) <= 0) return;
+          const sk = this.nearestOpenSocket(this.cssW * 0.25, this.cssH * 0.72);
+          if (!sk) {
+            this.hooks.onToast('All display ledges in your unlocked biomes are full — scan new biomes to open more tiers!');
+            return;
+          }
           bag[id] = (bag[id] ?? 1) - 1;
           if (bag[id]! <= 0) delete bag[id];
-          const nx = 0.22 + Math.random() * 0.56;
-          const ny = (this.floorY(nx * this.cssW) - 4) / Math.max(1, this.cssH);
-          td.sanctuaryDecor.push({ id, x: nx, y: ny, flip: false });
+          td.sanctuaryDecor.push({ id, x: sk.nx, y: sk.ny, flip: false });
           td.decor = td.sanctuaryDecor.map((d) => d.id);
         }
         this.hooks.onSound('ui');
@@ -1514,9 +1622,10 @@ export class SanctuaryView {
       this.pointer.y = e.clientY;
       this.pointer.active = true;
       if (this.draggingDecor && this.save && this.activeTankId !== null) {
-        const x = Math.max(48, Math.min(this.cssW - 48, e.clientX));
-        const fy = this.floorY(x);
-        const y = Math.max(this.cssH * 0.45, Math.min(fy + 8, e.clientY));
+        const snap = this.nearestOpenSocket(e.clientX, e.clientY, this.draggingDecor.id);
+        this.hoverSocket = snap;
+        const x = snap ? snap.x : Math.max(48, Math.min(this.cssW - 48, e.clientX));
+        const y = snap ? snap.y : Math.max(this.cssH * 0.45, Math.min(this.floorY(x) + 8, e.clientY));
         this.draggingDecor.nx = x / Math.max(1, this.cssW);
         this.draggingDecor.ny = y / Math.max(1, this.cssH);
         this.draggingDecor.view.position.set(x, y);
@@ -1576,7 +1685,12 @@ export class SanctuaryView {
           rec.x = this.draggingDecor.nx;
           rec.y = this.draggingDecor.ny;
         }
+        if (this.hoverSocket) {
+          this.spawnPops(this.hoverSocket.x, this.hoverSocket.y - 8, 8, 0xffe490);
+          this.hooks.onSound('ui');
+        }
         this.draggingDecor = null;
+        this.hoverSocket = null;
         this.hooks.onSave();
       }
     });

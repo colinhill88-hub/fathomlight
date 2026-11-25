@@ -6734,14 +6734,24 @@ body.on-foot #btn-dart {
 }
 
 /* ---- Grand Sanctuary Tank Full-Screen HUD (Colin, Nov 25, 2026) ---- */
+body.sanctuary-open #hud,
+body.sanctuary-open #watch-wrap,
 body.sanctuary-open #watch,
+body.sanctuary-open #sub-chip,
 body.sanctuary-open #suit-bar,
 body.sanctuary-open #depth-chip,
-body.sanctuary-open #hud-top,
-body.sanctuary-open #ctrl-helper,
-body.sanctuary-open #bag-hud,
+body.sanctuary-open #ctl-helper,
+body.sanctuary-open #controls,
+body.sanctuary-open #hint,
+body.sanctuary-open #banner,
+body.sanctuary-open #bag-marker,
+body.sanctuary-open #sub-marker,
 body.sanctuary-open #tags {
   display: none !important;
+}
+body.sanctuary-open #game,
+body.sanctuary-open canvas {
+  touch-action: none;
 }
 
 #sanctuary-hud {
@@ -7038,4 +7048,148 @@ body.sanctuary-open #tags {
   border-radius: 999px;
   background: linear-gradient(90deg, #6ee8c8, #ffe490);
   transition: width 0.12s ease;
+}
+
+/* ---- Mobile & PC Button Overlap Fixes (Colin, Nov 25, 2026) ---- */
+/* Ensure every touch action button is reliably pressable and spaced into 3 non-overlapping arcs. */
+#btn-boost,
+#btn-lamp,
+#btn-scan,
+#btn-collect,
+#btn-sub,
+#btn-flare,
+#btn-dart,
+#btn-haul,
+#btn-release,
+#btn-boots,
+#btn-shoot {
+  pointer-events: auto;
+  touch-action: none;
+}
+#btn-boost {
+  right: calc(var(--safe-right) + 24px);
+  bottom: calc(var(--safe-bottom) + 24px);
+}
+#btn-lamp {
+  width: 54px;
+  height: 54px;
+  right: calc(var(--safe-right) + 112px);
+  bottom: calc(var(--safe-bottom) + 32px);
+}
+#btn-sub {
+  right: calc(var(--safe-right) + 178px);
+  bottom: calc(var(--safe-bottom) + 35px);
+}
+#btn-scan {
+  width: 60px;
+  height: 60px;
+  right: calc(var(--safe-right) + 30px);
+  bottom: calc(var(--safe-bottom) + 112px);
+}
+#btn-shoot {
+  width: 68px;
+  height: 68px;
+  right: calc(var(--safe-right) + 28px);
+  bottom: calc(var(--safe-bottom) + 112px);
+}
+#btn-collect {
+  width: 60px;
+  height: 60px;
+  right: calc(var(--safe-right) + 104px);
+  bottom: calc(var(--safe-bottom) + 104px);
+}
+#btn-flare {
+  right: calc(var(--safe-right) + 178px);
+  bottom: calc(var(--safe-bottom) + 98px);
+}
+#btn-dart {
+  right: calc(var(--safe-right) + 234px);
+  bottom: calc(var(--safe-bottom) + 98px);
+}
+#btn-haul {
+  height: 42px;
+  right: calc(var(--safe-right) + 24px);
+  bottom: calc(var(--safe-bottom) + 184px);
+}
+#btn-release {
+  height: 42px;
+  right: calc(var(--safe-right) + 112px);
+  bottom: calc(var(--safe-bottom) + 184px);
+}
+#btn-boots {
+  height: 42px;
+  right: calc(var(--safe-right) + 218px);
+  bottom: calc(var(--safe-bottom) + 184px);
+}
+
+/* Compact, non-overlapping Sanctuary Tank HUD on mobile & small viewports. */
+.sanct-btn,
+.sanct-tool,
+.sanct-chip {
+  touch-action: manipulation;
+}
+@media (max-width: 900px), (max-height: 500px) {
+  #sanctuary-hud {
+    padding: calc(var(--safe-top) + 8px) calc(var(--safe-right) + 10px) calc(var(--safe-bottom) + 8px) calc(var(--safe-left) + 10px);
+  }
+  .sanct-title-card {
+    padding: 6px 11px;
+  }
+  .sanct-eyebrow {
+    font-size: 9.5px;
+  }
+  .sanct-stats {
+    gap: 8px;
+    font-size: 11px;
+  }
+  .sanct-actions {
+    gap: 5px;
+  }
+  .sanct-btn {
+    padding: 7px 10px;
+    font-size: 11.5px;
+  }
+  .sanct-toolbar {
+    max-width: 96vw;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    justify-content: flex-start;
+    padding: 5px 8px;
+    gap: 5px;
+    scrollbar-width: none;
+  }
+  .sanct-toolbar::-webkit-scrollbar,
+  .sanct-tray::-webkit-scrollbar {
+    display: none;
+  }
+  .sanct-tool {
+    flex: 0 0 auto;
+    padding: 6px 10px;
+    font-size: 11.5px;
+    white-space: nowrap;
+  }
+  .sanct-hint {
+    display: none;
+  }
+  .sanct-tray {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    justify-content: flex-start;
+    padding: 6px 10px;
+    scrollbar-width: none;
+  }
+  .sanct-chip {
+    flex: 0 0 auto;
+    white-space: nowrap;
+  }
+  .sanct-lock-plaque {
+    padding: 7px 9px;
+    width: min(170px, 23vw);
+  }
+  .sanct-lock-plaque strong {
+    font-size: 11px;
+  }
+  .sanct-lock-plaque span {
+    font-size: 9.5px;
+  }
 }

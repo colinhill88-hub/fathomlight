@@ -534,7 +534,8 @@ async function boot(): Promise<void> {
    */
   const storageRoom = (k?: keyof typeof save.stored): number => {
     const bay = layout.countDone('sorter') * SORT_BAY;
-    const pods = layout.countDone('storage') * STORAGE_PER_POD;
+    // Include the 20 starter slots of the Kestrel habitat intake locker (matches storageCapacity()).
+    const pods = 20 + layout.countDone('storage') * STORAGE_PER_POD;
     let over = 0;
     for (const j of MATERIALS_LIST) over += Math.max(0, save.stored[j] - bay);
     const shared = Math.max(0, pods - over);
