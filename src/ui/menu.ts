@@ -24,6 +24,10 @@ export interface MenuDeps {
   buildId: string;
   /** Called when the world should stop or start. */
   onPause(paused: boolean): void;
+  /** Called when the player starts or resumes play from the title screen. */
+  onBegin?(): void;
+  /** Replay the claymation opening cutscene from the pause menu. */
+  replayIntro?(): void;
   /** Is any game panel open (so Escape closes that first)? */
   panelOpen(): boolean;
 }
@@ -78,8 +82,10 @@ export class Menus {
     const pad = (navigator.getGamepads?.() ?? []).find((q) => !!q);
     const start = !!pad?.buttons[9]?.pressed;
     if (start && !this.padPrev) {
-      if (this.title) this.hideTitle();
-      else if (this.code) this.closeCode();
+      if (this.title) {
+        this.hideTitle();
+        this.deps.onBegin?.();
+      } else if (this.code) this.closeCode();
       else if (this.pause) this.closePause();
       else if (!this.panelWas) this.openPause();
     }
@@ -112,8 +118,10 @@ export class Menus {
       const b = (e.target as HTMLElement).closest('button');
       if (!b) return;
       const act = b.dataset.t;
-      if (act === 'go') this.hideTitle();
-      else if (act === 'new') {
+      if (act === 'go') {
+        this.hideTitle();
+        this.deps.onBegin?.();
+      } else if (act === 'new') {
         if (Date.now() - armed < 4000) {
           this.deps.resetProgress();
           return;
@@ -155,6 +163,7 @@ export class Menus {
         <button type="button" data-p="resume" class="primary">Resume</button>
         <button type="button" data-p="settings">Settings</button>
         <button type="button" data-p="log">Scanner log</button>
+        <button type="button" data-p="intro">Watch intro</button>
         <button type="button" data-p="move">Move a save</button>
         <button type="button" data-p="title">Title screen</button>
         <p class="pause-note">Saved just now. The game saves itself as you play.</p>
@@ -175,6 +184,9 @@ export class Menus {
       } else if (act === 'log') {
         this.closePause();
         this.deps.openLog();
+      } else if (act === 'intro') {
+        this.closePause();
+        this.deps.replayIntro?.();
       } else if (act === 'move') this.openCode();
       else if (act === 'title') {
         this.closePause();

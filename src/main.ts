@@ -179,6 +179,7 @@ import { choirSong, companion, companionWord, type ChoirSong } from './game/choi
 import { markSeen, ZoneMap } from './ui/zonemap';
 import { PadNav } from './ui/padnav';
 import { Menus } from './ui/menu';
+import { IntroCutscene } from './ui/introCutscene';
 import { GearFx } from './world/gearfx';
 import { initSoundUI } from './ui/sound';
 import { Rewards, type RewardSpec } from './ui/reward';
@@ -1625,7 +1626,7 @@ async function boot(): Promise<void> {
   const BLACK_HOLD = 2.6;
   const BLACK_OUT = 1.2;
 
-  if (!loaded.loaded && !BENCH) {
+  if (!loaded.loaded && !BENCH && urlq.has('notitle')) {
     setTimeout(() => hud.toast('Explore the shallows: scan new things and gather materials for the base', 'big'), 1500);
   } else if (save.oxygen <= 0) {
     save.oxygen = maxOxygen(save);
@@ -1775,6 +1776,9 @@ async function boot(): Promise<void> {
   });
 
   // ---- Milestone 12: the title screen, the pause menu and moving a save ----
+  const intro = new IntroCutscene();
+  let introHoldingWorld = false;
+  let triggerIntro: (isNewGame: boolean) => void = () => {};
   const menus = new Menus({
     getSave: () => save,
     hadSave: loaded.loaded,
@@ -1791,8 +1795,12 @@ async function boot(): Promise<void> {
     openLog: () => document.getElementById('log-btn')!.click(),
     buildId: __BUILD_ID__,
     onPause: (p) => audio.setPaused(p),
+    onBegin: () => {
+      if (!BENCH && !save.tips.includes('intro') && save.playSeconds < 5) triggerIntro(true);
+    },
+    replayIntro: () => triggerIntro(false),
     panelOpen: () =>
-      build.active || care.active || sanctuary.active || dockUI.active || station.active || hatchPanel.active || contact.active || zoneMap.open || hud.reading || rates.open || fieldKit.open || exchangePanel.open || !settingsPanel.hidden || !logPanel.hidden,
+      intro.active || build.active || care.active || sanctuary.active || dockUI.active || station.active || hatchPanel.active || contact.active || zoneMap.open || hud.reading || rates.open || fieldKit.open || exchangePanel.open || !settingsPanel.hidden || !logPanel.hidden,
   });
   window.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && !logPanel.hidden) document.getElementById('log-btn')!.click();
@@ -1817,6 +1825,33 @@ async function boot(): Promise<void> {
   let camCX = diver.x + 120;
   let camCY = diver.y + 40;
   let time = 0;
+
+  triggerIntro = (isNewGame: boolean) => {
+    introHoldingWorld = true;
+    intro.play({
+      onPlunge: () => {
+        introHoldingWorld = false;
+        if (isNewGame) {
+          if (!save.tips.includes('intro')) save.tips.push('intro');
+          diver.x = START.x;
+          diver.y = 4;
+          diver.vx = 0;
+          diver.vy = 140;
+          camCX = START.x + 60;
+          camCY = 75;
+          surfaceFx.splash(START.x, 1.25, time, 0, true);
+          bubbles.puff(START.x, 22, 0, -25, 28);
+          persist();
+        }
+      },
+      onFinish: () => {
+        introHoldingWorld = false;
+        if (isNewGame) {
+          setTimeout(() => hud.toast('Explore the shallows: scan new things and gather materials for the base', 'big'), 900);
+        }
+      },
+    });
+  };
   const siteLastSeen: Partial<Record<CreatureSite, number>> = {};
   function investigateCreatureSite(species: CreatureSite): string {
     const seen = `site:${species}:seen`;
@@ -2352,8 +2387,8 @@ async function boot(): Promise<void> {
     padNav.update(dt);
     menus.update();
     helperFrame(dt);
-    // The title screen and the pause menu hold the world still.
-    if (menus.paused || fieldKit.open || exchangePanel.open) {
+    // The title screen, pause menu, and claymation intro hold the world still.
+    if (menus.paused || introHoldingWorld || fieldKit.open || exchangePanel.open) {
       diver.cancelSurfaceReaction();
       pausedFrames++;
       return;
@@ -5205,7 +5240,7 @@ async function boot(): Promise<void> {
   let bootsNear = false;
   let noBootsAt = -99;
   function helperMode(): HelperMode {
-    if (menus.paused || blackout > 0 || boarding || hud.reading || zoneMap.open || contact.active || padNav.active) return 'none';
+    if (menus.paused || intro.active || blackout > 0 || boarding || hud.reading || zoneMap.open || contact.active || padNav.active) return 'none';
     if (build.active) return 'build';
     if (care.active || sanctuary.active || dockUI.active || station.active || hatchPanel.active || rates.open || !settingsPanel.hidden || !logPanel.hidden) return 'none';
     if (interior.active) return interior.swinging ? 'swing' : interior.pos.climbing ? 'climb' : 'foot';
