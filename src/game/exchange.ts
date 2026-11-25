@@ -63,7 +63,7 @@ export const ROOM_DECOR_SHOP: readonly RoomDecorOffer[] = [
     name: 'Corvina Wreck Model',
     line: 'A collector’s museum miniature of the sunken Corvina.',
     cost: 65,
-    lockHint: (s) => (s.corvina.open || s.scans.includes('cvlog') ? null : 'Explore the Corvina first'),
+    lockHint: (s) => (s.corvina.hatch || s.corvina.door || s.scans.includes('cvlog') ? null : 'Explore the Corvina first'),
   },
   {
     id: 'mini_fulmar',
