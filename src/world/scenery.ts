@@ -1001,11 +1001,88 @@ export class Scenery {
       const h = R(160, deep ? 520 : 380);
       addKelp(x, h, rand() < 0.55 ? kelpBack : kelpFront, greens[Math.floor(rand() * greens.length)]);
     }
-    // Dark foreground kelp silhouettes, like the blurred edges in the concept art.
+    // Dark foreground depth silhouettes across every biome (1.3× parallax with soft DOF blur).
     const nFront = Math.round(12 * detail);
     for (let i = 0; i < nFront; i++) {
       const x = 200 + ((i + R(0.1, 0.9)) / nFront) * (FRONT_REF - 400);
       addKelp(x, R(300, 560), this.front, 0x1d3530);
+    }
+    // Biome-specific foreground framing silhouettes (aligned to 1.3× parallax via fx(worldX)).
+    {
+      const fg = new Graphics();
+      const fx = (wx: number) => wx * 1.3 - FRONT_REF * 0.15;
+      // 1. Kestrel Basin (-4200..900): weathered shale boulders & dark seafloor outcroppings.
+      for (let wx = -3900; wx <= 700; wx += 740) {
+        const x = fx(wx + R(-120, 120));
+        const by = gy(wx) + 90;
+        const w = R(110, 210);
+        const h = R(95, 185);
+        fg.moveTo(x - w, by + 60)
+          .lineTo(x - w * 0.72, by - h * 0.62)
+          .lineTo(x - w * 0.18, by - h)
+          .lineTo(x + w * 0.45, by - h * 0.74)
+          .lineTo(x + w, by + 60)
+          .closePath()
+          .fill({ color: 0x0d1e22, alpha: 0.78 });
+      }
+      // 2. Coral Garden & Sunlit Shallows (1700..4700): dark branching staghorn coral & giant sea-fan silhouettes.
+      for (let wx = 1850; wx <= 4550; wx += 480) {
+        const x = fx(wx + R(-80, 80));
+        const by = gy(wx) + 72;
+        const h = R(110, 195);
+        // Branching staghorn silhouette.
+        fg.moveTo(x, by + 40).quadraticCurveTo(x - 16, by - h * 0.5, x - 34, by - h)
+          .moveTo(x - 12, by - h * 0.42).quadraticCurveTo(x + 12, by - h * 0.72, x + 28, by - h * 0.92)
+          .moveTo(x - 4, by - h * 0.25).quadraticCurveTo(x + 26, by - h * 0.44, x + 52, by - h * 0.62)
+          .moveTo(x - 20, by - h * 0.65).quadraticCurveTo(x - 44, by - h * 0.78, x - 58, by - h * 0.74)
+          .stroke({ color: 0x10282c, width: R(9, 15), cap: 'round', alpha: 0.72 });
+      }
+      // 3. Sunken Grotto (5000..8400): dark karst stalactite foreground overhangs & sea-fan clusters.
+      for (let wx = 5200; wx <= 8200; wx += 620) {
+        const x = fx(wx + R(-90, 90));
+        const by = gy(wx) + 84;
+        const w = R(90, 160);
+        const h = R(120, 210);
+        fg.poly([x - w * 0.6, by + 50, x - w * 0.25, by - h * 0.7, x, by - h, x + w * 0.3, by - h * 0.55, x + w * 0.65, by + 50])
+          .fill({ color: 0x0b181c, alpha: 0.76 });
+      }
+      // 4. Wreck Shelf (19600..26600): dramatic foreground hull ribs, snapped davit beams & hanging anchor chains.
+      for (let wx = 19900; wx <= 26300; wx += 880) {
+        const x = fx(wx + R(-120, 120));
+        const by = gy(wx) + 86;
+        const h = R(190, 320);
+        const tilt = R(-0.24, 0.24);
+        // Curved steel ship-hull rib / bent beam rising from the foreground seabed.
+        fg.moveTo(x - 24, by + 60)
+          .quadraticCurveTo(x - 8 + tilt * 120, by - h * 0.5, x + tilt * 220, by - h)
+          .stroke({ color: 0x0b1518, width: R(14, 22), cap: 'round', alpha: 0.78 });
+        // Cross-girder strut + dangling chain links.
+        fg.moveTo(x + tilt * 140 - 44, by - h * 0.68).lineTo(x + tilt * 140 + 48, by - h * 0.62)
+          .stroke({ color: 0x0b1518, width: 7, cap: 'round', alpha: 0.72 });
+        for (let lk = 0; lk < 5; lk++) {
+          fg.ellipse(x + tilt * 140 + 36, by - h * 0.62 + 12 + lk * 14, 4, 7)
+            .stroke({ color: 0x0c181b, width: 2.6, alpha: 0.68 });
+        }
+      }
+      // 5. Deep Trench & Abyssal Vents (27000..31200): jagged volcanic basalt crag spires.
+      for (let i = 0; i < 8; i++) {
+        const wx = 27300 + i * 520;
+        const x = fx(wx);
+        const by = 1800 + (i % 4) * 680;
+        const w = R(90, 165);
+        const h = R(220, 360);
+        fg.poly([x - w, by + 80, x - w * 0.45, by - h * 0.62, x - 8, by - h, x + w * 0.35, by - h * 0.58, x + w, by + 80])
+          .fill({ color: 0x070e12, alpha: 0.82 });
+      }
+      // 6. Choir Sanctum approach (29200..31400, deep): towering carved monolithic Choir stone obelisk silhouettes.
+      for (let i = 0; i < 4; i++) {
+        const x = fx(29400 + i * 560);
+        const by = 4560;
+        const h = 340 + (i % 2) * 110;
+        fg.poly([x - 42, by + 80, x - 26, by - h, x + 26, by - h - 18, x + 44, by + 80])
+          .fill({ color: 0x0c121e, alpha: 0.8 });
+      }
+      this.front.addChild(fg);
     }
 
     // Seagrass meadow.

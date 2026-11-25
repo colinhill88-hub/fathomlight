@@ -65,14 +65,15 @@ interface Landscape {
 }
 
 const landscapes: Landscape[] = [
-  { asset: 'basin', x: [-5700, 1550], y: [-260, 1780], center: [-1550, 790], width: 3250, depth: 0.26, opacity: 0.84 },
-  { asset: 'meadow', x: [2400, 8900], y: [-450, 1080], center: [5610, 408], width: 2800, depth: 0.32, opacity: 0.82 },
-  { asset: 'cliff', x: [5480, 10300], y: [-300, 1570], center: [8110, 660], width: 2450, depth: 0.44, opacity: 0.76 },
-  { asset: 'forest-east', x: [13210, 15260], y: [320, 1540], center: [14150, 1100], width: 1750, depth: 0.4, opacity: 0.78 },
-  { asset: 'shelf', x: [19150, 23730], y: [435, 1900], center: [21250, 1380], width: 2150, depth: 0.32, opacity: 0.74 },
-  { asset: 'shelf-east', x: [24700, 28170], y: [500, 2060], center: [26640, 1195], width: 2000, depth: 0.38, opacity: 0.7 },
-  { asset: 'trench', x: [26600, 30920], y: [1600, 5220], center: [29000, 3350], width: 2680, depth: 0.36, opacity: 0.75 },
-  { asset: 'abyss', x: [29100, 33280], y: [4350, 7990], center: [31020, 6000], width: 2750, depth: 0.33, opacity: 0.72 },
+  { asset: 'basin', x: [-5700, 2650], y: [-260, 1780], center: [-1550, 790], width: 3450, depth: 0.26, opacity: 0.86 },
+  { asset: 'meadow', x: [1400, 9200], y: [-450, 1180], center: [5450, 408], width: 3100, depth: 0.32, opacity: 0.84 },
+  { asset: 'cliff', x: [5200, 11400], y: [-300, 1650], center: [8250, 660], width: 2700, depth: 0.42, opacity: 0.78 },
+  { asset: 'forest-east', x: [10200, 15600], y: [240, 1620], center: [13350, 1080], width: 2350, depth: 0.38, opacity: 0.80 },
+  { asset: 'shelf', x: [18800, 25400], y: [380, 1980], center: [21600, 1360], width: 2550, depth: 0.32, opacity: 0.78 },
+  { asset: 'shelf-east', x: [24200, 28600], y: [460, 2140], center: [26500, 1200], width: 2300, depth: 0.36, opacity: 0.74 },
+  { asset: 'trench', x: [26400, 31200], y: [1480, 5260], center: [29000, 3350], width: 2880, depth: 0.36, opacity: 0.78 },
+  { asset: 'abyss', x: [28800, 33400], y: [4150, 7990], center: [31020, 6000], width: 2950, depth: 0.33, opacity: 0.76 },
+  { asset: 'sanctum', x: [28400, 32800], y: [3300, 5600], center: [30500, 4350], width: 2500, depth: 0.30, opacity: 0.72 },
 ];
 
 function toHex([r, g, b]: [number, number, number]): number {
@@ -222,6 +223,14 @@ export class ZoneBackdrop {
         }
       });
     }
+    // Sunken Grotto & Kelp Channel: distant limestone sea-arches & coral spires.
+    mk(4800, 9600, 0.24, (g) => {
+      for (let x = 5100; x < 9200; x += 620 + rand() * 540) {
+        const base = groundY(x) + 50;
+        if (rand() < 0.45) arch(g, lx(x), ly(base), 460 + rand() * 320, 340 + rand() * 240);
+        else boulder(g, lx(x), ly(base), 260 + rand() * 280, 180 + rand() * 220, rand);
+      }
+    });
     // The kelp forest: ranks of distant kelp from the floor towards the surface.
     const forest = mk(FOREST.x0, FOREST.x1, 0.3, (g) => {
       for (let x = FOREST.x0 - 200; x < FOREST.x1 + 200; x += 70 + rand() * 90) {
@@ -230,14 +239,34 @@ export class ZoneBackdrop {
       }
     });
     if (this.forestMidground) addPlate(forest, this.forestMidground, forestPlacement);
-    // The wreck shelf: hulks, masts and a crane, half sunk in the silt.
-    const shelf = mk(WRECK_SHELF.x0, WRECK_SHELF.x1 + 200, 0.4, (g) => {
+    // The wreck shelf: painted midground plate (procedural hulk silhouettes only if painted art is absent).
+    const shelf = mk(WRECK_SHELF.x0, WRECK_SHELF.x1 + 200, 0.36, (g) => {
+      if (this.shelfMidground || this.art?.plates.shelf) return;
       for (let x = WRECK_SHELF.x0 + 300; x < WRECK_SHELF.x1; x += 900 + rand() * 1100) {
         const base = groundY(x) + 70;
         hulk(g, lx(x), ly(base), 640 + rand() * 420, 120 + rand() * 80, (rand() - 0.5) * 0.28, rand);
       }
     });
     if (this.shelfMidground) addPlate(shelf, this.shelfMidground, shelfPlacement);
+    // The Deep Trench & Abyssal Vents: towering distant volcanic basalt spires & hydrothermal chimneys.
+    mk(26800, 31600, 0.34, (g) => {
+      for (let i = 0; i < 16; i++) {
+        const wx = 27200 + i * 270 + rand() * 140;
+        const wy = 2400 + (i % 4) * 580 + rand() * 220;
+        const sw = 38 + rand() * 58;
+        const sh = 260 + rand() * 340;
+        const px = lx(wx);
+        const py = ly(wy);
+        g.moveTo(px - sw, py)
+          .lineTo(px - sw * 0.55, py - sh * 0.55)
+          .lineTo(px - sw * 0.18, py - sh)
+          .lineTo(px + sw * 0.16, py - sh * 0.94)
+          .lineTo(px + sw * 0.52, py - sh * 0.48)
+          .lineTo(px + sw, py)
+          .closePath()
+          .fill({ color: 0xffffff });
+      }
+    });
   }
 
   /** Camera centre in world units, zoom = CSS px per world unit. Returns painted landscape coverage (0..1). */
@@ -286,8 +315,8 @@ export class ZoneBackdrop {
       if (z.plate) {
         const { sprite, placement } = z.plate;
         const edge = Math.min((camCX - placement.startX) / placement.fadeIn, (placement.endX - camCX) / placement.fadeOut);
-        // Crossfade at both ends and when the view gets too wide for a single plate.
-        const coverage = smooth(edge) * smooth((1810 - cssW / zoom) / 480);
+        // Crossfade at both ends and allow wider zoom-out views before fading the painted plate.
+        const coverage = smooth(edge) * smooth((2400 - cssW / zoom) / 520);
         if (coverage > paintedCover) paintedCover = coverage;
         sprite.visible = coverage > 0;
         sprite.alpha = coverage * 0.85;
