@@ -271,23 +271,18 @@ export const TANK_LEVELS: Record<'tank' | 'gtank', number[]> = { tank: [TANK_CAP
 export function tankLevel(save: SaveData | undefined, id: number): number {
   return Math.max(0, Math.floor(save?.tankData[String(id)]?.level ?? 0));
 }
-/** How many creatures (and eggs) a tank holds. Pass the save so upgrades count. */
-export function tankCapacity(layout: BaseLayout, id: number, save?: SaveData): number {
-  const kind = layout.pieces.find((p) => p.id === id)?.kind === 'gtank' ? 'gtank' : 'tank';
-  const lv = TANK_LEVELS[kind];
-  return lv[Math.min(lv.length - 1, tankLevel(save, id))];
+/** How many creatures (and eggs) the Grand Sanctuary Tank holds (open cap, Colin Nov 25, 2026). */
+export function tankCapacity(_layout: BaseLayout, _id: number, _save?: SaveData): number {
+  return 999;
 }
-/** Is this the display aquarium? */
+/** Is this the display aquarium? Always true for the unified Grand Sanctuary Tank. */
 export function isDisplay(save: SaveData, layout: BaseLayout, id: number): boolean {
-  return layout.pieces.find((p) => p.id === id)?.kind === 'gtank' && tankLevel(save, id) >= 2;
+  void save;
+  return layout.pieces.find((p) => p.id === id)?.kind === 'gtank';
 }
-/** The kit the next upgrade of this tank needs, or why it can't be upgraded. */
-export function nextUpgrade(save: SaveData, layout: BaseLayout, id: number): { kit: 'tankkit' | 'displaykit'; to: number } | { blocked: string } {
-  const grand = layout.pieces.find((p) => p.id === id)?.kind === 'gtank';
-  const lv = tankLevel(save, id);
-  if (lv === 0) return { kit: 'tankkit', to: (grand ? TANK_LEVELS.gtank : TANK_LEVELS.tank)[1] };
-  if (grand && lv === 1) return { kit: 'displaykit', to: TANK_LEVELS.gtank[2] };
-  return { blocked: grand ? 'This is the display aquarium: as big as a tank gets' : 'Extended. Only a Grand tank grows further' };
+/** Tank-size upgrade kits removed for the unified Grand Sanctuary Tank. */
+export function nextUpgrade(_save: SaveData, _layout: BaseLayout, _id: number): { kit: 'tankkit' | 'displaykit'; to: number } | { blocked: string } {
+  return { blocked: 'The Grand Sanctuary Tank already has unlimited room for all your creatures' };
 }
 /** Fit the next upgrade from a carried kit. Null when done, or why not. */
 export function upgradeTank(save: SaveData, layout: BaseLayout, id: number): string | null {
@@ -744,18 +739,15 @@ export function tickCare(save: SaveData, layout: BaseLayout, dt: number): CareEv
  * (10 minutes of play; Colin, after Session B: was 6), while the base has a powered
  * Creature room with room. A crowded tank breeds more slowly (`crowding`).
  */
-export const BREED_SECONDS = 600;
+export const BREED_SECONDS = 1080;
 /** Eggs (and young waiting for a home) one Creature room holds. */
 export const HATCH_CAP = 4;
 
 /**
- * Colin (after Session B): a crowded tank breeds more slowly. Up to half full, full speed;
- * then slower and slower, down to a quarter of the speed when the tank is full.
+ * Crowding penalty removed for the unified Grand Sanctuary Tank (Colin, Nov 25, 2026).
  */
-export function crowding(count: number, capacity: number): number {
-  const fill = capacity > 0 ? count / capacity : 1;
-  if (fill <= 0.5) return 1;
-  return Math.max(0.25, 1 - ((fill - 0.5) / 0.5) * 0.75);
+export function crowding(_count: number, _capacity: number): number {
+  return 1;
 }
 
 /**
@@ -818,20 +810,74 @@ export function pairsIn(save: SaveData, tankId: number, sp: SpeciesId): number {
 }
 
 /** How breeding is going for this creature's kind in its tank, for the care panel. */
-export function breedNote(save: SaveData, layout: BaseLayout, c: CreatureData): ComfortNote | null {
+export function breedNote(save: SaveData, _layout: BaseLayout, c: CreatureData): ComfortNote | null {
   if (c.stage !== 'grown') return null;
   const sp = SPECIES[c.species];
   const name = sp.name.toLowerCase();
   if (!isHappy(save, c)) return { text: `Too unsettled to breed`, good: false };
   const pairs = pairsIn(save, c.tank, c.species);
   if (!pairs) return { text: `Another happy grown ${name} here would make a breeding pair`, good: false };
-  if (!layout.pieces.some((p) => p.kind === 'hatch' && isDone(p))) return { text: `A breeding pair: build a Creature room so they can lay eggs`, good: false };
-  if (!hatcheries(layout).length) return { text: `A breeding pair, but the Creature room has no power`, good: false };
   const prog = tankDataFor(save, c.tank).breed?.[c.species] ?? 0;
-  if (nurseryRoom(save, layout) <= 0) return { text: `A breeding pair: the Creature room is full. Make room in a tank or the reserve`, good: false };
-  const crowd = crowding(creaturesIn(save, c.tank).length, tankCapacity(layout, c.tank, save));
-  const min = Math.max(1, Math.ceil(((1 - prog) * BREED_SECONDS) / pairs / crowd / 60));
-  return { text: `A breeding pair: next egg in about ${min} min${crowd < 1 ? ' (slower: the tank is crowded)' : ''}`, good: crowd >= 0.5 };
+  const min = Math.max(1, Math.ceil(((1 - prog) * BREED_SECONDS) / pairs / 60));
+  return { text: `A breeding pair: next egg in about ${min} min (or pair directly in Sanctuary!)`, good: true };
+}
+
+/**
+ * In-tank breeding minigame (Colin, Nov 25, 2026): pair two grown creatures of the same species
+ * right inside the Grand Sanctuary Tank to trigger a courtship dance and lay an egg on the seabed!
+ */
+export function breedPairInTank(
+  save: SaveData,
+  tankId: number,
+  idA: number,
+  idB: number,
+): { ok: true; egg: CreatureData } | { ok: false; why: string } {
+  const pa = save.creatures.find((c) => c.id === idA && c.tank === tankId);
+  const pb = save.creatures.find((c) => c.id === idB && c.tank === tankId);
+  if (!pa || !pb || pa.id === pb.id) return { ok: false, why: 'Choose two different creatures.' };
+  if (pa.species !== pb.species) return { ok: false, why: 'Both creatures must be the same species to pair.' };
+  if (pa.stage !== 'grown' || pb.stage !== 'grown') return { ok: false, why: 'Both creatures must be fully grown to breed.' };
+  if (pa.fed < 0.55 || pb.fed < 0.55) return { ok: false, why: 'Feed them first — hungry creatures will not court!' };
+  const td = tankDataFor(save, tankId);
+  const eggsHere = creaturesIn(save, tankId).filter((c) => c.stage === 'egg' && c.species === pa.species).length;
+  if (eggsHere >= 3) return { ok: false, why: `Already tending ${eggsHere} ${SPECIES[pa.species].name.toLowerCase()} eggs — hatch one first!` };
+  const tonic = (td.tonicUntil ?? 0) > save.playSeconds;
+  const harm = tankHarmony(save, tankId);
+  const power = Math.min(1, carePower(save, pa, pb) + (tonic ? 0.45 : 0) + harm.rareBonus + 0.15);
+  const egg: CreatureData = {
+    id: save.nextCreatureId++,
+    species: pa.species,
+    tank: tankId,
+    stage: 'egg',
+    growth: 0,
+    fed: 0.85,
+    comfort: 0.75,
+    sickness: 0,
+    make: 0,
+    traits: inherit(ensureTraits(pa), ensureTraits(pb), Math.random, power, { contact: !!save.sanctum?.contact }),
+    parents: [creatureName(pa), creatureName(pb)],
+    from: tankId,
+  };
+  save.creatures.push(egg);
+  // Courtship takes a bit of energy so you feed & tend between pairings.
+  pa.fed = Math.max(0.25, pa.fed - 0.28);
+  pb.fed = Math.max(0.25, pb.fed - 0.28);
+  return { ok: true, egg };
+}
+
+/** Gently warm a nesting egg in the Sanctuary Tank (+26% hatch progress per tap; hatches when full!). */
+export function warmEggInTank(save: SaveData, eggId: number): { hatched: boolean; egg?: CreatureData } {
+  const c = save.creatures.find((x) => x.id === eggId && x.stage === 'egg');
+  if (!c) return { hatched: false };
+  c.growth = Math.min(1, c.growth + 0.26);
+  if (c.growth >= 1) {
+    c.stage = 'young';
+    c.growth = 0;
+    c.fed = 0.85;
+    c.comfort = 0.75;
+    return { hatched: true, egg: c };
+  }
+  return { hatched: false, egg: c };
 }
 
 function tickBreeding(save: SaveData, layout: BaseLayout, dt: number, ev: CareEvent[]): void {
@@ -882,13 +928,12 @@ function tickBreeding(save: SaveData, layout: BaseLayout, dt: number, ev: CareEv
         continue;
       }
       td.breed ??= {};
-      const crowd = crowding(creaturesIn(save, t.id).length, tankCapacity(layout, t.id, save));
       const tonic = (td.tonicUntil ?? 0) > save.playSeconds;
-      const prog = Math.min(1, (td.breed[sp] ?? 0) + (pairs * dt * crowd * (tonic ? 1.6 : 1)) / BREED_SECONDS);
+      const prog = Math.min(1, (td.breed[sp] ?? 0) + (pairs * dt * (tonic ? 1.5 : 1)) / BREED_SECONDS);
       td.breed[sp] = prog;
-      if (prog < 1 || nurseryRoom(save, layout) <= 0) continue;
+      if (prog < 1) continue;
       td.breed[sp] = 0;
-      // Two parents from the happy grown ones, and the egg's traits from them.
+      // Two parents from the happy grown ones, and the egg's traits from them — laid right inside the Sanctuary Tank!
       const i = Math.floor(Math.random() * b.length);
       let j = Math.floor(Math.random() * (b.length - 1));
       if (j >= i) j++;
@@ -899,11 +944,11 @@ function tickBreeding(save: SaveData, layout: BaseLayout, dt: number, ev: CareEv
       const egg: CreatureData = {
         id: save.nextCreatureId++,
         species: sp,
-        tank: -1,
+        tank: t.id,
         stage: 'egg',
         growth: 0,
-        fed: 0.8,
-        comfort: 0.5,
+        fed: 0.85,
+        comfort: 0.75,
         sickness: 0,
         make: 0,
         // Phase 21 + Research Exchange: good care & Rich Kelp Tonic raise rare odds.
@@ -911,7 +956,7 @@ function tickBreeding(save: SaveData, layout: BaseLayout, dt: number, ev: CareEv
         parents: [creatureName(pa), creatureName(pb)],
         from: t.id,
       };
-      save.nursery.push(egg);
+      save.creatures.push(egg);
       ev.push({ type: 'laid', c: egg, parents: [pa, pb] });
     }
   }
@@ -1060,9 +1105,9 @@ export function handFeedWait(save: SaveData, c: CreatureData): number {
 // ---- Phase 21: the reserve, moving creatures, and "care for all" ----
 /** Creatures the reserve holds. They rest there with no care needed and aren't on show. */
 export const RESERVE_CAP = 30;
-/** The reserve is the Hatchery's cold holding bay: open once a Hatchery is built. */
+/** The reserve bay is open as soon as the Sanctuary Tank is built (no Hatchery needed). */
 export function reserveOpen(layout: BaseLayout): boolean {
-  return layout.pieces.some((p) => p.kind === 'hatch' && isDone(p));
+  return tanks(layout).length > 0;
 }
 /** Every creature you keep, wherever it is (tanks, reserve, Hatchery, rare eggs waiting, the jar). */
 export function allKept(save: SaveData): CreatureData[] {

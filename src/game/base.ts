@@ -281,13 +281,12 @@ export const PIECES: Record<PieceKind, PieceDef> = {
   // Milestone 7 part 2: the kelp forest pieces (Colin's choices: costs as proposed).
   gtank: {
     kind: 'gtank',
-    name: 'Grand tank',
-    job: 'A big tank for up to eight creatures, with a planter for two kinds of plant, so two species can both have their favourite. Collect and Tend work as with a creature tank.',
-    cost: { resin: 6, plate: 4, quartz: 3, moss: 2, brass: 3 },
-    buildTime: 50,
+    name: 'Sanctuary tank',
+    job: 'One grand 3×2 living aquarium for all your creatures — no creature cap, full-screen feeding, drag-and-drop aquascaping, and in-tank breeding (only one per base).',
+    cost: { scrap: 3, quartz: 4, fibre: 2, copper: 2 },
+    buildTime: 30,
     ports: { pipeIn: 1, beltOut: 2 },
     whorls: true,
-    blueprint: 'gtank',
     shapes: [
       {
         w: 3,
@@ -492,7 +491,7 @@ export const PIECES: Record<PieceKind, PieceDef> = {
     ],
   },
 };
-export const PIECE_ORDER: PieceKind[] = ['dome', 'bedroom', 'corridor', 'turbine', 'storage', 'tank', 'filter', 'feeder', 'press', 'dock', 'lab', 'workshop', 'gtank', 'sorter', 'recomp', 'crane', 'hatch', 'farm', 'revive', 'signal', 'thermal', 'lantern', 'shaft', 'junction', 'bracket'];
+export const PIECE_ORDER: PieceKind[] = ['dome', 'bedroom', 'corridor', 'turbine', 'storage', 'gtank', 'filter', 'feeder', 'press', 'dock', 'lab', 'workshop', 'sorter', 'recomp', 'crane', 'farm', 'revive', 'signal', 'thermal', 'lantern', 'shaft', 'junction', 'bracket'];
 /** Each sorting pod's bay for every material. */
 export const SORT_BAY = 12;
 
@@ -741,6 +740,7 @@ export class BaseLayout {
     if (p.gx < 0 || p.gy < 0 || p.gx + s.w > GRID_COLS || p.gy + s.h > GRID_ROWS) return 'Outside the Kestrel site';
     for (const [x, y] of cellsOf(p)) if (!cellOpen(x, y)) return 'Solid rock here (tunnelling comes later)';
     for (const [x, y] of cellsOf(p)) if (this.pieceAt(x, y)) return 'Something is already there';
+    if (isTankKind(p.kind) && this.pieces.some((q) => isTankKind(q.kind))) return 'Only one Sanctuary Tank per base';
     if (PIECES[p.kind].needsRock && cellOpen(p.gx + (shapeIndex(p) === 0 ? -1 : 1), p.gy)) return 'A cliff bracket bolts to solid rock beside it';
     if (this.pieces.length === 0) {
       for (let i = 0; i < s.w; i++) if (onSeabed(p.gx + i, p.gy)) return null;

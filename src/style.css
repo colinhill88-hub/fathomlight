@@ -6947,3 +6947,95 @@ body.sanctuary-open #tags {
   color: rgba(214, 232, 226, 0.78);
   padding: 0 6px;
 }
+#sanctuary-hud.zen .sanct-top,
+#sanctuary-hud.zen .sanct-inspector,
+#sanctuary-hud.zen .sanct-bottom {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s ease;
+}
+.sanct-zen-exit {
+  position: fixed;
+  top: 16px;
+  right: 18px;
+  pointer-events: auto;
+  padding: 7px 13px;
+  border-radius: 999px;
+  border: 1px solid rgba(212, 178, 102, 0.45);
+  background: rgba(9, 24, 29, 0.55);
+  color: rgba(242, 235, 214, 0.85);
+  font: 600 12px/1 inherit;
+  cursor: pointer;
+  opacity: 0.42;
+  transition: opacity 0.2s;
+}
+.sanct-zen-exit:hover {
+  opacity: 1;
+}
+.sanct-locks {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+}
+.sanct-lock-plaque {
+  position: absolute;
+  top: 46%;
+  transform: translate(-50%, -50%);
+  width: min(210px, 22vw);
+  padding: 11px 14px;
+  border-radius: 12px;
+  background: rgba(10, 19, 24, 0.78);
+  border: 1.5px solid rgba(196, 174, 122, 0.45);
+  text-align: center;
+  backdrop-filter: blur(4px);
+}
+.sanct-lock-tag {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  color: #c8b688;
+  margin-bottom: 3px;
+}
+.sanct-lock-plaque strong {
+  display: block;
+  font-size: 13px;
+  color: #f0e8d0;
+  margin-bottom: 3px;
+}
+.sanct-lock-plaque span {
+  font-size: 11px;
+  color: rgba(208, 224, 226, 0.78);
+}
+#sanctuary-hud.zen .sanct-locks {
+  opacity: 0;
+}
+.sanct-scrub-meter {
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 16px;
+  border-radius: 999px;
+  background: rgba(9, 24, 29, 0.88);
+  border: 1.5px solid rgba(158, 245, 220, 0.55);
+  font-size: 12.5px;
+  color: #dffcf4;
+  font-variant-numeric: tabular-nums;
+}
+.sanct-scrub-meter[hidden] {
+  display: none;
+}
+.sanct-scrub-track {
+  width: 170px;
+  height: 9px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  overflow: hidden;
+}
+.sanct-scrub-track i {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #6ee8c8, #ffe490);
+  transition: width 0.12s ease;
+}

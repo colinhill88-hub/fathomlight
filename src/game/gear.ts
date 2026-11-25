@@ -327,9 +327,9 @@ export const RESEARCH: Record<BlueprintId, ResearchDef> = {
   },
 };
 // (Milestone 11: the Choir lantern is given at first contact, never decoded in a Lab, so it isn't in RESEARCH_ORDER.)
-export const RESEARCH_ORDER: BlueprintId[] = ['light', 'satchel', 'gtank', 'tankkit', 'sorter', 'relay', 'welder', 'tow', 'flare', 'visor', 'dash', 'cutter', 'hatch', 'recomp', 'crane', 'sonar', 'thermal', 'boots', 'dart', 'rivet', 'rivet2', 'booster', 'ballast', 'tractor', 'sdome', 'habitat', 'psuit', 'revive', 'plating', 'psuit2', 'cowl', 'drill', 'signal', 'resonator'];
+export const RESEARCH_ORDER: BlueprintId[] = ['light', 'satchel', 'sorter', 'relay', 'welder', 'tow', 'flare', 'visor', 'dash', 'cutter', 'recomp', 'crane', 'sonar', 'thermal', 'boots', 'dart', 'rivet', 'rivet2', 'booster', 'ballast', 'tractor', 'sdome', 'habitat', 'psuit', 'revive', 'plating', 'psuit2', 'cowl', 'drill', 'signal', 'resonator'];
 /** Blueprints that unlock a base piece (build card) instead of Workshop gear. */
-export const PIECE_BLUEPRINTS: Partial<Record<BlueprintId, string>> = { gtank: 'gtank', sorter: 'sorter', recomp: 'recomp', crane: 'crane', revive: 'revive', signal: 'signal', thermal: 'thermal', lantern: 'lantern', hatch: 'hatch' };
+export const PIECE_BLUEPRINTS: Partial<Record<BlueprintId, string>> = { sorter: 'sorter', recomp: 'recomp', crane: 'crane', revive: 'revive', signal: 'signal', thermal: 'thermal', lantern: 'lantern' };
 /** Milestone 10: blueprints that are fitted elsewhere (the dock) or built later, not in the Workshop. */
 export const OTHER_BLUEPRINTS: Partial<Record<BlueprintId, string>> = {
   plating: 'Fit it to KS-1 at a Moon pool dock (the Dock panel).',
@@ -543,9 +543,9 @@ export function gearBlocker(save: SaveData, id: GearId): string | null {
     return `It can only be tuned to the Choir's song once the Signal array has decoded all four fragments (${save.signals.decoded.length} of 4 so far).`;
   return null;
 }
-export const GEAR_ORDER: GearId[] = ['light', 'satchel', 'cutter', 'tow', 'welder', 'relay', 'tankkit', 'displaykit', 'flare', 'visor', 'dash', 'sonar', 'boots', 'dart', 'rivet', 'rivet2', 'psuit', 'psuit2', 'cowl', 'resonator'];
+export const GEAR_ORDER: GearId[] = ['light', 'satchel', 'cutter', 'tow', 'welder', 'relay', 'flare', 'visor', 'dash', 'sonar', 'boots', 'dart', 'rivet', 'rivet2', 'psuit', 'psuit2', 'cowl', 'resonator'];
 /** Gear that is a kit you can build again and again (it isn't kept in save.gear). */
-export const KIT_GEAR: GearId[] = ['relay', 'tankkit', 'displaykit'];
+export const KIT_GEAR: GearId[] = ['relay'];
 
 export const FINDS: Record<FindId, { name: string; text: string }> = {
   recorder: { name: 'SLED 2 recorder', text: 'A scuffed data cartridge from the survey sled. The Lab can read it.' },
