@@ -29,6 +29,21 @@ import { drawDecor } from '../world/tankDecor';
 import { drawPlant } from '../world/tanklife';
 
 /**
+ * Mobile tank zoom (Colin, Nov 26, 2026): on touch screens the tank scene is laid
+ * out as if on a desktop monitor about this many CSS pixels tall, then scaled down
+ * to fit, so a phone sees the same roomy tank as a PC. The HTML HUD is not scaled.
+ */
+const TANK_VIRTUAL_H = 1080;
+/** Cap on the virtual width, so very wide phones don't shrink the creatures further. */
+const TANK_VIRTUAL_MAX_W = 2560;
+
+/** How much to shrink the tank scene for this screen (1 = no zoom; desktops always 1). */
+export function tankZoom(cssW: number, cssH: number, touch: boolean): number {
+  if (!touch) return 1;
+  return Math.min(1, Math.max(cssH / TANK_VIRTUAL_H, cssW / TANK_VIRTUAL_MAX_W));
+}
+
+/**
  * Grand Sanctuary Tank (Colin, Nov 25, 2026):
  * A full-screen, ocean-fidelity living aquarium rendered with PixiJS painted
  * backdrops, sculpted biome seabed, swaying painted kelp & reef flora,
@@ -201,6 +216,10 @@ export class SanctuaryView {
   private layout: BaseLayout | null = null;
   private cssW = 1280;
   private cssH = 720;
+  /** Screen pixels per tank pixel (below 1 on touch screens; see TANK_VIRTUAL_H). */
+  private zoom = 1;
+  private screenW = 0;
+  private screenH = 0;
   private time = 0;
   private nightMode = false;
   private nightMix = 0;
@@ -319,8 +338,9 @@ export class SanctuaryView {
     this.save = save;
     this.layout = layout;
     this.activeTankId = tankId;
-    this.cssW = cssW;
-    this.cssH = cssH;
+    this.applyZoom(cssW, cssH);
+    cssW = this.cssW;
+    cssH = this.cssH;
     this.tool = 'play';
     this.zenMode = false;
     this.hudEl.classList.remove('zen');
@@ -353,6 +373,37 @@ export class SanctuaryView {
     this.hudEl.hidden = true;
     this.clearDynamicNodes();
     this.hooks.onClose();
+  }
+
+  /** Works out the zoom for this screen and sets the tank's virtual size (this.cssW/H). */
+  private applyZoom(screenW: number, screenH: number): void {
+    const touch = document.body.classList.contains('touch') || !!window.matchMedia?.('(pointer: coarse)').matches;
+    this.screenW = screenW;
+    this.screenH = screenH;
+    this.zoom = tankZoom(screenW, screenH, touch);
+    this.view.scale.set(this.zoom);
+    this.cssW = screenW / this.zoom;
+    this.cssH = screenH / this.zoom;
+  }
+
+  /** A tap or brush radius given in screen pixels, in tank pixels (keeps fingers' reach the same when zoomed out). */
+  private reach(screenPx: number): number {
+    return screenPx / this.zoom;
+  }
+
+  /** The closest creature to (x, y) within r tank pixels that passes the filter. */
+  private nearestSwimmer(x: number, y: number, r: number, ok: (s: SwimFish) => boolean): SwimFish | null {
+    let best: SwimFish | null = null;
+    let bestD = r;
+    for (const sw of this.swimmers) {
+      if (!ok(sw)) continue;
+      const d = Math.hypot(sw.x - x, sw.y - y);
+      if (d < bestD) {
+        bestD = d;
+        best = sw;
+      }
+    }
+    return best;
   }
 
   private clearDynamicNodes(): void {
@@ -844,9 +895,10 @@ export class SanctuaryView {
   update(dt: number, cssW: number, cssH: number): void {
     if (!this.active) return;
     this.time += dt;
+    if (cssW !== this.screenW || cssH !== this.screenH) this.applyZoom(cssW, cssH);
+    cssW = this.cssW;
+    cssH = this.cssH;
     if (Math.abs(cssW - this.seabedBuiltW) > 4 || Math.abs(cssH - this.seabedBuiltH) > 4) {
-      this.cssW = cssW;
-      this.cssH = cssH;
       this.buildEnvironment(cssW, cssH);
       this.syncTankContents(true);
     } else {
@@ -1180,7 +1232,7 @@ export class SanctuaryView {
     }
     if (this.tool === 'scrub' && this.pointer.active) {
       // PowerWash sponge ring cursor with active foam sheen!
-      const r = this.pointer.down ? 44 : 38;
+      const r = this.reach(this.pointer.down ? 44 : 38);
       fx.circle(this.pointer.x, this.pointer.y, r).fill({ color: 0xd8fff8, alpha: this.pointer.down ? 0.14 : 0.06 })
         .stroke({ color: 0xb8f8e8, width: 2.5, alpha: 0.85 });
     }
@@ -1631,28 +1683,30 @@ export class SanctuaryView {
 
     window.addEventListener('pointermove', (e) => {
       if (!this.active) return;
-      const vx = (e.clientX - this.pointer.x) * 14;
-      const vy = (e.clientY - this.pointer.y) * 14;
+      const ex = e.clientX / this.zoom;
+      const ey = e.clientY / this.zoom;
+      const vx = (ex - this.pointer.x) * 14 * this.zoom;
+      const vy = (ey - this.pointer.y) * 14 * this.zoom;
       this.pointer.px = this.pointer.x;
       this.pointer.py = this.pointer.y;
-      this.pointer.x = e.clientX;
-      this.pointer.y = e.clientY;
+      this.pointer.x = ex;
+      this.pointer.y = ey;
       this.pointer.active = true;
       if (this.draggingDecor && this.save && this.activeTankId !== null) {
-        const snap = this.nearestOpenSocket(e.clientX, e.clientY, this.draggingDecor.id);
+        const snap = this.nearestOpenSocket(ex, ey, this.draggingDecor.id);
         this.hoverSocket = snap;
-        const x = snap ? snap.x : Math.max(48, Math.min(this.cssW - 48, e.clientX));
-        const y = snap ? snap.y : Math.max(this.cssH * 0.45, Math.min(this.floorY(x) + 8, e.clientY));
+        const x = snap ? snap.x : Math.max(48, Math.min(this.cssW - 48, ex));
+        const y = snap ? snap.y : Math.max(this.cssH * 0.45, Math.min(this.floorY(x) + 8, ey));
         this.draggingDecor.nx = x / Math.max(1, this.cssW);
         this.draggingDecor.ny = y / Math.max(1, this.cssH);
         this.draggingDecor.view.position.set(x, y);
         this.draggingDecor.glow?.position.set(x, y);
       } else if (this.pointer.down && this.tool === 'toy') {
         // Swirl shimmering currents & blow rising bubble rings!
-        this.swirls.push({ x: e.clientX, y: e.clientY, vx: Math.max(-220, Math.min(220, vx)), vy: Math.max(-220, Math.min(220, vy)), life: 0.75 });
+        this.swirls.push({ x: ex, y: ey, vx: Math.max(-220, Math.min(220, vx)), vy: Math.max(-220, Math.min(220, vy)), life: 0.75 });
         if (this.ringCooldown <= 0 && this.rings.length < 10) {
           this.ringCooldown = 0.28;
-          this.rings.push({ x: e.clientX, y: e.clientY, r: 16, vy: -34, life: 4.5, max: 4.5 });
+          this.rings.push({ x: ex, y: ey, r: 16, vy: -34, life: 4.5, max: 4.5 });
           this.hooks.onSound('bubble');
         }
       } else if (this.pointer.down && this.tool === 'scrub' && this.save && this.activeTankId !== null) {
@@ -1660,7 +1714,7 @@ export class SanctuaryView {
         let wiped = false;
         for (const al of this.algae) {
           if (al.alpha <= 0.02) continue;
-          if (Math.hypot(al.x - e.clientX, al.y - e.clientY) < al.r + 44) {
+          if (Math.hypot(al.x - ex, al.y - ey) < al.r + this.reach(44)) {
             al.alpha = Math.max(0, al.alpha - 0.24);
             wiped = true;
             if (al.alpha <= 0.02) {
@@ -1674,7 +1728,7 @@ export class SanctuaryView {
           const pct = this.cleanPercent();
           const td = tankDataFor(this.save, this.activeTankId);
           td.water = Math.max(td.water, pct / 100);
-          this.spawnPops(e.clientX, e.clientY, 3, 0xe8fffc);
+          this.spawnPops(ex, ey, 3, 0xe8fffc);
           this.updateScrubMeter();
           if (pct >= 100 && !this.scrubCelebrated) {
             this.scrubCelebrated = true;
@@ -1715,8 +1769,8 @@ export class SanctuaryView {
     window.addEventListener('pointerdown', (e) => {
       if (!this.active || !this.save || this.activeTankId === null) return;
       if ((e.target as HTMLElement).closest('#sanctuary-hud')) return;
-      const x = e.clientX;
-      const y = e.clientY;
+      const x = e.clientX / this.zoom;
+      const y = e.clientY / this.zoom;
       this.pointer.x = x;
       this.pointer.y = y;
       this.pointer.down = true;
@@ -1724,7 +1778,7 @@ export class SanctuaryView {
       if (this.tool === 'decor') {
         // Pick up a placed decoration to drag it (right-click flips it!).
         for (const d of this.placedDecor) {
-          if (Math.hypot(d.view.x - x, (d.view.y - 26) - y) < 52) {
+          if (Math.hypot(d.view.x - x, (d.view.y - 26) - y) < this.reach(52)) {
             if (e.button === 2) {
               d.flip = !d.flip;
               const sc = Math.abs(d.view.scale.y);
@@ -1743,8 +1797,9 @@ export class SanctuaryView {
       }
 
       // 0. Clicking any nesting egg on the seabed gently warms it (+26% progress) or hatches it when ready!
-      for (const sw of this.swimmers) {
-        if (sw.data.stage === 'egg' && Math.hypot(sw.x - x, sw.y - y) < 34) {
+      {
+        const sw = this.nearestSwimmer(x, y, this.reach(34), (s) => s.data.stage === 'egg');
+        if (sw) {
           const res = warmEggInTank(this.save, sw.data.id);
           if (res.hatched && res.egg) {
             this.spawnPops(sw.x, sw.y - 8, 22, 0x9ef5d0);
@@ -1763,8 +1818,9 @@ export class SanctuaryView {
 
       // 0b. In Pair & Breed mode: click two grown creatures of the same species to trigger a courtship dance & lay an egg!
       if (this.tool === 'breed') {
-        for (const sw of this.swimmers) {
-          if (sw.data.stage !== 'egg' && Math.hypot(sw.x - x, sw.y - y) < 38) {
+        {
+          const sw = this.nearestSwimmer(x, y, this.reach(38), (s) => s.data.stage !== 'egg');
+          if (sw) {
             if (sw.data.stage !== 'grown') {
               this.hooks.onToast(`${creatureName(sw.data)} is still young — only grown creatures can pair!`);
               return;
@@ -1804,7 +1860,7 @@ export class SanctuaryView {
       // 1. Check clickable glowing tank drops first!
       for (let i = 0; i < this.drops.length; i++) {
         const dr = this.drops[i];
-        if (Math.hypot(dr.x - x, dr.y - y) < 34) {
+        if (Math.hypot(dr.x - x, dr.y - y) < this.reach(34)) {
           const td = tankDataFor(this.save, this.activeTankId);
           const qty = td.out?.[dr.mat] ?? 0;
           if (qty > 0) {
@@ -1833,7 +1889,7 @@ export class SanctuaryView {
 
       // 1b. Interactive Living Decor toys in Play mode (chest bubble burst, bell chime, lantern glow)!
       for (const d of this.placedDecor) {
-        if (Math.hypot(d.view.x - x, (d.view.y - 26) - y) < 42) {
+        if (Math.hypot(d.view.x - x, (d.view.y - 26) - y) < this.reach(42)) {
           if (d.id === 'bell') {
             this.ringChime(d.view.x, d.view.y - 24);
             return;
@@ -1853,8 +1909,9 @@ export class SanctuaryView {
       }
 
       // 2. Check clicking on a creature to inspect it!
-      for (const sw of this.swimmers) {
-        if (Math.hypot(sw.x - x, sw.y - y) < 36) {
+      {
+        const sw = this.nearestSwimmer(x, y, this.reach(36), () => true);
+        if (sw) {
           this.showInspector(sw.data);
           this.hooks.onSound('ui');
           return;

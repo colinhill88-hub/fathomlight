@@ -4,6 +4,13 @@ The live branch includes the Fulmar foothold, Codex Phases 1–11D the Phase 12 
 
 Play link: https://colinhill88-hub.github.io/fathomlight/ (live; first successful deploy 2026-11-14)
 
+### Mobile tank zoom: the Grand Sanctuary looks like it does on a monitor (Colin, Nov 26, 2026)
+
+On phones and tablets the Grand Sanctuary tank looked crowded, because the creatures are drawn at a fixed pixel size and a phone screen is small. Now, on touch screens only, the tank scene is laid out as if on a monitor about 1080 pixels tall (no more than 2560 wide) and then scaled down to fit, so a phone sees the whole tank, as a PC does. The buttons, treat tray and other HTML controls are untouched, and desktops are unchanged (zoom stays 1).
+- `src/scene/sanctuaryView.ts`: `tankZoom()` and `TANK_VIRTUAL_H` / `TANK_VIRTUAL_MAX_W` (tune these to zoom more or less); `applyZoom()` scales the view and gives the tank its virtual size; taps and drags are converted into tank coordinates; tap, scrub and drag radii are kept finger-sized (`reach()`); taps now pick the **nearest** creature or egg instead of the first one in the list.
+- `src/main.ts`: `__fathom.sanctuary` for automated checks.
+- Checked in `vite preview` with Playwright: iPhone 13 landscape (zoom 0.32, the whole tank in view; a tap on a creature opened that creature's card) and a 1600×900 desktop (unchanged; a click opened the right card). No console errors. `node scripts/test-progression.mjs` already fails on `main` before this change ("No boots row before the boots are built"); not touched here.
+
 ### Pass 2 Painterly Art & Seamless Alignment Polish (Colin, Nov 24, 2026)
 
 Brought Kestrel's entire upgrade kit, the remaining base exterior modules, all 9 reef material pickups, all 5 seabed ambient animals, and the parallax ocean backdrop up to the same hand-painted watercolor-and-gouache look, with strict art-to-collision and light alignment:

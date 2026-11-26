@@ -6032,6 +6032,8 @@ async function boot(): Promise<void> {
     seedBase: (s: SaveData) => seedBenchSave(s),
     helper: controlHelper,
     hud,
+    // Mobile tank zoom (Nov 26, 2026): open the Grand Sanctuary tank directly (for checks).
+    sanctuary,
   };
 }
 

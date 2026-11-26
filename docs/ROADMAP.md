@@ -6,6 +6,10 @@ This is the agreed plan for work that is **not built yet**. Nothing here is impl
 
 The order below is Colin's agreed phasing. **Phases 20 and 21 (Session A) are built and merged** (PR #50). **Phases 22 and 23 (Session B) are built and merged** (PR #51, Nov 22, 2026); the Creature room follow-up is merged (PR #52); Kestrel's open-water size change is on a new pull request. Phases 15, 16 and 17 are built and merged. **Phase 18 is built** (on a branch with a pull request for Colin). **Phase 19 is agreed and ready to build** (planned with Colin on Nov 21, 2026, after Phase 16), each with a session prompt in `docs/prompts/`. Later items need a design pass with Colin before code. Ask him the open questions listed with each item.
 
+## Creature containment base (Grand Sanctuary tank), Nov 26, 2026
+
+- **Mobile tank zoom: done** (see PROGRESS.md). Colin asked for the tank on mobile to look zoomed out "as if on a 2K monitor", keeping the mobile UI and controls the same. Next: Colin to try it on his phone and say whether to zoom more or less (`TANK_VIRTUAL_H` in `src/scene/sanctuaryView.ts`).
+
 ## Colin's decisions (Nov 21, 2026)
 
 **After Phase 16 (planning the next phases):**
