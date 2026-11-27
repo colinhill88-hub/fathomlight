@@ -1,4 +1,5 @@
 import { audio } from '../audio/engine';
+import { getPropArt } from '../art/propArt';
 
 /**
  * Beyond Earth (Nov 27, 2026): the Petrel's voyages, drawn in code on a canvas.
@@ -158,6 +159,15 @@ export class VoyageCutscene {
         ctx.quadraticCurveTo(fx, len, fx + 10, 8);
         ctx.fill();
       }
+    }
+    // The painted finished Petrel (src/art/landmarks/petrel_5), when there is one.
+    const painted = getPropArt().landmarks.petrel_5?.source?.resource as (CanvasImageSource & { width: number; height: number }) | undefined;
+    if (painted && painted.width > 0) {
+      const ph = 380;
+      const pw = (ph * painted.width) / painted.height;
+      ctx.drawImage(painted, -pw / 2, -ph + 14, pw, ph);
+      ctx.restore();
+      return;
     }
     ctx.lineWidth = 3;
     ctx.strokeStyle = '#161d20';
