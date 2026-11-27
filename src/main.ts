@@ -165,7 +165,7 @@ import { Factory, FARM_TRAY, FEEDER_MASH_CAP, HOPPER_CAP, machineData, PRESS_COP
 import { LinesView } from './world/linegfx';
 import { StationMode } from './ui/station';
 import { DIVE_LIGHT, FINDS, GEAR, hasGear, jobOf, jobRunning, LAMP, OTHER_BLUEPRINTS, PIECE_BLUEPRINTS, RESEARCH, tickStations } from './game/gear';
-import type { BlueprintId, CreatureData, SpeciesId } from './game/state';
+import type { BlueprintId, CreatureData, GearId, SpeciesId } from './game/state';
 import { audio } from './audio/engine';
 import { SoundDirector, WorkKind, zoneMix } from './audio/director';
 import { Lurkers } from './actors/lurker';
@@ -1112,13 +1112,13 @@ async function boot(): Promise<void> {
     relaylog: {
       research: 'relay',
       label: 'Take the KS RELAY 2 log',
-      toast: 'KS RELAY 2 log taken! A Lab can decode it into the Air relay AR-1: fresh air, planted anywhere out in the world.',
+      toast: 'KS RELAY 2 log taken! Its notes are about long dives round a big wreck: once you have seen one, a Lab can decode it into the Air relay AR-1.',
       y: 0,
     },
     weldchip: {
       research: 'welder',
       label: 'Pull the KD WELD control chip',
-      toast: 'KD WELD control chip taken! Decode it in a Lab for the DR-2 welder: the build drone welds twice as fast.',
+      toast: 'KD WELD control chip taken! It is tuned for heavy hull work: once you have seen the wreck shelf, a Lab can decode it for the DR-2 welder (the build drone welds twice as fast).',
       y: 0,
     },
     towcoil: {
@@ -2068,6 +2068,19 @@ async function boot(): Promise<void> {
           `Finished: ${PIECES[p.kind].name}${!POWER_MAKE[p.kind] && !powered ? ' (no power yet: join it to a current turbine)' : ''}`,
           'big',
         );
+        // Pacing (Nov 27, 2026): breeding takes a while (a lay every 18 minutes, then hatching and growing), and the
+        // Signal array later wants patterns bred at the base, so say so as soon as the Creature room is up.
+        if (p.kind === 'hatch' && !save.tips.includes('breedearly')) {
+          save.tips.push('breedearly');
+          setTimeout(
+            () =>
+              hud.toast(
+                'Start breeding early: a happy grown pair in a tank lays an egg about every 18 minutes, and babies raised here can show glow patterns the wild never does. The Signal array will want those later.',
+                'big',
+              ),
+            2600,
+          );
+        }
         if (build.active) build.refresh();
         persist();
       }
@@ -2124,6 +2137,22 @@ async function boot(): Promise<void> {
       grant(major('fragment', 'Signal decoded', `Fragment ${n} of ${FRAGMENTS.length}`, 'The Choir’s song comes a little clearer.', 'choir'));
       hud.toast(`The Signal array decoded fragment ${n}! Read it at the array's console, or in the scanner log.`, 'big');
       persist();
+    }
+
+    // ---- Pacing (Nov 27, 2026): plating is the slow part with one press; say once that a second one helps ----
+    // (Kits built again and again never count as owned, so they don't count as something being saved for.)
+    const REPEAT_KITS: GearId[] = ['relay', 'tankkit', 'displaykit'];
+    if (!save.tips.includes('press2') && Math.floor(time) % 3 === 0) {
+      const presses = layout.pieces.filter((p) => p.kind === 'press' && isDone(p)).length;
+      const plate = save.stored.plate + save.bag.plate;
+      const wantsSub = layout.pieces.some((p) => p.kind === 'dock' && isDone(p)) && !save.sub && plate < (SUB_COST.plate ?? 0);
+      const wantsGear = (Object.keys(GEAR) as GearId[]).some(
+        (id) => !REPEAT_KITS.includes(id) && save.blueprints.includes(GEAR[id].blueprint) && !hasGear(save, id) && (GEAR[id].cost.plate ?? 0) > plate,
+      );
+      if (presses === 1 && (wantsSub || wantsGear) && layout.powered.size > 0) {
+        save.tips.push('press2');
+        hud.toast('Hull plating is the slow part now. A second plate press, fed from storage like the first, would make it twice as fast.', 'big');
+      }
     }
 
     // ---- Beyond Earth: the Petrel works makes the ship's parts from base storage ----

@@ -75,16 +75,18 @@ export const RESEARCH: Record<BlueprintId, ResearchDef> = {
     id: 'relay',
     name: 'Air relay AR-1 blueprint',
     text: 'Reads the KS RELAY 2 log from the kelp caves: a surface float that pumps fresh air down a hose to a mooring on the seabed.',
+    // Pacing (Nov 27, 2026): decodes once you have seen the Corvina, where long dives round a wreck begin.
     finds: ['relaylog'],
-    scans: [],
+    scans: ['corvina'],
     seconds: 80,
   },
   welder: {
     id: 'welder',
     name: 'DR-2 welder blueprint',
     text: 'Reads the KD WELD control chip from the kelp caves: a hotter, steadier torch head for the build drone.',
+    // Pacing (Nov 27, 2026): decodes once you have seen the wreck shelf, where the dock and KS-1 (the big builds) come next.
     finds: ['weldchip'],
-    scans: [],
+    scans: ['wshelf'],
     seconds: 70,
   },
   tow: {
@@ -107,9 +109,9 @@ export const RESEARCH: Record<BlueprintId, ResearchDef> = {
   recomp: {
     id: 'recomp',
     name: 'Recompression room RC-1 blueprint',
-    text: 'From your scans of the wreck shelf and the wreck lurker: a brass pressure chamber that mends a cracked suit fast. Unlocks a build card.',
+    text: 'From your scans of the wreck shelf, the wreck lurker and the trench: a brass pressure chamber that mends a cracked suit fast and prepares you for the deep. Unlocks a build card.',
     finds: [],
-    scans: ['wshelf', 'lurker'],
+    scans: ['wshelf', 'lurker', 'trench'],
     seconds: 90,
   },
   crane: {
@@ -207,9 +209,9 @@ export const RESEARCH: Record<BlueprintId, ResearchDef> = {
   visor: {
     id: 'visor',
     name: 'Echo visor blueprint',
-    text: 'From your scans of an Echo whorl and the lumen moss: a lime band in the helmet glass that shows nearby materials and creatures through rock.',
+    text: 'From your scans of an Echo whorl, the lumen moss and the silt slump on the shelf: a lime band in the helmet glass that shows nearby materials and creatures through rock.',
     finds: [],
-    scans: ['whorl', 'lumen'],
+    scans: ['whorl', 'lumen', 'hidden'],
     seconds: 60,
   },
   boots: {
@@ -240,9 +242,9 @@ export const RESEARCH: Record<BlueprintId, ResearchDef> = {
   dash: {
     id: 'dash',
     name: 'TH-3 dash head blueprint',
-    text: 'From your scans of the caves\' cold surge: a third nozzle for the hip thruster. Double-tap Boost to dash, every few seconds.',
+    text: 'From your scans of the caves\' cold surge and the race: a third nozzle for the hip thruster. Double-tap Boost to dash, every few seconds.',
     finds: [],
-    scans: ['surge'],
+    scans: ['surge', 'race'],
     seconds: 65,
   },
   cowl: {
@@ -280,17 +282,17 @@ export const RESEARCH: Record<BlueprintId, ResearchDef> = {
   sdome: {
     id: 'sdome',
     name: 'Sonar dome SD-S blueprint',
-    text: "From the Corvina's log: a dome for KS-1's back that pings the water around it and marks every material within a long reach, through rock. Fitted at the dock.",
+    text: "From the Corvina's log and your scan of the trench: a dome for KS-1's back that pings the dark water around it and marks every material within a long reach, through rock. Fitted at the dock.",
     finds: [],
-    scans: ['cvlog'],
+    scans: ['cvlog', 'trench'],
     seconds: 70,
   },
   habitat: {
     id: 'habitat',
     name: 'Habitat pod HP-S blueprint',
-    text: 'From your scans of an air pocket and the Corvina: a pressurised pod with air scrubbers. Aboard, your own air refills and the sub\'s reserve barely falls. Fitted at the dock.',
+    text: 'From your scans of an air pocket, the Corvina and the trench: a pressurised pod with air scrubbers for long dives. Aboard, your own air refills and the sub\'s reserve barely falls. Fitted at the dock.',
     finds: [],
-    scans: ['airpocket', 'corvina'],
+    scans: ['airpocket', 'corvina', 'trench'],
     seconds: 80,
   },
   drill: {

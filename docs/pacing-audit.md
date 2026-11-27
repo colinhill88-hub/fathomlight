@@ -46,7 +46,24 @@ Blueprints that become decodable in each zone, besides the ones the route needs:
 - **The kelp forest is the first big burst.** Nine blueprints, after one in the shallows. Most of them come from finds in one cave system: the relay log, the weld chip, the tow coil, the cutter cache and the nursery log. A keen player spends about **50 minutes on optional kelp work before starting the cutter and tow line** the route needs. That matches what Colin felt.
 - **The wreck shelf is a bigger burst (15).** In play it's spread out a little, since its finds come one by one as you get into the Corvina. It's still the densest stretch of the game.
 
+## Built (Colin chose all five, Nov 27, 2026)
+
+All five proposals below are now in the game (proposal 5 is "leave resin as it is"). The model was rerun before and after, with one fix to the model itself: the press now only runs while plating is wanted, as a player would feed it. That also changed the "before" numbers slightly from the tables above.
+
+| Reached | Route only, before | Route only, after | Keen player, before | Keen player, after |
+| --- | --- | --- | --- | --- |
+| Kelp forest | 0:44 | 0:42 | 0:47 | 0:45 |
+| Wreck shelf | 1:45 | 1:42 | 2:42 | 2:00 |
+| Trench | 3:05 | 2:47 | 5:05 | 4:20 |
+| Resonator | 4:14 | 3:55 | 6:30 | 5:53 |
+
+- **Kelp forest:** a keen player now starts the cutter about 12 minutes after arriving, instead of about an hour, with only 2 optional blueprints (sorting pod and flare) beside the route's three.
+- **Waiting on plating on the route:** 36 minutes before, 13 after.
+- **Still dense:** the wreck shelf now lists 15 optional blueprints. In play they arrive at different moments: entering the shelf, the race, the Corvina, the silt slump and inside the wreck. If it still feels crowded, the shelf is the next place to look.
+
 ## Proposals (not built; for Colin to choose)
+
+(Kept as they were proposed; see above for what was built.)
 
 ### 1. Space out the kelp forest's optional blueprints
 

@@ -4,6 +4,18 @@ The live branch includes the Fulmar foothold, Codex Phases 1–11D the Phase 12 
 
 Play link: https://colinhill88-hub.github.io/fathomlight/ (live; first successful deploy 2026-11-14)
 
+### Pacing pass: spacing out unlocks, a faster press, breeding earlier (Colin, Nov 27, 2026)
+
+From the pacing audit ([`docs/pacing-audit.md`](docs/pacing-audit.md)); Colin chose all five proposals.
+- **Kelp forest unlocks spaced out** (`src/game/gear.ts`): the DR-2 welder now also needs a scan of the wreck shelf, the AR-1 air relay the Corvina, the TH-3 dash the race, and the echo visor the silt slump. The kelp forest now unlocks 5 blueprints instead of 9. The weld chip and relay log pickup messages say when they'll decode.
+- **Three shelf blueprints moved to the trench:** the recompression room, KS-1's habitat pod and sonar dome now also need a scan of the trench (the Lab hides them until then, as it does other trench blueprints).
+- **The plate press makes 0.75 plating a minute** (was 0.5): KS-1's 12 plating take 16 minutes on one press instead of 24. A one-time tip ("a second plate press … would make it twice as fast") appears when you have one press and plating is holding up KS-1 or Workshop gear.
+- **Breed early:** when the Creature room is first finished, a tip says a pair lays about every 18 minutes and that the Signal array will want bred patterns later.
+- **Resin unchanged.**
+- **The model, rerun** (efficient player, fresh save): first contact at 3:55 on the route only (was 4:14) and 5:53 for a keen player (was 6:30); the wreck shelf reached at 2:00 instead of 2:42 for a keen player.
+- **Saves:** no new fields. Blueprints already decoded stay decoded.
+- **Checked:** typecheck, build and the Petrel checks pass. In `vite preview`, the Lab lists the welder as "Still need to scan The wreck shelf", the dash as needing the race and the visor as needing the silt slump. The progression script still stops at its old boots check, as before.
+
 ### Beyond Earth, part 1: the sky hints and the Petrel (Colin, Nov 27, 2026)
 
 A big project that keeps using what the base makes, planned with Colin (see "Beyond Earth" in the [roadmap](docs/ROADMAP.md)). First contact is now the beginning of the next stage: the Choir shows Kestrel that it came from a small, cold moon, and a ship to get there.

@@ -371,9 +371,16 @@ The original brief follows.
 
   Session B builds on Session A (the book and the care odds), so A comes first.
 
-## Pacing (Nov 27, 2026): proposals waiting for Colin
+## Pacing (Nov 27, 2026): **built** (Colin chose all five proposals)
 
-A pacing model and audit ([`pacing-audit.md`](pacing-audit.md), [`scripts/pacing-model.mjs`](../scripts/pacing-model.mjs)) found two bursts of blueprints (9 in the kelp forest, 15 on the wreck shelf), the plate press as the route's biggest wait (KS-1's 12 plating take 24 minutes on one press), and a 32-minute breeding cycle at the very end. Its five proposals (move 4 kelp blueprints and 3 shelf ones to later scans, ease the press, nudge breeding earlier, leave resin) are not built; Colin chooses.
+From the pacing model and audit ([`pacing-audit.md`](pacing-audit.md), [`scripts/pacing-model.mjs`](../scripts/pacing-model.mjs)):
+- Four kelp blueprints now need a later scan: DR-2 welder (`wshelf`), AR-1 air relay (`corvina`), TH-3 dash (`race`), echo visor (`hidden`).
+- Three shelf blueprints now need the trench: recompression room, KS-1 habitat pod, KS-1 sonar dome.
+- The plate press makes 0.75 plating a minute (was 0.5). A one-time tip suggests a second press when plating holds up KS-1 or Workshop gear.
+- A tip to start breeding early appears when the Creature room is first finished.
+- Resin is unchanged.
+
+**Next:** Colin plays the kelp forest and the shelf to feel it. The wreck shelf still lists 15 optional blueprints, spread over its sites.
 
 ## Beyond Earth: the Choir's ship and Europa (planned with Colin, Nov 27, 2026). Hints and the ship's five stages **built** (see PROGRESS.md); the launch and Europa not built yet.
 
