@@ -29,6 +29,20 @@ const SHIP_H = 330;
 const SHIP_HALF = 46;
 /** The whole platform is drawn at this scale, so the ship fits in the sky above the waterline in view. */
 const VIEW_SCALE = 0.58;
+/** The painted platform and ship (src/art/landmarks/petrel_*.webp): where the cradle's rim is in the
+ * platform picture (as a fraction of its cropped size), how wide it is drawn, and how tall the ship. */
+const PAINTED_CRADLE = { x: 0.52, y: 0.705 };
+const PAINTED_PLATFORM_W = 540;
+const PAINTED_PLATFORM_ASPECT = 497 / 978;
+const PAINTED_SHIP_H = 400;
+/** The Choir core window in petrel_5, as a fraction of the ship's height up from its base. */
+const PAINTED_CORE_Y = 0.5;
+/** The painted platform's lamps (gantry top first), as fractions of its cropped size. */
+const PAINTED_LAMPS: [number, number][] = [
+  [0.12, 0.03],
+  [0.02, 0.62],
+  [0.985, 0.62],
+];
 
 const INK = 0x161d20;
 const STEEL = 0x2f373b;
@@ -127,12 +141,29 @@ export class PetrelView {
     }
 
     // The platform (painted, or drawn; during stage 1 it assembles as parts arrive).
-    if (platformTex) this.addSprite(platformTex, 0, 46, DECK_HALF * 2 + 40);
-    else this.drawPlatform(done > 0 ? 1 : Math.min(1, frac * 2));
+    // Painted (Colin, Nov 27, 2026): its cradle's rim sits at the deck line (y 0), centred on x 0.
+    if (platformTex) {
+      const spr = new Sprite(platformTex);
+      spr.anchor.set(PAINTED_CRADLE.x, PAINTED_CRADLE.y);
+      spr.scale.set(PAINTED_PLATFORM_W / Math.max(1, platformTex.width));
+      this.body.addChild(spr);
+    } else this.drawPlatform(done > 0 ? 1 : Math.min(1, frac * 2));
 
-    // The ship: the painted stage image when there is one, otherwise drawn system by system.
+    // The ship: the painted stage image when there is one (sized by height, standing in the cradle),
+    // otherwise drawn system by system.
     if (shipTex) {
-      this.addSprite(shipTex, 0, 2, SHIP_HALF * 2 + 120);
+      const spr = new Sprite(shipTex);
+      spr.anchor.set(0.5, 1);
+      spr.scale.set(PAINTED_SHIP_H / Math.max(1, shipTex.height));
+      spr.position.set(0, 8);
+      this.body.addChild(spr);
+      // The finished ship's Choir core breathes with light.
+      if (done >= 5) {
+        this.hasCore = true;
+        const cy = 8 - PAINTED_SHIP_H * PAINTED_CORE_Y;
+        this.coreGlow.clear().circle(0, cy, 46).fill({ color: 0x8ad8ff, alpha: 0.3 }).circle(0, cy, 22).fill({ color: 0xd8b0ff, alpha: 0.35 });
+        this.glowBody.addChild(this.coreGlow);
+      }
     } else {
       const g = new Graphics();
       this.body.addChild(g);
@@ -145,6 +176,10 @@ export class PetrelView {
       // Scaffolding round the section being built.
       if (done < 5 && done >= 1) this.drawScaffold(g, done);
     }
+    if (platformTex) {
+      this.drawPaintedLamps();
+      return;
+    }
     this.drawLamps(done);
     const label = new Text({ text: 'PETREL', style: { fontFamily: 'monospace', fontSize: 9, fontWeight: 'bold', fill: BRASS_LIGHT, letterSpacing: 2 } });
     label.anchor.set(0.5);
@@ -152,12 +187,22 @@ export class PetrelView {
     this.body.addChild(label);
   }
 
-  private addSprite(tex: Texture, x: number, bottomY: number, width: number): void {
-    const spr = new Sprite(tex);
-    spr.anchor.set(0.5, 1);
-    spr.scale.set(width / Math.max(1, tex.width));
-    spr.position.set(x, bottomY);
-    this.body.addChild(spr);
+  /** Soft glows over the painted platform's own amber lamps (deck ends and the gantry top), and its beacon. */
+  private drawPaintedLamps(): void {
+    const h = PAINTED_PLATFORM_W * PAINTED_PLATFORM_ASPECT;
+    const at = (rx: number, ry: number) => ({ x: (rx - PAINTED_CRADLE.x) * PAINTED_PLATFORM_W, y: (ry - PAINTED_CRADLE.y) * h });
+    const em = new Graphics();
+    const halo = new Graphics();
+    for (const [rx, ry] of PAINTED_LAMPS) {
+      const p = at(rx, ry);
+      em.circle(p.x, p.y, 3).fill({ color: AMBER, alpha: 0.9 });
+      halo.circle(p.x, p.y, 22).fill({ color: AMBER, alpha: 0.28 });
+    }
+    this.emBody.addChild(em);
+    this.glowBody.addChild(halo);
+    const top = at(PAINTED_LAMPS[0][0], PAINTED_LAMPS[0][1]);
+    this.beacon.clear().circle(top.x, top.y, 4).fill({ color: 0xff8a4a });
+    this.emBody.addChild(this.beacon);
   }
 
   private drawMarker(): void {

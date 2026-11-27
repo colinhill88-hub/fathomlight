@@ -4,6 +4,27 @@ The live branch includes the Fulmar foothold, Codex Phases 1–11D the Phase 12 
 
 Play link: https://colinhill88-hub.github.io/fathomlight/ (live; first successful deploy 2026-11-14)
 
+### Painted Petrel art wired in, and Europa's art prompts (Colin, Nov 27, 2026)
+
+- **Colin's seven painted images are in the game:** the Petrel works module (`src/art/base/works.webp`), the empty launch platform and the ship at each of the five stages (`src/art/landmarks/petrel_platform.webp`, `petrel_1..5.webp`). They were generated from the prompt sheet and logged in `docs/art/SOURCES.md`. In the repo they were re-encoded as high-quality lossy WebP to keep the phone build light (3.2 MB to 0.58 MB).
+- **Fitted, not just swapped:**
+  - the platform picture is anchored so its brass cradle sits on the deck line;
+  - each ship stage is sized by height and stands in the cradle;
+  - soft glows sit over the painting's own amber lamps;
+  - the finished ship's Choir core breathes with light;
+  - the voyage scenes now fly the painted Petrel.
+
+  Without the images, the code-drawn versions still show, as before.
+- **Prompts for everything else new** (`docs/art/prompts/petrel.md`, section 4):
+  - **Each new zone (under the ice, the passage, the floe field, the warm deep):** a background, a midground and a foreground, plus the floe field's sky and Jupiter.
+  - **Objects:** the hab, the Brine still and Air bell, the glyph pillars, floes, brine pools, vents and hearth, the kin's gate.
+  - **Materials:** Europa's three pickups.
+  - **Creatures:** rime moth, glasshorn, krill, the floe ray with separate overlays for each piece of its gear, and the Choir's kin.
+  - **The Petrel works room's props, and optional voyage paintings.**
+
+  Europa doesn't read painted images by file name yet; the session that receives them wires them in.
+- **Checked:** typecheck, build and the Petrel and Europa checks pass. In `vite preview` with Playwright, the platform and ship at every stage (aligned in the cradle), the works module on the base, and the voyage with the painted ship. No console errors.
+
 ### Beyond Earth, part 4: the warm deep and the Choir's kin (Colin, Nov 27, 2026)
 
 Colin's choices: biome 3 is a **hydrothermal deep**; meeting the kin is a **call-and-answer song, and they need help**.

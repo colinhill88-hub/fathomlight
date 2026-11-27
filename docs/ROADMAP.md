@@ -393,6 +393,8 @@ From the pacing model and audit ([`pacing-audit.md`](pacing-audit.md), [`scripts
 
 **Built in the fourth session (Nov 27, 2026): biome 3, the warm deep, and the Choir's kin** (see PROGRESS.md). Colin's choices: a **hydrothermal deep**; meeting the kin is a **call-and-answer song, and they need help** (the vents are going cold: rekindle three, the far two with vent ore carried from Earth). Restored, they leave a gate between the hab and the hearth, and promise to show the way onward "when you are ready".
 
+**Art (Nov 27, 2026):** Colin's painted Petrel works, platform and five ship stages are in the game. Prompts for all of Europa's art (each zone's background, midground and foreground; objects; materials; creatures, with the floe ray's gear as overlays; the kin) are in [`art/prompts/petrel.md`](art/prompts/petrel.md), section 4, ready to make; Europa will be wired to read them by file name when they arrive.
+
 **Saved for later (Colin, Nov 27, 2026): a crystal caverns biome.** Caves inside the ice shelf, full of glowing crystal, where the kin's song echoes. It was the other choice for biome 3; Colin wants to keep it for a later biome. It could be where the kin show the way onward.
 
 **Next for Europa (to decide with Colin):** what the kin show beyond the deep; a cold tank to raise rime moths, glasshorns and floe ray calves; the supply line from Earth (it could carry the vent ore the far vents need); painted art.
