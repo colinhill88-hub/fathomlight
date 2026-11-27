@@ -256,6 +256,8 @@ export interface BaseCtx {
   takeTray(tankId: number): void;
   tend(tankId: number): void;
   station(id: number): void;
+  /** Beyond Earth: the Petrel works' panel. */
+  works(id: number): void;
   dock(id: number): void;
   build(): void;
   exit(domeId: number): void;
@@ -363,7 +365,7 @@ interface Spot {
   x: number;
   y: number;
   r: number;
-  what: 'airlock' | 'planner' | 'unload' | 'tank' | 'habitat' | 'habitat-tray' | 'station' | 'dock' | 'recomp' | 'info' | 'sealed' | 'lift' | 'board' | 'tune' | 'hatch' | 'farm' | 'farmtray' | 'revive' | 'signal' | 'rest';
+  what: 'airlock' | 'planner' | 'unload' | 'tank' | 'habitat' | 'habitat-tray' | 'station' | 'dock' | 'recomp' | 'info' | 'sealed' | 'lift' | 'board' | 'tune' | 'hatch' | 'farm' | 'farmtray' | 'revive' | 'signal' | 'rest' | 'works';
   other?: Placed;
   to?: { x: number; y: number };
   up?: boolean;
@@ -827,6 +829,9 @@ export class BaseHooks implements InteriorHooks {
       case 'thermal':
         add(b.cx, b.bottom, 'info', 120);
         break;
+      case 'works':
+        add(b.cx, b.bottom, 'works', 130);
+        break;
       case 'turbine':
         this.turbines.push({ x: b.ox + 140, y: b.floor(0) - 92, r: 64, id });
         add(b.cx, b.bottom, 'info', 120);
@@ -923,6 +928,8 @@ export class BaseHooks implements InteriorHooks {
         return { key: 'station', label: `Use the ${p.kind === 'lab' ? 'Lab' : 'Workshop'} (${code})`, seconds: 0.4, done: () => c.station(p.id) };
       case 'dock':
         return { key: 'dock', label: `Dock controls (${code})`, seconds: 0.4, done: () => c.dock(p.id) };
+      case 'works':
+        return { key: 'works', label: `Use the Petrel works (${code})`, seconds: 0.4, done: () => c.works(p.id) };
       case 'recomp':
         if (!on) return `${code}: no power`;
         return { key: 'recomp', label: 'Cycle chamber: Acclimated buff (12m: +25% O₂, +15% speed, +10m depth) & 2-hit suit seal', seconds: 1.6, done: () => c.recompress() };
@@ -1517,6 +1524,49 @@ export class BaseHooks implements InteriorHooks {
           g.rect(b.cx - 120, y - 60 + k * 16, 30, 6).fill({ color: 0x222b2c }).stroke({ color: 0x101618, width: 1 });
           g.rect(b.cx + 90, y - 60 + k * 16, 30, 6).fill({ color: 0x222b2c }).stroke({ color: 0x101618, width: 1 });
         }
+        break;
+      }
+      case 'works': {
+        // Beyond Earth: the Petrel works. A brass parts lathe, a rack of finished girders and heat tiles,
+        // a cut-away model of the Petrel on its stand, and the cargo hoist that lifts parts to the platform.
+        const fy = b.floor(0);
+        // Cargo hoist shaft on the east wall, with its chain running up out of the room.
+        const hx = b.ox + b.ow - 58;
+        g.rect(hx - 22, b.oy, 44, fy - b.oy).fill({ color: COL.wallDark }).stroke({ color: COL.seam, width: 2 });
+        for (let y = b.oy + 10; y < fy - 10; y += 26) g.rect(hx - 22, y, 44, 3).fill({ color: COL.gold, alpha: 0.7 });
+        g.moveTo(hx, b.oy).lineTo(hx, fy - 60).stroke({ color: 0x8a7444, width: 3 });
+        g.roundRect(hx - 18, fy - 60, 36, 26, 3).fill({ color: 0x6e5424 }).stroke({ color: 0x161d20, width: 1.6 });
+        addText(sign('TO PLATFORM ▲', hx, b.oy + 22, 8, 0xe8c878, 0.75));
+        // Girder and tile rack on the west wall.
+        for (let k = 0; k < 4; k++) {
+          g.rect(b.ox + 26, fy - 30 - k * 22, 70, 7).fill({ color: 0x58656b }).stroke({ color: 0x161d20, width: 1 });
+          for (let x = b.ox + 32; x < b.ox + 92; x += 12) g.circle(x, fy - 26.5 - k * 22, 1.2).fill({ color: 0xe8c878 });
+        }
+        for (let k = 0; k < 3; k++) g.roundRect(b.ox + 104 + k * 16, fy - 18, 13, 13, 2).fill({ color: 0x8a7656 }).stroke({ color: 0x161d20, width: 1 });
+        // The cut-away model of the Petrel on a brass stand, at the back of the room.
+        const mx = b.cx + 40;
+        const my = fy - 40;
+        g.rect(mx - 26, my, 52, 8).fill({ color: 0xb8913e }).stroke({ color: 0x161d20, width: 1.4 });
+        g.rect(mx - 4, my - 6, 8, 6).fill({ color: 0x6e5424 });
+        g.poly([mx - 13, my - 6, mx - 15, my - 60, mx - 9, my - 82, mx, my - 94, mx + 9, my - 82, mx + 15, my - 60, mx + 13, my - 6]).fill({ color: 0x2f373b }).stroke({ color: 0x161d20, width: 1.6 });
+        g.rect(mx - 14, my - 36, 28, 3).fill({ color: 0xb8913e });
+        g.rect(mx - 15, my - 62, 30, 3).fill({ color: 0xb8913e });
+        g.circle(mx, my - 50, 4).fill({ color: 0xffc46a });
+        gl.circle(mx, my - 50, 26).fill({ color: 0xffc46a, alpha: 0.3 });
+        // The lathe bench in the middle.
+        const lx = b.cx - 60;
+        g.roundRect(lx - 70, fy - 46, 140, 46, 5).fill({ color: COL.wallDark }).stroke({ color: COL.seam, width: 1.6 });
+        g.rect(lx - 70, fy - 46, 140, 4).fill({ color: COL.gold });
+        g.roundRect(lx - 48, fy - 74, 60, 26, 6).fill({ color: 0xb8913e }).stroke({ color: 0x161d20, width: 1.6 });
+        g.circle(lx - 30, fy - 61, 8).fill({ color: 0x6e5424 }).stroke({ color: 0x161d20, width: 1.2 });
+        g.rect(lx + 12, fy - 64, 44, 6).fill({ color: COL.chrome });
+        g.circle(lx + 50, fy - 61, 5).fill({ color: 0x2f373b });
+        for (const gx of [lx - 60, lx - 46]) {
+          g.circle(gx, fy - 24, 7).fill({ color: COL.chrome });
+          g.circle(gx, fy - 24, 5).fill({ color: 0xd8d4c4 });
+        }
+        this.screens.push({ x: lx, y: fy - 70, radius: 150, intensity: 0.42, color: [1, 0.78, 0.42], zone: id } as Light);
+        addText(sign('PETREL WORKS', b.cx - 60, b.oy + 26, 11, 0xe8c878, 0.75));
         break;
       }
       case 'lantern': {

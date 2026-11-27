@@ -1886,9 +1886,86 @@ function drawWorkshop(n: number, livingBases: boolean): PieceArt {
   return { body, windows, windowGlow, lamp: { x: W - 22, y: 30 }, station: { arm, torch, armAt: { x: bx + bw / 2 + 6, y: 42 } } };
 }
 
+/**
+ * Beyond Earth (Nov 27, 2026): the Petrel works PW-1. A riveted gunmetal capsule with brass bands, a big
+ * amber porthole onto the parts lathe, and the cargo hoist tube rising from its roof towards the platform.
+ */
+function drawWorks(n: number): PieceArt {
+  const W = CELL * 2;
+  const H = CELL;
+  const body = new Container();
+  const g = body.addChild(new Graphics());
+  const windows = new Graphics();
+  const windowGlow = new Graphics();
+  const cy = H / 2;
+  const INK = 0x161d20;
+  const BR = 0xb8913e;
+  const BR_HI = 0xe8c878;
+  const BR_LO = 0x6e5424;
+  tubeH(g, 0, 16, cy, 1);
+  tubeH(g, W - 16, W, cy, 1);
+  // Hoist tube up through the roof (the U collar), banded in brass.
+  g.rect(W * 0.25 - 15, 0, 30, 20).fill({ color: PAL.steel }).stroke({ color: INK, width: 1.6 });
+  for (const y of [4, 13]) g.rect(W * 0.25 - 17, y, 34, 4).fill({ color: BR });
+  // Capsule shell: gunmetal with a soft top light and a dark wash below.
+  g.roundRect(10, 16, W - 20, H - 26, 26).fill({ color: 0x2f373b }).stroke({ color: INK, width: 2.4 });
+  g.roundRect(18, 20, W - 36, 12, 8).fill({ color: 0x58656b, alpha: 0.55 });
+  g.roundRect(14, H - 34, W - 28, 20, 12).fill({ color: 0x11171a, alpha: 0.45 });
+  // Brass bands and rivets.
+  for (const bx of [52, W - 52]) {
+    g.rect(bx - 5, 16, 10, H - 26).fill({ color: BR }).stroke({ color: INK, width: 1 });
+    g.rect(bx - 5, 16, 3, H - 26).fill({ color: BR_HI, alpha: 0.55 });
+    for (let y = 24; y < H - 14; y += 12) g.circle(bx, y, 1.3).fill({ color: BR_LO });
+  }
+  rivets(g, 24, H - 18, W - 24, H - 18, 14);
+  // The big porthole onto the lathe, with the model ship glowing inside.
+  const px = W / 2;
+  const py = cy + 4;
+  g.circle(px, py, 26).fill({ color: BR }).stroke({ color: INK, width: 2 });
+  g.circle(px, py, 20).fill({ color: 0x2a2416 });
+  for (let i = 0; i < 10; i++) {
+    const a = (i / 10) * Math.PI * 2;
+    g.circle(px + Math.cos(a) * 23, py + Math.sin(a) * 23, 1.3).fill({ color: BR_LO });
+  }
+  g.poly([px - 5, py + 12, px - 6, py - 4, px, py - 14, px + 6, py - 4, px + 5, py + 12]).fill({ color: 0x1b2124, alpha: 0.9 });
+  windows.circle(px, py, 20).fill({ color: 0xffc46a, alpha: 0.32 });
+  windowGlow.circle(px, py, 44).fill({ color: 0xffb850, alpha: 0.24 });
+  // Gauges and a vent grille on the sides.
+  for (const gx of [30, W - 30]) {
+    g.circle(gx, cy - 4, 7).fill({ color: PAL.chrome }).stroke({ color: INK, width: 1 });
+    g.circle(gx, cy - 4, 5).fill({ color: 0xd8d4c4 });
+    g.moveTo(gx, cy - 4).lineTo(gx + 3, cy - 7).stroke({ color: 0xa8402e, width: 1 });
+  }
+  for (let i = 0; i < 4; i++) g.rect(W - 92, cy + 4 + i * 6, 26, 2.5).fill({ color: PAL.steelDark });
+  body.addChild(stencil(`PW-${n}`, W / 2, 26, 7));
+  body.addChild(stencil('PETREL WORKS', 56 + 28, H - 22, 4.5));
+  streaks(g, 14, W - 14, 30, 10, 16);
+  algaeLine(g, 18, W - 18, H - 12, 18);
+  return { body, windows, windowGlow, lamp: { x: W * 0.25, y: 4 } };
+}
+
 /** Painted exterior hulls for base modules (fallback to procedural if absent). */
 function drawPaintedHero(kind: PieceKind, n: number, rot: number, housingOcean: boolean): PieceArt | null {
   const baseArt = getPropArt().base;
+  // Beyond Earth: a painted Petrel works (src/art/base/works.*), when one exists.
+  if (kind === 'works' && baseArt.works) {
+    const W = CELL * 2;
+    const H = CELL;
+    const body = new Container();
+    const g = body.addChild(new Graphics());
+    tubeH(g, 0, 20, H / 2, 1);
+    tubeH(g, W - 20, W, H / 2, 1);
+    const spr = new Sprite(baseArt.works);
+    spr.anchor.set(0.5, 0.5);
+    spr.scale.set(Math.min((W - 10) / Math.max(1, baseArt.works.width), (H - 4) / Math.max(1, baseArt.works.height)));
+    spr.position.set(W / 2, H / 2);
+    body.addChild(spr);
+    const windows = new Graphics();
+    const windowGlow = new Graphics();
+    windowGlow.circle(W / 2, H / 2, 40).fill({ color: 0xffb850, alpha: 0.2 });
+    body.addChild(stencil(`PW-${n}`, W / 2, H - 14, 6.5));
+    return { body, windows, windowGlow, lamp: { x: W * 0.25, y: 6 } };
+  }
   if (kind === 'corridor' && baseArt.corridor) {
     const c = CELL / 2;
     const vert = rot % 2 === 1;
@@ -2405,6 +2482,7 @@ export function drawPiece(kind: PieceKind, n: number, rot: number, seed: number,
   if (kind === 'bracket') return drawBracket(n, rot);
   if (kind === 'turbine') return drawTurbine(n, livingBases);
   if (kind === 'thermal') return drawThermal(n, livingBases);
+  if (kind === 'works') return drawWorks(n);
   if (kind === 'tank' || kind === 'gtank') return drawTank(n, kind === 'gtank', livingBases);
   if (kind === 'sorter') return drawSorter(n, livingBases);
   if (kind === 'recomp') return drawRecomp(n);
@@ -2595,7 +2673,7 @@ export class BaseView {
       for (const w of l.whorls) this.dropWhorl(w);
       this.live.delete(id);
     }
-    const counts: Record<PieceKind, number> = { dome: 0, bedroom: 0, corridor: 0, turbine: 0, storage: 0, tank: 0, filter: 0, feeder: 0, press: 0, dock: 0, lab: 0, workshop: 0, gtank: 0, sorter: 0, recomp: 0, crane: 0, hatch: 0, farm: 0, revive: 0, shaft: 0, junction: 0, bracket: 0, signal: 0, lantern: 0, thermal: 0 };
+    const counts: Record<PieceKind, number> = { works: 0, dome: 0, bedroom: 0, corridor: 0, turbine: 0, storage: 0, tank: 0, filter: 0, feeder: 0, press: 0, dock: 0, lab: 0, workshop: 0, gtank: 0, sorter: 0, recomp: 0, crane: 0, hatch: 0, farm: 0, revive: 0, shaft: 0, junction: 0, bracket: 0, signal: 0, lantern: 0, thermal: 0 };
     for (const p of [...layout.pieces].sort((a, b) => a.id - b.id)) {
       counts[p.kind]++;
       if (this.live.has(p.id)) continue;

@@ -80,7 +80,7 @@ export const SITE = (() => {
 /** How many cells of the site are open water. */
 export const OPEN_CELLS = OPEN.filter(Boolean).length;
 
-export type PieceKind = 'dome' | 'corridor' | 'turbine' | 'storage' | 'tank' | 'filter' | 'feeder' | 'press' | 'dock' | 'lab' | 'workshop' | 'gtank' | 'sorter' | 'recomp' | 'crane' | 'hatch' | 'farm' | 'revive' | 'shaft' | 'junction' | 'bracket' | 'signal' | 'lantern' | 'thermal' | 'bedroom';
+export type PieceKind = 'dome' | 'corridor' | 'turbine' | 'storage' | 'tank' | 'filter' | 'feeder' | 'press' | 'dock' | 'lab' | 'workshop' | 'gtank' | 'sorter' | 'recomp' | 'crane' | 'hatch' | 'farm' | 'revive' | 'shaft' | 'junction' | 'bracket' | 'signal' | 'lantern' | 'thermal' | 'bedroom' | 'works';
 /** Creature tanks of either size (milestone 7 part 2 added the Grand tank). */
 export function isTankKind(k: PieceKind): boolean {
   return k === 'tank' || k === 'gtank';
@@ -116,6 +116,16 @@ export interface PieceDef {
 }
 
 export const PIECES: Record<PieceKind, PieceDef> = {
+  // Beyond Earth (Nov 27, 2026): the Petrel's parts shop, unlocked at first contact (src/game/petrel.ts).
+  works: {
+    kind: 'works',
+    name: 'Petrel works',
+    job: 'Turns materials in base storage into parts for the Petrel, the ship on the launch platform above the base, one stage at a time. Tap Petrel works beside it.',
+    cost: { plate: 6, brass: 4, copper: 4, quartz: 2 },
+    buildTime: 45,
+    blueprint: 'works',
+    shapes: [{ w: 2, h: 1, collars: [{ cx: 0, cy: 0, dir: 'L' }, { cx: 1, cy: 0, dir: 'R' }, { cx: 0, cy: 0, dir: 'U' }] }],
+  },
   dome: {
     kind: 'dome',
     name: 'Dome habitat',
@@ -491,7 +501,7 @@ export const PIECES: Record<PieceKind, PieceDef> = {
     ],
   },
 };
-export const PIECE_ORDER: PieceKind[] = ['dome', 'bedroom', 'corridor', 'turbine', 'storage', 'gtank', 'filter', 'feeder', 'press', 'dock', 'lab', 'workshop', 'sorter', 'recomp', 'crane', 'farm', 'revive', 'signal', 'thermal', 'lantern', 'shaft', 'junction', 'bracket'];
+export const PIECE_ORDER: PieceKind[] = ['dome', 'bedroom', 'corridor', 'turbine', 'storage', 'gtank', 'filter', 'feeder', 'press', 'dock', 'lab', 'workshop', 'sorter', 'recomp', 'crane', 'farm', 'revive', 'signal', 'thermal', 'lantern', 'works', 'shaft', 'junction', 'bracket'];
 /** Each sorting pod's bay for every material. */
 export const SORT_BAY = 12;
 
@@ -592,7 +602,7 @@ export const POWER_MAKE: Partial<Record<PieceKind, number>> = { turbine: 12, the
 export const TURBINE_LIMIT = 3;
 export const POWER_DRAW: Record<PieceKind, number> = {
   dome: 1, bedroom: 1, corridor: 0, turbine: 0, storage: 1, tank: 1, filter: 1, feeder: 1, press: 3, dock: 3, lab: 2, workshop: 3,
-  gtank: 2, sorter: 2, recomp: 2, crane: 3, hatch: 2, farm: 1, revive: 2, shaft: 0, junction: 0, bracket: 0, signal: 4, lantern: 0, thermal: 0,
+  gtank: 2, sorter: 2, recomp: 2, crane: 3, hatch: 2, farm: 1, revive: 2, shaft: 0, junction: 0, bracket: 0, signal: 4, lantern: 0, thermal: 0, works: 6,
 };
 export interface PowerNet {
   make: number;
@@ -827,6 +837,7 @@ const CODE_PREFIX: Record<PieceKind, string> = {
   signal: 'SA-',
   lantern: 'CL-',
   thermal: 'CG-',
+  works: 'PW-',
 };
 
 /** A piece's stencil code, as painted on it: CT-1, AF-2, PP-1, TANK 3. Pieces are numbered per kind in build order. */

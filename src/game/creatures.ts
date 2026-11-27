@@ -1,4 +1,5 @@
 import { BaseLayout, isDone, isTankKind, Placed } from './base';
+import { petrelYield } from './petrel';
 import { CreatureData, JarData, MaterialId, MATERIAL_ORDER, MATERIALS, PlantId, SaveData, SpeciesId, TankData } from './state';
 import { EAT_BELOW, MASH_FED, NURSERY_TROUGH, TRAY_CAP, trayCount, whorlMult } from './factory';
 import { ensureTraits, inherit, isRare, RADIANT_MAKE, traitsOf, wildForms, wildTraits, type Traits } from './traits';
@@ -478,7 +479,8 @@ export function makeRate(
   const base = c.stage === 'grown' && isHappy(save, c) ? 60 / MAKE_SECONDS : 0;
   // Milestone 9: a radiant creature makes a quarter more.
   const radiant = traitsOf(c).radiant ? RADIANT_MAKE : 1;
-  return { perMin: base * (1 + shoal + clean) * (1 + reef) * (1 + harmony) * whorl * radiant, shoal, reef, whorl, clean, radiant, harmony };
+  // Beyond Earth: the Petrel's spare navigation lenses focus the tank lamps.
+  return { perMin: base * (1 + shoal + clean) * (1 + reef) * (1 + harmony) * whorl * radiant * petrelYield(save), shoal, reef, whorl, clean, radiant, harmony };
 }
 
 export function tankDataFor(save: SaveData, tankId: number): TankData {

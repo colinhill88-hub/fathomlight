@@ -109,6 +109,7 @@ import {
 import { DeepHunters } from './actors/deep';
 import { FULMAR_MAP, FULMAR_OPTS, fulmarLayout } from './interior/fulmar';
 import { hasArray, FRAGMENTS, nextFragment, signalStatus, tickSignals } from './game/signals';
+import { PETREL_STAGES, petrelScald, petrelStatus, tickPetrel } from './game/petrel';
 import {
   bagHasRoom,
   bagLimits,
@@ -144,6 +145,8 @@ import { loadTankArt } from './art/tankArt';
 import { loadCreatureArt } from './art/creatureArt';
 import { loadPropArt } from './art/propArt';
 import { SupplyBuoy } from './world/supplyBuoy';
+import { PetrelView } from './world/petrelView';
+import { PetrelPanel } from './ui/petrelPanel';
 import { ExchangePanel } from './ui/exchange';
 import { readyContractCount, recordContractEvent } from './game/contracts';
 import { Escort } from './actors/escort';
@@ -358,6 +361,9 @@ async function boot(): Promise<void> {
   const linneaSay = new LinneaSpeech();
   // Research Exchange (Supply Buoy EX-1): dispatch surplus creatures for Survey Credits.
   const supplyBuoy = new SupplyBuoy();
+  // Beyond Earth: the Petrel's launch platform at the surface.
+  const petrelView = new PetrelView();
+  petrelView.refresh(save);
   /**
    * Talk to Linnea (the Collect action beside her): she says the first line of
    * her current hint, or the next line if she has another. The first time ever,
@@ -600,6 +606,7 @@ async function boot(): Promise<void> {
       wildlife.view,
       linnea.view,
       supplyBuoy.view,
+      petrelView.view,
       escort.view,
       lurkers.view,
       hunters.view,
@@ -616,10 +623,10 @@ async function boot(): Promise<void> {
       scenery.over,
     );
     frontCam.addChild(scenery.front);
-    emissiveCam.addChild(gearFx.emissive, lodeArt.emissive, scenery.emissive, baseView.emissive, tankLife.emissive, pickups.emissive, wildlife.emissive, supplyBuoy.emissive, escort.emissive, lurkers.emissive, hunters.emissive, sub.emissive, drone.emissive, ...fish.map((f) => f.lure), diver.lens, diver.resonDot, surfaceFx.view);
+    emissiveCam.addChild(gearFx.emissive, lodeArt.emissive, scenery.emissive, baseView.emissive, tankLife.emissive, pickups.emissive, wildlife.emissive, supplyBuoy.emissive, petrelView.emissive, escort.emissive, lurkers.emissive, hunters.emissive, sub.emissive, drone.emissive, ...fish.map((f) => f.lure), diver.lens, diver.resonDot, surfaceFx.view);
     if (livingBases) emissiveCam.addChild(poolFx.view);
     if (wake) emissiveCam.addChildAt(wake.view, 0);
-    glowCam.addChild(scenery.glow, baseView.glow, tankLife.glow, pickups.glow, wildlife.glow, linnea.glow, supplyBuoy.glow, escort.glow, lurkers.glow, hunters.glow, sub.glow, drone.glow, ...fish.map((f) => f.halo), diver.lensGlow, diver.resonGlow);
+    glowCam.addChild(scenery.glow, baseView.glow, tankLife.glow, pickups.glow, wildlife.glow, linnea.glow, supplyBuoy.glow, petrelView.glow, escort.glow, lurkers.glow, hunters.glow, sub.glow, drone.glow, ...fish.map((f) => f.halo), diver.lensGlow, diver.resonGlow);
   }
   populate();
 
@@ -813,6 +820,16 @@ async function boot(): Promise<void> {
     reward.show(spec);
     if (then) reward.whenClear(then);
   };
+  // Beyond Earth: the Petrel works' panel (opened at its console indoors).
+  let worksId = 0;
+  const petrelPanel = new PetrelPanel({
+    save: () => save,
+    layout: () => layout,
+    code: () => {
+      const p = layout.pieces.find((q) => q.id === worksId);
+      return p ? pieceCode(layout, p) : 'PW-1';
+    },
+  });
   const exchangePanel = new ExchangePanel({
     save: () => save,
     layout: () => layout,
@@ -1803,7 +1820,7 @@ async function boot(): Promise<void> {
       resetting = true;
     },
     panelOpen: () =>
-      intro.active || build.active || care.active || sanctuary.active || dockUI.active || station.active || hatchPanel.active || contact.active || zoneMap.open || hud.reading || rates.open || fieldKit.open || exchangePanel.open || !settingsPanel.hidden || !logPanel.hidden,
+      intro.active || build.active || care.active || sanctuary.active || dockUI.active || station.active || hatchPanel.active || contact.active || zoneMap.open || hud.reading || rates.open || fieldKit.open || exchangePanel.open || petrelPanel.open || !settingsPanel.hidden || !logPanel.hidden,
   });
   window.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && !logPanel.hidden) document.getElementById('log-btn')!.click();
@@ -2106,6 +2123,25 @@ async function boot(): Promise<void> {
       const n = FRAGMENTS.findIndex((f) => f.id === ev.id) + 1;
       grant(major('fragment', 'Signal decoded', `Fragment ${n} of ${FRAGMENTS.length}`, 'The Choir’s song comes a little clearer.', 'choir'));
       hud.toast(`The Signal array decoded fragment ${n}! Read it at the array's console, or in the scanner log.`, 'big');
+      persist();
+    }
+
+    // ---- Beyond Earth: the Petrel works makes the ship's parts from base storage ----
+    for (const ev of tickPetrel(save, layout, dt)) {
+      if (ev.type === 'part') {
+        petrelView.refresh(save);
+        continue;
+      }
+      drone.cheer();
+      petrelView.refresh(save);
+      const n = ev.index + 1;
+      grant(major('ship', `Petrel · stage ${n} of ${PETREL_STAGES.length}`, ev.stage.name, ev.stage.reward, n === PETREL_STAGES.length ? 'choir' : 'kestrel'));
+      hud.toast(
+        n === PETREL_STAGES.length
+          ? 'The Petrel is whole. Swim up and look at her on the platform: she waits for her launch.'
+          : `${ev.stage.name} fitted to the Petrel! ${ev.stage.reward}`,
+        'big',
+      );
       persist();
     }
 
@@ -2480,7 +2516,7 @@ async function boot(): Promise<void> {
         'big',
       );
     }
-    input.suspended = build.active || care.active || sanctuary.active || dockUI.active || station.active || padNav.active;
+    input.suspended = build.active || care.active || sanctuary.active || dockUI.active || station.active || petrelPanel.open || padNav.active;
     if (atSite && !save.tips.includes('build') && blackout === 0) {
       save.tips.push('build');
       hud.toast(
@@ -3180,6 +3216,8 @@ async function boot(): Promise<void> {
       if (scald > 0 && !aboard) {
         // After milestone 12: the heat-shield cowl turns most of the heat away.
         if (hasGear(save, 'cowl')) scald *= 0.2;
+        // Beyond Earth: spare Petrel heat tiles line the suit.
+        scald *= petrelScald(save);
         save.suit = Math.max(0, save.suit - dt * 0.09 * scald);
         suitCalm = 0;
         if (!save.tips.includes('scald')) {
@@ -3342,6 +3380,8 @@ async function boot(): Promise<void> {
     linnea.setSpot(linneaPlan(save).spot);
     linnea.update(dt, time, aboard ? sub.x : diver.x, aboard ? sub.y : diver.y, true);
     supplyBuoy.update(time);
+    petrelView.refresh(save);
+    petrelView.update(time);
     for (const ev of wildlife.update(dt, time, reachPt.x, reachPt.y, Math.hypot(diver.vx, diver.vy), aboard ? sub.thrust > 0 : diver.boosting, save, collectHeld && wildOk, camX - 200, camX + lastViewW + 200, motion)) {
       const caughtJar = { species: ev.species, stage: ev.stage, traits: wildlife.traitsOf(ev.id) };
       sound.holdDone('creature');
@@ -4844,11 +4884,13 @@ async function boot(): Promise<void> {
       save.sanctum.contact = true;
       if (!save.scans.includes('contact')) save.scans.push('contact');
       if (!save.blueprints.includes('lantern')) save.blueprints.push('lantern');
+      if (!save.blueprints.includes('works')) save.blueprints.push('works');
+      if (!save.scans.includes('farmoon')) save.scans.push('farmoon');
       // The Choir carries you out to its gate in the antechamber.
       exitHeart({ x: SANCTUM.gate.x - 150, y: SANCTUM.gate.y + 20 });
       hud.showReading(
         "The Choir's gifts",
-        "You come to yourself floating in the antechamber, the resonator still warm on your back. Where the water was empty, a ring of light now stands: a Choir gate. It carries you home to the Kestrel, and its twin by the buoy brings you back here.\n\nAnd in your mind, clear as a drawing, the shape of a Choir lantern: a seed of its light that powers the base anywhere on the site, no current needed. Its build card is in build mode now.\n\nSomething else stays with you, too. The Choir has heard your creatures now. Every so often, very rarely, an egg in your Creature room may carry a little of its light.\n\nThe game goes on. There is a whole ocean of creatures still to raise, and the plinth in the heart will sing with you again whenever you come back.",
+        "You come to yourself floating in the antechamber, the resonator still warm on your back. Where the water was empty, a ring of light now stands: a Choir gate. It carries you home to the Kestrel, and its twin by the buoy brings you back here.\n\nAnd in your mind, clear as a drawing, the shape of a Choir lantern: a seed of its light that powers the base anywhere on the site, no current needed. Its build card is in build mode now.\n\nSomething else stays with you, too. The Choir has heard your creatures now. Every so often, very rarely, an egg in your Creature room may carry a little of its light.\n\nAnd one more thing, the strangest. As the song ended the Choir showed you where it came from: not the deep at all, but the sky. A small, cold moon, white with ice, and under the ice a black ocean where others like it are still singing. Then a ship: Kestrel hardware on the outside, a ring of Choir light at its heart, standing on a platform above your base. You know how to build the shop that makes her parts: the Petrel works is in build mode now.\n\nThe game goes on. There is a whole ocean of creatures still to raise, a ship to build, and the plinth in the heart will sing with you again whenever you come back.",
         'First contact is in your scanner log.',
       );
       persist();
@@ -4951,6 +4993,11 @@ async function boot(): Promise<void> {
     },
     // The Lab and Workshop panel opens indoors too (Colin, after the terrain pass):
     // the camera frames the room and the walker waits while it is open.
+    works: (id) => {
+      worksId = id;
+      sound.clip();
+      petrelPanel.show();
+    },
     station: (id) => {
       station.setAvailable(id);
       station.open(id);
@@ -4988,6 +5035,10 @@ async function boot(): Promise<void> {
           return `${code}: turning in the reef current · 12 W · ${watts}`;
         case 'thermal':
           return `${code}: sealed core glowing · 40 W · ${watts}`;
+        case 'works': {
+          const st = petrelStatus(save, layout);
+          return `${code}: ${st.stage ? `${st.stage.name} · ` : ''}${st.why}`;
+        }
         case 'lantern':
           return `${code}: the Choir's light · 100 W · ${watts}`;
         case 'feeder': {
@@ -5245,7 +5296,7 @@ async function boot(): Promise<void> {
   function helperMode(): HelperMode {
     if (menus.paused || intro.active || blackout > 0 || boarding || hud.reading || zoneMap.open || contact.active || padNav.active) return 'none';
     if (build.active) return 'build';
-    if (care.active || sanctuary.active || dockUI.active || station.active || hatchPanel.active || rates.open || !settingsPanel.hidden || !logPanel.hidden) return 'none';
+    if (care.active || sanctuary.active || dockUI.active || station.active || petrelPanel.open || hatchPanel.active || rates.open || !settingsPanel.hidden || !logPanel.hidden) return 'none';
     if (interior.active) return interior.swinging ? 'swing' : interior.pos.climbing ? 'climb' : 'foot';
     return save.sub?.aboard ? 'sub' : diver.clamped ? 'boots' : 'swim';
   }
@@ -5483,7 +5534,7 @@ async function boot(): Promise<void> {
   const dartBtn = document.getElementById('btn-dart') as HTMLButtonElement;
   const FIND_NOTE = 'Kept in your scanner log.';
   function interiorFrame(dt: number, deltaMS: number): void {
-    input.suspended = padNav.active;
+    input.suspended = padNav.active || petrelPanel.open;
     input.update();
     const s = input.state;
     if (s.kit && !padNav.active && !menus.paused) fieldKit.toggle();
@@ -5559,7 +5610,7 @@ async function boot(): Promise<void> {
       mateCritter.glow.alpha = 0.6 + g * 0.8;
     }
     if (sanctuary.active) sanctuary.update(dt, cssW, cssH);
-    const frozen = care.active || sanctuary.active || hatchPanel.active || station.active || contact.active || knockout > 0 || !!poolBoard;
+    const frozen = care.active || sanctuary.active || hatchPanel.active || station.active || petrelPanel.open || contact.active || knockout > 0 || !!poolBoard;
     const poolAt = livingBases && inside === 'base' ? baseHooks?.moonpoolAt(interior.walker.x, interior.walker.y) : undefined;
     // The resonator sings at the song-lock, and while you answer the Choir.
     {
@@ -6034,6 +6085,12 @@ async function boot(): Promise<void> {
     hud,
     // Mobile tank zoom (Nov 26, 2026): open the Grand Sanctuary tank directly (for checks).
     sanctuary,
+    // Beyond Earth (Nov 27, 2026): the Petrel's platform and the works' panel (for checks).
+    petrelView,
+    petrelPanel,
+    tickPetrel: (sec: number) => {
+      for (let t = 0; t < sec; t += 0.5) tickPetrel(save, layout, 0.5);
+    },
   };
 }
 

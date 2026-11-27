@@ -1,4 +1,5 @@
 import type { SaveData } from './state';
+import { currentStage, missingKey } from './petrel';
 import { WORLD_X0 } from '../world/terrain';
 
 /**
@@ -146,8 +147,21 @@ export function linneaPlan(save: SaveData): LinneaPlan {
       return { spot: 'sanctum', hint: 'sanctum-door', lines: ['This door is listening. I think it wants a song.'] };
     return { spot: 'sanctum', hint: 'sanctum-heart', lines: ['They\'re waiting for you, down at the very bottom.', 'I can feel them singing in my gills.'] };
   }
-  // 9. After first contact: home in the shallows.
-  return { spot: 'home', hint: 'home', lines: ['You did it! The Choir sang all the way up to the shallows.', 'Thank you for letting me swim along. Come and say hello any time.'] };
+  // 9. After first contact: home in the shallows. Beyond Earth: she follows the Petrel's build.
+  return homePlan(save);
+}
+
+/** After first contact (Beyond Earth, Nov 27, 2026): Linnea at home in the shallows, following the Petrel's build. */
+export function homePlan(save: SaveData): LinneaPlan {
+  if (!save.pieces.some((p) => p.kind === 'works'))
+    return { spot: 'home', hint: 'home-works', lines: ['You did it! The Choir sang all the way up to the shallows.', 'It showed you a ship, didn\'t it? I saw it in the light. A workshop for her parts would be a start.'] };
+  const stage = currentStage(save);
+  if (stage) {
+    const key = missingKey(save, stage);
+    if (key) return { spot: 'home', hint: `home-petrel-${stage.id}`, lines: [`The ship's ${stage.name.toLowerCase()} needs what your creatures know.`, `I think it wants ${key}.`] };
+    return { spot: 'home', hint: `home-petrel-run-${stage.id}`, lines: ['Look up! She gets a little bigger every time I surface.', 'Keep the storage full and the works will keep making parts.'] };
+  }
+  return { spot: 'home', hint: 'home-petrel-whole', lines: ['She\'s whole! The Petrel, waiting on the water.', 'A cold moon with an ocean under the ice... Do you think the water tastes different there?'] };
 }
 
 /** How close Kestrel must be to talk (world units), and where she notices Kestrel coming. */

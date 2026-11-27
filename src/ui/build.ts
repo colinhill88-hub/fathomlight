@@ -92,6 +92,8 @@ const TAB_OF = Object.fromEntries(PIECE_ORDER.map((k) => [k, STRUCTURE.includes(
 
 /** Small side-view icons for the palette, drawn as SVG. */
 const PIECE_ICONS: Record<PieceKind, string> = {
+  works:
+    '<svg viewBox="0 0 40 32"><rect x="0" y="14" width="4" height="7" fill="#5b6467"/><rect x="36" y="14" width="4" height="7" fill="#5b6467"/><rect x="3" y="9" width="34" height="20" rx="4" fill="#2c3236"/><rect x="3" y="13" width="34" height="2" fill="#c9a24a"/><rect x="3" y="24" width="34" height="2" fill="#c9a24a"/><circle cx="12" cy="20" r="3.4" fill="#ffcf80"/><circle cx="28" cy="20" r="3.4" fill="#ffcf80"/><path d="M20 2l4 7h-8z" fill="#a4b0b7"/><rect x="18.6" y="8" width="2.8" height="12" fill="#a4b0b7"/><path d="M15 21l5-3 5 3-5 3z" fill="#c9a24a"/></svg>',
   thermal:
     '<svg viewBox="0 0 40 32"><rect x="12" y="1" width="16" height="30" rx="3" fill="#2c3236"/><rect x="9" y="6" width="3" height="5" fill="#a4b0b7"/><rect x="28" y="6" width="3" height="5" fill="#a4b0b7"/><rect x="9" y="21" width="3" height="5" fill="#a4b0b7"/><rect x="28" y="21" width="3" height="5" fill="#a4b0b7"/><circle cx="20" cy="16" r="7" fill="#a4b0b7"/><circle cx="20" cy="16" r="5" fill="#ff7a2a"/><circle cx="20" cy="16" r="2.2" fill="#ffe0a0"/><rect x="15" y="4" width="10" height="2" fill="#c6f03a"/><rect x="15" y="26" width="10" height="2" fill="#c6f03a"/></svg>',
   lantern:

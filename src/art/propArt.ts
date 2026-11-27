@@ -14,7 +14,7 @@ export type VehicleArtKey = 'sub' | 'drone' | 'buoy' | 'buoy_anchor';
 export type BaseArtKey =
   | 'dome' | 'dock' | 'bedroom' | 'lab' | 'workshop' | 'nursery' | 'turbine' | 'portal'
   | 'corridor' | 'junction' | 'storage' | 'thermal' | 'hatch' | 'farm' | 'revive' | 'signal'
-  | 'filter' | 'feeder' | 'press' | 'sorter' | 'recomp' | 'crane' | 'lantern';
+  | 'filter' | 'feeder' | 'press' | 'sorter' | 'recomp' | 'crane' | 'lantern' | 'works';
 export type FoeArtKey = 'tick' | 'drone' | 'keeper';
 export type KestrelArtKey =
   | 'head' | 'torso' | 'chest' | 'pelvis' | 'pack' | 'pack_single' | 'pack_quad'
@@ -33,7 +33,8 @@ export type InteriorArtKey =
   | 'wall_bulkhead' | 'deck_grate' | 'ladder_rung' | 'logbook';
 export type PickupArtKey = 'scrap' | 'copper' | 'quartz' | 'fibre' | 'resin' | 'moss' | 'brass' | 'bloom' | 'ore';
 export type BottomArtKey = 'lily' | 'sponge' | 'worm' | 'star' | 'pen';
-export type LandmarkArtKey = 'sled' | 'beacon' | 'lode' | 'cache' | 'winch' | 'winch_wheel' | 'mooring_buoy' | 'relay_buoy' | 'welder_crate' | 'nursery_crate' | 'probe' | 'shelf_shallows' | 'shelf_kelp' | 'shelf_trench' | 'shelf_sanctum';
+export type LandmarkArtKey = 'sled' | 'beacon' | 'lode' | 'cache' | 'winch' | 'winch_wheel' | 'mooring_buoy' | 'relay_buoy' | 'welder_crate' | 'nursery_crate' | 'probe' | 'shelf_shallows' | 'shelf_kelp' | 'shelf_trench' | 'shelf_sanctum'
+  | 'petrel_platform' | 'petrel_1' | 'petrel_2' | 'petrel_3' | 'petrel_4' | 'petrel_5';
 
 export interface PropArt {
   kestrel: Partial<Record<KestrelArtKey, Texture>>;
@@ -142,7 +143,7 @@ const VEHICLE_KEYS: readonly VehicleArtKey[] = ['sub', 'drone', 'buoy', 'buoy_an
 const BASE_KEYS: readonly BaseArtKey[] = [
   'dome', 'dock', 'bedroom', 'lab', 'workshop', 'nursery', 'turbine', 'portal',
   'corridor', 'junction', 'storage', 'thermal', 'hatch', 'farm', 'revive', 'signal',
-  'filter', 'feeder', 'press', 'sorter', 'recomp', 'crane', 'lantern',
+  'filter', 'feeder', 'press', 'sorter', 'recomp', 'crane', 'lantern', 'works',
 ];
 const WRECK_KEYS: readonly WreckArtKey[] = ['fulmar', 'corvina', 'barge', 'trawler'];
 const INTERIOR_KEYS: readonly InteriorArtKey[] = [
@@ -159,7 +160,7 @@ const DECOR_KEYS: readonly DecorId[] = [
 const FOE_KEYS: readonly FoeArtKey[] = ['tick', 'drone', 'keeper'];
 const PICKUP_KEYS: readonly PickupArtKey[] = ['scrap', 'copper', 'quartz', 'fibre', 'resin', 'moss', 'brass', 'bloom', 'ore'];
 const BOTTOM_KEYS: readonly BottomArtKey[] = ['lily', 'sponge', 'worm', 'star', 'pen'];
-const LANDMARK_KEYS: readonly LandmarkArtKey[] = ['sled', 'beacon', 'lode', 'cache', 'winch', 'winch_wheel', 'mooring_buoy', 'relay_buoy', 'welder_crate', 'nursery_crate', 'probe', 'shelf_shallows', 'shelf_kelp', 'shelf_trench', 'shelf_sanctum'];
+const LANDMARK_KEYS: readonly LandmarkArtKey[] = ['sled', 'beacon', 'lode', 'cache', 'winch', 'winch_wheel', 'mooring_buoy', 'relay_buoy', 'welder_crate', 'nursery_crate', 'probe', 'shelf_shallows', 'shelf_kelp', 'shelf_trench', 'shelf_sanctum', 'petrel_platform', 'petrel_1', 'petrel_2', 'petrel_3', 'petrel_4', 'petrel_5'];
 
 export async function loadPropArt(mipmaps = false): Promise<PropArt> {
   const [kestrel, vehicles, base, wrecks, interior, decor, foes, pickups, bottom, landmarks] = await Promise.all([

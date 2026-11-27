@@ -4,6 +4,30 @@ The live branch includes the Fulmar foothold, Codex Phases 1–11D the Phase 12 
 
 Play link: https://colinhill88-hub.github.io/fathomlight/ (live; first successful deploy 2026-11-14)
 
+### Beyond Earth, part 1: the sky hints and the Petrel (Colin, Nov 27, 2026)
+
+A big project that keeps using what the base makes, planned with Colin (see "Beyond Earth" in the [roadmap](docs/ROADMAP.md)). First contact is now the beginning of the next stage: the Choir shows Kestrel that it came from a small, cold moon, and a ship to get there.
+
+- **Hints that the Choir came from the sky** (scanner log): fragment 3 has a faint extra phrase, COLD · ABOVE · KIN, pointing straight up; the sanctum has dark, scorched stone "as if it fell from a very great height"; the heart's outer whorls are glassy "like the crust of a fallen star". At first contact the gifts reading adds the Choir's memory of the cold moon and the ship, and a new log entry, **The cold moon** (`farmoon`).
+- **The Petrel works PW-1** (`works`, 2 × 1, 6 W; cost 6 plating, 4 brass, 4 copper, 2 quartz). Its blueprint comes with first contact (saves that already met the Choir get it on load). While powered, it turns materials **from base storage** (never the dive bag) into the current stage's parts, one part every 75 s at full power. It has its own room inside: a parts lathe, a girder rack, a model of the Petrel and the hoist "to the platform".
+- **Five stages, each a ship system that needs grown creatures** (they are never used up):
+
+| Stage | Needs grown, in a tank | Each part takes | Parts | Reward when fitted |
+| --- | --- | --- | --- | --- |
+| 1 Frame and launch platform | tinker crab, dapple ray | 3 scrap, 2 copper, 1 plating | 12 | the platform and frame at the surface; +150 SC |
+| 2 Heat shield and engine bells | kiln eel, cinder snail | 2 brass, 2 vent ore, 1 plating | 12 | vent heat scalds 40% less |
+| 3 Life support | puffcap, lantern shrimp | 3 kelp fibre, 2 lumen moss, 1 resin | 10 | +20 s of air on every dive |
+| 4 Navigation and viewports | 3 glowfins with 3 different patterns | 3 quartz, 1 copper, 1 brass | 10 | every creature makes 10% more |
+| 5 The Choir core | chime seahorse, plus a Choir-touched creature (an egg counts) | 2 blooms, 2 brass, 2 quartz | 8 | the Petrel is whole; she waits for her launch |
+
+- **At the surface**, just east of the base (x 1380), the platform floats on brass-banded pontoons with a lattice gantry, and the Petrel grows on it stage by stage: girder frame, tiled heat shield and engine bells, riveted mid hull with amber portholes, nose with the dome viewport and star-telescope, then the Choir core glowing at her heart. A marker buoy shows the spot before the first girder. All drawn by code in the Victorian watercolor look; painted images dropped into `src/art/landmarks/` (`petrel_platform`, `petrel_1..5`) and `src/art/base/works` replace it with no code change. Prompts for Gemini: [`docs/art/prompts/petrel.md`](docs/art/prompts/petrel.md).
+- **The panel** (use the works' console) lists the five stages, which creatures each needs (ticked when grown), what each part takes against what's in storage, and each reward. Each finished stage plays a major reward card with a new ship emblem.
+- **Linnea** (home, after contact) points to the works, names the creatures the current stage needs, and admires the finished ship.
+- **Saves:** one new optional field, `petrel` (`{ done, parts, progress }`); old saves load unchanged. Rules in [`src/game/petrel.ts`](src/game/petrel.ts); code map in the handoff.
+- **Checked:** `npm run typecheck`, `npm run build`, and `node scripts/test-petrel.mjs` (new: locking, keys, recipes from storage only, power, stage rewards, save and load, Linnea) pass. In `vite preview` with Playwright on a 1600×900 desktop and an iPhone 13 in landscape: the platform and ship at every stage, the works outside and its room inside ("Use the Petrel works (PW-1)"), the panel, and a stage finishing in the live game loop (reward card, +150 SC). No console errors.
+- **Not working before this change (left alone):** `node scripts/test-progression.mjs` stops at "No boots row before the boots are built", and the creature-care checks fail at "A content pair lays" (probably since breeding was slowed to 18 minutes on Nov 25). Both fail the same way without these changes. The Petrel checks are wired into the progression script after them.
+- **Not done yet:** the launch and the arrival shot above Europa; tuning the costs by playing.
+
 ### Mobile tank zoom: the Grand Sanctuary looks like it does on a monitor (Colin, Nov 26, 2026)
 
 On phones and tablets the Grand Sanctuary tank looked crowded, because the creatures are drawn at a fixed pixel size and a phone screen is small. Now, on touch screens only, the tank scene is laid out as if on a monitor about 1080 pixels tall (no more than 2560 wide) and then scaled down to fit, so a phone sees the whole tank, as a PC does. The buttons, treat tray and other HTML controls are untouched, and desktops are unchanged (zoom stays 1).
