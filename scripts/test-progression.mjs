@@ -3,6 +3,7 @@ import { createServer } from 'vite';
 import { runCreatureCareChecks } from './test-creature-care.mjs';
 import { runRarityChecks } from './test-rarity.mjs';
 import { runPetrelChecks } from './test-petrel.mjs';
+import { runEuropaChecks } from './test-europa.mjs';
 
 const server = await createServer({ server: { middlewareMode: true, watch: null }, appType: 'custom' });
 
@@ -566,6 +567,7 @@ try {
   await runRarityChecks(server);
   // Beyond Earth: the Petrel.
   await runPetrelChecks(server);
+  await runEuropaChecks(server);
 
   console.log('Progression checks passed.');
 } finally {

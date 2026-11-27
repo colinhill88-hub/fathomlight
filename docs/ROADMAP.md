@@ -384,6 +384,13 @@ From the pacing model and audit ([`pacing-audit.md`](pacing-audit.md), [`scripts
 
 ## Beyond Earth: the Choir's ship and Europa (planned with Colin, Nov 27, 2026). Hints and the ship's five stages **built** (see PROGRESS.md); the launch and Europa not built yet.
 
+**Built in the second session (Nov 27, 2026): the launch and Europa's landing site** (see PROGRESS.md). Colin's choices for it:
+- **Coming along:** Kestrel's gear, KD-1 and Linnea. **KS-1 stays home:** Europa gets a new way of getting around, to design with Colin (it is also what gets past the thick-ice wall to biomes 2 and 3).
+- **Europa's glow:** icy white and pale blue-green.
+- **Base pieces:** only Europa pieces work there, and they are **discovered after arriving** (built: glyphs in the ice that the Petrel's core reads; the Brine still and the Air bell, welded onto the hab by KD-1).
+
+**Next for Europa:** the new way of getting around (Colin to choose; see the ideas in the PR), biomes 2 and 3 and the Choir's kin, a cold tank to raise rime moths and glasshorns, the supply line from Earth, and painted art.
+
 **Built in the first session (Nov 27, 2026), with Colin's choices:** the ship is named **the Petrel** (Colin chose a bird name, like Kestrel, Corvina and Fulmar); the five stages and their creatures are as proposed below; the launch platform floats at the surface just east of the base. All art is drawn by code for now: the prompts for Colin to make painted versions in Gemini are in [`art/prompts/petrel.md`](art/prompts/petrel.md). **Next:** Colin plays it and tunes the costs; then the launch and the arrival shot.
 
 **The problem it solves.** Once a base has many happy creatures, material counts keep climbing and there is nothing left to build. Satisfactory has its space elevator and Subnautica its escape rocket. Fathomlight needs a big project that keeps using what the base makes. Colin compared ideas from Claude, GPT and Gemini (Nov 26–27, 2026) and chose the plan below.
@@ -444,7 +451,7 @@ From the pacing model and audit ([`pacing-audit.md`](pacing-audit.md), [`scripts
 
 1. **Seeds** in the Earth ocean. **Done:** fragment 3's extra phrase (COLD · ABOVE · KIN, pointing up), fallen-star stone in the sanctum and on the heart, and the Choir's memory of the cold moon at first contact (scan `farmoon`). Linnea talks about the ship after contact.
 2. **The ship on Earth:** the ship-parts piece, the launch platform, the five stages, the launch, and the arrival shot as the first game's close. This alone solves the material problem. **Done except the launch and the arrival shot.**
-3. **A first Europa slice:** the landing site, the first biome, a few base pieces, two or three cold creatures, and the trip home.
+3. **A first Europa slice:** the landing site, the first biome, a few base pieces, two or three cold creatures, and the trip home. **Done** (with the launch and the arrival).
 4. **The rest of Europa:** biomes two and three, the Choir's kin, supply line upgrades, more creatures and gear.
 
 ### Open questions for Colin
