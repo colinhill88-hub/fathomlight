@@ -828,6 +828,14 @@ function cleanEuropa(e: unknown): SaveData['europa'] {
     ray: cleanRay(o.ray),
     skylight: o.skylight === true,
     brokenFloes: Array.isArray(o.brokenFloes) ? o.brokenFloes.filter((x): x is string => typeof x === 'string') : [],
+    kin:
+      o.kin && typeof o.kin === 'object'
+        ? {
+            met: (o.kin as { met?: unknown }).met === true,
+            vents: Array.isArray((o.kin as { vents?: unknown }).vents) ? ((o.kin as { vents: unknown[] }).vents.filter((v) => v === 'v1' || v === 'v2' || v === 'v3') as string[]) : [],
+            cores: num((o.kin as { cores?: unknown }).cores),
+          }
+        : undefined,
   };
 }
 

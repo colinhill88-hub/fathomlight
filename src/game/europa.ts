@@ -1,4 +1,4 @@
-import { BRINE_POOLS, ceilY, FLOES, floorY, ICE_WALL_X, PASSAGE } from '../world/europaTerrain';
+import { BRINE_POOLS, ceilY, DEAD_VENTS, FLOES, floorY, HEARTH, ICE_WALL_X, LANDER, PASSAGE } from '../world/europaTerrain';
 import { petrelComplete } from './petrel';
 import type { SaveData } from './state';
 
@@ -51,7 +51,7 @@ export const EUROPA_SPOTS: EuropaSpot[] = (() => {
   fronds.forEach((x, i) => s.push({ id: `frond-${i}`, kind: 'frond', x, y: floorY(x) - 10 }));
   // The floe field (biome 2): rime under the floes, fronds and brine crust on the open seabed.
   FLOES.filter((f) => !f.thin).forEach((f, i) => s.push({ id: `rime-f${i}`, kind: 'rime', x: f.x + (i % 2 ? 60 : -60), y: f.depth + 14 }));
-  [9300, 10500, 11300, 12600, 13300].forEach((x, i) => s.push({ id: `frond-f${i}`, kind: 'frond', x, y: floorY(x) - 10 }));
+  [9300, 10500, 10750, 12600, 13800].forEach((x, i) => s.push({ id: `frond-f${i}`, kind: 'frond', x, y: floorY(x) - 10 }));
   [11650, 12150].forEach((x, i) => s.push({ id: `brine-f${i}`, kind: 'brine', x, y: floorY(x) - 8 }));
   return s;
 })();
@@ -98,10 +98,10 @@ export const GLYPHS: Glyph[] = [
   },
   {
     id: 'gland',
-    x: 11900,
-    y: floorY(11900) - 70,
+    x: 11020,
+    y: floorY(11020) - 70,
     gear: 'gland',
-    text: 'Deep in the hollow, where no light from the leads reaches, a glyph that glows by itself: a ray with a lantern grown on its brow, lighting the dark ahead. Farther on, the glyph says, the dark is deeper still.',
+    text: 'On the lip of the abyss, where the seabed falls away into nothing, a glyph that glows by itself: a ray with a lantern grown on its brow, lighting a way down through water blacker than any night. At the bottom of the glyph, very small, a warm light, and rings.',
   },
 ];
 
@@ -236,6 +236,8 @@ export const EUROPA_LOG: Record<string, { name: string; text: string }> = {
   eu_ice: { name: 'Under the ice', text: 'Europa. The Petrel bored down through kilometres of ice and her hab hangs here, under it, in a black ocean. No sun has ever reached this water. Far to the east, very faintly, something is singing.' },
   eu_brine: { name: 'Brine pool', text: 'A lake on the seabed: water so salty it lies under the ocean like a pool under air, with its own shimmering surface. Salt crusts its edges.' },
   eu_wall: { name: 'The thick-ice wall', text: 'The ice comes down almost to the seabed here, blue-black and very old, and a long, low passage runs under it, with a cold current pouring out. The singing comes from beyond it. A diver alone could never swim against it.' },
+  eu_deep: { name: 'The warm deep', text: 'Under the eastern floes the seabed falls away into an abyss, through a band of water blacker than any night. Below it the water is warm: the only warm water on Europa. Old vents stand in rows, most of them cold and silent, and one still breathes a little heat. Around it, faint as breath on glass, rings of light.' },
+  eu_kin: { name: 'The Choir’s kin', text: 'The Choir’s kin: rings and ribbons of light like the Choir’s own, but older, and so faint they are almost gone. They sang with you, and in the song they showed you why. The deep is cooling. One by one the vents have gone cold, and their light goes with them. Rekindle the vents, they asked, and showed how: a kindling core made from what this world grows. The farthest vents need more heat than Europa still holds. But you come from a world with warm vents of its own.' },
   eu_floes: { name: 'The floe field', text: 'Past the wall the ice is broken: floes as big as houses float on open water, with leads of black water between them, and above them a black sky with Jupiter in it, banded and enormous. You can surface here, and breathe.' },
   moth: { name: EUROPA_CREATURES.moth.name, text: EUROPA_CREATURES.moth.text },
   glasshorn: { name: EUROPA_CREATURES.glasshorn.name, text: EUROPA_CREATURES.glasshorn.text },
@@ -263,7 +265,79 @@ export interface EuropaData {
   /** Ice the crest has broken: the skylight over biome 1, and thin floes by id. */
   skylight?: boolean;
   brokenFloes?: string[];
+  /** Biome 3: the Choir's kin (missing until Kestrel reaches the warm deep). */
+  kin?: KinData;
 }
+
+// ---- Biome 3: the Choir's kin (Colin, Nov 27, 2026: a call-and-answer song, and they need help) ----
+
+export interface KinData {
+  /** Sung with them at the hearth (the call and answer). */
+  met: boolean;
+  /** Vents rekindled, by id. */
+  vents: string[];
+  /** Kindling cores made at the hab and not yet used. */
+  cores: number;
+}
+/** A kindling core: made at the hab's console (in the Brine still) once the kin have shown how. */
+export const CORE_COST: Partial<Record<EuropaMat, number>> = { rime: 4, brine: 3, frond: 2 };
+/** The two far vents need more heat than Europa holds: vent ore from Earth's trench, carried in the dive bag. */
+export const EARTH_ORE_PER_VENT = 4;
+/** Vents that only need a core (the nearest); the rest also take Earth's vent ore. */
+export const CORE_ONLY_VENTS = ['v1'];
+
+export function kinOf(save: SaveData): KinData {
+  const e = europaOf(save);
+  if (!e.kin) e.kin = { met: false, vents: [], cores: 0 };
+  return e.kin;
+}
+export const kinRestored = (save: SaveData): boolean => (save.europa?.kin?.vents.length ?? 0) >= DEAD_VENTS.length;
+/** 0..1: how bright the kin are (dim and flickering at first, whole when every vent burns). */
+export const kinLight = (save: SaveData): number => 0.25 + 0.75 * ((save.europa?.kin?.vents.length ?? 0) / DEAD_VENTS.length);
+
+/** After the song at the hearth. */
+export function meetKin(save: SaveData): boolean {
+  const k = kinOf(save);
+  if (k.met) return false;
+  k.met = true;
+  const e = europaOf(save);
+  if (!e.scans.includes('eu_kin')) e.scans.push('eu_kin');
+  return true;
+}
+
+/** Make a kindling core at the hab (it needs the Brine still, and the kin's song). */
+export function makeCore(save: SaveData): string | null {
+  const k = kinOf(save);
+  if (!k.met) return 'Only the Choir’s kin know how.';
+  if (!europaOf(save).built.includes('still')) return 'The cores are distilled in the Brine still: build it first.';
+  if (!canAfford(save, CORE_COST)) return `Still needs ${missingText(save, CORE_COST)}.`;
+  pay(save, CORE_COST);
+  k.cores++;
+  return null;
+}
+
+/** What a cold vent still needs, in words, or null if it can be rekindled now. */
+export function ventNeeds(save: SaveData, id: string): string | null {
+  const k = kinOf(save);
+  if (k.vents.includes(id)) return 'already burning';
+  if (!k.met) return 'the kin’s song first';
+  if (k.cores < 1) return 'a kindling core (made at the hab)';
+  if (!CORE_ONLY_VENTS.includes(id) && (save.bag?.ore ?? 0) < EARTH_ORE_PER_VENT) return `${EARTH_ORE_PER_VENT} vent ore from Earth’s trench, carried in your dive bag`;
+  return null;
+}
+
+/** Rekindle a cold vent. Returns true if it caught. */
+export function rekindle(save: SaveData, id: string): boolean {
+  if (ventNeeds(save, id)) return false;
+  const k = kinOf(save);
+  k.cores--;
+  if (!CORE_ONLY_VENTS.includes(id)) save.bag.ore -= EARTH_ORE_PER_VENT;
+  k.vents.push(id);
+  return true;
+}
+
+/** The kin's gift once restored: a Choir gate between the hab and the hearth. */
+export const KIN_GATES = { hab: { x: LANDER.x + 260, y: ceilY(LANDER.x + 260) + 220 }, deep: { x: HEARTH.x - 260, y: HEARTH.y - 60 } };
 
 export function freshEuropa(): EuropaData {
   return { visited: false, here: false, stores: { rime: 0, brine: 0, frond: 0 }, taken: {}, scans: [], learned: [], built: [], trips: 0 };
@@ -455,6 +529,16 @@ export function arrive(save: SaveData): boolean {
 export function linneaEuropa(save: SaveData): string[] {
   const e = europaOf(save);
   const r = e.ray;
+  // The kin, once found, come first.
+  const k = e.kin;
+  if (k?.met) {
+    const lit = k.vents.length;
+    if (lit >= DEAD_VENTS.length) return ['They’re singing so brightly now! I can feel it in the hab.', 'And they left a ring of light by the hab: a way down to them, any time.'];
+    if (!e.built.includes('still')) return ['The kin need kindling cores, and the still makes them.', 'Build the Brine still on the hab first.'];
+    if (lit === 0) return ['The nearest cold vent needs one kindling core.', 'Make one at the console, then carry it down to them.'];
+    return [`${lit} of ${DEAD_VENTS.length} vents burning! The kin are brighter already.`, 'The far ones want Earth’s vent ore too. Bring some in your dive bag next time you visit home.'];
+  }
+  if (e.scans.includes('eu_deep')) return ['You found warm water down there? And lights, like the Choir?', 'Go and sing to them. I think they’re waiting.'];
   // The floe ray comes first once she has seen it.
   if (!r || r.trust === 0) {
     if (e.scans.includes('glyph_still') || e.stores.frond > 0)

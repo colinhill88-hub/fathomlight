@@ -1,8 +1,8 @@
 import { Container, FillGradient, Graphics, Sprite, Text, Texture } from 'pixi.js';
-import { BELL_AT, EUROPA_CREATURES, EUROPA_SPOTS, GLYPHS, isPresent, type EuropaSpecies } from '../game/europa';
+import { BELL_AT, EUROPA_CREATURES, EUROPA_SPOTS, GLYPHS, isPresent, KIN_GATES, kinLight, kinRestored, type EuropaSpecies } from '../game/europa';
 import type { SaveData } from '../game/state';
 import { mulberry32 } from '../rng';
-import { BRINE_POOLS, ceilY, EUROPA_W, FLOE_X0, FLOE_X1, FLOES, floorY, ICE_WALL_X, LANDER, OPEN, PASSAGE, SKYLIGHT } from '../world/europaTerrain';
+import { ABYSS, BRINE_POOLS, ceilY, DEAD_VENTS, EUROPA_W, FLOE_X0, FLOE_X1, FLOES, floorY, HEARTH, ICE_WALL_X, LANDER, OPEN, PASSAGE, SKYLIGHT } from '../world/europaTerrain';
 
 /**
  * Beyond Earth (Nov 27, 2026): Europa's first biome, "Under the ice", drawn in code.
@@ -89,6 +89,16 @@ const SKY_GRAD = new FillGradient({
     { offset: 0, color: 0x01030a },
     { offset: 0.8, color: 0x0a1424 },
     { offset: 1, color: 0x1a2a3e },
+  ],
+  textureSpace: 'local',
+});
+const WARM_GRAD = new FillGradient({
+  type: 'linear',
+  start: { x: 0, y: 0 },
+  end: { x: 0, y: 1 },
+  colorStops: [
+    { offset: 0, color: 0x0d2433 },
+    { offset: 1, color: 0x5a3220 },
   ],
   textureSpace: 'local',
 });
@@ -255,6 +265,17 @@ export class EuropaScene {
   private readonly wildRays: { view: RayView; x: number; y: number; dir: number; phase: number }[] = [];
   private readonly krill: { x: number; y: number; phase: number; g: Graphics }[] = [];
   private readonly current = new Graphics();
+  /** Biome 3: the black-water band, the vents (and their warm light), the kin, and their gates. */
+  private readonly blackWater = new Graphics();
+  private readonly ventArt = new Graphics();
+  private readonly ventGlow = new Container();
+  private readonly kinG = new Graphics();
+  private readonly gates = new Graphics();
+  private ventSig = '';
+  private ventsDrawn = false;
+  /** A note the kin are singing (0..3), and how bright the flash still is. */
+  private kinNote = -1;
+  private kinNoteK = 0;
   private bgW = 0;
   private bgH = 0;
   private time = 0;
@@ -268,7 +289,11 @@ export class EuropaScene {
     this.drawStatic();
     this.drawTerrain();
     this.drawLander();
-    this.objects.addChild(this.ray.view, this.current);
+    this.objects.addChild(this.ventArt, this.ray.view, this.current);
+    // The black water sits over the actors (it hides Kestrel too, unless the glow gland lights it).
+    this.world.addChildAt(this.blackWater, this.world.getChildIndex(this.fg));
+    this.light.addChild(this.ventGlow, this.kinG, this.gates);
+    this.drawDeep();
     this.light.addChild(this.ray.glow);
     for (const [i, x] of [9800, 12600].entries()) {
       const v = new RayView();
@@ -489,6 +514,57 @@ export class EuropaScene {
     }
   }
 
+  /** Biome 3's fixed art: the warm wash over the vent floor, and the black-water band. */
+  private drawDeep(): void {
+    const warm = new Graphics();
+    warm.rect(ABYSS.x0, ABYSS.blackBottom, ABYSS.x1 - ABYSS.x0, ABYSS.floor - ABYSS.blackBottom + 200).fill(WARM_GRAD);
+    warm.alpha = 0.55;
+    this.surfaceGlow.addChild(warm);
+    const b = this.blackWater;
+    // Soft-edged: a solid core with fading bands above and below.
+    for (let i = 0; i < 6; i++) {
+      const e = i * 40;
+      b.rect(ABYSS.x0 + 100, ABYSS.blackTop - 200 + e, ABYSS.x1 - ABYSS.x0 - 200, 40).fill({ color: 0x000000, alpha: (i + 1) / 7 });
+      b.rect(ABYSS.x0 + 100, ABYSS.blackBottom + 160 - e, ABYSS.x1 - ABYSS.x0 - 200, 40).fill({ color: 0x000000, alpha: (i + 1) / 7 });
+    }
+    b.rect(ABYSS.x0 + 100, ABYSS.blackTop + 40, ABYSS.x1 - ABYSS.x0 - 200, ABYSS.blackBottom - ABYSS.blackTop + 120).fill({ color: 0x000000 });
+  }
+
+  /** The vents: cold grey chimneys, or rekindled ones glowing amber; the hearth always faintly warm. */
+  private drawVents(lit: string[]): void {
+    const g = this.ventArt.clear();
+    for (const c of this.ventGlow.removeChildren()) c.destroy();
+    const gl = new Graphics();
+    this.ventGlow.addChild(gl);
+    const soft = (x: number, y: number, r: number, tint: number, alpha: number) => {
+      const sp = new Sprite(softGlow());
+      sp.anchor.set(0.5);
+      sp.tint = tint;
+      sp.alpha = alpha;
+      sp.scale.set((r * 2) / 128);
+      sp.position.set(x, y);
+      this.ventGlow.addChild(sp);
+    };
+    const chimney = (x: number, hot: boolean, h: number) => {
+      const base = floorY(x);
+      g.poly([x - 60, base + 20, x + 60, base + 20, x + 22, base - h, x - 22, base - h]).fill({ color: hot ? 0x3a2a22 : 0x2a3036 }).stroke({ color: INK, width: 2 });
+      g.ellipse(x, base - h, 24, 8).fill({ color: hot ? 0xff9a40 : 0x15191c });
+      if (hot) {
+        gl.ellipse(x, base - h, 20, 7).fill({ color: 0xffb060, alpha: 0.9 });
+        soft(x, base - h - 40, 200, 0xff8a3a, 0.45);
+        soft(x, base - h - 10, 70, 0xffd090, 0.6);
+      }
+    };
+    for (const v of DEAD_VENTS) chimney(v.x, lit.includes(v.id), 180);
+    chimney(HEARTH.x, true, 260);
+  }
+
+  /** The kin sing a note (it flashes in them), during the song. */
+  flashKin(note: number): void {
+    this.kinNote = note;
+    this.kinNoteK = 1;
+  }
+
   /** The surface of open water: a pale line with a shimmer, seen from below. */
   private waterLine(g: Graphics, x0: number, x1: number): void {
     g.rect(x0, 0, x1 - x0, 4).fill({ color: 0xbfe4f0, alpha: 0.45 });
@@ -678,6 +754,45 @@ export class EuropaScene {
         g.circle(cx + Math.cos(a) * r * 1.6, cy + Math.sin(a) * r * 0.6, 1.6).fill({ color: GLOW_WHITE, alpha: 0.8 });
       }
       g.circle(cx, cy, 70).fill({ color: GLOW_WHITE, alpha: 0.05 });
+    }
+    // Biome 3: vents (redrawn when one is rekindled), the kin around the hearth, the black water, the gates.
+    const kinState = save.europa?.kin;
+    const vsig = (kinState?.vents ?? []).join(',');
+    if (vsig !== this.ventSig || !this.ventsDrawn) {
+      this.ventsDrawn = true;
+      this.ventSig = vsig;
+      this.drawVents(kinState?.vents ?? []);
+    }
+    this.blackWater.alpha = gland ? 0.55 : 0.97;
+    this.kinNoteK = Math.max(0, this.kinNoteK - dt * 1.6);
+    const kg = this.kinG.clear();
+    if (Math.abs(cam.x - HEARTH.x) < 2200 && cam.y > ABYSS.blackTop - 400) {
+      const light = kinLight(save);
+      const cols = [0x6ff3ff, 0xb07cff, 0xff6ad5, 0xffe7a0];
+      for (let i = 0; i < 5; i++) {
+        const a = t * 0.18 + (i / 5) * Math.PI * 2;
+        const x = HEARTH.x + Math.cos(a) * 170;
+        const y = HEARTH.y - 120 + Math.sin(a) * 60 + Math.sin(t * 0.7 + i) * 14;
+        // Fading: a flicker that steadies as the vents warm again.
+        const flick = 1 - (1 - light) * (0.5 + 0.5 * Math.sin(t * (3 + i) + i * 2));
+        const sing = this.kinNote >= 0 && i % 4 === this.kinNote ? this.kinNoteK : 0;
+        const al = Math.min(1, light * flick * 0.8 + sing);
+        const r = 26 + light * 12;
+        kg.ellipse(x, y, r, r * 0.42).stroke({ color: cols[0], width: 2.4, alpha: al });
+        kg.ellipse(x, y, r * 0.42, r).stroke({ color: cols[1], width: 2, alpha: al * 0.9 });
+        kg.moveTo(x - r, y + r * 0.6).bezierCurveTo(x - r * 0.3, y + r * 1.4, x + r * 0.3, y - r * 0.2, x + r, y + r * 0.5).stroke({ color: cols[2], width: 2, alpha: al * 0.8 });
+        kg.circle(x, y, 4 + sing * 6).fill({ color: sing > 0 ? cols[this.kinNote] : 0xe9fdff, alpha: Math.min(1, al + 0.2) });
+        kg.circle(x, y, 60).fill({ color: 0x9fe8ff, alpha: 0.05 * light + sing * 0.15 });
+      }
+    }
+    const gg = this.gates.clear();
+    if (kinRestored(save)) {
+      for (const p of [KIN_GATES.hab, KIN_GATES.deep]) {
+        const pulse = 0.6 + 0.4 * Math.sin(t * 2);
+        gg.ellipse(p.x, p.y, 44, 70).stroke({ color: 0x6ff3ff, width: 4, alpha: pulse });
+        gg.ellipse(p.x, p.y, 34, 58).stroke({ color: 0xb07cff, width: 2.4, alpha: pulse * 0.8 });
+        gg.ellipse(p.x, p.y, 40, 64).fill({ color: 0x9fe8ff, alpha: 0.08 });
+      }
     }
     const cg = this.current.clear();
     if (Math.abs(cam.x + 600 - (PASSAGE.x0 + PASSAGE.x1) / 2) < 2200) {

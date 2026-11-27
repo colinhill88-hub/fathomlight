@@ -151,6 +151,7 @@ import { PetrelPanel } from './ui/petrelPanel';
 import { EuropaScene } from './scene/europaScene';
 import { EuropaPanel } from './ui/europaPanel';
 import { VoyageCutscene, type VoyageKind } from './ui/voyageCutscene';
+import { KinSong } from './ui/kinSong';
 import {
   arrive,
   canLaunch,
@@ -182,8 +183,15 @@ import {
   breakIce,
   startGear,
   type RayGearId,
+  kinOf,
+  kinRestored,
+  meetKin,
+  makeCore,
+  ventNeeds,
+  rekindle,
+  KIN_GATES,
 } from './game/europa';
-import { BRINE_POOLS, ceilY, EUROPA_W, europaSolid, FLOE_X0, FLOES, floorY, habAir, habSpawn, ICE_WALL_X, inPassage, LANDER, OPEN, openToSky, setEuropaBroken, SKYLIGHT } from './world/europaTerrain';
+import { ABYSS, BRINE_POOLS, ceilY, DEAD_VENTS, EUROPA_W, europaSolid, FLOE_X0, FLOES, HEARTH, inBlackWater, inWarmDeep, floorY, habAir, habSpawn, ICE_WALL_X, inPassage, LANDER, OPEN, openToSky, setEuropaBroken, SKYLIGHT } from './world/europaTerrain';
 import { PETREL_X } from './world/petrelView';
 import { ExchangePanel } from './ui/exchange';
 import { readyContractCount, recordContractEvent } from './game/contracts';
@@ -5245,8 +5253,18 @@ async function boot(): Promise<void> {
   let euHold = { key: '', progress: 0 };
   let euScan = { key: '', progress: 0 };
   let euSaveClock = 0;
+  const kinSong = new KinSong();
   const europaPanel = new EuropaPanel({
     save: () => save,
+    makeCore: () => {
+      const why = makeCore(save);
+      if (why) hud.toast(why, 'warn');
+      else {
+        sound.clip();
+        hud.toast(`A kindling core, warm in your hands (${kinOf(save).cores} carried). Take it down to a cold vent.`, 'big');
+        persist();
+      }
+    },
     build: (id: EuropaModuleId) => {
       const why = startModule(save, id);
       if (why) hud.toast(why, 'warn');
@@ -5396,11 +5414,11 @@ async function boot(): Promise<void> {
 
   /** One frame on Europa: swim, breathe, gather, read glyphs, scan, and the hab. */
   function europaFrame(dt: number): void {
-    input.suspended = padNav.active || europaPanel.open;
+    input.suspended = padNav.active || europaPanel.open || kinSong.active;
     input.update();
     const s = input.state;
     if (s.kit && !padNav.active && !menus.paused) fieldKit.toggle();
-    const paused = hud.reading || europaPanel.open;
+    const paused = hud.reading || europaPanel.open || kinSong.active;
     const inControl = !paused;
     const e = europaOf(save);
     const ray = rayOf(save);
@@ -5508,6 +5526,28 @@ async function boot(): Promise<void> {
       e.scans.push('eu_floes');
       grant(major('ship', 'A new place', 'The floe field', 'Open water, floating ice, and Jupiter.', 'kestrel'));
       setTimeout(() => hud.showReading(EUROPA_LOG.eu_floes.name, EUROPA_LOG.eu_floes.text, 'Surface in the leads between the floes to breathe.'), 3600);
+      persist();
+    }
+
+    // Biome 3: the black water. Only the ray's glow gland lights a way through it; anything else turns back up.
+    const glandOn = ray.riding && hasRayGear(save, 'gland');
+    if (!glandOn && inBlackWater(at.x, at.y + 20)) {
+      if (ray.riding) {
+        ray.y = Math.min(ray.y, ABYSS.blackTop - 30);
+        rayRt.vy = Math.min(0, rayRt.vy);
+      } else {
+        diver.y = Math.min(diver.y, ABYSS.blackTop - 30);
+        diver.vy = Math.min(0, diver.vy);
+      }
+      if (!save.tips.includes('eu-black')) {
+        save.tips.push('eu-black');
+        hud.toast(ray.riding ? 'Black water: you can’t see your own glove. Your ray balks. A light grown on its brow might show the way.' : 'Black water: you can’t see your own glove, and your lamp only lights the murk. You turn back up.', 'warn');
+      }
+    }
+    if (inWarmDeep(at.x, at.y) && !e.scans.includes('eu_deep')) {
+      e.scans.push('eu_deep');
+      grant(major('fragment', 'A new place', 'The warm deep', 'The only warm water on Europa, and lights like the Choir’s.', 'choir'));
+      setTimeout(() => hud.showReading(EUROPA_LOG.eu_deep.name, EUROPA_LOG.eu_deep.text, 'Kept in the Petrel’s Europa log.'), 3600);
       persist();
     }
 
@@ -5619,6 +5659,85 @@ async function boot(): Promise<void> {
         },
       };
     }
+    // Biome 3: the hearth (sing with the kin), the cold vents (rekindle them), and the kin's gates.
+    const kin = e.kin;
+    if (near(HEARTH.x, HEARTH.y - 80, 300)) {
+      if (!kin?.met) {
+        if (hasGear(save, 'resonator'))
+          act = {
+            key: 'kin-sing',
+            label: 'Sing with the Choir’s kin (the resonator)',
+            seconds: 0.8,
+            done: () =>
+              kinSong.start(
+                (n) => europaScene.flashKin(n),
+                () => {
+                  meetKin(save);
+                  grant(major('fragment', 'Second contact', 'The Choir’s kin', 'They are fading. Rekindle the cold vents.', 'choir'));
+                  setTimeout(() => hud.showReading(EUROPA_LOG.eu_kin.name, EUROPA_LOG.eu_kin.text, 'Kindling cores are made at the hab’s console.'), 3600);
+                  persist();
+                },
+              ),
+          };
+        else rideInfo = 'Faint rings of light turn toward you. You have no way to answer them.';
+      } else rideInfo = kinRestored(save) ? 'The kin shine, whole again, and sing.' : `The kin glow faintly around the hearth (${kin.vents.length} of ${DEAD_VENTS.length} vents burning).`;
+    }
+    for (const v of DEAD_VENTS) {
+      if (!near(v.x, floorY(v.x) - 180, 220) || kin?.vents.includes(v.id)) continue;
+      const needs = ventNeeds(save, v.id);
+      if (needs) rideInfo = `A cold vent. To rekindle it: ${needs}.`;
+      else
+        act = {
+          key: `vent-${v.id}`,
+          label: 'Rekindle the cold vent',
+          seconds: 1.6,
+          done: () => {
+            if (!rekindle(save, v.id)) return;
+            audio.thump({ freq: 80, gain: 0.5, dur: 1 });
+            const k = kinOf(save);
+            if (kinRestored(save)) {
+              grant(major('fragment', 'The kin restored', 'Every vent burns', 'They left a gate of light: the hab to the hearth.', 'choir'));
+              setTimeout(
+                () =>
+                  hud.showReading(
+                    'The kin, restored',
+                    'The last vent roars awake, and the warm deep fills with light. The kin rise from the hearth, bright and whole, and sing, and this time the song does not shiver.\n\nWhen it ends they leave something behind: two rings of light, one beside the hearth and one beside the Petrel’s hab, a gate between them. Whatever lies beyond the deep, they seem to say, they will show you when you are ready.',
+                    'Step through either ring to cross between the hab and the hearth.',
+                  ),
+                3600,
+              );
+            } else {
+              grant(notable('fragment', 'Vent rekindled', `${k.vents.length} of ${DEAD_VENTS.length}`, 'The kin brighten.', 'choir'));
+              hud.toast(`The vent catches with a deep thud, and warm water pours up. The kin brighten (${k.vents.length} of ${DEAD_VENTS.length}).`, 'big');
+            }
+            persist();
+          },
+        };
+    }
+    if (kinRestored(save))
+      for (const [from, to] of [
+        [KIN_GATES.hab, KIN_GATES.deep],
+        [KIN_GATES.deep, KIN_GATES.hab],
+      ] as const)
+        if (near(from.x, from.y, 120))
+          act = {
+            key: `kin-gate-${from === KIN_GATES.hab ? 'hab' : 'deep'}`,
+            label: from === KIN_GATES.hab ? 'Step through the kin’s gate (to the hearth)' : 'Step through the kin’s gate (to the hab)',
+            seconds: 0.8,
+            done: () => {
+              const dx = to.x + (to === KIN_GATES.hab ? 120 : 140);
+              if (ray.riding) {
+                ray.x = dx;
+                ray.y = to.y;
+              } else {
+                diver.x = dx;
+                diver.y = to.y;
+              }
+              camCX = dx;
+              camCY = to.y;
+              hud.toast('Light folds round you, and opens somewhere else.', 'big');
+            },
+          };
     let bestSpot: (typeof EUROPA_SPOTS)[number] | null = null;
     let bestD = ray.riding ? 160 : 90;
     for (const sp of EUROPA_SPOTS) {
@@ -6648,6 +6767,7 @@ async function boot(): Promise<void> {
     europaScene,
     europaPanel,
     voyage,
+    kinSong,
     enterEuropa: () => enterEuropa(false),
     exitEuropa: () => exitEuropa(),
     startVoyage: (k: VoyageKind) => startVoyage(k),

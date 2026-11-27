@@ -4,6 +4,23 @@ The live branch includes the Fulmar foothold, Codex Phases 1–11D the Phase 12 
 
 Play link: https://colinhill88-hub.github.io/fathomlight/ (live; first successful deploy 2026-11-14)
 
+### Beyond Earth, part 4: the warm deep and the Choir's kin (Colin, Nov 27, 2026)
+
+Colin's choices: biome 3 is a **hydrothermal deep**; meeting the kin is a **call-and-answer song, and they need help**.
+- **The abyss** (x 11150–13600, under the floe field's eastern floes): the seabed falls away past a band of **black water** (y 2300–3100) that no lamp gets through. Only a ridden floe ray wearing the **glow gland** lights a way down; anything else turns back up (a one-time message says why). The glow gland's glyph now sits on the abyss's lip.
+- **The warm deep** below: the only warm water on Europa, washed in amber. Three **cold vents** (grey chimneys) and the **hearth**, the one vent still warm, where the **Choir's kin** circle: rings and ribbons like the Choir's own, faint and flickering. Arriving gives a reward card and a log entry.
+- **The song** (`src/ui/kinSong.ts`): hold Collect at the hearth to sing with them through the resonator. Three phrases of three, four and five notes in light and sound; answer with keys 1–4 or the four pads. A wrong note only makes them sing it again, slower. Their lights flash with each note. Then they show why they fade: the vents are going cold. The touch controls and tips hide while it plays.
+- **They need help:** rekindle the three cold vents.
+  - A **kindling core** is made at the hab's console (in the Brine still): 4 rime, 3 brine, 2 fronds.
+  - The **nearest vent** needs only a core.
+  - The **two far vents** also need **4 vent ore from Earth's trench each, carried in Kestrel's dive bag**. Both worlds count.
+  - Each vent lit makes the kin steadier and brighter.
+- **Restored:** when all three burn, the kin sing whole again and leave **a gate of light** beside the hab and beside the hearth (hold Collect to step through, riding or swimming).
+- **Linnea** follows it all from the hab.
+- **Saves:** `europa.kin` (`met`, `vents`, `cores`); old saves unchanged.
+- **Checked:** typecheck, build, `node scripts/test-europa.mjs` (new: the abyss is open water down to the vents, the black water and warm deep bands, the hearth and vents reachable, the song first, cores needing the still, the near vent with a core only, the far vents taking Earth's ore from the bag, restoration, saves) and the Petrel checks pass. In `vite preview` with Playwright on a 1600×900 desktop and an iPhone 13 in landscape: riding through the black water with the gland, the warm deep and the kin, the **whole song answered with keys 1–4** (the kin were met), the restored kin, the console's kindling-core row, and the gate from the hab to the hearth. No console errors.
+- **Not done yet:** what the kin show Kestrel beyond the deep, a cold tank to raise Europa's creatures, the supply line from Earth (it could now carry the vent ore), and painted art.
+
 ### Beyond Earth, part 3: the floe ray and the floe field (Colin, Nov 27, 2026)
 
 Colin chose a creature to ride instead of a machine (an ice-crawler would need an ice roof everywhere, and he wants to surface through broken ice): **the floe ray**, befriended in the wild, with organic gear like KS-1's modules, **unlocked one piece at a time**. And biome 2, **the floe field**, in the same session.

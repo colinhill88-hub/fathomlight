@@ -391,7 +391,9 @@ From the pacing model and audit ([`pacing-audit.md`](pacing-audit.md), [`scripts
 
 **Built in the third session (Nov 27, 2026): the floe ray and biome 2, the floe field** (see PROGRESS.md). Colin's choices: **a creature to ride, the floe ray, befriended in the wild** (not an ice-crawler: Europa must not need an ice roof everywhere, and Kestrel can **surface through broken ice** floating on open water); **organic gear for it, like KS-1's modules, unlocked gradually** (saddle and pouch, air bladder, ice-breaker crest, glow gland); and the floe field in the same session.
 
-**Next for Europa:** biome 3 and the Choir's kin (deep, dark water: the glow gland's job), a cold tank to raise rime moths, glasshorns and perhaps floe ray calves (breeding rays with traits), the supply line from Earth, and painted art.
+**Built in the fourth session (Nov 27, 2026): biome 3, the warm deep, and the Choir's kin** (see PROGRESS.md). Colin's choices: a **hydrothermal deep**; meeting the kin is a **call-and-answer song, and they need help** (the vents are going cold: rekindle three, the far two with vent ore carried from Earth). Restored, they leave a gate between the hab and the hearth, and promise to show the way onward "when you are ready".
+
+**Next for Europa (to decide with Colin):** what the kin show beyond the deep; a cold tank to raise rime moths, glasshorns and floe ray calves; the supply line from Earth (it could carry the vent ore the far vents need); painted art.
 
 **Built in the first session (Nov 27, 2026), with Colin's choices:** the ship is named **the Petrel** (Colin chose a bird name, like Kestrel, Corvina and Fulmar); the five stages and their creatures are as proposed below; the launch platform floats at the surface just east of the base. All art is drawn by code for now: the prompts for Colin to make painted versions in Gemini are in [`art/prompts/petrel.md`](art/prompts/petrel.md). **Next:** Colin plays it and tunes the costs; then the launch and the arrival shot.
 

@@ -168,6 +168,48 @@ export async function runEuropaChecks(server) {
     for (const g of E.GLYPHS) assert.ok(!T.europaSolid(g.x, g.y), `Glyph ${g.id} is reachable`);
   }
 
+  // Biome 3: the warm deep's shape, and the kin.
+  {
+    const mid = (T.ABYSS.x0 + T.ABYSS.x1) / 2;
+    for (const y of [1200, 2700, 3800]) assert.ok(!T.europaSolid(mid, y), `The abyss is open water at y ${y}`);
+    assert.ok(T.inBlackWater(mid, 2700) && !T.inBlackWater(mid, 3800), 'Black water halfway down, warm water below');
+    assert.ok(T.inWarmDeep(T.HEARTH.x, T.HEARTH.y));
+    assert.ok(!T.europaSolid(T.HEARTH.x, T.HEARTH.y - 80), 'Kestrel can reach the hearth');
+    for (const v of T.DEAD_VENTS) assert.ok(!T.europaSolid(v.x, T.floorY(v.x) - 180), `Vent ${v.id} can be reached`);
+
+    const s = fresh();
+    E.arrive(s);
+    s.europa.stores = { rime: 30, brine: 30, frond: 30 };
+    assert.match(E.ventNeeds(s, 'v1'), /song/, 'The song comes first');
+    assert.match(E.makeCore(s), /kin/);
+    assert.equal(E.meetKin(s), true);
+    assert.equal(E.meetKin(s), false, 'Once');
+    assert.match(E.makeCore(s), /still/, 'Cores need the Brine still');
+    s.europa.built.push('still');
+    assert.equal(E.makeCore(s), null);
+    assert.equal(E.makeCore(s), null);
+    assert.equal(E.makeCore(s), null);
+    assert.equal(s.europa.kin.cores, 3);
+    assert.equal(E.ventNeeds(s, 'v1'), null, 'The near vent takes only a core');
+    assert.ok(E.rekindle(s, 'v1'));
+    assert.ok(!E.rekindle(s, 'v1'), 'Once');
+    s.bag.ore = 2;
+    assert.match(E.ventNeeds(s, 'v2'), /Earth/, 'The far vents need Earth’s vent ore');
+    s.bag.ore = 2 * E.EARTH_ORE_PER_VENT;
+    assert.ok(E.rekindle(s, 'v2') && E.rekindle(s, 'v3'));
+    assert.equal(s.bag.ore, 0, 'The ore comes out of the dive bag');
+    assert.ok(E.kinRestored(s));
+    assert.equal(E.kinLight(s), 1);
+    // Saves keep the kin.
+    const store = new Map();
+    globalThis.localStorage = { getItem: (k) => store.get(k) ?? null, setItem: (k, v) => store.set(k, String(v)), removeItem: (k) => store.delete(k) };
+    store.set('fathomlight.save.v1', JSON.stringify(s));
+    const loaded = state.loadSave(0, 0).data;
+    assert.deepEqual(loaded.europa.kin, { met: true, vents: ['v1', 'v2', 'v3'], cores: 0 });
+    delete globalThis.localStorage;
+    assert.equal(E.linneaEuropa(s).length, 2);
+  }
+
   // Linnea always has something to say.
   {
     const s = fresh();

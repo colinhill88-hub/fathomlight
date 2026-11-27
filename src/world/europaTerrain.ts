@@ -29,6 +29,30 @@ export const ICE_WALL_X = 6200;
 export const PASSAGE = { x0: 6200, x1: 8600, roof: 1250, floor: 1560 };
 export const FLOE_X0 = 8600;
 export const FLOE_X1 = 13900;
+/**
+ * Biome 3, "The warm deep" (Colin, Nov 27, 2026): under the eastern floes the seabed falls away
+ * into an abyss. Halfway down is a band of black water no lamp gets through: only a floe ray's
+ * glow gland lights the way. Below it, the only warm water on Europa: vents, and the hearth
+ * where the Choir's kin live, fading as the vents go cold.
+ */
+export const ABYSS = { x0: 11150, x1: 13600, blackTop: 2300, blackBottom: 3100, floor: 4560 };
+/** The kin's hearth: the one vent still warm (just). */
+export const HEARTH = { x: 12450, y: 4100 };
+/** The cold vents to rekindle, west to east. */
+export const DEAD_VENTS = [
+  { id: 'v1', x: 11750 },
+  { id: 'v2', x: 13000 },
+  { id: 'v3', x: 13350 },
+];
+/** In the black-water band? */
+export function inBlackWater(x: number, y: number): boolean {
+  return x > ABYSS.x0 + 150 && x < ABYSS.x1 - 150 && y > ABYSS.blackTop && y < ABYSS.blackBottom;
+}
+/** Down in the warm deep (below the black water)? */
+export function inWarmDeep(x: number, y: number): boolean {
+  return x > ABYSS.x0 && x < ABYSS.x1 && y >= ABYSS.blackBottom;
+}
+
 /** The thin patch of ice in biome 1 that the crest can open. */
 export const SKYLIGHT = { x: 3300, half: 75 };
 export const BRINE_POOLS = [
@@ -118,10 +142,17 @@ export function floorY(x: number): number {
     if (x > PASSAGE.x1 - 420) return lerp(fl, 1700, smooth((x - (PASSAGE.x1 - 420)) / 420));
     return fl;
   }
-  // The floe field: a deep, open seabed with a rocky rise and a deep hollow, then the far shore.
+  // The floe field: a deep, open seabed with a rocky rise, then the lip of the abyss (biome 3)
+  // falling away under the eastern floes, then the far shore.
   let y = 1700 + Math.sin(x * 0.0013) * 80 + Math.sin(x * 0.0041 + 2) * 25;
   y -= bump(x, 10100, 450, 380); // the rise
-  y += bump(x, 11900, 520, 420); // the deep hollow
+  // The abyss: down past the black water to the warm vent floor, and back up at its east side.
+  const into = smooth((x - ABYSS.x0) / 260) * (1 - smooth((x - (ABYSS.x1 - 260)) / 260));
+  if (into > 0) {
+    let deep = ABYSS.floor + Math.sin(x * 0.006) * 40;
+    for (const v of [...DEAD_VENTS, HEARTH]) deep -= bump(x, v.x, 120, 160); // the chimneys' mounds
+    y = lerp(y, deep, into);
+  }
   y -= smooth((x - (FLOE_X1 - 200)) / 300) * 1950; // the far shore rises out of the water
   return y;
 }
