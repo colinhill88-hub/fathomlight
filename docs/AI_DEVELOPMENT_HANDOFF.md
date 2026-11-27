@@ -110,7 +110,8 @@ See the [roadmap](ROADMAP.md) for the full plan. In short:
 
    **Status (Nov 22, 2026):** Session A is merged (PR #50); Session B is merged (PR #51); the Creature room follow-up is merged (PR #52). Painted textures for the creature rigs are still to make (prompts in `docs/art/prompts/phases-22-23-creatures.md`).
 5. **Phase 19: combat inside the wrecks** (merged) (on foot only; a deliberate change to the vision, see DESIGN.md's first pillar). Prompt: [`prompts/phase-19-wreck-combat.md`](prompts/phase-19-wreck-combat.md). The first section (the Corvina's engine room, the Rivet driver, three machines) is merged (PR #47); Colin playtests before more sections are built. Notes: [`phase-19-wreck-combat.md`](phase-19-wreck-combat.md).
-6. **Then design with Colin:** songs Kestrel plays on the resonator, a climax at each major site, movement flow, a goal board, and maps of major sites.
+6. **Beyond Earth (planned Nov 27, 2026; needs a design pass, not built):** a ship built in five stages from what the creatures make, then Europa with three biomes, cold-water creatures and a new base. Colin's decisions and the open questions are in the roadmap's "Beyond Earth" section.
+7. **Then design with Colin:** songs Kestrel plays on the resonator, a climax at each major site, movement flow, a goal board, and maps of major sites.
 
 Validation that is still open:
 
