@@ -7549,3 +7549,7 @@ body.intro-playing #scan-bar {
   cursor: pointer;
 }
 .eu-btn:disabled { opacity: 0.45; cursor: default; }
+/* While singing with the Choir's kin, the screen is theirs: no swim controls or tips under the pads. */
+body.kin-singing #controls,
+body.kin-singing #hint,
+body.kin-singing #europa-hud { display: none; }

@@ -1851,6 +1851,11 @@ export class Diver {
     return this.face;
   }
 
+  /** Beyond Earth: riding the floe ray, Kestrel faces the way it swims. */
+  setFacing(f: number): void {
+    this.face = f < 0 ? -1 : 1;
+  }
+
   get boosting(): boolean {
     return this.boostTime > 0;
   }

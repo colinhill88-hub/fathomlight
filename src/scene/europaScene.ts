@@ -1,8 +1,8 @@
 import { Container, FillGradient, Graphics, Sprite, Text, Texture } from 'pixi.js';
-import { BELL_AT, EUROPA_CREATURES, EUROPA_SPOTS, GLYPHS, isPresent, type EuropaSpecies } from '../game/europa';
+import { BELL_AT, EUROPA_CREATURES, EUROPA_SPOTS, GLYPHS, isPresent, KIN_GATES, kinLight, kinRestored, type EuropaSpecies } from '../game/europa';
 import type { SaveData } from '../game/state';
 import { mulberry32 } from '../rng';
-import { BRINE_POOLS, ceilY, EUROPA_W, floorY, ICE_WALL_X, LANDER } from '../world/europaTerrain';
+import { ABYSS, BRINE_POOLS, ceilY, DEAD_VENTS, EUROPA_W, FLOE_X0, FLOE_X1, FLOES, floorY, HEARTH, ICE_WALL_X, LANDER, OPEN, PASSAGE, SKYLIGHT } from '../world/europaTerrain';
 
 /**
  * Beyond Earth (Nov 27, 2026): Europa's first biome, "Under the ice", drawn in code.
@@ -81,6 +81,38 @@ function softBeam(): Texture {
   return beamTex;
 }
 
+const SKY_GRAD = new FillGradient({
+  type: 'linear',
+  start: { x: 0, y: 0 },
+  end: { x: 0, y: 1 },
+  colorStops: [
+    { offset: 0, color: 0x01030a },
+    { offset: 0.8, color: 0x0a1424 },
+    { offset: 1, color: 0x1a2a3e },
+  ],
+  textureSpace: 'local',
+});
+const WARM_GRAD = new FillGradient({
+  type: 'linear',
+  start: { x: 0, y: 0 },
+  end: { x: 0, y: 1 },
+  colorStops: [
+    { offset: 0, color: 0x0d2433 },
+    { offset: 1, color: 0x5a3220 },
+  ],
+  textureSpace: 'local',
+});
+const SURFACE_GLOW = new FillGradient({
+  type: 'linear',
+  start: { x: 0, y: 0 },
+  end: { x: 0, y: 1 },
+  colorStops: [
+    { offset: 0, color: 0x6a90a8 },
+    { offset: 1, color: 0x0d2433 },
+  ],
+  textureSpace: 'local',
+});
+
 interface Moth {
   x: number;
   y: number;
@@ -99,11 +131,113 @@ interface Horn {
   glow: Graphics;
 }
 
+/** What the scene needs to draw a floe ray. */
+export interface RayLook {
+  x: number;
+  y: number;
+  facing: number;
+  /** -1..1: nose down to nose up. */
+  pitch: number;
+  /** 0..1: how hard it is swimming (faster wingbeats). */
+  effort: number;
+  gear: string[];
+}
+
+/**
+ * A floe ray, drawn in code: seen from a little above and to the side, a broad slate-and-white
+ * body with wings that beat slowly, a long thin tail, and pale blue-green lights along the wing
+ * edges. Its organic gear sits on it: a woven frond saddle and pouch, a translucent air bladder,
+ * a rime crest on its brow, a glowing gland.
+ */
+export class RayView {
+  readonly view = new Container();
+  readonly glow = new Container();
+  private readonly body = new Graphics();
+  private readonly wingNear = new Graphics();
+  private readonly wingFar = new Graphics();
+  private readonly gearG = new Graphics();
+  private readonly lights = new Graphics();
+  private gearSig = '-';
+  private t = Math.random() * 10;
+
+  constructor() {
+    this.view.addChild(this.wingFar, this.body, this.gearG, this.wingNear);
+    this.glow.addChild(this.lights);
+    // The wings: one broad diamond seen a little from above, slate on top with a pale underside
+    // showing along the lower edge. They flex (scale y) as it swims. The far half sits behind the body.
+    const up = this.wingFar;
+    up.moveTo(108, -2).bezierCurveTo(60, -40, 0, -96, -40, -100).bezierCurveTo(-40, -60, -80, -20, -112, -2).closePath();
+    up.fill({ color: 0x41515c }).stroke({ color: INK, width: 2 });
+    up.moveTo(70, -14).bezierCurveTo(30, -40, -10, -70, -34, -86).stroke({ color: 0x6c7e8a, width: 2, alpha: 0.6 });
+    const dn = this.wingNear;
+    dn.moveTo(108, 2).bezierCurveTo(60, 40, 0, 96, -40, 100).bezierCurveTo(-40, 60, -80, 20, -112, 2).closePath();
+    dn.fill({ color: 0x52626e }).stroke({ color: INK, width: 2 });
+    dn.moveTo(96, 8).bezierCurveTo(50, 40, 0, 84, -36, 92).bezierCurveTo(-30, 70, -40, 50, -60, 34).closePath();
+    dn.fill({ color: 0xe6eef0, alpha: 0.32 });
+    // The body ridge down the middle, the head with its eyes and two curled horn-fins, and the tail.
+    const b = this.body;
+    b.ellipse(0, 0, 104, 18).fill({ color: 0x4a5a66 }).stroke({ color: INK, width: 2 });
+    b.ellipse(10, -6, 80, 7).fill({ color: 0x6c7e8a, alpha: 0.6 });
+    b.circle(92, -7, 3.6).fill({ color: 0x0c1418 });
+    b.circle(93, -8, 1.2).fill({ color: 0xffffff });
+    for (const sy of [-1, 1]) b.moveTo(104, sy * 6).quadraticCurveTo(126, sy * 10, 122, sy * 20).stroke({ color: 0x4a5a66, width: 4, cap: 'round' });
+    b.moveTo(-104, 0).quadraticCurveTo(-180, 8, -250, -4).stroke({ color: 0x4a5a66, width: 4, cap: 'round' });
+    b.moveTo(-250, -4).lineTo(-262, -8).stroke({ color: 0x4a5a66, width: 2, cap: 'round' });
+  }
+
+  update(dt: number, look: RayLook): void {
+    this.t += dt * (1.2 + look.effort * 2.4);
+    const flap = Math.sin(this.t * 2.2);
+    // Wingbeats: the wings flex in turn, the near one a little more (it is closer to us).
+    this.wingNear.scale.y = 0.55 + 0.45 * flap;
+    this.wingFar.scale.y = 0.55 - 0.4 * flap;
+    for (const c of [this.view, this.glow]) {
+      c.position.set(look.x, look.y);
+      c.scale.set(look.facing < 0 ? -0.8 : 0.8, 0.8);
+      c.rotation = look.facing * look.pitch * 0.35;
+    }
+    this.lights.scale.y = this.wingNear.scale.y;
+    const sig = look.gear.join(',');
+    if (sig !== this.gearSig) {
+      this.gearSig = sig;
+      this.drawGear(look.gear);
+    }
+    this.lights.alpha = 0.7 + 0.3 * Math.sin(this.t * 1.3);
+  }
+
+  private drawGear(gear: string[]): void {
+    const g = this.gearG.clear();
+    const l = this.lights.clear();
+    for (let k = 0; k < 6; k++) l.circle(80 - k * 22, 24 + k * 13, 2.6).fill({ color: GLOW_TEAL });
+    l.circle(0, 10, 90).fill({ color: GLOW_TEAL, alpha: 0.05 });
+    if (gear.includes('saddle')) {
+      g.roundRect(-30, -30, 60, 18, 8).fill({ color: 0xbfe0d4 }).stroke({ color: 0x5e7a6e, width: 1.6 });
+      for (let x = -24; x <= 24; x += 8) g.moveTo(x, -30).lineTo(x + 4, -12).stroke({ color: 0x7fa898, width: 1.2 });
+      g.roundRect(-20, -12, 26, 22, 8).fill({ color: 0xa8cfc0 }).stroke({ color: 0x5e7a6e, width: 1.4 });
+    }
+    if (gear.includes('bladder')) {
+      g.ellipse(-60, -28, 26, 18).fill({ color: 0xd8f4ff, alpha: 0.4 }).stroke({ color: 0xeafaff, width: 1.6, alpha: 0.8 });
+      g.ellipse(-68, -34, 8, 5).fill({ color: 0xffffff, alpha: 0.6 });
+    }
+    if (gear.includes('crest')) {
+      for (let k = 0; k < 5; k++) g.poly([62 + k * 8, -12, 68 + k * 8, -12, 64 + k * 8, -34 - (k % 2) * 10]).fill({ color: 0xdff4ff }).stroke({ color: 0x8fb4c8, width: 1 });
+    }
+    if (gear.includes('gland')) {
+      g.circle(100, -16, 8).fill({ color: 0xcff8ee }).stroke({ color: 0x5e8a80, width: 1.4 });
+      l.circle(100, -16, 6).fill({ color: GLOW_TEAL });
+      l.circle(100, -16, 40).fill({ color: GLOW_TEAL, alpha: 0.25 });
+    }
+  }
+}
+
 export class EuropaScene {
   readonly view = new Container();
   private readonly bg = new Graphics();
   private readonly world = new Container();
+  private readonly sky = new Graphics();
+  private readonly jupiter = new Container();
   private readonly far = new Container();
+  private readonly surfaceGlow = new Container();
   private readonly terrain = new Graphics();
   private readonly objects = new Container();
   private readonly spotLayer = new Container();
@@ -124,17 +258,54 @@ export class EuropaScene {
   private readonly modules = new Container();
   private readonly weldSpark = new Graphics();
   private modSig = '';
+  private brokenSig = '';
+  private brokenFloes = new Set<string>();
+  /** Kestrel's floe ray, and two wild ones gliding in the floe field. */
+  readonly ray = new RayView();
+  private readonly wildRays: { view: RayView; x: number; y: number; dir: number; phase: number }[] = [];
+  private readonly krill: { x: number; y: number; phase: number; g: Graphics }[] = [];
+  private readonly current = new Graphics();
+  /** Biome 3: the black-water band, the vents (and their warm light), the kin, and their gates. */
+  private readonly blackWater = new Graphics();
+  private readonly ventArt = new Graphics();
+  private readonly ventGlow = new Container();
+  private readonly kinG = new Graphics();
+  private readonly gates = new Graphics();
+  private ventSig = '';
+  private ventsDrawn = false;
+  /** A note the kin are singing (0..3), and how bright the flash still is. */
+  private kinNote = -1;
+  private kinNoteK = 0;
   private bgW = 0;
   private bgH = 0;
   private time = 0;
 
   constructor() {
     this.light.blendMode = 'add';
-    this.world.addChild(this.far, this.terrain, this.objects, this.spotLayer, this.modules, this.actors, this.fg, this.light, this.dust);
+    this.world.addChild(this.sky, this.jupiter, this.surfaceGlow, this.far, this.terrain, this.objects, this.spotLayer, this.modules, this.actors, this.fg, this.light, this.dust);
     this.view.addChild(this.bg, this.world);
     this.view.visible = false;
+    this.surfaceGlow.alpha = 0.45;
+    this.drawStatic();
     this.drawTerrain();
     this.drawLander();
+    this.objects.addChild(this.ventArt, this.ray.view, this.current);
+    // The black water sits over the actors (it hides Kestrel too, unless the glow gland lights it).
+    this.world.addChildAt(this.blackWater, this.world.getChildIndex(this.fg));
+    this.light.addChild(this.ventGlow, this.kinG, this.gates);
+    this.drawDeep();
+    this.light.addChild(this.ray.glow);
+    for (const [i, x] of [9800, 12600].entries()) {
+      const v = new RayView();
+      this.objects.addChild(v.view);
+      this.light.addChild(v.glow);
+      this.wildRays.push({ view: v, x, y: 500 + i * 300, dir: i ? -1 : 1, phase: i * 3 });
+    }
+    for (const x of [9250, 10250, 11500, 12300]) {
+      const g = new Graphics();
+      this.light.addChild(g);
+      this.krill.push({ x, y: 160, phase: x * 0.01, g });
+    }
     this.drawGlyphs();
     this.drawSpots();
     this.spawnCreatures();
@@ -156,14 +327,53 @@ export class EuropaScene {
   // ---------------------------------------------------------------------------
   // Static art.
 
-  private drawTerrain(): void {
-    const g = this.terrain;
+  /** The parts that never change: the sky with Jupiter, the far parallax ice, the foreground icicles, and the glow past the wall. */
+  private drawStatic(): void {
     const rand = mulberry32(0xe0e0a);
-    const STEP = 16;
-    // Far parallax: hanging ice columns and a dim seabed ridge, very dark.
+    // The sky over the open water (behind everything; the ice covers it wherever there is ice).
+    const sky = this.sky;
+    sky.rect(-600, -3200, EUROPA_W + 1200, 3200).fill(SKY_GRAD);
+    for (let i = 0; i < 420; i++) sky.circle(-600 + rand() * (EUROPA_W + 1200), -3100 + rand() * 3050, 0.6 + rand() * 1.6).fill({ color: 0xf4f8ff, alpha: 0.35 + rand() * 0.55 });
+    // Jupiter: huge and banded, low over the floe field. It sits in a slow parallax layer (see update)
+    // so it hangs in the sky wherever Kestrel surfaces in the field.
+    const jg = new Graphics();
+    const jx = 0;
+    const jy = -300;
+    const jr = 380;
+    jg.circle(jx, jy, jr + 40).fill({ color: 0xe8c9a0, alpha: 0.07 });
+    jg.circle(jx, jy, jr).fill({ color: 0xd9b58a });
+    const bands = [0xc49a6c, 0xe8d2b0, 0xb0805a, 0xf0e0c8, 0xb88c64, 0xe2c8a4, 0xa87452];
+    bands.forEach((c, i) => {
+      const y0 = jy - jr + (i + 0.6) * ((jr * 2) / (bands.length + 1));
+      const half = Math.sqrt(Math.max(0, jr * jr - (y0 - jy) ** 2));
+      jg.ellipse(jx, y0, half * 0.98, 16 + (i % 3) * 8).fill({ color: c, alpha: 0.75 });
+    });
+    jg.ellipse(jx + jr * 0.35, jy + jr * 0.3, 52, 28).fill({ color: 0xc0623e, alpha: 0.8 });
+    // Day and night: a soft light crescent on the left, a darker one on the right, both inside the disc.
+    const crescent = (side: number, inner: number, color: number, alpha: number) => {
+      const pts: number[] = [];
+      for (let k = 0; k <= 24; k++) {
+        const a = -Math.PI / 2 + (k / 24) * Math.PI;
+        pts.push(jx + side * Math.cos(a) * jr, jy + Math.sin(a) * jr);
+      }
+      for (let k = 24; k >= 0; k--) {
+        const a = -Math.PI / 2 + (k / 24) * Math.PI;
+        pts.push(jx + side * Math.cos(a) * jr * inner, jy + Math.sin(a) * jr);
+      }
+      jg.poly(pts).fill({ color, alpha });
+    };
+    crescent(-1, 0.55, 0xffffff, 0.07);
+    crescent(1, 0.25, 0x000000, 0.3);
+    crescent(1, 0.7, 0x000000, 0.2);
+    this.jupiter.addChild(jg);
+    // Only ever in the sky (above the water line), whatever the parallax does.
+    const clip = new Graphics().rect(-1e5, -1e5, 2e5 + EUROPA_W, 1e5).fill({ color: 0xffffff });
+    this.world.addChild(clip);
+    this.jupiter.mask = clip;
+    // Far parallax: hanging ice columns under the ice shelf, and a dim seabed ridge everywhere.
     const far = new Graphics();
-    for (let i = 0; i < 26; i++) {
-      const x = i * 260 + rand() * 120;
+    for (let i = 0; i < 24; i++) {
+      const x = i * 255 + rand() * 120;
       const top = ceilY(x) - 200;
       const len = 180 + rand() * 360;
       far.poly([x - 40, top, x + 40, top, x + 8, top + len, x - 6, top + len]).fill({ color: 0x14283a, alpha: 0.7 });
@@ -173,11 +383,33 @@ export class EuropaScene {
       far.rect(x, y, 41, 900).fill({ color: 0x101c26, alpha: 0.75 });
     }
     this.far.addChild(far);
+    // Light from the open sky, filtering down into the floe field's water.
+    const shaft = new Graphics();
+    shaft.rect(FLOE_X0 - 200, 0, FLOE_X1 - FLOE_X0 + 400, 700).fill(SURFACE_GLOW);
+    this.surfaceGlow.addChild(shaft);
+    // The glow past the wall, where the passage comes out.
+    const seam = new Sprite(softGlow());
+    seam.anchor.set(0.5);
+    seam.tint = 0x8fdcff;
+    seam.alpha = 0.2;
+    seam.scale.set(520 / 128, 700 / 128);
+    seam.position.set(PASSAGE.x1 - 300, PASSAGE.roof - 100);
+    this.light.addChild(seam);
+    // Foreground: a few dark icicle silhouettes under the ice shelf (drawn over the actors).
+    for (let i = 0; i < 16; i++) {
+      const x = 200 + rand() * (ICE_WALL_X - 400);
+      const y = ceilY(x) - 10;
+      this.fg.poly([x - 14, y, x + 14, y, x + 2, y + 60 + rand() * 90]).fill({ color: 0x08121a, alpha: 0.55 });
+    }
+  }
 
-    // The ice ceiling: from far above down to its underside, in bands of blue, with facets.
-    const ceilPts: number[] = [-600, -3000];
-    for (let x = -600; x <= EUROPA_W + 600; x += STEP) ceilPts.push(x, ceilY(Math.max(0, Math.min(EUROPA_W, x))));
-    ceilPts.push(EUROPA_W + 600, -3000);
+  /** The ice and the seabed; redrawn when the crest breaks something open. */
+  private drawTerrain(): void {
+    const g = this.terrain.clear();
+    for (const c of g.removeChildren()) c.destroy();
+    const rand = mulberry32(0xe0e0b);
+    const STEP = 16;
+    // The ice ceiling, in runs (it is open to the sky over the floe field and any broken skylight).
     const iceFill = new FillGradient({
       type: 'linear',
       start: { x: 0, y: 0 },
@@ -189,26 +421,71 @@ export class EuropaScene {
       ],
       textureSpace: 'local',
     });
-    g.poly(ceilPts).fill(iceFill);
-    // A pale rim along the underside, and cracks.
-    for (let x = 0; x < EUROPA_W; x += STEP) g.moveTo(x, ceilY(x)).lineTo(x + STEP, ceilY(x + STEP));
-    g.stroke({ color: ICE_HI, width: 3, alpha: 0.35 });
+    const at = (x: number) => ceilY(Math.max(0, Math.min(EUROPA_W, x)));
+    let run: number[] = [];
+    const flush = (x: number) => {
+      if (run.length >= 4) {
+        g.poly([run[0], -3000, ...run, x, -3000]).fill(iceFill);
+        for (let i = 2; i < run.length; i += 2) g.moveTo(run[i - 2], run[i - 1]).lineTo(run[i], run[i + 1]);
+        g.stroke({ color: ICE_HI, width: 3, alpha: 0.35 });
+      }
+      run = [];
+    };
+    for (let x = -600; x <= EUROPA_W + 600; x += STEP) {
+      const c = at(x);
+      if (c === OPEN) flush(x - STEP);
+      else run.push(x, c);
+    }
+    flush(EUROPA_W + 600);
     for (let i = 0; i < 70; i++) {
-      const x = rand() * EUROPA_W;
+      const x = rand() * ICE_WALL_X;
       const y = ceilY(x);
+      if (y === OPEN) continue;
       g.moveTo(x, y - 4).lineTo(x + (rand() - 0.5) * 40, y - 40 - rand() * 80).stroke({ color: ICE_HI, width: 1, alpha: 0.18 });
     }
-    // Icicles (decoration only: they never snag the diver). Long and thick in the icicle forest.
+    // The thin patch over biome 1 (lighter, cracked) until the crest breaks it; then a shaft up to the sky.
+    if (ceilY(SKYLIGHT.x) !== OPEN) {
+      const y = ceilY(SKYLIGHT.x);
+      g.rect(SKYLIGHT.x - SKYLIGHT.half, y - 60, SKYLIGHT.half * 2, 60).fill({ color: ICE_HI, alpha: 0.28 });
+      for (let k = -2; k <= 2; k++) g.moveTo(SKYLIGHT.x + k * 24, y).lineTo(SKYLIGHT.x + k * 30 + 10, y - 50).stroke({ color: 0xffffff, width: 1.2, alpha: 0.4 });
+    } else this.waterLine(g, SKYLIGHT.x - SKYLIGHT.half, SKYLIGHT.x + SKYLIGHT.half);
+    // Icicles under the shelf (decoration only: they never snag the diver). Long and thick in the icicle forest.
     for (let x = 140; x < ICE_WALL_X - 60; x += 18 + rand() * 30) {
       const forest = Math.max(0, 1 - Math.abs(x - 4500) / 600);
       if (rand() > 0.45 + forest * 0.5) continue;
       const y = ceilY(x) - 2;
+      if (y === OPEN) continue;
       const len = 14 + rand() * 40 + forest * (60 + rand() * 120);
       const w = 4 + rand() * 6 + forest * 6;
       g.poly([x - w, y, x + w, y, x + w * 0.15, y + len]).fill({ color: ICE, alpha: 0.95 });
       g.poly([x - w * 0.6, y, x - w * 0.1, y, x, y + len * 0.8]).fill({ color: ICE_HI, alpha: 0.35 });
     }
-
+    // The open water's surface over the floe field, and the floes floating on it.
+    this.waterLine(g, FLOE_X0 - 60, FLOE_X1 + 200);
+    for (const f of FLOES) {
+      if (f.thin && this.brokenFloes.has(f.id)) continue;
+      const x0 = f.x - f.w / 2;
+      const x1 = f.x + f.w / 2;
+      // A slab of ice: a lumpy snow top a little above the water, sides that slope in, and a
+      // rough, rounded underside (most of a floe is under water).
+      const pts: number[] = [];
+      for (let x = x0 + 10; x <= x1 - 10; x += 18) pts.push(x, -20 - Math.sin(x * 0.04 + f.x) * 5 - rand() * 5);
+      pts.push(x1 + 6, -4, x1 - 6, f.depth * 0.5);
+      for (let x = x1 - 20; x >= x0 + 20; x -= 18) {
+        const u = (x - x0) / f.w;
+        pts.push(x, f.depth * (0.75 + 0.25 * Math.sin(u * Math.PI)) - rand() * 12);
+      }
+      pts.push(x0 + 6, f.depth * 0.5, x0 - 6, -4);
+      g.poly(pts).fill({ color: f.thin ? 0x9fc4d8 : 0x5f8aa8, alpha: f.thin ? 0.72 : 0.96 }).stroke({ color: ICE_HI, width: 2, alpha: 0.45 });
+      // The part above water: bright snow and a pale band at the waterline.
+      const top: number[] = [];
+      for (let i = 0; i < pts.length; i += 2) if (pts[i + 1] < 0) top.push(pts[i], pts[i + 1]);
+      top.push(x1 + 6, 0, x0 - 6, 0);
+      g.poly(top).fill({ color: 0xf2f8fc, alpha: 0.92 });
+      g.rect(x0, -2, f.w, 6).fill({ color: 0xbfe4f0, alpha: 0.5 });
+      if (f.thin) for (let k = 0; k < 4; k++) g.moveTo(x0 + 30 + k * 70, f.depth * 0.7).lineTo(x0 + 50 + k * 70, 0).stroke({ color: 0xffffff, width: 1.2, alpha: 0.5 });
+      else g.ellipse(f.x - f.w * 0.15, f.depth * 0.45, f.w * 0.22, f.depth * 0.18).fill({ color: ICE_HI, alpha: 0.12 });
+    }
     // The seabed: cold silt, with a lighter crust and pebbles.
     const floorPts: number[] = [-600, 4000];
     for (let x = -600; x <= EUROPA_W + 600; x += STEP) floorPts.push(x, floorY(Math.max(0, Math.min(EUROPA_W, x))));
@@ -216,10 +493,11 @@ export class EuropaScene {
     g.poly(floorPts).fill(SILT);
     for (let x = 0; x < EUROPA_W; x += STEP) g.moveTo(x, floorY(x)).lineTo(x + STEP, floorY(x + STEP));
     g.stroke({ color: SILT_HI, width: 5, alpha: 0.8 });
-    for (let i = 0; i < 160; i++) {
+    for (let i = 0; i < 300; i++) {
       const x = rand() * EUROPA_W;
       g.ellipse(x, floorY(x) + 6 + rand() * 30, 3 + rand() * 7, 2 + rand() * 3).fill({ color: SILT_HI, alpha: 0.5 });
     }
+    // The far shore of the floe field: ice rising out of the water.
     // Brine pools: a flat, glassy surface lying in the hollow.
     for (const p of BRINE_POOLS) {
       const top = Math.min(floorY(p.x - p.w / 2 - 40), floorY(p.x + p.w / 2 + 40)) + 6;
@@ -232,25 +510,65 @@ export class EuropaScene {
       const poly = [pts[0], top, ...pts, pts[pts.length - 2], top];
       g.poly(poly).fill({ color: BRINE, alpha: 0.92 });
       g.moveTo(pts[0], top).lineTo(pts[pts.length - 2], top).stroke({ color: GLOW_TEAL, width: 2, alpha: 0.5 });
-      // Salt crust at the rims.
       for (const side of [-1, 1]) g.ellipse(p.x + side * (p.w / 2 + 20), floorY(p.x + side * (p.w / 2 + 20)) - 2, 46, 8).fill({ color: 0xd8e4e4, alpha: 0.45 });
     }
-    // The thick-ice wall to the east, blue-black, with a faint seam of far-off light.
-    // (The ceiling and the seabed meet at the thick-ice wall and at the west wall, so they close the slice by themselves.)
-    // Beyond the east wall, far off, a faint glow through the ice: where the singing comes from.
-    const seam = new Sprite(softGlow());
-    seam.anchor.set(0.5);
-    seam.tint = 0x8fdcff;
-    seam.alpha = 0.18;
-    seam.scale.set(520 / 128, 900 / 128);
-    seam.position.set(ICE_WALL_X + 120, (ceilY(ICE_WALL_X - 300) + floorY(ICE_WALL_X - 300)) / 2);
-    this.light.addChild(seam);
-    // Foreground: a few dark icicle silhouettes near the camera plane (drawn over the actors).
-    for (let i = 0; i < 18; i++) {
-      const x = 200 + rand() * (EUROPA_W - 400);
-      const y = ceilY(x) - 10;
-      this.fg.poly([x - 14, y, x + 14, y, x + 2, y + 60 + rand() * 90]).fill({ color: 0x08121a, alpha: 0.55 });
+  }
+
+  /** Biome 3's fixed art: the warm wash over the vent floor, and the black-water band. */
+  private drawDeep(): void {
+    const warm = new Graphics();
+    warm.rect(ABYSS.x0, ABYSS.blackBottom, ABYSS.x1 - ABYSS.x0, ABYSS.floor - ABYSS.blackBottom + 200).fill(WARM_GRAD);
+    warm.alpha = 0.55;
+    this.surfaceGlow.addChild(warm);
+    const b = this.blackWater;
+    // Soft-edged: a solid core with fading bands above and below.
+    for (let i = 0; i < 6; i++) {
+      const e = i * 40;
+      b.rect(ABYSS.x0 + 100, ABYSS.blackTop - 200 + e, ABYSS.x1 - ABYSS.x0 - 200, 40).fill({ color: 0x000000, alpha: (i + 1) / 7 });
+      b.rect(ABYSS.x0 + 100, ABYSS.blackBottom + 160 - e, ABYSS.x1 - ABYSS.x0 - 200, 40).fill({ color: 0x000000, alpha: (i + 1) / 7 });
     }
+    b.rect(ABYSS.x0 + 100, ABYSS.blackTop + 40, ABYSS.x1 - ABYSS.x0 - 200, ABYSS.blackBottom - ABYSS.blackTop + 120).fill({ color: 0x000000 });
+  }
+
+  /** The vents: cold grey chimneys, or rekindled ones glowing amber; the hearth always faintly warm. */
+  private drawVents(lit: string[]): void {
+    const g = this.ventArt.clear();
+    for (const c of this.ventGlow.removeChildren()) c.destroy();
+    const gl = new Graphics();
+    this.ventGlow.addChild(gl);
+    const soft = (x: number, y: number, r: number, tint: number, alpha: number) => {
+      const sp = new Sprite(softGlow());
+      sp.anchor.set(0.5);
+      sp.tint = tint;
+      sp.alpha = alpha;
+      sp.scale.set((r * 2) / 128);
+      sp.position.set(x, y);
+      this.ventGlow.addChild(sp);
+    };
+    const chimney = (x: number, hot: boolean, h: number) => {
+      const base = floorY(x);
+      g.poly([x - 60, base + 20, x + 60, base + 20, x + 22, base - h, x - 22, base - h]).fill({ color: hot ? 0x3a2a22 : 0x2a3036 }).stroke({ color: INK, width: 2 });
+      g.ellipse(x, base - h, 24, 8).fill({ color: hot ? 0xff9a40 : 0x15191c });
+      if (hot) {
+        gl.ellipse(x, base - h, 20, 7).fill({ color: 0xffb060, alpha: 0.9 });
+        soft(x, base - h - 40, 200, 0xff8a3a, 0.45);
+        soft(x, base - h - 10, 70, 0xffd090, 0.6);
+      }
+    };
+    for (const v of DEAD_VENTS) chimney(v.x, lit.includes(v.id), 180);
+    chimney(HEARTH.x, true, 260);
+  }
+
+  /** The kin sing a note (it flashes in them), during the song. */
+  flashKin(note: number): void {
+    this.kinNote = note;
+    this.kinNoteK = 1;
+  }
+
+  /** The surface of open water: a pale line with a shimmer, seen from below. */
+  private waterLine(g: Graphics, x0: number, x1: number): void {
+    g.rect(x0, 0, x1 - x0, 4).fill({ color: 0xbfe4f0, alpha: 0.45 });
+    g.rect(x0, 4, x1 - x0, 30).fill({ color: 0x7fb4c8, alpha: 0.12 });
   }
 
   private drawLander(): void {
@@ -406,9 +724,85 @@ export class EuropaScene {
     cam: { x: number; y: number; zoom: number },
     screen: { w: number; h: number },
     diver: { x: number; y: number; facing: number; lampOn: boolean },
+    ray: RayLook | null = null,
+    gland = false,
   ): void {
     this.time += dt;
     const t = this.time;
+    const e0 = save.europa;
+    const bsig = `${e0?.skylight ? 1 : 0}|${(e0?.brokenFloes ?? []).join(',')}`;
+    if (bsig !== this.brokenSig) {
+      this.brokenSig = bsig;
+      this.brokenFloes = new Set(e0?.brokenFloes ?? []);
+      this.drawTerrain();
+    }
+    this.ray.view.visible = this.ray.glow.visible = !!ray;
+    if (ray) this.ray.update(dt, ray);
+    for (const w of this.wildRays) {
+      w.x += w.dir * 60 * dt;
+      if (w.x > FLOE_X1 - 300) w.dir = -1;
+      if (w.x < FLOE_X0 + 400) w.dir = 1;
+      w.view.update(dt, { x: w.x, y: w.y + Math.sin(t * 0.4 + w.phase) * 40, facing: w.dir, pitch: Math.sin(t * 0.4 + w.phase) * 0.2, effort: 0.1, gear: [] });
+    }
+    for (const k of this.krill) {
+      const g = k.g.clear();
+      const cx = k.x + Math.sin(t * 0.3 + k.phase) * 140;
+      const cy = k.y + Math.cos(t * 0.5 + k.phase) * 40;
+      for (let i = 0; i < 28; i++) {
+        const a = i * 2.39 + t * (0.6 + (i % 3) * 0.2);
+        const r = 10 + (i % 7) * 9;
+        g.circle(cx + Math.cos(a) * r * 1.6, cy + Math.sin(a) * r * 0.6, 1.6).fill({ color: GLOW_WHITE, alpha: 0.8 });
+      }
+      g.circle(cx, cy, 70).fill({ color: GLOW_WHITE, alpha: 0.05 });
+    }
+    // Biome 3: vents (redrawn when one is rekindled), the kin around the hearth, the black water, the gates.
+    const kinState = save.europa?.kin;
+    const vsig = (kinState?.vents ?? []).join(',');
+    if (vsig !== this.ventSig || !this.ventsDrawn) {
+      this.ventsDrawn = true;
+      this.ventSig = vsig;
+      this.drawVents(kinState?.vents ?? []);
+    }
+    this.blackWater.alpha = gland ? 0.55 : 0.97;
+    this.kinNoteK = Math.max(0, this.kinNoteK - dt * 1.6);
+    const kg = this.kinG.clear();
+    if (Math.abs(cam.x - HEARTH.x) < 2200 && cam.y > ABYSS.blackTop - 400) {
+      const light = kinLight(save);
+      const cols = [0x6ff3ff, 0xb07cff, 0xff6ad5, 0xffe7a0];
+      for (let i = 0; i < 5; i++) {
+        const a = t * 0.18 + (i / 5) * Math.PI * 2;
+        const x = HEARTH.x + Math.cos(a) * 170;
+        const y = HEARTH.y - 120 + Math.sin(a) * 60 + Math.sin(t * 0.7 + i) * 14;
+        // Fading: a flicker that steadies as the vents warm again.
+        const flick = 1 - (1 - light) * (0.5 + 0.5 * Math.sin(t * (3 + i) + i * 2));
+        const sing = this.kinNote >= 0 && i % 4 === this.kinNote ? this.kinNoteK : 0;
+        const al = Math.min(1, light * flick * 0.8 + sing);
+        const r = 26 + light * 12;
+        kg.ellipse(x, y, r, r * 0.42).stroke({ color: cols[0], width: 2.4, alpha: al });
+        kg.ellipse(x, y, r * 0.42, r).stroke({ color: cols[1], width: 2, alpha: al * 0.9 });
+        kg.moveTo(x - r, y + r * 0.6).bezierCurveTo(x - r * 0.3, y + r * 1.4, x + r * 0.3, y - r * 0.2, x + r, y + r * 0.5).stroke({ color: cols[2], width: 2, alpha: al * 0.8 });
+        kg.circle(x, y, 4 + sing * 6).fill({ color: sing > 0 ? cols[this.kinNote] : 0xe9fdff, alpha: Math.min(1, al + 0.2) });
+        kg.circle(x, y, 60).fill({ color: 0x9fe8ff, alpha: 0.05 * light + sing * 0.15 });
+      }
+    }
+    const gg = this.gates.clear();
+    if (kinRestored(save)) {
+      for (const p of [KIN_GATES.hab, KIN_GATES.deep]) {
+        const pulse = 0.6 + 0.4 * Math.sin(t * 2);
+        gg.ellipse(p.x, p.y, 44, 70).stroke({ color: 0x6ff3ff, width: 4, alpha: pulse });
+        gg.ellipse(p.x, p.y, 34, 58).stroke({ color: 0xb07cff, width: 2.4, alpha: pulse * 0.8 });
+        gg.ellipse(p.x, p.y, 40, 64).fill({ color: 0x9fe8ff, alpha: 0.08 });
+      }
+    }
+    const cg = this.current.clear();
+    if (Math.abs(cam.x + 600 - (PASSAGE.x0 + PASSAGE.x1) / 2) < 2200) {
+      for (let i = 0; i < 40; i++) {
+        const span = PASSAGE.x1 - PASSAGE.x0;
+        const x = PASSAGE.x1 - ((i * 211 + t * 420) % span);
+        const y = PASSAGE.roof + 30 + ((i * 53) % 260);
+        cg.moveTo(x, y).lineTo(x + 40, y).stroke({ color: 0xbfe8f0, width: 1.4, alpha: 0.25 });
+      }
+    }
     // Background: a near-black ocean, a little lighter under the ice.
     if (screen.w !== this.bgW || screen.h !== this.bgH) {
       this.bgW = screen.w;
@@ -419,6 +813,9 @@ export class EuropaScene {
     this.world.scale.set(cam.zoom);
     this.world.position.set(-cam.x * cam.zoom, -cam.y * cam.zoom);
     this.far.position.set(cam.x * 0.35, cam.y * 0.2);
+    // Jupiter drifts slowly across the sky as Kestrel crosses the floe field (and stays out of sight under the shelf, behind the ice).
+    // Its centre stays a little above the view's middle (never below the horizon line), clipped to the sky.
+    this.jupiter.position.set(cam.x * 0.88 + 2000, Math.min(-80, cam.y + 200) + 300);
 
     // Pickups: hidden while they grow back.
     for (const s of EUROPA_SPOTS) {
@@ -490,8 +887,10 @@ export class EuropaScene {
     const f = diver.facing;
     this.beam.visible = this.halo.visible = diver.lampOn;
     this.beam.position.set(diver.x + f * 18, diver.y - 26);
-    this.beam.scale.set((f * 560) / 256, 380 / 128);
+    this.beam.scale.set((f * (gland ? 900 : 560)) / 256, (gland ? 560 : 380) / 128);
     this.beam.alpha = 0.34;
+    this.beam.tint = gland ? 0xd8fff4 : 0xf6efd8;
+    if (gland) this.beam.visible = true;
     this.halo.position.set(diver.x, diver.y - 12);
     this.halo.scale.set(380 / 128);
     this.halo.alpha = 0.16;

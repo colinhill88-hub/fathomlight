@@ -4,6 +4,43 @@ The live branch includes the Fulmar foothold, Codex Phases 1–11D the Phase 12 
 
 Play link: https://colinhill88-hub.github.io/fathomlight/ (live; first successful deploy 2026-11-14)
 
+### Beyond Earth, part 4: the warm deep and the Choir's kin (Colin, Nov 27, 2026)
+
+Colin's choices: biome 3 is a **hydrothermal deep**; meeting the kin is a **call-and-answer song, and they need help**.
+- **The abyss** (x 11150–13600, under the floe field's eastern floes): the seabed falls away past a band of **black water** (y 2300–3100) that no lamp gets through. Only a ridden floe ray wearing the **glow gland** lights a way down; anything else turns back up (a one-time message says why). The glow gland's glyph now sits on the abyss's lip.
+- **The warm deep** below: the only warm water on Europa, washed in amber. Three **cold vents** (grey chimneys) and the **hearth**, the one vent still warm, where the **Choir's kin** circle: rings and ribbons like the Choir's own, faint and flickering. Arriving gives a reward card and a log entry.
+- **The song** (`src/ui/kinSong.ts`): hold Collect at the hearth to sing with them through the resonator. Three phrases of three, four and five notes in light and sound; answer with keys 1–4 or the four pads. A wrong note only makes them sing it again, slower. Their lights flash with each note. Then they show why they fade: the vents are going cold. The touch controls and tips hide while it plays.
+- **They need help:** rekindle the three cold vents.
+  - A **kindling core** is made at the hab's console (in the Brine still): 4 rime, 3 brine, 2 fronds.
+  - The **nearest vent** needs only a core.
+  - The **two far vents** also need **4 vent ore from Earth's trench each, carried in Kestrel's dive bag**. Both worlds count.
+  - Each vent lit makes the kin steadier and brighter.
+- **Restored:** when all three burn, the kin sing whole again and leave **a gate of light** beside the hab and beside the hearth (hold Collect to step through, riding or swimming).
+- **Linnea** follows it all from the hab.
+- **Saves:** `europa.kin` (`met`, `vents`, `cores`); old saves unchanged.
+- **Checked:** typecheck, build, `node scripts/test-europa.mjs` (new: the abyss is open water down to the vents, the black water and warm deep bands, the hearth and vents reachable, the song first, cores needing the still, the near vent with a core only, the far vents taking Earth's ore from the bag, restoration, saves) and the Petrel checks pass. In `vite preview` with Playwright on a 1600×900 desktop and an iPhone 13 in landscape: riding through the black water with the gland, the warm deep and the kin, the **whole song answered with keys 1–4** (the kin were met), the restored kin, the console's kindling-core row, and the gate from the hab to the hearth. No console errors.
+- **Not done yet:** what the kin show Kestrel beyond the deep, a cold tank to raise Europa's creatures, the supply line from Earth (it could now carry the vent ore), and painted art.
+
+### Beyond Earth, part 3: the floe ray and the floe field (Colin, Nov 27, 2026)
+
+Colin chose a creature to ride instead of a machine (an ice-crawler would need an ice roof everywhere, and he wants to surface through broken ice): **the floe ray**, befriended in the wild, with organic gear like KS-1's modules, **unlocked one piece at a time**. And biome 2, **the floe field**, in the same session.
+- **The floe ray** (`RayView` in `src/scene/europaScene.ts`; rules in `src/game/europa.ts`): a broad, gentle ray, slate above and white below, with pale blue-green lights along its wings. It glides a slow loop by the first brine pool. **Befriend it** by offering frost fronds (hold Collect beside it; 3 in all). Then **ride it**: hold Collect beside it, or press Board (V, RB); hold Collect (or Board) to slide off. From far away, Board or a hold of Collect calls it over. Riding is faster than swimming (Boost for more), with a wider camera; Kestrel sits on its back.
+- **Organic gear, grown in the hab's brine vat** (the console's new "Your floe ray" rows), one unlock at a time:
+
+| Gear | Unlocked by | Cost | What it does |
+| --- | --- | --- | --- |
+| Frond saddle and pouch | the ray trusting Kestrel | 4 fronds, 1 brine | faster riding; gather from its back |
+| Air bladder | a glyph at the foot of the thick-ice wall | 3 fronds, 2 rime, 2 brine | breathe while riding; the ray will cross the passage |
+| Ice-breaker crest | a glyph on the floe field's rocky rise | 5 rime, 2 brine | rising fast into thin ice breaks it: a skylight over biome 1 (by the icicle forest) and two thin floes |
+| Glow gland | a glyph deep in the floe field's hollow | 3 rime, 3 fronds, 1 brine | a wide icy blue-green light ahead while riding |
+
+  The console only lists gear once it is learned, and says how many pieces are still to find.
+- **The passage under the thick-ice wall** (x 6200–8600): a long, low tunnel with a freezing current pouring out. Swimming, the current carries Kestrel straight back; riding, the ray turns back unless it wears the air bladder. Streaks show the current.
+- **The floe field** (biome 2, x 8600–13900): open water under a black sky with **Jupiter**, banded and huge, rising over the floes (a slow parallax layer, clipped to the sky). Floes float on the surface (solid, with snow on top); the **leads** between them reach the surface, where Kestrel surfaces and breathes. A deep seabed with a rocky rise and a dark hollow; swarms of **lantern krill** (icy white specks) under the leads; two wild floe rays gliding; new rime, frond and brine spots. Arriving gives a reward card and a log entry.
+- **Saves:** `europa.ray` (trust, place, learned and fitted gear, what's growing), `europa.skylight`, `europa.brokenFloes`; anything malformed is dropped, and a load never starts riding. Old saves are unchanged.
+- **Checked:** typecheck, build, `node scripts/test-europa.mjs` (new checks: befriending, one-at-a-time unlocks, the vat growing one thing at a time, the passage needing a ridden ray with the bladder, the crest breaking the skylight and a thin floe once each, surfacing in a lead, solid floes, the passage's shape, every glyph reachable, saves) and the Petrel checks pass. In `vite preview` with Playwright on a 1600×900 desktop and an iPhone 13 in landscape: the wild ray, mounting with V and riding, the passage, the floe field with Jupiter and krill, surfacing in a lead (air refilled), the broken skylight, the glow gland in the hollow, and the console's ray gear. No console errors.
+- **Not done yet:** biome 3 and the Choir's kin (the dark water the glow gland is for), a cold tank to raise Europa's creatures, the supply line from Earth, painted art. The progression script still stops at its old boots check.
+
 ### Beyond Earth, part 2: the launch and Europa's landing site (Colin, Nov 27, 2026)
 
 Colin's choices for this part: the launch and a small playable landing site; Kestrel's gear, KD-1 and Linnea come along (KS-1 stays home, and Europa gets its own way of getting around, to design together); Europa's life glows icy white and pale blue-green; only Europa pieces can be built there, discovered after arriving.
