@@ -371,6 +371,10 @@ The original brief follows.
 
   Session B builds on Session A (the book and the care odds), so A comes first.
 
+## Pacing (Nov 27, 2026): proposals waiting for Colin
+
+A pacing model and audit ([`pacing-audit.md`](pacing-audit.md), [`scripts/pacing-model.mjs`](../scripts/pacing-model.mjs)) found two bursts of blueprints (9 in the kelp forest, 15 on the wreck shelf), the plate press as the route's biggest wait (KS-1's 12 plating take 24 minutes on one press), and a 32-minute breeding cycle at the very end. Its five proposals (move 4 kelp blueprints and 3 shelf ones to later scans, ease the press, nudge breeding earlier, leave resin) are not built; Colin chooses.
+
 ## Beyond Earth: the Choir's ship and Europa (planned with Colin, Nov 27, 2026). Hints and the ship's five stages **built** (see PROGRESS.md); the launch and Europa not built yet.
 
 **Built in the first session (Nov 27, 2026), with Colin's choices:** the ship is named **the Petrel** (Colin chose a bird name, like Kestrel, Corvina and Fulmar); the five stages and their creatures are as proposed below; the launch platform floats at the surface just east of the base. All art is drawn by code for now: the prompts for Colin to make painted versions in Gemini are in [`art/prompts/petrel.md`](art/prompts/petrel.md). **Next:** Colin plays it and tunes the costs; then the launch and the arrival shot.
