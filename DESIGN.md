@@ -24,6 +24,8 @@ Five pillars decide every design question:
 
 Modern Fathomlight uses original painterly biome and interior assets supported by procedural lighting, terrain and animation. Kestrel's compact salvage rig keeps a squat shell, short split fins and broad gauntlets readable in silhouette. The water carries wakes and recovers after the diver passes. Base cutaways follow individual hulls with the live exterior visible around them. Preserve these layers and the crisp Phase 11C presentation when changing gameplay.
 
+**Victorian watercolor (Colin, Nov 27, 2026).** Recent art grew into a Victorian watercolor look, and Colin likes it: riveted gunmetal, brass bands and fittings, dark ink outlines, gauges, warm amber portholes and lamps, in a soft watercolor-and-gouache wash (see `src/art/base/` and `src/art/kestrel/`). Keep it for new art. The notes below still apply within it.
+
 The look is weathered, realistic hardware set in painterly water. The screenshots in `docs/art/` are the style reference; match their mood, not their exact shapes.
 
 - **Hardware (suits, subs, base pieces):** chunky, functional silhouettes with industrial detail. Muted yellow, steel grey and rust red paint; rivets, panel seams, stencilled numbers, scratches, rust streaks and algae growth. Dome-shaped glass windows are a signature shape.
@@ -208,7 +210,7 @@ The map is hand-designed in five zones stacked by depth, with procedural art and
 
 **Story.** The player leads the crew of Outpost Kestrel, a small survey station sent to study an unexplored reef. Strange light signals rise from the deep. They come from the Choir, a luminous intelligence that has lived below for a very long time. It is curious, not hostile; the dangers of the game come from the ocean itself.
 
-The beings communicate in patterns of light. Raising glowing creatures is how the player learns that language, so creature care drives the plot. The Signal array decodes fragments as the player goes deeper, and the game ends with first contact in the sanctum.
+The beings communicate in patterns of light. Raising glowing creatures is how the player learns that language, so creature care drives the plot. The Signal array decodes fragments as the player goes deeper, and the game ends with first contact in the sanctum. **Update (Colin, Nov 27, 2026): first contact is not the ending but the beginning of the next stage:** the Choir shows Kestrel its kin under the ice of Europa, and Kestrel builds a ship to go there. Planned, not built; see "Beyond Earth" in the [roadmap](docs/ROADMAP.md).
 
 Names are final: the game is Fathomlight, the crew's station is Outpost Kestrel and the beings are the Choir.
 

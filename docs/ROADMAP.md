@@ -371,6 +371,79 @@ The original brief follows.
 
   Session B builds on Session A (the book and the care odds), so A comes first.
 
+## Beyond Earth: the Choir's ship and Europa (planned with Colin, Nov 27, 2026). Needs a design pass before code.
+
+**The problem it solves.** Once a base has many happy creatures, material counts keep climbing and there is nothing left to build. Satisfactory has its space elevator and Subnautica its escape rocket. Fathomlight needs a big project that keeps using what the base makes. Colin compared ideas from Claude, GPT and Gemini (Nov 26–27, 2026) and chose the plan below.
+
+### Colin's decisions (Nov 27, 2026)
+
+- **The art style is Victorian watercolor.** It grew naturally in recent art passes and Colin likes it: riveted gunmetal, brass bands and fittings, dark ink outlines, gauges, warm amber portholes and lamps, a soft watercolor-and-gouache wash (see `src/art/base/` and `src/art/kestrel/`). Keep it for everything new, the ship and Europa included.
+- **First contact is not the ending. It is the beginning of the next stage.** After first contact the Choir shows Kestrel where its kin are still singing: an ocean under the ice of Europa. (The Choir has lived below "for a very long time"; it came from out there.)
+- **The destination is Europa**, a moon with a liquid ocean under its ice. So the next stage is still an ocean game.
+- **The story thrill of leaving Earth matters most** (more than simply having stranger creatures). Put the effort into the launch, the arrival, the ice and meeting the Choir's kin.
+- **Each creature's biology gives the ship a system** (an idea from GPT that Colin likes best). Creature care becomes the launch program.
+- **The ship uses the materials the base already makes** (kelp fibre, copper, scrap, brass and the rest). A **new base piece converts raw materials into ship parts.**
+- **Travel back to Earth is allowed, but each trip costs Europa resources.** Europa resources may also be what **upgrades the supply line from Earth.** So each world's production pays for access to the other.
+- **Europa has its own base with new pieces in its own tone.** Once Earth's building area is full, it is fun to start again with new pieces, and to build differently with what you learned on Earth.
+- **Three Europa biomes** is the sweet spot.
+- **Europa creatures can't survive in Earth water**: it is too warm for them; they need the cold.
+- **Ice-themed gear with Choir-touched elements** for Europa.
+
+### The story, in short
+
+1. First contact in the sanctum. The Choir answers and shows a memory: a frozen moon, an ocean under it, its kin still singing.
+2. Kestrel builds a ship in stages, on a launch platform at the surface: Kestrel hardware outside, a Choir core grown in the sanctum at its heart.
+3. Launch. The first game's credits can roll as the ship arrives above Europa's ice: a satisfying close with the door left open.
+4. On Europa: down through the ice, a lonely landing site, then three biomes that build from eerie to wonder to awe, ending with the Choir's kin.
+
+**Plant the seeds now** (small, cheap, any session): hints in the Earth ocean that the Choir came from elsewhere. For example: something in the sanctum that looks like it fell from the sky; a signal fragment that points up instead of down; a star pattern hidden in the Choir's song; perhaps a curious line from Linnea. Ask Colin which.
+
+### Part 1: building the ship on Earth (the material sink)
+
+- **A ship-parts piece** (name to decide; it needs a stencil code like the others, for example `SW-1`). It takes raw materials from storage by conveyor, as the presses do, and turns them into ship parts, which go up to the launch platform. Fits the collar, power and line rules like any other piece.
+- **The launch platform** floats at the surface above the home base, so the ship grows in the sky view (day and night, weather and seagulls are already there) every time Kestrel comes up for air.
+- **Five stages, each a ship system made from creatures' work.** A first proposal (Colin to confirm or change):
+
+| Stage | Ship system | Creatures whose materials it needs | Ship part made by the new piece |
+| --- | --- | --- | --- |
+| 1 | Frame and launch platform | Tinker crab (scrap), Dapple ray (copper) | Girders and hull plating |
+| 2 | Heat shield and engine bells | Kiln eel (brass), Cinder snail (vent ore) | Heat tiles |
+| 3 | Life support (an air garden) | Puffcap (kelp fibre), Lantern shrimp (lumen moss) | Air cartridges |
+| 4 | Navigation and viewports | Glowfin (quartz) | Lenses and star charts |
+| 5 | The Choir core | Chime seahorse (glowing blooms), plus a Choir-touched egg | The core housing |
+
+- **Components and milestones, not just counts.** Each stage also needs something you must go and get or breed (a heirloom line, a Choir-touched egg, a part salvaged from a wreck), so it never turns into waiting for counters.
+- **Costs fit Fathomlight's economy.** Tune each stage to a few hours of a well-run base at real production rates (scrap trickles in at about one a minute in the shallows), not Satisfactory-sized numbers.
+- **Every stage pays off at once** with a Phase 14 reward ceremony and something usable. Ideas: the platform as a surface landmark; heat lining for Kestrel's suit near the vents; more air from the air garden; a sonar or map upgrade from navigation; the launch.
+
+### Part 2: Europa
+
+- **Arrival.** The ship lands on the ice; Kestrel goes down through it into a black ocean. The landed ship becomes the first piece of the Europa base.
+- **Three biomes** (proposal): **under the ice ceiling** (an upside-down world of hanging ice and brine channels; eerie and lonely), **a frozen crystal forest** (cold-water life; wonder), and **the warm-cold boundary by the deep vents** where the Choir's kin sing (awe). Keep a mood ladder like Earth's, so it's not a scarier copy of the ocean.
+- **Creatures that need the cold.** They live in Europa tanks only, because Earth water is too warm. Their care, breeding and production reuse the Earth systems.
+- **A Europa base with new pieces** in Europa's tone: Victorian watercolor still, with frost, enamel and insulation, and Choir light in the ice. A fresh building area.
+- **Europa materials** (new) go into Europa's pieces and gear, the fuel for trips home, and upgrades to the supply line from Earth.
+- **The supply line.** Earth keeps shipping what it makes to Europa, so the home base, its tanks and its conveyors keep their job. Europa materials raise how much it can carry.
+- **Ice gear with Choir-touched elements**, for example a thermal suit lining, a tool to cut or melt through ice, and something resonant made of Choir ice.
+- **Never stranded (a rule, like the cozy shallows).** Since going home costs Europa resources, there must always be a safe, slow way to gather enough near the landing site.
+
+### Suggested order
+
+1. **Seeds** in the Earth ocean (small, any time).
+2. **The ship on Earth:** the ship-parts piece, the launch platform, the five stages, the launch, and the arrival shot as the first game's close. This alone solves the material problem.
+3. **A first Europa slice:** the landing site, the first biome, a few base pieces, two or three cold creatures, and the trip home.
+4. **The rest of Europa:** biomes two and three, the Choir's kin, supply line upgrades, more creatures and gear.
+
+### Open questions for Colin
+
+- The ship's name, and the name of the ship-parts piece.
+- Is Europa part of the first Steam release, or an expansion after it?
+- What comes along from Earth: KS-1, the drone KD-1, Kestrel's gear? Does Linnea come?
+- Can a cold creature ever be brought back to Earth (for example in a chilled tank), and can Europa creatures breed with Earth ones?
+- Europa's colour rule. On Earth, creature glow is warm, and cyan, violet and magenta are the Choir's. What does Europa's own life glow in?
+- Which seeds to plant in the Earth ocean.
+- Do Earth base pieces work on Europa at all, or only Europa pieces (for example, because Earth hardware cracks in the cold)?
+
 ## Later: needs a design pass with Colin first
 
 These came from comparing Fathomlight with Ocarina of Time, Ori and the Will of the Wisps, Hearthstone and Satisfactory. Colin likes all of them. Design each with him before building.
