@@ -50,7 +50,8 @@ export type RewardIcon =
   | 'cutter'
   | 'boots'
   | 'sonar'
-  | 'rivet';
+  | 'rivet'
+  | 'ship';
 
 export interface RewardSpec {
   tier: 'notable' | 'major';
@@ -80,6 +81,7 @@ const ICONS: Record<RewardIcon, string> = {
   jar: `<rect x="18" y="14" width="28" height="8" rx="2" fill="${CR}"/><path d="M16 22h32v28a6 6 0 0 1-6 6H22a6 6 0 0 1-6-6z" fill="#9fe0d0" opacity=".35" stroke="${CR}" stroke-width="2"/><path d="M24 40c4-6 12-6 16 0-4 5-12 5-16 0z" fill="#ffd27a"/><path d="M40 40l5-4v8z" fill="#ffd27a"/><circle cx="28" cy="39" r="1.4" fill="${CH}"/><circle cx="32" cy="40" r="10" fill="#ffe08a" opacity=".25"/>`,
   blueprint: `<rect x="10" y="14" width="40" height="36" rx="2" fill="#163a48" stroke="${CR}" stroke-width="2"/><circle cx="50" cy="32" r="6" fill="#1d4a5c" stroke="${CR}" stroke-width="2"/><g stroke="#9fe6ff" stroke-width="1.3" fill="none" opacity=".9"><path d="M16 42c4-14 12-20 24-20"/><circle cx="26" cy="32" r="6"/><path d="M16 20h14M16 24h9M34 40h10M34 44h6"/></g>`,
   data: `<rect x="14" y="12" width="36" height="42" rx="3" fill="${CH}" stroke="${CR}" stroke-width="2"/><rect x="20" y="18" width="24" height="14" fill="#1b2a30"/><path d="M22 28l5-5 4 3 5-6 6 6" stroke="${LIME}" stroke-width="1.6" fill="none"/><g fill="${G}"><rect x="20" y="44" width="3" height="10"/><rect x="26" y="44" width="3" height="10"/><rect x="32" y="44" width="3" height="10"/><rect x="38" y="44" width="3" height="10"/></g><circle cx="44" cy="38" r="2" fill="${RED}"/>`,
+  ship: `<path d="M8 50h48l-4 6H12z" fill="${CR}"/><rect x="10" y="46" width="44" height="4" fill="${G}"/><path d="M32 4c7 6 10 16 10 28v14H22V32c0-12 3-22 10-28z" fill="${CH}" stroke="${CR}" stroke-width="2"/><rect x="22" y="30" width="20" height="3" fill="${G}"/><circle cx="32" cy="22" r="5" fill="#ffd690" stroke="${G}" stroke-width="2"/><path d="M22 38l-8 8h8zM42 38l8 8h-8z" fill="${G}"/><path d="M26 46h12l-2 6h-8z" fill="#ffb24a" opacity=".85"/>`,
   module: `<path d="M6 38c0-8 10-14 24-14h14c8 0 14 6 14 14s-6 12-14 12H20C12 50 6 46 6 38z" fill="${CH}" stroke="${CR}" stroke-width="2"/><path d="M38 24c0-7 4-12 9-12s9 5 9 12z" fill="${LIME}" opacity=".85"/><rect x="14" y="34" width="16" height="6" rx="2" fill="${G}"/><circle cx="56" cy="44" r="2.5" fill="${RED}"/><path d="M6 38H2M8 46l-4 4" stroke="${CR}" stroke-width="2"/>`,
   piece: `<path d="M8 44c0-14 11-26 24-26s24 12 24 26z" fill="${CH}" stroke="${CR}" stroke-width="2"/><path d="M18 40c0-9 6-15 14-15s14 6 14 15z" fill="${LIME}" opacity=".75"/><rect x="6" y="44" width="52" height="6" fill="${CR}"/><path d="M14 50l-4 8M50 50l4 8M32 50v8" stroke="${CR}" stroke-width="3"/><circle cx="32" cy="16" r="2.5" fill="${RED}"/><path d="M10 47h44" stroke="${G}" stroke-width="1.5"/>`,
   drone: `<ellipse cx="32" cy="34" rx="18" ry="14" fill="${CH}" stroke="${CR}" stroke-width="2"/><circle cx="38" cy="32" r="6" fill="${LIME}"/><circle cx="39" cy="31" r="2.4" fill="#f6ffe0"/><path d="M14 30H6M50 30h8M14 38l-6 4M50 38l6 4" stroke="${CR}" stroke-width="3" stroke-linecap="round"/><rect x="22" y="44" width="12" height="4" rx="1" fill="${G}"/><circle cx="24" cy="26" r="2" fill="${RED}"/>`,

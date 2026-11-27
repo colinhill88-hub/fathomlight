@@ -371,7 +371,9 @@ The original brief follows.
 
   Session B builds on Session A (the book and the care odds), so A comes first.
 
-## Beyond Earth: the Choir's ship and Europa (planned with Colin, Nov 27, 2026). Needs a design pass before code.
+## Beyond Earth: the Choir's ship and Europa (planned with Colin, Nov 27, 2026). Hints and the ship's five stages **built** (see PROGRESS.md); the launch and Europa not built yet.
+
+**Built in the first session (Nov 27, 2026), with Colin's choices:** the ship is named **the Petrel** (Colin chose a bird name, like Kestrel, Corvina and Fulmar); the five stages and their creatures are as proposed below; the launch platform floats at the surface just east of the base. All art is drawn by code for now: the prompts for Colin to make painted versions in Gemini are in [`art/prompts/petrel.md`](art/prompts/petrel.md). **Next:** Colin plays it and tunes the costs; then the launch and the arrival shot.
 
 **The problem it solves.** Once a base has many happy creatures, material counts keep climbing and there is nothing left to build. Satisfactory has its space elevator and Subnautica its escape rocket. Fathomlight needs a big project that keeps using what the base makes. Colin compared ideas from Claude, GPT and Gemini (Nov 26–27, 2026) and chose the plan below.
 
@@ -429,14 +431,14 @@ The original brief follows.
 
 ### Suggested order
 
-1. **Seeds** in the Earth ocean (small, any time).
-2. **The ship on Earth:** the ship-parts piece, the launch platform, the five stages, the launch, and the arrival shot as the first game's close. This alone solves the material problem.
+1. **Seeds** in the Earth ocean. **Done:** fragment 3's extra phrase (COLD · ABOVE · KIN, pointing up), fallen-star stone in the sanctum and on the heart, and the Choir's memory of the cold moon at first contact (scan `farmoon`). Linnea talks about the ship after contact.
+2. **The ship on Earth:** the ship-parts piece, the launch platform, the five stages, the launch, and the arrival shot as the first game's close. This alone solves the material problem. **Done except the launch and the arrival shot.**
 3. **A first Europa slice:** the landing site, the first biome, a few base pieces, two or three cold creatures, and the trip home.
 4. **The rest of Europa:** biomes two and three, the Choir's kin, supply line upgrades, more creatures and gear.
 
 ### Open questions for Colin
 
-- The ship's name, and the name of the ship-parts piece.
+- ~~The ship's name, and the name of the ship-parts piece.~~ The Petrel, and the Petrel works PW-1 (Colin chose bird names; both easy to rename).
 - Is Europa part of the first Steam release, or an expansion after it?
 - What comes along from Earth: KS-1, the drone KD-1, Kestrel's gear? Does Linnea come?
 - Can a cold creature ever be brought back to Earth (for example in a chilled tank), and can Europa creatures breed with Earth ones?

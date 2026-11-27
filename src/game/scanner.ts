@@ -383,7 +383,7 @@ export const SCAN_ENTRIES: ScanEntry[] = [
     id: 'sig3',
     name: 'Signal fragment 3: below the cold',
     category: 'Artefact',
-    text: 'Decoded from the Fulmar\'s first spool: BELOW THE COLD · THE OLD SONG · ROOMS OF LIGHT · COME. Repeated three times, with a bearing pattern pointing down and east, past the trench floor.',
+    text: 'Decoded from the Fulmar\'s first spool: BELOW THE COLD · THE OLD SONG · ROOMS OF LIGHT · COME. Repeated three times, with a bearing pattern pointing down and east, past the trench floor. Under it, fainter, sits a phrase the array cannot place: COLD · ABOVE · KIN. Its bearing points straight up, out of the water.',
   },
   {
     id: 'sig4',
@@ -402,7 +402,7 @@ export const SCAN_ENTRIES: ScanEntry[] = [
     id: 'shall',
     name: 'The sanctum',
     category: 'Place',
-    text: 'Halls of pale, nacre-smooth stone under the trench, lit from inside by veins of cyan, violet and magenta. Rings and ribbons of stone stand in the water like the shapes in the Fulmar\'s recordings. The water here is still and holds no weight at all: your suit\'s depth gauge stops complaining. Nothing here hunts.',
+    text: 'Halls of pale, nacre-smooth stone under the trench, lit from inside by veins of cyan, violet and magenta. Rings and ribbons of stone stand in the water like the shapes in the Fulmar\'s recordings. The water here is still and holds no weight at all: your suit\'s depth gauge stops complaining. Nothing here hunts. Here and there the pale stone gives way to something else: dark, glassy rock, scorched and pitted on one face, as if it fell from a very great height.',
   },
   {
     id: 'slock',
@@ -414,7 +414,13 @@ export const SCAN_ENTRIES: ScanEntry[] = [
     id: 'sheart',
     name: 'The heart',
     category: 'Place',
-    text: 'A spiral shell of stone the size of the Corvina, on the floor of the deepest pool, with a glowing arch for a door. Beyond the arch there is air: the Choir keeps dry rooms, as if it expected visitors who breathe. Hold Collect at the arch to go in.',
+    text: 'A spiral shell of stone the size of the Corvina, on the floor of the deepest pool, with a glowing arch for a door. Beyond the arch there is air: the Choir keeps dry rooms, as if it expected visitors who breathe. Its outer whorls are fused and glassy on the side that faces up, like the crust of a fallen star. Hold Collect at the arch to go in.',
+  },
+  {
+    id: 'farmoon',
+    name: 'The cold moon',
+    category: 'Artefact',
+    text: 'The Choir\'s last memory, given at first contact: it did not begin in the deep. It fell here long ago from a small, cold moon, white with ice, with a black ocean under the ice where others like it still sing. It showed a ship standing on a platform above the Kestrel: the Petrel. Kestrel hardware outside, a ring of Choir light at her heart, and five systems, each one made from what a pair of your creatures knows. The Petrel works PW-1 makes her parts.',
   },
   {
     id: 'contact',

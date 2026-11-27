@@ -309,6 +309,15 @@ export const RESEARCH: Record<BlueprintId, ResearchDef> = {
     scans: ['contact'],
     seconds: 1,
   },
+  // Beyond Earth (Nov 27, 2026): given at first contact with the Choir's memory of the far moon, never decoded in a Lab.
+  works: {
+    id: 'works',
+    name: 'Petrel works PW-1',
+    text: "The Choir's memory, drawn out like a blueprint: a ship on a platform at the surface, and the shop that makes her parts. Unlocks a build card.",
+    finds: [],
+    scans: ['contact'],
+    seconds: 1,
+  },
   rivet2: {
     id: 'rivet2',
     name: 'Auto-rivet carbine RD-2 blueprint',
@@ -329,7 +338,7 @@ export const RESEARCH: Record<BlueprintId, ResearchDef> = {
 // (Milestone 11: the Choir lantern is given at first contact, never decoded in a Lab, so it isn't in RESEARCH_ORDER.)
 export const RESEARCH_ORDER: BlueprintId[] = ['light', 'satchel', 'sorter', 'relay', 'welder', 'tow', 'flare', 'visor', 'dash', 'cutter', 'recomp', 'crane', 'sonar', 'thermal', 'boots', 'dart', 'rivet', 'rivet2', 'booster', 'ballast', 'tractor', 'sdome', 'habitat', 'psuit', 'revive', 'plating', 'psuit2', 'cowl', 'drill', 'signal', 'resonator'];
 /** Blueprints that unlock a base piece (build card) instead of Workshop gear. */
-export const PIECE_BLUEPRINTS: Partial<Record<BlueprintId, string>> = { sorter: 'sorter', recomp: 'recomp', crane: 'crane', revive: 'revive', signal: 'signal', thermal: 'thermal', lantern: 'lantern' };
+export const PIECE_BLUEPRINTS: Partial<Record<BlueprintId, string>> = { sorter: 'sorter', recomp: 'recomp', crane: 'crane', revive: 'revive', signal: 'signal', thermal: 'thermal', lantern: 'lantern', works: 'works' };
 /** Milestone 10: blueprints that are fitted elsewhere (the dock) or built later, not in the Workshop. */
 export const OTHER_BLUEPRINTS: Partial<Record<BlueprintId, string>> = {
   plating: 'Fit it to KS-1 at a Moon pool dock (the Dock panel).',

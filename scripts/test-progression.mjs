@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { createServer } from 'vite';
 import { runCreatureCareChecks } from './test-creature-care.mjs';
 import { runRarityChecks } from './test-rarity.mjs';
+import { runPetrelChecks } from './test-petrel.mjs';
 
 const server = await createServer({ server: { middlewareMode: true, watch: null }, appType: 'custom' });
 
@@ -563,6 +564,8 @@ try {
   // Phases 20 and 21: the collection book, care, capacity, requests and restocking.
   await runCreatureCareChecks(server);
   await runRarityChecks(server);
+  // Beyond Earth: the Petrel.
+  await runPetrelChecks(server);
 
   console.log('Progression checks passed.');
 } finally {

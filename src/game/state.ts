@@ -65,6 +65,8 @@ export const MATERIAL_ORDER: MaterialId[] = ['scrap', 'copper', 'quartz', 'fibre
 /** Oxygen, in seconds of breathing, for the starting tank and for each tank upgrade. */
 export const BASE_OXYGEN = 75;
 export const TANK_BONUS = 20;
+/** Beyond Earth: the Petrel's life-support stage gives a spare air cartridge (src/game/petrel.ts). */
+export const PETREL_AIR = 20;
 export const TOTAL_AIR_TANKS = 5;
 /**
  * Collected materials grow back after this much play time. Play time keeps
@@ -337,7 +339,7 @@ export interface SubData {
 /** Milestone 7: gear built in the Workshop (rules in src/game/gear.ts). */
 export type GearId = 'tankkit' | 'displaykit' | 'light' | 'cutter' | 'tow' | 'welder' | 'relay' | 'sonar' | 'psuit' | 'psuit2' | 'resonator' | 'dart' | 'flare' | 'boots' | 'satchel' | 'cowl' | 'visor' | 'dash' | 'rivet' | 'rivet2';
 /** Blueprints the Lab decodes. Each one lets the Workshop build something, or unlocks a base piece. */
-export type BlueprintId = 'tankkit' | 'display' | 'light' | 'cutter' | 'tow' | 'welder' | 'relay' | 'gtank' | 'sorter' | 'sonar' | 'psuit' | 'recomp' | 'crane' | 'revive' | 'psuit2' | 'plating' | 'signal' | 'resonator' | 'lantern' | 'thermal' | 'hatch' | 'dart' | 'flare' | 'boots' | 'satchel' | 'cowl' | 'visor' | 'dash' | 'booster' | 'sdome' | 'tractor' | 'ballast' | 'habitat' | 'drill' | 'rivet' | 'rivet2';
+export type BlueprintId = 'tankkit' | 'display' | 'light' | 'cutter' | 'tow' | 'welder' | 'relay' | 'gtank' | 'sorter' | 'sonar' | 'psuit' | 'recomp' | 'crane' | 'revive' | 'psuit2' | 'plating' | 'signal' | 'resonator' | 'lantern' | 'thermal' | 'hatch' | 'dart' | 'flare' | 'boots' | 'satchel' | 'cowl' | 'visor' | 'dash' | 'booster' | 'sdome' | 'tractor' | 'ballast' | 'habitat' | 'drill' | 'rivet' | 'rivet2' | 'works';
 /** Data finds the diver brings back to the Lab (they weigh nothing). */
 export type FindId = 'recorder' | 'relaylog' | 'weldchip' | 'towcoil' | 'cache' | 'sonardata' | 'suitplans' | 'poolplans' | 'hulllogs' | 'ps2plans' | 'resonplans' | 'nurserylog' | 'rivetplans' | 'keepercore';
 /** What a Lab or Workshop is busy with. */
@@ -351,7 +353,7 @@ export interface StationJob {
 /** A base piece as saved (see src/game/base.ts). */
 export interface SavedPiece {
   id: number;
-  kind: 'dome' | 'corridor' | 'turbine' | 'storage' | 'tank' | 'filter' | 'feeder' | 'press' | 'dock' | 'bedroom' | 'lab' | 'workshop' | 'gtank' | 'sorter' | 'recomp' | 'crane' | 'hatch' | 'farm' | 'revive' | 'shaft' | 'junction' | 'bracket' | 'signal' | 'lantern' | 'thermal';
+  kind: 'dome' | 'corridor' | 'turbine' | 'storage' | 'tank' | 'filter' | 'feeder' | 'press' | 'dock' | 'bedroom' | 'lab' | 'workshop' | 'gtank' | 'sorter' | 'recomp' | 'crane' | 'hatch' | 'farm' | 'revive' | 'shaft' | 'junction' | 'bracket' | 'signal' | 'lantern' | 'thermal' | 'works';
   gx: number;
   gy: number;
   rot: number;
@@ -531,6 +533,8 @@ export interface SaveData {
   displayKits?: number;
   /** Research Exchange (Supply Buoy): Survey Credits earned by dispatching surplus raised creatures. */
   credits?: number;
+  /** Beyond Earth (Nov 27, 2026): the Petrel's build (src/game/petrel.ts). Missing: not started. */
+  petrel?: { done: number; parts: number; progress: number };
   /** Owned Crew Quarters (BR-1) room cosmetics, shelf trinkets & enemy figurines. */
   roomDecor?: RoomDecorId[];
   /** Enemy kinds defeated at least once (unlocks trophy figurines in the EX-1 shop). */
@@ -720,6 +724,14 @@ export function loadSave(spawnX: number, spawnY: number): { data: SaveData; load
       displayKits: typeof d.displayKits === 'number' ? d.displayKits : undefined,
       credits: typeof d.credits === 'number' && Number.isFinite(d.credits) && d.credits >= 0 ? Math.floor(d.credits) : undefined,
       roomDecor: Array.isArray(d.roomDecor) ? d.roomDecor : [],
+      petrel:
+        d.petrel && typeof d.petrel === 'object'
+          ? {
+              done: Math.max(0, Math.min(5, Math.floor(Number(d.petrel.done) || 0))),
+              parts: Math.max(0, Math.floor(Number(d.petrel.parts) || 0)),
+              progress: Math.max(0, Math.min(1, Number(d.petrel.progress) || 0)),
+            }
+          : undefined,
       defeatedFoes: Array.isArray(d.defeatedFoes) ? d.defeatedFoes : [],
       relays: Array.isArray(d.relays) ? d.relays.filter((r: { x?: unknown; y?: unknown }) => typeof r?.x === 'number' && typeof r?.y === 'number') : [],
     } as SaveData;
@@ -727,6 +739,9 @@ export function loadSave(spawnX: number, spawnY: number): { data: SaveData; load
     for (const c of [...data.creatures, ...data.nursery, ...(data.reserve ?? []), ...(data.gifts ?? []), data.jar?.keep, data.jar2?.keep])
       if (c?.traits && typeof c.traits === 'object') cleanTraits(c.traits);
     for (const j of [data.jar, data.jar2]) if (j?.traits && typeof j.traits === 'object') cleanTraits(j.traits);
+    // Beyond Earth: first contact gives the Petrel works blueprint (saves that met the Choir before it existed get it now).
+    if (data.sanctum.contact && !data.blueprints.includes('works')) data.blueprints.push('works');
+    if (data.sanctum.contact && !data.scans.includes('farmoon')) data.scans.push('farmoon');
     // Milestone 7: the scavenger crab makes scrap now, so the test gift ends.
     delete data.gift;
     // Milestone 5: the build grid grew around the old site. Shift older bases
@@ -790,7 +805,7 @@ export function clearSave(): void {
 }
 
 export function maxOxygen(d: SaveData): number {
-  return BASE_OXYGEN + d.tanks.length * TANK_BONUS;
+  return BASE_OXYGEN + d.tanks.length * TANK_BONUS + ((d.petrel?.done ?? 0) >= 3 ? PETREL_AIR : 0);
 }
 
 // ---------------------------------------------------------------------------
