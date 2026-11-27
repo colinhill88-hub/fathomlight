@@ -46,3 +46,16 @@ Then the same ship with less of it built:
 
 - `works` replaces the code-drawn module outside the base (`drawPaintedHero` in `src/world/basegfx.ts`).
 - `petrel_platform` and `petrel_1..5` replace the code-drawn platform and ship at the surface (`src/world/petrelView.ts`). While a stage is being built, the image for the stages already finished shows.
+
+
+---
+
+## 4. Europa (for later wiring)
+
+Europa is drawn in code for now (`src/scene/europaScene.ts`), and it doesn't yet read painted images by file name. When painted art for it exists, the next session wires these in the same way as the Petrel's. Same shared style line, but **cold**: blue-white ice, dark blue-black water. Europa's own life glows **icy white and pale blue-green** (never the Choir's cyan, violet or magenta, except in the glyphs).
+
+- **`src/art/landmarks/europa_hab.webp`** (about 768 × 640): *A riveted gunmetal capsule hanging on brass struts under a dark shaft bored through ice, two big round brass-rimmed portholes glowing warm amber, a small peach axolotl in a glass jar behind one porthole, an open round moon pool lip underneath, a stencilled plate "PETREL · HAB". [shared style line]*
+- **`src/art/landmarks/europa_glyph.webp`** (about 256 × 512): *A pillar of clear blue glacier ice with concentric rings carved into it, glowing faintly from inside in soft cyan and violet, ancient and alien. [shared style line]*
+- **`src/art/creatures/rime_moth.webp`** (about 256 × 256, side view): *A palm-sized deep-sea swimmer with four broad frost-white translucent fin-wings like a moth's, a small rounded body, rows of tiny pale blue-green light spots along the wings, gentle and delicate, no teeth. [shared style line]*
+- **`src/art/creatures/glasshorn.webp`** (about 512 × 192, side view): *A long, slow seabed creature as clear as glass, with dozens of fine legs and a single slender horn on its head glowing icy white. [shared style line]*
+- **`src/art/painterly-world/europa_ice.webp`** (wide backdrop, about 2048 × 768): *Looking up at the underside of a vast ice sheet from a dark ocean: hanging icicles and frozen ridges in blue-white, faint light filtering through cracks, deep blue-black water below. [shared style line, but a wide painted backdrop, not isolated on white]*

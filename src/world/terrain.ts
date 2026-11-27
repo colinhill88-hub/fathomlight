@@ -759,7 +759,18 @@ function inPolygon(x: number, y: number, poly: [number, number][]): boolean {
 }
 
 /** Is this point inside rock or sand? Used for collisions. */
+/**
+ * Beyond Earth (Nov 27, 2026): while Kestrel is on Europa, solidity comes from Europa's own
+ * shape (src/world/europaTerrain.ts), so the diver, the mag-boots and anything else that asks
+ * isSolid() collide with the ice. null on Earth.
+ */
+let solidOverride: ((x: number, y: number) => boolean) | null = null;
+export function setSolidOverride(fn: ((x: number, y: number) => boolean) | null): void {
+  solidOverride = fn;
+}
+
 export function isSolid(x: number, y: number): boolean {
+  if (solidOverride) return solidOverride(x, y);
   if (x < WORLD_X0 || x > WORLD_W) return true;
   if (!boom.open && Math.abs(x - BOOM_X) < 16 && y < SHELF.floor + 8) return true;
   if (!kelpWall.cut && x > KELP_WALL.x0 && x < KELP_WALL.x1 && y > KELP_WALL.y0 && y < KELP_WALL.y1) return true;

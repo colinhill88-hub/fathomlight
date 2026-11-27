@@ -141,8 +141,12 @@ export const MASH_FED = 0.2;
 export const EAT_BELOW = 0.95;
 
 // ---- The plate press (milestone 5 part 2) ----
-/** Hull plating made per minute, before Echo whorls (one stroke every 2 minutes). */
-export const PRESS_RATE = 0.5;
+/**
+ * Hull plating made per minute, before Echo whorls: one stroke every 80 seconds.
+ * Pacing (Nov 27, 2026): was 0.5 (every 2 minutes); plating was the route's biggest wait
+ * (KS-1's 12 plating took 24 minutes on one press). See docs/pacing-audit.md.
+ */
+export const PRESS_RATE = 0.75;
 /** What one plate takes. */
 export const PLATE_RECIPE: Partial<Record<MaterialId, number>> = { scrap: 2, copper: 1 };
 /** What the press's hoppers and output rack hold. */

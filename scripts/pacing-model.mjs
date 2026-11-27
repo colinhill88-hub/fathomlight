@@ -71,9 +71,10 @@ try {
   // Optional blueprints a keen player decodes and builds as they unlock (zone = where the last requirement is).
   const OPTIONAL = {
     shallows: ['satchel'],
-    kelp: ['sorter', 'relay', 'welder', 'flare', 'visor', 'dash'],
-    shelf: ['recomp', 'crane', 'sonar', 'boots', 'dart', 'rivet', 'booster', 'ballast', 'tractor', 'sdome', 'habitat', 'thermal', 'revive', 'rivet2'],
-    trench: ['plating', 'cowl', 'drill'],
+    // Pacing (Nov 27, 2026): welder, relay, dash and visor moved to the shelf; recomp, habitat and sdome to the trench.
+    kelp: ['sorter', 'flare'],
+    shelf: ['welder', 'crane', 'sonar', 'boots', 'dart', 'rivet', 'booster', 'ballast', 'tractor', 'relay', 'dash', 'visor', 'thermal', 'revive', 'rivet2'],
+    trench: ['plating', 'cowl', 'drill', 'recomp', 'habitat', 'sdome'],
   };
   const optionalCraft = new Set(['satchel', 'relay', 'welder', 'flare', 'visor', 'dash', 'sonar', 'boots', 'dart', 'rivet', 'rivet2', 'cowl']);
   const optionalPiece = { sorter: 'sorter', recomp: 'recomp', crane: 'crane', thermal: 'thermal', revive: 'revive' };
@@ -83,6 +84,7 @@ try {
   let zoneIdx = 0;
   const stored = Object.fromEntries(state.MATERIAL_ORDER.map((k) => [k, 0]));
   let plateMaking = 0; // press progress
+  let plateTarget = 0; // plating the current goal needs: the press only runs while short of it
   let hasPress = false;
   let hasSub = false;
   let creaturesOwned = []; // { species, growUntil }
@@ -99,7 +101,7 @@ try {
   const pressStep = (dt) => {
     if (!hasPress) return;
     // The press only runs when the store has 2 scrap + 1 copper to spare.
-    if (stored.scrap >= 2 && stored.copper >= 1) {
+    if (stored.plate < plateTarget && stored.scrap >= 2 && stored.copper >= 1) {
       plateMaking += (factory.PRESS_RATE / 60) * dt;
       if (plateMaking >= 1) {
         plateMaking -= 1;
@@ -182,9 +184,13 @@ try {
     return { m, plates };
   }
   function afford(cost) {
+    plateTarget = cost.plate ?? 0;
     for (let guard = 0; guard < 20000; guard++) {
       const { m, plates } = missing(cost);
-      if (!Object.keys(m).length && !plates) return;
+      if (!Object.keys(m).length && !plates) {
+        plateTarget = 0;
+        return;
+      }
       if (Object.keys(m).length) gather(m);
       else {
         waits['press (plating)'] = (waits['press (plating)'] ?? 0) + 10;

@@ -4,6 +4,36 @@ The live branch includes the Fulmar foothold, Codex Phases 1–11D the Phase 12 
 
 Play link: https://colinhill88-hub.github.io/fathomlight/ (live; first successful deploy 2026-11-14)
 
+### Beyond Earth, part 2: the launch and Europa's landing site (Colin, Nov 27, 2026)
+
+Colin's choices for this part: the launch and a small playable landing site; Kestrel's gear, KD-1 and Linnea come along (KS-1 stays home, and Europa gets its own way of getting around, to design together); Europa's life glows icy white and pale blue-green; only Europa pieces can be built there, discovered after arriving.
+- **The launch.** Once the Petrel is whole, hold Collect under her platform: "Climb aboard the Petrel and launch". A code-drawn voyage plays (about 22 s, with Skip): the countdown at dusk, lift-off through the clouds, the Earth falling away, the cold moon growing, the landing on the ice and the drill boring down. Later trips out are a shorter version (about 9 s), and free.
+- **Europa is its own space** (like the wreck interiors: the Earth ocean pauses behind it). Kestrel swims with his real rig and gear; collisions come from Europa's shape through a new hook in the Earth terrain (`setSolidOverride` in `src/world/terrain.ts`), cleared on the way home.
+- **"Under the ice", the first biome** (`src/world/europaTerrain.ts`, `src/scene/europaScene.ts`): a ceiling of blue ice with icicles over the whole slice (no surface: air comes from the hab), a cold silt seabed with three brine pools, a silt ridge, an icicle forest where the ice hangs low, and the thick-ice wall to the east with a faint glow behind it, where the singing comes from. Dark and cold; Kestrel's lamp (a soft beam) is what reveals it.
+- **The Petrel hab** hangs under the bore shaft, in the base kit's Victorian gunmetal and brass, with Linnea in a jar by the porthole. Swim up under it to breathe; hold Collect there for its console: Europa's stores, Linnea's lines, the pieces to build, and the fuel home.
+- **Three Europa materials** in their own store (Earth's materials are untouched): rime crystals on the ice ceiling, brine salt at the pools' edges, frost fronds on the seabed. They grow back in 8 minutes.
+- **Europa pieces are discovered there**: two glyphs the Choir's kin carved in the ice (read them with a hold of Collect). The Petrel's Choir core reads each into a piece, and KD-1 welds it onto the hab:
+  - **Brine still BS-1** (3 rime, 3 fronds, 2 brine): halves the fuel for the trip home.
+  - **Air bell AB-1** (4 rime, 2 fronds): a dome of air under the icicle forest, to breathe far from the hab.
+- **Going home costs Europa resources**: 4 brine salt and 3 rime crystals (2 and 2 with the still), refined into fuel at the console. A shorter voyage plays the trip home and the Petrel splashes down beside her platform. Never stranded: the two pools nearest the hab hold enough brine for a trip (a Node check makes sure).
+- **Two cold creatures** (scan them for Europa's log; raising them needs a cold tank, which comes later): the **rime moth**, frost-white with four fin-wings, fluttering under the ice and drawn to the lamp, and the **glasshorn**, long and clear as glass, walking the brine pools' edges with one horn of icy light. Also in the log: the brine pools and the thick-ice wall.
+- **Linnea** has her own lines on Europa (at the hab's console), following what Kestrel has found.
+- **Saves:** one new optional field, `europa`. A save made on Europa loads there. Old saves are unchanged.
+- **Checked:** typecheck, build, `node scripts/test-petrel.mjs` and `node scripts/test-europa.mjs` (new: the shape has room to swim everywhere, the hook sets and clears, launching, gathering and regrow, glyphs, welding, the still, the fuel and the trip home, never stranded, save and load, Linnea) pass. In `vite preview` with Playwright on a 1600×900 desktop and an iPhone 13 in landscape: the full launch voyage, every part of the biome, holding Collect under the hab to open the console, building the still, reloading a save made on Europa, flying home (the fuel was taken) and landing back on Earth beside the platform. No console errors.
+- **Not done yet:** Europa's own way of getting around, its other two biomes and the Choir's kin, a cold tank to raise its creatures, the supply line from Earth, and painted art (prompts in `docs/art/prompts/petrel.md`).
+
+### Pacing pass: spacing out unlocks, a faster press, breeding earlier (Colin, Nov 27, 2026)
+
+From the pacing audit ([`docs/pacing-audit.md`](docs/pacing-audit.md)); Colin chose all five proposals.
+- **Kelp forest unlocks spaced out** (`src/game/gear.ts`): the DR-2 welder now also needs a scan of the wreck shelf, the AR-1 air relay the Corvina, the TH-3 dash the race, and the echo visor the silt slump. The kelp forest now unlocks 5 blueprints instead of 9. The weld chip and relay log pickup messages say when they'll decode.
+- **Three shelf blueprints moved to the trench:** the recompression room, KS-1's habitat pod and sonar dome now also need a scan of the trench (the Lab hides them until then, as it does other trench blueprints).
+- **The plate press makes 0.75 plating a minute** (was 0.5): KS-1's 12 plating take 16 minutes on one press instead of 24. A one-time tip ("a second plate press … would make it twice as fast") appears when you have one press and plating is holding up KS-1 or Workshop gear.
+- **Breed early:** when the Creature room is first finished, a tip says a pair lays about every 18 minutes and that the Signal array will want bred patterns later.
+- **Resin unchanged.**
+- **The model, rerun** (efficient player, fresh save): first contact at 3:55 on the route only (was 4:14) and 5:53 for a keen player (was 6:30); the wreck shelf reached at 2:00 instead of 2:42 for a keen player.
+- **Saves:** no new fields. Blueprints already decoded stay decoded.
+- **Checked:** typecheck, build and the Petrel checks pass. In `vite preview`, the Lab lists the welder as "Still need to scan The wreck shelf", the dash as needing the race and the visor as needing the silt slump. The progression script still stops at its old boots check, as before.
+
 ### Beyond Earth, part 1: the sky hints and the Petrel (Colin, Nov 27, 2026)
 
 A big project that keeps using what the base makes, planned with Colin (see "Beyond Earth" in the [roadmap](docs/ROADMAP.md)). First contact is now the beginning of the next stage: the Choir shows Kestrel that it came from a small, cold moon, and a ship to get there.

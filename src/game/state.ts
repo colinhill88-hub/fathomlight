@@ -535,6 +535,8 @@ export interface SaveData {
   credits?: number;
   /** Beyond Earth (Nov 27, 2026): the Petrel's build (src/game/petrel.ts). Missing: not started. */
   petrel?: { done: number; parts: number; progress: number };
+  /** Beyond Earth (Nov 27, 2026): Europa (src/game/europa.ts). Missing: never been. */
+  europa?: import('./europa').EuropaData;
   /** Owned Crew Quarters (BR-1) room cosmetics, shelf trinkets & enemy figurines. */
   roomDecor?: RoomDecorId[];
   /** Enemy kinds defeated at least once (unlocks trophy figurines in the EX-1 shop). */
@@ -732,6 +734,7 @@ export function loadSave(spawnX: number, spawnY: number): { data: SaveData; load
               progress: Math.max(0, Math.min(1, Number(d.petrel.progress) || 0)),
             }
           : undefined,
+      europa: cleanEuropa(d.europa),
       defeatedFoes: Array.isArray(d.defeatedFoes) ? d.defeatedFoes : [],
       relays: Array.isArray(d.relays) ? d.relays.filter((r: { x?: unknown; y?: unknown }) => typeof r?.x === 'number' && typeof r?.y === 'number') : [],
     } as SaveData;
@@ -802,6 +805,27 @@ export function clearSave(): void {
   } catch {
     /* storage blocked: nothing to clear */
   }
+}
+
+/** Beyond Earth: a saved Europa, with anything malformed dropped (a broken field never blocks a load). */
+function cleanEuropa(e: unknown): SaveData['europa'] {
+  if (!e || typeof e !== 'object') return undefined;
+  const o = e as Record<string, unknown>;
+  const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) && v >= 0 ? Math.floor(v) : 0);
+  const st = (o.stores && typeof o.stores === 'object' ? o.stores : {}) as Record<string, unknown>;
+  const mods = (v: unknown) => (Array.isArray(v) ? v.filter((m): m is 'still' | 'bell' => m === 'still' || m === 'bell') : []);
+  const w = o.welding as { id?: unknown; progress?: unknown } | undefined;
+  return {
+    visited: o.visited === true,
+    here: o.here === true,
+    stores: { rime: num(st.rime), brine: num(st.brine), frond: num(st.frond) },
+    taken: o.taken && typeof o.taken === 'object' ? (Object.fromEntries(Object.entries(o.taken).filter(([, v]) => typeof v === 'number')) as Record<string, number>) : {},
+    scans: Array.isArray(o.scans) ? o.scans.filter((x): x is string => typeof x === 'string') : [],
+    learned: mods(o.learned),
+    built: mods(o.built),
+    welding: w && (w.id === 'still' || w.id === 'bell') && typeof w.progress === 'number' ? { id: w.id, progress: Math.max(0, Math.min(1, w.progress)) } : undefined,
+    trips: num(o.trips),
+  };
 }
 
 export function maxOxygen(d: SaveData): number {

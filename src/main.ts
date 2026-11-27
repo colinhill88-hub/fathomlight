@@ -110,6 +110,7 @@ import { DeepHunters } from './actors/deep';
 import { FULMAR_MAP, FULMAR_OPTS, fulmarLayout } from './interior/fulmar';
 import { hasArray, FRAGMENTS, nextFragment, signalStatus, tickSignals } from './game/signals';
 import { PETREL_STAGES, petrelScald, petrelStatus, tickPetrel } from './game/petrel';
+import { setSolidOverride } from './world/terrain';
 import {
   bagHasRoom,
   bagLimits,
@@ -147,6 +148,30 @@ import { loadPropArt } from './art/propArt';
 import { SupplyBuoy } from './world/supplyBuoy';
 import { PetrelView } from './world/petrelView';
 import { PetrelPanel } from './ui/petrelPanel';
+import { EuropaScene } from './scene/europaScene';
+import { EuropaPanel } from './ui/europaPanel';
+import { VoyageCutscene, type VoyageKind } from './ui/voyageCutscene';
+import {
+  arrive,
+  canLaunch,
+  EUROPA_CREATURES,
+  EUROPA_LOG,
+  EUROPA_MAT,
+  EUROPA_MATS,
+  EUROPA_MODULES,
+  EUROPA_SPOTS,
+  europaOf,
+  flyHome,
+  GLYPHS,
+  isPresent,
+  readGlyph,
+  startModule,
+  takeSpot,
+  tickEuropa,
+  type EuropaModuleId,
+} from './game/europa';
+import { BRINE_POOLS, ceilY, EUROPA_W, europaSolid, floorY, habAir, habSpawn, ICE_WALL_X, LANDER } from './world/europaTerrain';
+import { PETREL_X } from './world/petrelView';
 import { ExchangePanel } from './ui/exchange';
 import { readyContractCount, recordContractEvent } from './game/contracts';
 import { Escort } from './actors/escort';
@@ -165,7 +190,7 @@ import { Factory, FARM_TRAY, FEEDER_MASH_CAP, HOPPER_CAP, machineData, PRESS_COP
 import { LinesView } from './world/linegfx';
 import { StationMode } from './ui/station';
 import { DIVE_LIGHT, FINDS, GEAR, hasGear, jobOf, jobRunning, LAMP, OTHER_BLUEPRINTS, PIECE_BLUEPRINTS, RESEARCH, tickStations } from './game/gear';
-import type { BlueprintId, CreatureData, SpeciesId } from './game/state';
+import type { BlueprintId, CreatureData, GearId, SpeciesId } from './game/state';
 import { audio } from './audio/engine';
 import { SoundDirector, WorkKind, zoneMix } from './audio/director';
 import { Lurkers } from './actors/lurker';
@@ -681,6 +706,15 @@ async function boot(): Promise<void> {
   // After milestone 8 part 2: dry interiors on foot, drawn over the (hidden) world.
   const interior = new Interior(renderer, paintedFace, paintedSuit?.walker, worldArt, redesigned, compact, livingBases, fidelity);
   hdrRoot.addChild(interior.view);
+  // Beyond Earth (Nov 27, 2026): Europa, shown in place of the Earth ocean while Kestrel is there.
+  const europaScene = new EuropaScene();
+  hdrRoot.addChild(europaScene.view);
+  const voyage = new VoyageCutscene();
+  const europaHud = document.createElement('div');
+  europaHud.id = 'europa-hud';
+  europaHud.hidden = true;
+  document.body.appendChild(europaHud);
+  let onEuropa = false;
   worldLayers.push(overlayCam);
   /** Which interior you're on foot in, if any. */
   let inside: 'corvina' | 'base' | 'fulmar' | 'sanctum' | 'engine' | null = null;
@@ -1112,13 +1146,13 @@ async function boot(): Promise<void> {
     relaylog: {
       research: 'relay',
       label: 'Take the KS RELAY 2 log',
-      toast: 'KS RELAY 2 log taken! A Lab can decode it into the Air relay AR-1: fresh air, planted anywhere out in the world.',
+      toast: 'KS RELAY 2 log taken! Its notes are about long dives round a big wreck: once you have seen one, a Lab can decode it into the Air relay AR-1.',
       y: 0,
     },
     weldchip: {
       research: 'welder',
       label: 'Pull the KD WELD control chip',
-      toast: 'KD WELD control chip taken! Decode it in a Lab for the DR-2 welder: the build drone welds twice as fast.',
+      toast: 'KD WELD control chip taken! It is tuned for heavy hull work: once you have seen the wreck shelf, a Lab can decode it for the DR-2 welder (the build drone welds twice as fast).',
       y: 0,
     },
     towcoil: {
@@ -2068,6 +2102,19 @@ async function boot(): Promise<void> {
           `Finished: ${PIECES[p.kind].name}${!POWER_MAKE[p.kind] && !powered ? ' (no power yet: join it to a current turbine)' : ''}`,
           'big',
         );
+        // Pacing (Nov 27, 2026): breeding takes a while (a lay every 18 minutes, then hatching and growing), and the
+        // Signal array later wants patterns bred at the base, so say so as soon as the Creature room is up.
+        if (p.kind === 'hatch' && !save.tips.includes('breedearly')) {
+          save.tips.push('breedearly');
+          setTimeout(
+            () =>
+              hud.toast(
+                'Start breeding early: a happy grown pair in a tank lays an egg about every 18 minutes, and babies raised here can show glow patterns the wild never does. The Signal array will want those later.',
+                'big',
+              ),
+            2600,
+          );
+        }
         if (build.active) build.refresh();
         persist();
       }
@@ -2124,6 +2171,22 @@ async function boot(): Promise<void> {
       grant(major('fragment', 'Signal decoded', `Fragment ${n} of ${FRAGMENTS.length}`, 'The Choir’s song comes a little clearer.', 'choir'));
       hud.toast(`The Signal array decoded fragment ${n}! Read it at the array's console, or in the scanner log.`, 'big');
       persist();
+    }
+
+    // ---- Pacing (Nov 27, 2026): plating is the slow part with one press; say once that a second one helps ----
+    // (Kits built again and again never count as owned, so they don't count as something being saved for.)
+    const REPEAT_KITS: GearId[] = ['relay', 'tankkit', 'displaykit'];
+    if (!save.tips.includes('press2') && Math.floor(time) % 3 === 0) {
+      const presses = layout.pieces.filter((p) => p.kind === 'press' && isDone(p)).length;
+      const plate = save.stored.plate + save.bag.plate;
+      const wantsSub = layout.pieces.some((p) => p.kind === 'dock' && isDone(p)) && !save.sub && plate < (SUB_COST.plate ?? 0);
+      const wantsGear = (Object.keys(GEAR) as GearId[]).some(
+        (id) => !REPEAT_KITS.includes(id) && save.blueprints.includes(GEAR[id].blueprint) && !hasGear(save, id) && (GEAR[id].cost.plate ?? 0) > plate,
+      );
+      if (presses === 1 && (wantsSub || wantsGear) && layout.powered.size > 0) {
+        save.tips.push('press2');
+        hud.toast('Hull plating is the slow part now. A second plate press, fed from storage like the first, would make it twice as fast.', 'big');
+      }
     }
 
     // ---- Beyond Earth: the Petrel works makes the ship's parts from base storage ----
@@ -2351,7 +2414,7 @@ async function boot(): Promise<void> {
       time,
       cssW,
       cssH,
-      zone: interior.active ? null : zoneNow,
+      zone: interior.active || onEuropa ? null : zoneNow,
       // An 8-bit picture can't hold light brighter than white, so there is nothing for the shoulder to roll off
       // (it would only dim the highlights), and bloom has to start lower to catch anything at all.
       tone: fx.tone && post.halfFloat ? preset.toneMap : 0,
@@ -2362,7 +2425,7 @@ async function boot(): Promise<void> {
       bloomThreshold: post.halfFloat ? preset.bloomThreshold : preset.bloomThreshold - 0.18,
       bloomGlowFeed: preset.bloomGlowFeed,
       // G3: rays only near the surface (they fade out with depth) and only where the sun can reach.
-      rays: fx.rays && !interior.active ? preset.godRays * Math.exp(-Math.max(0, camCY) / 650) : 0,
+      rays: fx.rays && !interior.active && !onEuropa ? preset.godRays * Math.exp(-Math.max(0, camCY) / 650) : 0,
       raySteps: preset.godRaySteps,
       rayPhase: camCX * 0.0016,
     });
@@ -2427,12 +2490,16 @@ async function boot(): Promise<void> {
     menus.update();
     helperFrame(dt);
     // The title screen, pause menu, and claymation intro hold the world still.
-    if (menus.paused || introHoldingWorld || fieldKit.open || exchangePanel.open) {
+    if (menus.paused || introHoldingWorld || fieldKit.open || exchangePanel.open || voyage.active) {
       diver.cancelSurfaceReaction();
       pausedFrames++;
       return;
     }
     pausedFrames = 0;
+    if (onEuropa) {
+      europaFrame(dt);
+      return;
+    }
     if (interior.active) {
       diver.cancelSurfaceReaction();
       // Phase 17b: indoors Kestrel walks anyway; the boots let go on the way in.
@@ -3515,6 +3582,11 @@ async function boot(): Promise<void> {
     // Milestone 7: hold-to-do actions out in the world (the sled recorder, the boom winch).
     let holdAct: { key: string; label: string; seconds: number; done: () => void } | null = null;
     let infoAct = '';
+    // Beyond Earth: under the Petrel's platform, once she is whole, climb aboard and fly to Europa.
+    if (!aboard && blackout === 0 && canLaunch(save) && Math.abs(diver.x - PETREL_X) < 220 && diver.y < 260) {
+      const first = !save.europa?.visited;
+      holdAct = { key: 'launch', label: first ? 'Climb aboard the Petrel and launch' : 'Climb aboard the Petrel and fly to Europa', seconds: 1.4, done: () => startVoyage(first ? 'launch' : 'out') };
+    }
     // The grapple's target: the best anchor ring in range with a clear line, ahead of the diver first.
     let grappleTarget = -1;
     if (!aboard && !grapple && blackout === 0 && inControl && hasGear(save, 'tow') && !diver.surfaced) {
@@ -5154,6 +5226,234 @@ async function boot(): Promise<void> {
       return cap ? Math.min(1, MATERIALS_LIST.reduce((a, k) => a + save.stored[k], 0) / cap) : 0;
     },
   };
+  // ---- Beyond Earth (Nov 27, 2026): Europa ----
+  /** Where Kestrel was on Earth (to put the litCam order back), and Europa's own clocks. */
+  let diverLitIndex = -1;
+  let euHold = { key: '', progress: 0 };
+  let euScan = { key: '', progress: 0 };
+  let euSaveClock = 0;
+  const europaPanel = new EuropaPanel({
+    save: () => save,
+    build: (id: EuropaModuleId) => {
+      const why = startModule(save, id);
+      if (why) hud.toast(why, 'warn');
+      else {
+        sound.clip();
+        hud.toast(`KD-1 starts welding the ${EUROPA_MODULES[id].name.toLowerCase()}.`, 'big');
+        persist();
+      }
+    },
+    flyHome: () => {
+      const why = flyHome(save);
+      if (why) return hud.toast(why, 'warn');
+      europaPanel.close();
+      persist();
+      startVoyage('home');
+    },
+  });
+
+  function startVoyage(kind: VoyageKind): void {
+    sound.clip();
+    voyage.play(kind, () => {
+      if (kind === 'home') exitEuropa();
+      else enterEuropa(true);
+    });
+  }
+
+  function refreshEuropaHud(): void {
+    const e = europaOf(save);
+    const html = EUROPA_MATS.map((k) => `<span>${EUROPA_MAT[k].name}: ${e.stores[k]}</span>`).join('');
+    if (europaHud.innerHTML !== html) europaHud.innerHTML = html;
+  }
+
+  function enterEuropa(fromVoyage: boolean): void {
+    const first = arrive(save);
+    onEuropa = true;
+    setSolidOverride(europaSolid);
+    for (const l of worldLayers) l.visible = false;
+    europaScene.view.visible = true;
+    diverLitIndex = litCam.getChildIndex(diver.view);
+    europaScene.actors.addChild(diver.view);
+    const at = habSpawn();
+    diver.x = at.x;
+    diver.y = at.y;
+    diver.vx = diver.vy = 0;
+    diver.surfaced = false;
+    if (diver.clamped) diver.setClamped(false);
+    diver.lampOn = true;
+    save.oxygen = maxOxygen(save);
+    camCX = diver.x;
+    camCY = diver.y;
+    build.setAvailable(false);
+    europaHud.hidden = false;
+    refreshEuropaHud();
+    persist();
+    if (fromVoyage && first) {
+      grant(major('ship', 'A new world', 'Europa', 'Under the ice. Kestrel, KD-1 and Linnea came along.', 'choir'));
+      // The welcome reading waits until the reward card has had its moment.
+      setTimeout(() => hud.showReading(
+        'Under the ice',
+        'The Petrel stands on the ice of Europa, and her hab hangs below it, at the foot of the shaft her drill bored: a bubble of warm air in a black ocean no sun has ever reached.\n\nKD-1 is folded in the hab’s hold. Linnea is in her jar by the porthole, gills wide, staring out.\n\nEarth’s hardware cracks in this cold, so nothing from the Kestrel kit can be built here. But the Choir’s kin left glyphs carved into the ice, and the Petrel’s core can read them. Find them, gather what this place grows, and when you want to go home, the hab’s console fuels the Petrel from Europa’s brine and rime.\n\nFar to the east, behind the ice, something is singing.',
+        'Use the hab (hold Collect under it) for the console and Linnea.',
+      ), 3800);
+    } else if (fromVoyage) hud.toast('Back under the ice of Europa.', 'big');
+  }
+
+  function exitEuropa(): void {
+    onEuropa = false;
+    setSolidOverride(null);
+    europaScene.view.visible = false;
+    europaPanel.close();
+    for (const l of worldLayers) l.visible = true;
+    if (diverLitIndex >= 0) litCam.addChildAt(diver.view, Math.min(diverLitIndex, litCam.children.length));
+    else litCam.addChild(diver.view);
+    diver.x = PETREL_X - 160;
+    diver.y = 120;
+    diver.vx = diver.vy = 0;
+    save.oxygen = maxOxygen(save);
+    camCX = diver.x;
+    camCY = diver.y;
+    europaHud.hidden = true;
+    hud.setCollect(null, 0);
+    persist();
+    hud.toast('Home. The Petrel is back on her platform, and the Kestrel base is just as you left it.', 'big');
+  }
+
+  /** One frame on Europa: swim, breathe, gather, read glyphs, scan, and the hab. */
+  function europaFrame(dt: number): void {
+    input.suspended = padNav.active || europaPanel.open;
+    input.update();
+    const s = input.state;
+    if (s.kit && !padNav.active && !menus.paused) fieldKit.toggle();
+    const paused = hud.reading || europaPanel.open;
+    const inControl = !paused;
+    diver.update(dt, inControl ? s.moveX : 0, inControl ? s.moveY : 0, inControl && s.boost && save.kit.thruster > 0, inControl && s.lamp, inControl && !s.collect && !s.scan);
+    // Camera: follow Kestrel, inside Europa's slice, with the ice in view.
+    viewH = VIEW_H;
+    const viewW = viewH * (cssW / cssH);
+    const k = 1 - Math.exp(-3.2 * dt);
+    camCX += (diver.x + diver.facing * 60 - camCX) * k;
+    camCY += (diver.y - 20 - camCY) * k;
+    camCX = Math.max(viewW / 2 - 200, Math.min(EUROPA_W + 200 - viewW / 2, camCX));
+    camX = camCX - viewW / 2;
+    camY = camCY - viewH / 2;
+    europaScene.update(dt, save, { x: camX, y: camY, zoom }, { w: cssW, h: cssH }, { x: diver.x, y: diver.y, facing: diver.facing, lampOn: diver.lampOn });
+    diver.view.alpha = 1;
+
+    // Air: the hab and a built air bell refill it; elsewhere it runs down as on Earth.
+    const maxO2 = maxOxygen(save);
+    const breathing = habAir(diver.x, diver.y) || EuropaScene.inBell(save, diver.x, diver.y);
+    if (breathing) save.oxygen = Math.min(maxO2, save.oxygen + (maxO2 / 3) * dt);
+    else if (!paused) save.oxygen = Math.max(0, save.oxygen - dt * (1 + 0.2 * Math.min(1.6, diver.load)));
+    if (save.oxygen <= 0) {
+      const at = habSpawn();
+      diver.x = at.x;
+      diver.y = at.y;
+      diver.vx = diver.vy = 0;
+      save.oxygen = maxO2;
+      camCX = diver.x;
+      camCY = diver.y;
+      hud.toast('Out of air: everything goes dark… You come to in the hab, Linnea tapping at her jar.', 'warn');
+    }
+    const depthM = Math.max(0, (diver.y - ceilY(diver.x)) / 75);
+    watch.draw(performance.now(), save.oxygen, maxO2, depthM, 0, breathing, { kg: 0, rated: 15, max: 24 }, save.suit);
+
+    // KD-1's welding on the hab.
+    const finished = tickEuropa(save, dt);
+    if (finished) {
+      const d = EUROPA_MODULES[finished];
+      grant(major('piece', 'Europa piece', d.name, d.job, 'kestrel', d.code));
+      hud.toast(`${d.name} ${d.code} built! ${d.job}`, 'big');
+      persist();
+    }
+
+    // Hold Collect: the nearest thing in reach.
+    type Act = { key: string; label: string; seconds: number; done: () => void };
+    let act: Act | null = null;
+    const near = (x: number, y: number, r: number) => Math.hypot(diver.x - x, diver.y - y) < r;
+    if (near(LANDER.x, ceilY(LANDER.x) + 200, 170)) act = { key: 'hab', label: 'Use the Petrel hab (console and Linnea)', seconds: 0.4, done: () => europaPanel.show() };
+    for (const g of GLYPHS) {
+      if (europaOf(save).scans.includes(`glyph_${g.id}`) || !near(g.x, g.y, 130)) continue;
+      act = {
+        key: `glyph-${g.id}`,
+        label: 'Read the glyph in the ice',
+        seconds: 1.6,
+        done: () => {
+          readGlyph(save, g);
+          const m = EUROPA_MODULES[g.module];
+          grant(major('blueprint', 'Choir glyph read', m.name, 'The Petrel’s core drew it out. Build it at the hab’s console.', 'choir', m.code));
+          hud.showReading('A glyph in the ice', g.text, `${m.name} ${m.code}: build it at the hab’s console.`);
+        },
+      };
+    }
+    let bestSpot: (typeof EUROPA_SPOTS)[number] | null = null;
+    let bestD = 90;
+    for (const sp of EUROPA_SPOTS) {
+      const d = Math.hypot(diver.x - sp.x, diver.y - sp.y);
+      if (d < bestD && isPresent(save, sp)) {
+        bestD = d;
+        bestSpot = sp;
+      }
+    }
+    if (bestSpot) {
+      const sp = bestSpot;
+      const m = EUROPA_MAT[sp.kind];
+      act = {
+        key: `spot-${sp.id}`,
+        label: `Gather ${m.name.toLowerCase()}`,
+        seconds: m.effort,
+        done: () => {
+          if (takeSpot(save, sp)) {
+            hud.toast(`+1 ${m.name} (the hab keeps it)`, 'item');
+            sound.find('bag');
+            refreshEuropaHud();
+          }
+        },
+      };
+    }
+    if (act && act.key !== euHold.key) euHold = { key: act.key, progress: 0 };
+    if (act && inControl && s.collect && Math.hypot(diver.vx, diver.vy) < 90) {
+      euHold.progress += dt / act.seconds;
+      if (euHold.progress >= 1) {
+        euHold = { key: '', progress: 0 };
+        act.done();
+        persist();
+      }
+    } else euHold.progress = Math.max(0, euHold.progress - dt);
+
+    // Hold Scan: Europa's creatures and places go in its own log.
+    const e = europaOf(save);
+    let scanTarget: { key: string; name: string; text: string } | null = null;
+    const c = europaScene.nearestCreature(diver.x, diver.y, 200);
+    if (c && !e.scans.includes(c.species)) scanTarget = { key: c.species, name: EUROPA_CREATURES[c.species].name, text: EUROPA_CREATURES[c.species].text };
+    else if (!e.scans.includes('eu_brine') && BRINE_POOLS.some((p) => near(p.x, floorY(p.x) - 30, 260))) scanTarget = { key: 'eu_brine', ...EUROPA_LOG.eu_brine };
+    else if (!e.scans.includes('eu_wall') && diver.x > ICE_WALL_X - 380) scanTarget = { key: 'eu_wall', ...EUROPA_LOG.eu_wall };
+    if (scanTarget && scanTarget.key !== euScan.key) euScan = { key: scanTarget.key, progress: 0 };
+    if (scanTarget && inControl && s.scan) {
+      euScan.progress += dt / 1.4;
+      if (euScan.progress >= 1) {
+        e.scans.push(scanTarget.key);
+        euScan = { key: '', progress: 0 };
+        sound.clip();
+        hud.showReading(scanTarget.name, scanTarget.text, 'Kept in the Petrel’s Europa log.');
+        persist();
+      }
+    }
+
+    if (paused) hud.setCollect(null, 0);
+    else if (scanTarget && s.scan) hud.setCollect(`Scanning: ${scanTarget.name}`, euScan.progress);
+    else if (act) hud.setCollect(act.label, euHold.progress);
+    else if (scanTarget) hud.setCollect(`Hold Scan: ${scanTarget.name}`, 0, false, true);
+    else hud.setCollect(null, 0);
+
+    refreshEuropaHud();
+    euSaveClock += dt;
+    if (euSaveClock > 15) {
+      euSaveClock = 0;
+      persist();
+    }
+  }
+
   function enterBase(domeId: number, waking = false, viaDock: number | null = null, viaPool = false): void {
     const level = buildBaseLevel(layout, livingBases);
     if (!level) return;
@@ -6091,7 +6391,17 @@ async function boot(): Promise<void> {
     tickPetrel: (sec: number) => {
       for (let t = 0; t < sec; t += 0.5) tickPetrel(save, layout, 0.5);
     },
+    // Beyond Earth: Europa (for checks).
+    europaScene,
+    europaPanel,
+    voyage,
+    enterEuropa: () => enterEuropa(false),
+    exitEuropa: () => exitEuropa(),
+    startVoyage: (k: VoyageKind) => startVoyage(k),
+    onEuropa: () => onEuropa,
   };
+  // A save made on Europa starts there.
+  if (save.europa?.here) enterEuropa(false);
 }
 
 boot().catch((err) => {

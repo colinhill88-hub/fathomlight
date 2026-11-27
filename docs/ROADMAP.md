@@ -371,11 +371,25 @@ The original brief follows.
 
   Session B builds on Session A (the book and the care odds), so A comes first.
 
-## Pacing (Nov 27, 2026): proposals waiting for Colin
+## Pacing (Nov 27, 2026): **built** (Colin chose all five proposals)
 
-A pacing model and audit ([`pacing-audit.md`](pacing-audit.md), [`scripts/pacing-model.mjs`](../scripts/pacing-model.mjs)) found two bursts of blueprints (9 in the kelp forest, 15 on the wreck shelf), the plate press as the route's biggest wait (KS-1's 12 plating take 24 minutes on one press), and a 32-minute breeding cycle at the very end. Its five proposals (move 4 kelp blueprints and 3 shelf ones to later scans, ease the press, nudge breeding earlier, leave resin) are not built; Colin chooses.
+From the pacing model and audit ([`pacing-audit.md`](pacing-audit.md), [`scripts/pacing-model.mjs`](../scripts/pacing-model.mjs)):
+- Four kelp blueprints now need a later scan: DR-2 welder (`wshelf`), AR-1 air relay (`corvina`), TH-3 dash (`race`), echo visor (`hidden`).
+- Three shelf blueprints now need the trench: recompression room, KS-1 habitat pod, KS-1 sonar dome.
+- The plate press makes 0.75 plating a minute (was 0.5). A one-time tip suggests a second press when plating holds up KS-1 or Workshop gear.
+- A tip to start breeding early appears when the Creature room is first finished.
+- Resin is unchanged.
+
+**Next:** Colin plays the kelp forest and the shelf to feel it. The wreck shelf still lists 15 optional blueprints, spread over its sites.
 
 ## Beyond Earth: the Choir's ship and Europa (planned with Colin, Nov 27, 2026). Hints and the ship's five stages **built** (see PROGRESS.md); the launch and Europa not built yet.
+
+**Built in the second session (Nov 27, 2026): the launch and Europa's landing site** (see PROGRESS.md). Colin's choices for it:
+- **Coming along:** Kestrel's gear, KD-1 and Linnea. **KS-1 stays home:** Europa gets a new way of getting around, to design with Colin (it is also what gets past the thick-ice wall to biomes 2 and 3).
+- **Europa's glow:** icy white and pale blue-green.
+- **Base pieces:** only Europa pieces work there, and they are **discovered after arriving** (built: glyphs in the ice that the Petrel's core reads; the Brine still and the Air bell, welded onto the hab by KD-1).
+
+**Next for Europa:** the new way of getting around (Colin to choose; see the ideas in the PR), biomes 2 and 3 and the Choir's kin, a cold tank to raise rime moths and glasshorns, the supply line from Earth, and painted art.
 
 **Built in the first session (Nov 27, 2026), with Colin's choices:** the ship is named **the Petrel** (Colin chose a bird name, like Kestrel, Corvina and Fulmar); the five stages and their creatures are as proposed below; the launch platform floats at the surface just east of the base. All art is drawn by code for now: the prompts for Colin to make painted versions in Gemini are in [`art/prompts/petrel.md`](art/prompts/petrel.md). **Next:** Colin plays it and tunes the costs; then the launch and the arrival shot.
 
@@ -437,7 +451,7 @@ A pacing model and audit ([`pacing-audit.md`](pacing-audit.md), [`scripts/pacing
 
 1. **Seeds** in the Earth ocean. **Done:** fragment 3's extra phrase (COLD · ABOVE · KIN, pointing up), fallen-star stone in the sanctum and on the heart, and the Choir's memory of the cold moon at first contact (scan `farmoon`). Linnea talks about the ship after contact.
 2. **The ship on Earth:** the ship-parts piece, the launch platform, the five stages, the launch, and the arrival shot as the first game's close. This alone solves the material problem. **Done except the launch and the arrival shot.**
-3. **A first Europa slice:** the landing site, the first biome, a few base pieces, two or three cold creatures, and the trip home.
+3. **A first Europa slice:** the landing site, the first biome, a few base pieces, two or three cold creatures, and the trip home. **Done** (with the launch and the arrival).
 4. **The rest of Europa:** biomes two and three, the Choir's kin, supply line upgrades, more creatures and gear.
 
 ### Open questions for Colin
