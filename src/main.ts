@@ -169,8 +169,21 @@ import {
   takeSpot,
   tickEuropa,
   type EuropaModuleId,
+  RAY_GEAR,
+  RAY_HOME,
+  RAY_TRUST,
+  rayOf,
+  rayTrusts,
+  hasRayGear,
+  offerFrond,
+  tickRayGear,
+  canCrossPassage,
+  PASSAGE_CURRENT,
+  breakIce,
+  startGear,
+  type RayGearId,
 } from './game/europa';
-import { BRINE_POOLS, ceilY, EUROPA_W, europaSolid, floorY, habAir, habSpawn, ICE_WALL_X, LANDER } from './world/europaTerrain';
+import { BRINE_POOLS, ceilY, EUROPA_W, europaSolid, FLOE_X0, FLOES, floorY, habAir, habSpawn, ICE_WALL_X, inPassage, LANDER, OPEN, openToSky, setEuropaBroken, SKYLIGHT } from './world/europaTerrain';
 import { PETREL_X } from './world/petrelView';
 import { ExchangePanel } from './ui/exchange';
 import { readyContractCount, recordContractEvent } from './game/contracts';
@@ -5243,6 +5256,15 @@ async function boot(): Promise<void> {
         persist();
       }
     },
+    growGear: (id: RayGearId) => {
+      const why = startGear(save, id);
+      if (why) hud.toast(why, 'warn');
+      else {
+        sound.clip();
+        hud.toast(`The brine vat starts growing the ${RAY_GEAR[id].name.toLowerCase()}.`, 'big');
+        persist();
+      }
+    },
     flyHome: () => {
       const why = flyHome(save);
       if (why) return hud.toast(why, 'warn');
@@ -5269,6 +5291,9 @@ async function boot(): Promise<void> {
   function enterEuropa(fromVoyage: boolean): void {
     const first = arrive(save);
     onEuropa = true;
+    // Kestrel always arrives (or wakes) beside the hab, off the ray; it waits where it was left.
+    if (save.europa?.ray) save.europa.ray.riding = false;
+    setEuropaBroken(!!save.europa?.skylight, save.europa?.brokenFloes ?? []);
     setSolidOverride(europaSolid);
     for (const l of worldLayers) l.visible = false;
     europaScene.view.visible = true;
@@ -5319,6 +5344,56 @@ async function boot(): Promise<void> {
     hud.toast('Home. The Petrel is back on her platform, and the Kestrel base is just as you left it.', 'big');
   }
 
+  /** The floe ray's moment-to-moment state (its place is saved in save.europa.ray). */
+  const rayRt = { vx: 0, vy: 0, facing: 1, pitch: 0, effort: 0, time: 0, calling: false };
+  /** Is there ice, rock or a floe where the ray's body would be? */
+  function raySolid(x: number, y: number): boolean {
+    return europaSolid(x, y) || europaSolid(x + 80, y) || europaSolid(x - 80, y) || europaSolid(x, y - 26) || europaSolid(x, y + 26);
+  }
+  function mountRay(): void {
+    const ray = rayOf(save);
+    ray.riding = true;
+    rayRt.calling = false;
+    rayRt.vx = rayRt.vy = 0;
+    sound.clip();
+    if (!save.tips.includes('eu-ride')) {
+      save.tips.push('eu-ride');
+      hud.toast('Riding! Steer as you swim, Boost for speed. Board (or hold Collect) to slide off.', 'big');
+    }
+  }
+  function dismountRay(): void {
+    const ray = rayOf(save);
+    ray.riding = false;
+    diver.x = ray.x;
+    diver.y = ray.y - 70;
+    if (europaSolid(diver.x, diver.y)) diver.y = ray.y + 60;
+    diver.vx = diver.vy = 0;
+    rayRt.vx = rayRt.vy = 0;
+    sound.clip();
+  }
+  /** The ice-breaker crest: rising fast into thin ice breaks it. */
+  function rayRam(): void {
+    const ray = rayOf(save);
+    if (rayRt.vy > -140) return;
+    const hitSky = !save.europa?.skylight && Math.abs(ray.x - SKYLIGHT.x) < SKYLIGHT.half + 40 && ceilY(SKYLIGHT.x) !== OPEN && ray.y - ceilY(SKYLIGHT.x) < 90;
+    const floe = FLOES.find((f) => f.thin && !(save.europa?.brokenFloes ?? []).includes(f.id) && Math.abs(ray.x - f.x) < f.w / 2 + 30 && ray.y - f.depth < 90 && ray.y > f.depth - 20);
+    if (!hitSky && !floe) return;
+    if (!hasRayGear(save, 'crest')) {
+      if (!save.tips.includes('eu-thin')) {
+        save.tips.push('eu-thin');
+        hud.toast('The ice here is thin and cracked. Something hard on the ray’s brow might break it.', 'item');
+      }
+      return;
+    }
+    if (breakIce(save, hitSky ? 'skylight' : floe!.id)) {
+      setEuropaBroken(!!save.europa?.skylight, save.europa?.brokenFloes ?? []);
+      audio.thump({ freq: 90, gain: 0.5, dur: 0.7 });
+      grant(notable('creature', 'Ice broken', hitSky ? 'A skylight to the surface' : 'A thin floe', hitSky ? 'Air and sky, close to the icicle forest.' : 'A new lead opens.', 'life'));
+      hud.toast(hitSky ? 'CRACK! The crest bursts up through the thin ice: a shaft of open water to the surface, and the sky.' : 'The thin floe shatters into floating shards: a new lead.', 'big');
+      persist();
+    }
+  }
+
   /** One frame on Europa: swim, breathe, gather, read glyphs, scan, and the hab. */
   function europaFrame(dt: number): void {
     input.suspended = padNav.active || europaPanel.open;
@@ -5327,36 +5402,168 @@ async function boot(): Promise<void> {
     if (s.kit && !padNav.active && !menus.paused) fieldKit.toggle();
     const paused = hud.reading || europaPanel.open;
     const inControl = !paused;
-    diver.update(dt, inControl ? s.moveX : 0, inControl ? s.moveY : 0, inControl && s.boost && save.kit.thruster > 0, inControl && s.lamp, inControl && !s.collect && !s.scan);
-    // Camera: follow Kestrel, inside Europa's slice, with the ice in view.
-    viewH = VIEW_H;
+    const e = europaOf(save);
+    const ray = rayOf(save);
+    const trusted = rayTrusts(save);
+    setEuropaBroken(!!e.skylight, e.brokenFloes ?? []);
+    rayRt.time += dt;
+
+    // ---- The floe ray: wild near the hab, waiting where it was left, called over, or ridden ----
+    if (!ray.riding) {
+      if (!trusted) {
+        // Gliding a slow loop by the first pool, curious about the hab.
+        const t = rayRt.time * 0.12;
+        const nx = RAY_HOME.x + Math.sin(t) * 380;
+        rayRt.facing = Math.cos(t) >= 0 ? 1 : -1;
+        ray.x = nx;
+        ray.y = RAY_HOME.y + Math.sin(t * 2) * 80;
+        rayRt.effort = 0.15;
+      } else if (rayRt.calling) {
+        const dx = diver.x - ray.x;
+        const dy = diver.y + 40 - ray.y;
+        const d = Math.hypot(dx, dy);
+        if (d < 120) rayRt.calling = false;
+        else {
+          const step = Math.min(d, 380 * dt);
+          const nx = ray.x + (dx / d) * step;
+          const ny = ray.y + (dy / d) * step;
+          if (!raySolid(nx, ny)) {
+            ray.x = nx;
+            ray.y = ny;
+          } else rayRt.calling = false;
+          rayRt.facing = dx >= 0 ? 1 : -1;
+        }
+        rayRt.effort = 0.6;
+      } else rayRt.effort = 0.1;
+    }
+    // Board (V, RB, or the sub button): get on or off; called from afar, it swims over.
+    if (inControl && s.board && trusted) {
+      if (ray.riding) dismountRay();
+      else if (Math.hypot(diver.x - ray.x, diver.y - ray.y) < 320) mountRay();
+      else {
+        rayRt.calling = true;
+        hud.toast('You call. Far off, your floe ray turns and comes gliding.', 'item');
+      }
+    }
+
+    if (ray.riding) {
+      const spd = (hasRayGear(save, 'saddle') ? 520 : 400) * (s.boost ? 1.35 : 1);
+      const k = 1 - Math.exp(-2.4 * dt);
+      let tvx = inControl ? s.moveX * spd : 0;
+      const tvy = inControl ? s.moveY * spd * 0.8 : 0;
+      // The passage's current turns back a ray that can't keep its rider breathing.
+      const pushed = inPassage(ray.x) && !canCrossPassage(save);
+      if (pushed) tvx -= PASSAGE_CURRENT;
+      rayRt.vx += (tvx - rayRt.vx) * k;
+      rayRt.vy += (tvy - rayRt.vy) * k;
+      if (Math.abs(rayRt.vx) > 40) rayRt.facing = rayRt.vx > 0 ? 1 : -1;
+      // Crest: ram thin ice from below at speed.
+      rayRam();
+      let nx = ray.x + rayRt.vx * dt;
+      let ny = ray.y + rayRt.vy * dt;
+      if (openToSky(nx) && ny < 34) {
+        ny = 34;
+        rayRt.vy = Math.max(0, rayRt.vy);
+      }
+      if (raySolid(nx, ny)) {
+        if (!raySolid(nx, ray.y)) ny = ray.y;
+        else if (!raySolid(ray.x, ny)) nx = ray.x;
+        else {
+          nx = ray.x;
+          ny = ray.y;
+        }
+        rayRt.vx *= 0.5;
+        rayRt.vy *= 0.5;
+      }
+      ray.x = nx;
+      ray.y = ny;
+      rayRt.effort = Math.min(1, Math.hypot(rayRt.vx, rayRt.vy) / 500);
+      rayRt.pitch = Math.max(-1, Math.min(1, -rayRt.vy / 400));
+      if (pushed && !save.tips.includes('eu-current')) {
+        save.tips.push('eu-current');
+        hud.toast('The current pours out of the passage, freezing. Your ray turns back: it won’t carry you through without air for you.', 'warn');
+      }
+      // Kestrel sits on its back (his own idle swim animation, held in place).
+      diver.update(dt, 0, 0, false, inControl && s.lamp, false);
+      diver.setFacing(rayRt.facing);
+      diver.x = ray.x - rayRt.facing * 10;
+      diver.y = ray.y - 52;
+      diver.vx = rayRt.vx;
+      diver.vy = rayRt.vy;
+    } else {
+      diver.update(dt, inControl ? s.moveX : 0, inControl ? s.moveY : 0, inControl && s.boost && save.kit.thruster > 0, inControl && s.lamp, inControl && !s.collect && !s.scan);
+      // Swimming alone, the passage's current carries Kestrel straight back out.
+      if (inPassage(diver.x)) {
+        const nx = diver.x - PASSAGE_CURRENT * 0.9 * dt;
+        if (!europaSolid(nx, diver.y)) diver.x = nx;
+        if (!save.tips.includes('eu-current-swim')) {
+          save.tips.push('eu-current-swim');
+          hud.toast('A freezing current pours out of the passage. Nobody could swim against it.', 'warn');
+        }
+      }
+    }
+    // First time out into the floe field.
+    const at = ray.riding ? ray : diver;
+    if (at.x > FLOE_X0 && !e.scans.includes('eu_floes')) {
+      e.scans.push('eu_floes');
+      grant(major('ship', 'A new place', 'The floe field', 'Open water, floating ice, and Jupiter.', 'kestrel'));
+      setTimeout(() => hud.showReading(EUROPA_LOG.eu_floes.name, EUROPA_LOG.eu_floes.text, 'Surface in the leads between the floes to breathe.'), 3600);
+      persist();
+    }
+
+    // Camera: follow Kestrel (or his ray, a little wider), inside Europa's slice.
+    viewH = ray.riding ? VIEW_H_SUB : VIEW_H;
     const viewW = viewH * (cssW / cssH);
     const k = 1 - Math.exp(-3.2 * dt);
-    camCX += (diver.x + diver.facing * 60 - camCX) * k;
-    camCY += (diver.y - 20 - camCY) * k;
+    const fx = ray.riding ? rayRt.facing : diver.facing;
+    camCX += (at.x + fx * 80 - camCX) * k;
+    camCY += (at.y - 20 - camCY) * k;
     camCX = Math.max(viewW / 2 - 200, Math.min(EUROPA_W + 200 - viewW / 2, camCX));
     camX = camCX - viewW / 2;
     camY = camCY - viewH / 2;
-    europaScene.update(dt, save, { x: camX, y: camY, zoom }, { w: cssW, h: cssH }, { x: diver.x, y: diver.y, facing: diver.facing, lampOn: diver.lampOn });
+    zoom = cssH / viewH;
+    const gland = ray.riding && hasRayGear(save, 'gland');
+    europaScene.update(
+      dt,
+      save,
+      { x: camX, y: camY, zoom },
+      { w: cssW, h: cssH },
+      { x: diver.x, y: diver.y, facing: diver.facing, lampOn: diver.lampOn },
+      { x: ray.x, y: ray.y, facing: rayRt.facing, pitch: rayRt.pitch, effort: rayRt.effort, gear: ray.gear },
+      gland,
+    );
     diver.view.alpha = 1;
 
-    // Air: the hab and a built air bell refill it; elsewhere it runs down as on Earth.
+    // Air: the hab, a built air bell, the surface in the open leads, and the ray's air bladder.
     const maxO2 = maxOxygen(save);
-    const breathing = habAir(diver.x, diver.y) || EuropaScene.inBell(save, diver.x, diver.y);
+    // At the surface of open water (a lead, or a broken skylight): Kestrel's head is out, so he breathes.
+    const atSurface = diver.surfaced || (!ray.riding && openToSky(diver.x) && diver.y < 64) || (ray.riding && openToSky(ray.x) && ray.y < 60);
+    const breathing = habAir(diver.x, diver.y) || EuropaScene.inBell(save, diver.x, diver.y) || atSurface || (ray.riding && hasRayGear(save, 'bladder'));
     if (breathing) save.oxygen = Math.min(maxO2, save.oxygen + (maxO2 / 3) * dt);
     else if (!paused) save.oxygen = Math.max(0, save.oxygen - dt * (1 + 0.2 * Math.min(1.6, diver.load)));
     if (save.oxygen <= 0) {
-      const at = habSpawn();
-      diver.x = at.x;
-      diver.y = at.y;
+      if (ray.riding) dismountRay();
+      const sp = habSpawn();
+      diver.x = sp.x;
+      diver.y = sp.y;
       diver.vx = diver.vy = 0;
       save.oxygen = maxO2;
       camCX = diver.x;
       camCY = diver.y;
       hud.toast('Out of air: everything goes dark… You come to in the hab, Linnea tapping at her jar.', 'warn');
     }
-    const depthM = Math.max(0, (diver.y - ceilY(diver.x)) / 75);
+    const ceilHere = ceilY(diver.x);
+    const depthM = Math.max(0, (diver.y - (ceilHere === OPEN ? 0 : ceilHere)) / 75);
     watch.draw(performance.now(), save.oxygen, maxO2, depthM, 0, breathing, { kg: 0, rated: 15, max: 24 }, save.suit);
+
+    // The hab's brine vat: ray gear grows, then fits itself.
+    const grown = tickRayGear(save, dt);
+    if (grown) {
+      const g = RAY_GEAR[grown];
+      grant(major('creature', 'Floe ray gear', g.name, g.job, 'life'));
+      hud.toast(`${g.name} grown and fitted to your floe ray! ${g.job}`, 'big');
+      persist();
+    }
 
     // KD-1's welding on the hab.
     const finished = tickEuropa(save, dt);
@@ -5370,7 +5577,27 @@ async function boot(): Promise<void> {
     // Hold Collect: the nearest thing in reach.
     type Act = { key: string; label: string; seconds: number; done: () => void };
     let act: Act | null = null;
-    const near = (x: number, y: number, r: number) => Math.hypot(diver.x - x, diver.y - y) < r;
+    const near = (x: number, y: number, r: number) => Math.hypot(at.x - x, at.y - y) < r;
+    let rideInfo = '';
+    if (!ray.riding && Math.hypot(diver.x - ray.x, diver.y - ray.y) < 240) {
+      if (!trusted)
+        act = {
+          key: 'ray-offer',
+          label: `Offer the floe ray a frost frond (${ray.trust}/${RAY_TRUST})`,
+          seconds: 1,
+          done: () => {
+            const r = offerFrond(save);
+            if (r === 'no-frond') hud.toast('It noses at your empty hands. Frost fronds grow on the seabed.', 'warn');
+            else if (r === 'trusting') hud.toast(`The ray takes the frond from your glove and circles closer (${ray.trust}/${RAY_TRUST}).`, 'item');
+            else if (r === 'trusts') {
+              grant(major('creature', 'Befriended', 'Floe ray', 'It lets you ride. Hold Collect beside it, or press Board.', 'life'));
+              hud.toast('The floe ray glides right up to you and waits. It trusts you now: climb on (hold Collect, or press Board).', 'big');
+            }
+            refreshEuropaHud();
+          },
+        };
+      else act = { key: 'ray-mount', label: 'Climb onto your floe ray', seconds: 0.5, done: () => mountRay() };
+    }
     if (near(LANDER.x, ceilY(LANDER.x) + 200, 170)) act = { key: 'hab', label: 'Use the Petrel hab (console and Linnea)', seconds: 0.4, done: () => europaPanel.show() };
     for (const g of GLYPHS) {
       if (europaOf(save).scans.includes(`glyph_${g.id}`) || !near(g.x, g.y, 130)) continue;
@@ -5380,20 +5607,30 @@ async function boot(): Promise<void> {
         seconds: 1.6,
         done: () => {
           readGlyph(save, g);
-          const m = EUROPA_MODULES[g.module];
-          grant(major('blueprint', 'Choir glyph read', m.name, 'The Petrel’s core drew it out. Build it at the hab’s console.', 'choir', m.code));
-          hud.showReading('A glyph in the ice', g.text, `${m.name} ${m.code}: build it at the hab’s console.`);
+          if (g.module) {
+            const m = EUROPA_MODULES[g.module];
+            grant(major('blueprint', 'Choir glyph read', m.name, 'The Petrel’s core drew it out. Build it at the hab’s console.', 'choir', m.code));
+            hud.showReading('A glyph in the ice', g.text, `${m.name} ${m.code}: build it at the hab’s console.`);
+          } else if (g.gear) {
+            const m = RAY_GEAR[g.gear];
+            grant(major('creature', 'Floe ray gear', m.name, 'Grow it in the hab’s brine vat (the console).', 'choir'));
+            hud.showReading('A glyph in the ice', g.text, `${m.name}: grow it at the hab’s console, and it fits your floe ray.`);
+          }
         },
       };
     }
     let bestSpot: (typeof EUROPA_SPOTS)[number] | null = null;
-    let bestD = 90;
+    let bestD = ray.riding ? 160 : 90;
     for (const sp of EUROPA_SPOTS) {
-      const d = Math.hypot(diver.x - sp.x, diver.y - sp.y);
+      const d = Math.hypot(at.x - sp.x, at.y - sp.y);
       if (d < bestD && isPresent(save, sp)) {
         bestD = d;
         bestSpot = sp;
       }
+    }
+    if (bestSpot && ray.riding && !hasRayGear(save, 'saddle')) {
+      rideInfo = 'Get off to gather (a saddle with a pouch would let you gather from its back)';
+      bestSpot = null;
     }
     if (bestSpot) {
       const sp = bestSpot;
@@ -5411,8 +5648,20 @@ async function boot(): Promise<void> {
         },
       };
     }
+    if (ray.riding && !act) act = { key: 'ray-off', label: 'Slide off your floe ray', seconds: 0.5, done: () => dismountRay() };
+    // Touch has no Board button out here: calling the ray from afar is a hold of Collect when nothing else is in reach.
+    if (!ray.riding && !act && trusted && !rayRt.calling && Math.hypot(diver.x - ray.x, diver.y - ray.y) > 320)
+      act = {
+        key: 'ray-call',
+        label: 'Call your floe ray',
+        seconds: 0.6,
+        done: () => {
+          rayRt.calling = true;
+          hud.toast('You call. Far off, your floe ray turns and comes gliding.', 'item');
+        },
+      };
     if (act && act.key !== euHold.key) euHold = { key: act.key, progress: 0 };
-    if (act && inControl && s.collect && Math.hypot(diver.vx, diver.vy) < 90) {
+    if (act && inControl && s.collect && (ray.riding || Math.hypot(diver.vx, diver.vy) < 90)) {
       euHold.progress += dt / act.seconds;
       if (euHold.progress >= 1) {
         euHold = { key: '', progress: 0 };
@@ -5422,10 +5671,13 @@ async function boot(): Promise<void> {
     } else euHold.progress = Math.max(0, euHold.progress - dt);
 
     // Hold Scan: Europa's creatures and places go in its own log.
-    const e = europaOf(save);
     let scanTarget: { key: string; name: string; text: string } | null = null;
     const c = europaScene.nearestCreature(diver.x, diver.y, 200);
-    if (c && !e.scans.includes(c.species)) scanTarget = { key: c.species, name: EUROPA_CREATURES[c.species].name, text: EUROPA_CREATURES[c.species].text };
+    const krillNear = [9250, 10250, 11500, 12300].some((x) => near(x, 160, 320));
+    if (!e.scans.includes('floeray') && Math.hypot(diver.x - ray.x, diver.y - ray.y) < 300 && !ray.riding)
+      scanTarget = { key: 'floeray', name: EUROPA_CREATURES.floeray.name, text: EUROPA_CREATURES.floeray.text };
+    else if (krillNear && !e.scans.includes('krill')) scanTarget = { key: 'krill', name: EUROPA_CREATURES.krill.name, text: EUROPA_CREATURES.krill.text };
+    else if (c && !e.scans.includes(c.species)) scanTarget = { key: c.species, name: EUROPA_CREATURES[c.species].name, text: EUROPA_CREATURES[c.species].text };
     else if (!e.scans.includes('eu_brine') && BRINE_POOLS.some((p) => near(p.x, floorY(p.x) - 30, 260))) scanTarget = { key: 'eu_brine', ...EUROPA_LOG.eu_brine };
     else if (!e.scans.includes('eu_wall') && diver.x > ICE_WALL_X - 380) scanTarget = { key: 'eu_wall', ...EUROPA_LOG.eu_wall };
     if (scanTarget && scanTarget.key !== euScan.key) euScan = { key: scanTarget.key, progress: 0 };
@@ -5443,6 +5695,7 @@ async function boot(): Promise<void> {
     if (paused) hud.setCollect(null, 0);
     else if (scanTarget && s.scan) hud.setCollect(`Scanning: ${scanTarget.name}`, euScan.progress);
     else if (act) hud.setCollect(act.label, euHold.progress);
+    else if (rideInfo) hud.setCollect(rideInfo, 0, false, true);
     else if (scanTarget) hud.setCollect(`Hold Scan: ${scanTarget.name}`, 0, false, true);
     else hud.setCollect(null, 0);
 

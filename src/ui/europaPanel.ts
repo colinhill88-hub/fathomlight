@@ -1,4 +1,4 @@
-import { EUROPA_MAT, EUROPA_MATS, EUROPA_MODULES, europaOf, fuelCost, canAfford, linneaEuropa, type EuropaMat, type EuropaModuleId } from '../game/europa';
+import { EUROPA_MAT, EUROPA_MATS, EUROPA_MODULES, europaOf, fuelCost, canAfford, linneaEuropa, RAY_GEAR, RAY_GEAR_ORDER, RAY_TRUST, type EuropaMat, type EuropaModuleId, type RayGearId } from '../game/europa';
 import type { SaveData } from '../game/state';
 
 /**
@@ -9,6 +9,7 @@ import type { SaveData } from '../game/state';
 export interface EuropaPanelDeps {
   save(): SaveData;
   build(id: EuropaModuleId): void;
+  growGear(id: RayGearId): void;
   flyHome(): void;
 }
 
@@ -38,6 +39,7 @@ export class EuropaPanel {
       const b = t.closest<HTMLElement>('[data-eu]');
       if (!b) return;
       if (b.dataset.eu === 'build') this.deps.build(b.dataset.id as EuropaModuleId);
+      if (b.dataset.eu === 'grow') this.deps.growGear(b.dataset.id as RayGearId);
       if (b.dataset.eu === 'home') this.deps.flyHome();
       this.render();
     });
@@ -87,6 +89,29 @@ export class EuropaPanel {
           })
           .join('')
       : '<li class="pw-stage later"><p class="pw-why">No Europa pieces yet. Earth’s hardware cracks in this cold: look for the glyphs the Choir’s kin carved into the ice, and the Petrel’s core will read them.</p></li>';
+    // The floe ray's gear, grown in the hab's brine vat: only what has been learned shows (one unlock at a time).
+    const r = e.ray;
+    let rayRows = '';
+    if (r && r.trust > 0) {
+      const learned = RAY_GEAR_ORDER.filter((id) => r.learned.includes(id));
+      const next = RAY_GEAR_ORDER.length - learned.length;
+      rayRows = `<li class="pw-stage ${r.trust >= RAY_TRUST ? 'now' : 'later'}"><div class="pw-stage-head"><strong>Your floe ray</strong><span class="pw-parts">${r.trust >= RAY_TRUST ? 'Befriended' : `Trust ${r.trust} of ${RAY_TRUST}`}</span></div>
+        <p class="pw-why">${r.trust >= RAY_TRUST ? 'Gear for it grows here in the brine vat and fits itself. More is drawn in glyphs out in the ice.' : 'Offer it frost fronds (hold Collect beside it) until it trusts you.'}</p></li>`;
+      rayRows += learned
+        .map((id) => {
+          const d = RAY_GEAR[id];
+          const fitted = r.gear.includes(id);
+          const growing = r.growing?.id === id;
+          const ok = !fitted && !r.growing && canAfford(save, d.cost);
+          return `<li class="pw-stage ${fitted ? 'done' : 'now'}">
+            <div class="pw-stage-head"><strong>${esc(d.name)}</strong><span class="pw-parts">${fitted ? 'Fitted' : growing ? `Growing · ${Math.round((r.growing?.progress ?? 0) * 100)}%` : ''}</span></div>
+            <p class="pw-why">${esc(d.job)}</p>
+            ${fitted || growing ? '' : `<div class="pw-recipe">${costText(save, d.cost)}<button type="button" class="eu-btn" data-eu="grow" data-id="${id}" ${ok ? '' : 'disabled'}>Grow</button></div>`}
+          </li>`;
+        })
+        .join('');
+      if (r.trust >= RAY_TRUST && next > 0) rayRows += `<li class="pw-stage later"><p class="pw-why">${next} more piece${next > 1 ? 's' : ''} of ray gear to find, drawn in glyphs out in the ice.</p></li>`;
+    }
     const fuel = fuelCost(save);
     const canGo = canAfford(save, fuel);
     const [l1, l2] = linneaEuropa(save);
@@ -99,6 +124,7 @@ export class EuropaPanel {
       <ol class="pw-stages">
         <li class="pw-stage"><div class="pw-stage-head"><strong>Europa stores</strong></div><div class="pw-recipe">${stores}</div></li>
         ${mods}
+        ${rayRows}
         <li class="pw-stage now">
           <div class="pw-stage-head"><strong>Fly home</strong><span class="pw-parts">${e.built.includes('still') ? 'Brine still fitted: half the fuel' : ''}</span></div>
           <p class="pw-why">The Choir core carries the Petrel out here for nothing, but going home takes fuel refined from Europa's brine and rime. It all grows back near the hab.</p>

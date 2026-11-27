@@ -825,6 +825,28 @@ function cleanEuropa(e: unknown): SaveData['europa'] {
     built: mods(o.built),
     welding: w && (w.id === 'still' || w.id === 'bell') && typeof w.progress === 'number' ? { id: w.id, progress: Math.max(0, Math.min(1, w.progress)) } : undefined,
     trips: num(o.trips),
+    ray: cleanRay(o.ray),
+    skylight: o.skylight === true,
+    brokenFloes: Array.isArray(o.brokenFloes) ? o.brokenFloes.filter((x): x is string => typeof x === 'string') : [],
+  };
+}
+
+/** Beyond Earth: the floe ray, with anything malformed dropped. */
+function cleanRay(r: unknown): import('./europa').RayData | undefined {
+  if (!r || typeof r !== 'object') return undefined;
+  const o = r as Record<string, unknown>;
+  const ids = ['saddle', 'bladder', 'crest', 'gland'] as const;
+  const gear = (v: unknown) => (Array.isArray(v) ? v.filter((g): g is (typeof ids)[number] => ids.includes(g as (typeof ids)[number])) : []);
+  const g = o.growing as { id?: unknown; progress?: unknown } | undefined;
+  const fin = (v: unknown, d: number) => (typeof v === 'number' && Number.isFinite(v) ? v : d);
+  return {
+    trust: Math.max(0, Math.min(9, Math.floor(fin(o.trust, 0)))),
+    x: fin(o.x, 1650),
+    y: fin(o.y, 820),
+    riding: false,
+    learned: gear(o.learned),
+    gear: gear(o.gear),
+    growing: g && ids.includes(g.id as (typeof ids)[number]) && typeof g.progress === 'number' ? { id: g.id as (typeof ids)[number], progress: Math.max(0, Math.min(1, g.progress)) } : undefined,
   };
 }
 

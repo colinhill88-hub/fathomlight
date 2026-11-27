@@ -104,6 +104,70 @@ export async function runEuropaChecks(server) {
     delete globalThis.localStorage;
   }
 
+  // The floe ray: befriended with fronds, its gear unlocked one piece at a time.
+  {
+    const s = fresh();
+    E.arrive(s);
+    assert.equal(E.offerFrond(s), 'no-frond', 'It wants frost fronds');
+    s.europa.stores.frond = 10;
+    for (let i = 1; i < E.RAY_TRUST; i++) assert.equal(E.offerFrond(s), 'trusting');
+    assert.equal(E.offerFrond(s), 'trusts');
+    assert.ok(E.rayTrusts(s));
+    assert.deepEqual(s.europa.ray.learned, ['saddle'], 'Only the saddle unlocks with trust');
+    assert.match(E.startGear(s, 'bladder'), /Not learned/, 'The bladder needs its glyph');
+    E.readGlyph(s, E.GLYPHS.find((g) => g.id === 'bladder'));
+    assert.ok(s.europa.ray.learned.includes('bladder'));
+    assert.ok(!s.europa.ray.learned.includes('crest') && !s.europa.ray.learned.includes('gland'), 'The crest and gland wait for their own glyphs');
+    s.europa.stores = { rime: 20, brine: 20, frond: 20 };
+    assert.equal(E.startGear(s, 'saddle'), null);
+    assert.match(E.startGear(s, 'bladder'), /vat/, 'One thing grows at a time');
+    let got = null;
+    for (let i = 0; i < 100 && !got; i++) got = E.tickRayGear(s, 1);
+    assert.equal(got, 'saddle');
+    assert.ok(E.hasRayGear(s, 'saddle'));
+    // The passage: only a ridden ray with an air bladder crosses.
+    s.europa.ray.riding = true;
+    assert.ok(!E.canCrossPassage(s));
+    assert.equal(E.startGear(s, 'bladder'), null);
+    for (let i = 0; i < 100 && !E.hasRayGear(s, 'bladder'); i++) E.tickRayGear(s, 1);
+    assert.ok(E.canCrossPassage(s));
+    // The crest breaks the skylight and thin floes; nothing breaks without it.
+    assert.equal(E.breakIce(s, 'skylight'), false, 'No crest, no breaking');
+    E.readGlyph(s, E.GLYPHS.find((g) => g.id === 'crest'));
+    assert.equal(E.startGear(s, 'crest'), null);
+    for (let i = 0; i < 100 && !E.hasRayGear(s, 'crest'); i++) E.tickRayGear(s, 1);
+    assert.equal(E.breakIce(s, 'skylight'), true);
+    assert.equal(E.breakIce(s, 'skylight'), false, 'Only once');
+    assert.equal(E.breakIce(s, 'thin-a'), true);
+    T.setEuropaBroken(true, ['thin-a']);
+    assert.equal(T.ceilY(T.SKYLIGHT.x), T.OPEN, 'The skylight opens to the surface');
+    assert.ok(T.openToSky(T.FLOES.find((f) => f.id === 'thin-a').x), 'A broken floe is open water');
+    T.setEuropaBroken(false, []);
+    // Saves keep the ray (never riding on load).
+    const store = new Map();
+    globalThis.localStorage = { getItem: (k) => store.get(k) ?? null, setItem: (k, v) => store.set(k, String(v)), removeItem: (k) => store.delete(k) };
+    store.set('fathomlight.save.v1', JSON.stringify(s));
+    const loaded = state.loadSave(0, 0).data;
+    assert.equal(loaded.europa.ray.trust, E.RAY_TRUST);
+    assert.deepEqual(loaded.europa.ray.gear, ['saddle', 'bladder', 'crest']);
+    assert.equal(loaded.europa.ray.riding, false);
+    assert.equal(loaded.europa.skylight, true);
+    delete globalThis.localStorage;
+  }
+
+  // The floe field and the passage: open to the sky between floes, solid floes, a roofed passage.
+  {
+    const mid = (T.PASSAGE.x0 + T.PASSAGE.x1) / 2;
+    assert.ok(T.inPassage(mid));
+    assert.ok(!T.europaSolid(mid, (T.PASSAGE.roof + T.PASSAGE.floor) / 2), 'The passage is open water');
+    assert.ok(T.europaSolid(mid, 600), 'with ice above it');
+    const f = T.FLOES.find((q) => !q.thin);
+    assert.ok(T.europaSolid(f.x, 20), 'Floes are solid');
+    const lead = (T.FLOES[0].x + T.FLOES[0].w / 2 + T.FLOES[1].x - T.FLOES[1].w / 2) / 2;
+    assert.ok(T.openToSky(lead) && !T.europaSolid(lead, 40), 'A lead between floes reaches the surface');
+    for (const g of E.GLYPHS) assert.ok(!T.europaSolid(g.x, g.y), `Glyph ${g.id} is reachable`);
+  }
+
   // Linnea always has something to say.
   {
     const s = fresh();

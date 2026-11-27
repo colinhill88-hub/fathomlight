@@ -4,6 +4,26 @@ The live branch includes the Fulmar foothold, Codex Phases 1–11D the Phase 12 
 
 Play link: https://colinhill88-hub.github.io/fathomlight/ (live; first successful deploy 2026-11-14)
 
+### Beyond Earth, part 3: the floe ray and the floe field (Colin, Nov 27, 2026)
+
+Colin chose a creature to ride instead of a machine (an ice-crawler would need an ice roof everywhere, and he wants to surface through broken ice): **the floe ray**, befriended in the wild, with organic gear like KS-1's modules, **unlocked one piece at a time**. And biome 2, **the floe field**, in the same session.
+- **The floe ray** (`RayView` in `src/scene/europaScene.ts`; rules in `src/game/europa.ts`): a broad, gentle ray, slate above and white below, with pale blue-green lights along its wings. It glides a slow loop by the first brine pool. **Befriend it** by offering frost fronds (hold Collect beside it; 3 in all). Then **ride it**: hold Collect beside it, or press Board (V, RB); hold Collect (or Board) to slide off. From far away, Board or a hold of Collect calls it over. Riding is faster than swimming (Boost for more), with a wider camera; Kestrel sits on its back.
+- **Organic gear, grown in the hab's brine vat** (the console's new "Your floe ray" rows), one unlock at a time:
+
+| Gear | Unlocked by | Cost | What it does |
+| --- | --- | --- | --- |
+| Frond saddle and pouch | the ray trusting Kestrel | 4 fronds, 1 brine | faster riding; gather from its back |
+| Air bladder | a glyph at the foot of the thick-ice wall | 3 fronds, 2 rime, 2 brine | breathe while riding; the ray will cross the passage |
+| Ice-breaker crest | a glyph on the floe field's rocky rise | 5 rime, 2 brine | rising fast into thin ice breaks it: a skylight over biome 1 (by the icicle forest) and two thin floes |
+| Glow gland | a glyph deep in the floe field's hollow | 3 rime, 3 fronds, 1 brine | a wide icy blue-green light ahead while riding |
+
+  The console only lists gear once it is learned, and says how many pieces are still to find.
+- **The passage under the thick-ice wall** (x 6200–8600): a long, low tunnel with a freezing current pouring out. Swimming, the current carries Kestrel straight back; riding, the ray turns back unless it wears the air bladder. Streaks show the current.
+- **The floe field** (biome 2, x 8600–13900): open water under a black sky with **Jupiter**, banded and huge, rising over the floes (a slow parallax layer, clipped to the sky). Floes float on the surface (solid, with snow on top); the **leads** between them reach the surface, where Kestrel surfaces and breathes. A deep seabed with a rocky rise and a dark hollow; swarms of **lantern krill** (icy white specks) under the leads; two wild floe rays gliding; new rime, frond and brine spots. Arriving gives a reward card and a log entry.
+- **Saves:** `europa.ray` (trust, place, learned and fitted gear, what's growing), `europa.skylight`, `europa.brokenFloes`; anything malformed is dropped, and a load never starts riding. Old saves are unchanged.
+- **Checked:** typecheck, build, `node scripts/test-europa.mjs` (new checks: befriending, one-at-a-time unlocks, the vat growing one thing at a time, the passage needing a ridden ray with the bladder, the crest breaking the skylight and a thin floe once each, surfacing in a lead, solid floes, the passage's shape, every glyph reachable, saves) and the Petrel checks pass. In `vite preview` with Playwright on a 1600×900 desktop and an iPhone 13 in landscape: the wild ray, mounting with V and riding, the passage, the floe field with Jupiter and krill, surfacing in a lead (air refilled), the broken skylight, the glow gland in the hollow, and the console's ray gear. No console errors.
+- **Not done yet:** biome 3 and the Choir's kin (the dark water the glow gland is for), a cold tank to raise Europa's creatures, the supply line from Earth, painted art. The progression script still stops at its old boots check.
+
 ### Beyond Earth, part 2: the launch and Europa's landing site (Colin, Nov 27, 2026)
 
 Colin's choices for this part: the launch and a small playable landing site; Kestrel's gear, KD-1 and Linnea come along (KS-1 stays home, and Europa gets its own way of getting around, to design together); Europa's life glows icy white and pale blue-green; only Europa pieces can be built there, discovered after arriving.
