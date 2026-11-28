@@ -1,6 +1,6 @@
 # Image-generation prompts: the Petrel, the Petrel works, and Europa (Beyond Earth, Nov 27, 2026)
 
-**Status:** sections 1–3 (the Petrel works, the platform and the five ship stages) are **made and in the game** (Colin, Nov 27, 2026; logged in `docs/art/SOURCES.md`). Section 4 onward is still to make.
+**Status:** everything on this sheet is **made and in the game**: sections 1–3 (the Petrel works, the platform and the five ship stages; Colin, Nov 27, 2026) and section 4, 4a–4j (Europa, the voyages and the works room props; Colin, Nov 28, 2026). All are logged in `docs/art/SOURCES.md`. New Europa images go through `scripts/prep-europa-art.py`.
 
 Everything for the Petrel is drawn in code for now (this session had no image generator). These prompts are for Colin to run in Gemini, or for any AI tool that can generate images. Drop the results in and the game uses them instead of the code-drawn art. No code change is needed: the file name is enough.
 
@@ -52,7 +52,7 @@ Then the same ship with less of it built:
 
 ---
 
-## 4. Europa: what's still to make
+## 4. Europa (made Nov 28, 2026)
 
 Europa is drawn in code for now (`src/scene/europaScene.ts`). It doesn't read painted images by file name yet: when a batch of these arrives, the next session wires them in (as it did the Petrel), so they **don't need to be perfect matches to the code's shapes**, but they should keep to the sizes and roles below.
 

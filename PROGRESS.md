@@ -4,6 +4,38 @@ The live branch includes the Fulmar foothold, Codex Phases 1–11D the Phase 12 
 
 Play link: https://colinhill88-hub.github.io/fathomlight/ (live; first successful deploy 2026-11-14)
 
+### Painted Europa art wired in (Colin, Nov 28, 2026)
+
+- **All of Colin's Europa images (prompt sections 4a–4j) are in the game**, prepared by `scripts/prep-europa-art.py`:
+  - it keys out the white or black backgrounds;
+  - it crops the objects;
+  - it keeps the creatures on their full canvas so their glow sheets and the ray's gear line up;
+  - it re-encodes everything, so the 26 MB of images ship as about 2 MB.
+
+  The paintings load only once Europa is in play (a voyage starts, or a save already there), so players who haven't reached Europa don't download them. Anything missing still falls back to the code-drawn version.
+- **The four zones** (under the ice, the passage, the floe field, the warm deep):
+  - Each zone has a painted background, midground and foreground. They crossfade as you swim between zones.
+  - Each layer is a single painting that slides across as you cross its zone, the foreground faster than the midground, so they never show a tiling seam.
+  - The floe field has its painted sky and Jupiter.
+  - The black water gets faint drifting motes.
+- **Objects:**
+  - the hab;
+  - the Brine still and the Air bell;
+  - the glyph pillars;
+  - the floes (thick and thin) and the brine pools;
+  - the cold and rekindled vents and the hearth;
+  - the kin and their gate of light;
+  - the three pickups.
+- **Creatures:** the rime moths, glasshorns and krill, each with its glow. The floe ray (Kestrel's and the wild ones) is painted, with each piece of its gear shown as it's grown. The ray breathes, since one painting can't beat its wings.
+- **The voyages** open on the painted dusk sea, climb to the painted Earth from orbit, close in on the painted Europa and land on the painted ice plain by the bore hole. The flight home uses the same paintings.
+- **The Petrel works room** on Earth has the painted lathe, the ship model and the cargo hoist.
+- **Fixed along the way:** the seabed was drawn as a flat slab of silt across the middle of the warm deep (its shape stopped short of the abyss floor). With the paintings in, the code-drawn ice roof is dark with a soft lit edge, so it no longer looks like a flat light-blue block in the passage.
+- **Checked:**
+  - Typecheck and build pass. The Europa, Petrel, creature-care and rarity checks pass.
+  - The progression check still stops at "No boots row", which was already failing before this change.
+  - In `vite preview` with Playwright, on PC and on a phone in landscape, I looked at every zone, the hab, the glyphs, the floes and Jupiter, the black water, the warm deep and vents, the voyage frames out and home, and the works room.
+  - No new console errors.
+
 ### Painted Petrel art wired in, and Europa's art prompts (Colin, Nov 27, 2026)
 
 - **Colin's seven painted images are in the game:** the Petrel works module (`src/art/base/works.webp`), the empty launch platform and the ship at each of the five stages (`src/art/landmarks/petrel_platform.webp`, `petrel_1..5.webp`). They were generated from the prompt sheet and logged in `docs/art/SOURCES.md`. In the repo they were re-encoded as high-quality lossy WebP to keep the phone build light (3.2 MB to 0.58 MB).

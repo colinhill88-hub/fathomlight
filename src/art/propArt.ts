@@ -30,6 +30,7 @@ export type InteriorArtKey =
   | 'airlock' | 'bunk' | 'planner' | 'galley'
   | 'lab_bench' | 'workshop_bench' | 'hatch_cradle' | 'hatch_console'
   | 'revive_pool' | 'signal_dish' | 'recomp_chamber' | 'farm_trough' | 'filter_vat' | 'crane_cradle' | 'press_frame' | 'press_ram' | 'feeder_hopper' | 'feeder_mash'
+  | 'works_lathe' | 'works_model' | 'works_hoist'
   | 'wall_bulkhead' | 'deck_grate' | 'ladder_rung' | 'logbook';
 export type PickupArtKey = 'scrap' | 'copper' | 'quartz' | 'fibre' | 'resin' | 'moss' | 'brass' | 'bloom' | 'ore';
 export type BottomArtKey = 'lily' | 'sponge' | 'worm' | 'star' | 'pen';
@@ -152,6 +153,7 @@ const INTERIOR_KEYS: readonly InteriorArtKey[] = [
   'lab_bench', 'workshop_bench', 'hatch_cradle', 'hatch_console',
   'revive_pool', 'signal_dish', 'recomp_chamber', 'farm_trough', 'filter_vat', 'crane_cradle', 'press_frame', 'press_ram', 'feeder_hopper', 'feeder_mash',
   'wall_bulkhead', 'deck_grate', 'ladder_rung', 'logbook',
+  'works_lathe', 'works_model', 'works_hoist',
 ];
 const DECOR_KEYS: readonly DecorId[] = [
   'arch', 'amphora', 'helmet', 'chest', 'driftwood', 'clam', 'lantern', 'wheel',

@@ -1,4 +1,5 @@
-import { Container, FillGradient, Graphics, Sprite, Text, Texture } from 'pixi.js';
+import { Container, FillGradient, Graphics, Sprite, Text, Texture, TilingSprite } from 'pixi.js';
+import type { EuropaArt, EuropaArtKey } from '../art/europaArt';
 import { BELL_AT, EUROPA_CREATURES, EUROPA_SPOTS, GLYPHS, isPresent, KIN_GATES, kinLight, kinRestored, type EuropaSpecies } from '../game/europa';
 import type { SaveData } from '../game/state';
 import { mulberry32 } from '../rng';
@@ -120,7 +121,7 @@ interface Moth {
   vy: number;
   phase: number;
   view: Container;
-  glow: Graphics;
+  glow: Container;
 }
 interface Horn {
   x: number;
@@ -128,7 +129,7 @@ interface Horn {
   dir: number;
   phase: number;
   view: Container;
-  glow: Graphics;
+  glow: Container;
 }
 
 /** What the scene needs to draw a floe ray. */
@@ -159,6 +160,37 @@ export class RayView {
   private readonly lights = new Graphics();
   private gearSig = '-';
   private t = Math.random() * 10;
+  /** Painted (Colin, Nov 28, 2026): the ray, its glow sheet and its gear overlays, all on one canvas. */
+  private painted: { body: Sprite; glow: Sprite; gear: Partial<Record<string, Sprite>> } | null = null;
+
+  /** Swap the code-drawn ray for the painted one. Every layer shares the ray's canvas, so they are all
+   * anchored on the saddle's point on it (512, 148 of 768 × 384), which sits where the code saddle does. */
+  applyArt(tex: Partial<Record<EuropaArtKey, Texture>>): void {
+    const body = tex.floe_ray;
+    if (!body || this.painted) return;
+    const mk = (t: Texture) => {
+      const sp = new Sprite(t);
+      sp.anchor.set(512 / 768, 148 / 384);
+      sp.scale.set(400 / 768);
+      sp.position.set(0, -21);
+      return sp;
+    };
+    for (const g of [this.wingFar, this.body, this.gearG, this.wingNear, this.lights]) g.visible = false;
+    const b = mk(body);
+    this.view.addChild(b);
+    const glow = tex.floe_ray_glow ? mk(tex.floe_ray_glow) : new Sprite();
+    this.glow.addChild(glow);
+    const gear: Partial<Record<string, Sprite>> = {};
+    for (const [id, key] of [['saddle', 'ray_saddle'], ['bladder', 'ray_bladder'], ['crest', 'ray_crest'], ['gland', 'ray_gland']] as const) {
+      const t = tex[key];
+      if (!t) continue;
+      gear[id] = mk(t);
+      gear[id]!.visible = false;
+      this.view.addChild(gear[id]!);
+    }
+    this.painted = { body: b, glow, gear };
+    this.gearSig = '-';
+  }
 
   constructor() {
     this.view.addChild(this.wingFar, this.body, this.gearG, this.wingNear);
@@ -198,6 +230,17 @@ export class RayView {
     }
     this.lights.scale.y = this.wingNear.scale.y;
     const sig = look.gear.join(',');
+    if (this.painted) {
+      // One painted image can't beat its wings, so it breathes: a slow swell and a slight roll.
+      const k = 1 + 0.05 * flap;
+      for (const sp of [this.painted.body, this.painted.glow, ...Object.values(this.painted.gear)]) sp!.scale.set(400 / 768, (400 / 768) * k);
+      if (sig !== this.gearSig) {
+        this.gearSig = sig;
+        for (const [id, sp] of Object.entries(this.painted.gear)) sp!.visible = look.gear.includes(id);
+      }
+      this.painted.glow.alpha = 0.7 + 0.3 * Math.sin(this.t * 1.3);
+      return;
+    }
     if (sig !== this.gearSig) {
       this.gearSig = sig;
       this.drawGear(look.gear);
@@ -229,6 +272,9 @@ export class RayView {
     }
   }
 }
+
+/** Where each painted zone's layers run, left to right (for their slide across the screen). */
+const ZONE_SPAN = { ice: [0, ICE_WALL_X], passage: [ICE_WALL_X, FLOE_X0], floes: [FLOE_X0, FLOE_X1], deep: [ABYSS.x0, ABYSS.x1] } as const;
 
 export class EuropaScene {
   readonly view = new Container();
@@ -272,6 +318,19 @@ export class EuropaScene {
   private readonly kinG = new Graphics();
   private readonly gates = new Graphics();
   private ventSig = '';
+  /** Colin's painted art (Nov 28, 2026), once loaded; null keeps everything code-drawn. */
+  private art: EuropaArt | null = null;
+  private habG: Graphics | null = null;
+  private readonly glyphArt: Graphics[] = [];
+  private readonly zoneBack = new Container();
+  private readonly zoneFront = new Container();
+  private zones: { id: 'ice' | 'passage' | 'floes' | 'deep'; bg?: Sprite; mid?: Sprite; fg?: Sprite }[] = [];
+  private skyArt: Sprite | null = null;
+  private blackSpecks: TilingSprite | null = null;
+  private readonly ventSprites = new Container();
+  private readonly kinSprites: Sprite[] = [];
+  private readonly gateSprites: Sprite[] = [];
+  private readonly krillSprites: Sprite[][] = [];
   private ventsDrawn = false;
   /** A note the kin are singing (0..3), and how bright the flash still is. */
   private kinNote = -1;
@@ -283,13 +342,13 @@ export class EuropaScene {
   constructor() {
     this.light.blendMode = 'add';
     this.world.addChild(this.sky, this.jupiter, this.surfaceGlow, this.far, this.terrain, this.objects, this.spotLayer, this.modules, this.actors, this.fg, this.light, this.dust);
-    this.view.addChild(this.bg, this.world);
+    this.view.addChild(this.bg, this.zoneBack, this.world, this.zoneFront);
     this.view.visible = false;
     this.surfaceGlow.alpha = 0.45;
     this.drawStatic();
     this.drawTerrain();
     this.drawLander();
-    this.objects.addChild(this.ventArt, this.ray.view, this.current);
+    this.objects.addChild(this.ventArt, this.ventSprites, this.ray.view, this.current);
     // The black water sits over the actors (it hides Kestrel too, unless the glow gland lights it).
     this.world.addChildAt(this.blackWater, this.world.getChildIndex(this.fg));
     this.light.addChild(this.ventGlow, this.kinG, this.gates);
@@ -322,6 +381,201 @@ export class EuropaScene {
 
   get active(): boolean {
     return this.view.visible;
+  }
+
+  /** Colin's painted art has loaded: swap it in wherever there is a picture (code art stays for the rest). */
+  applyArt(art: EuropaArt): void {
+    if (this.art) return;
+    this.art = art;
+    const T = art.europa;
+    const sprite = (t: Texture, ax: number, ay: number) => {
+      const sp = new Sprite(t);
+      sp.anchor.set(ax, ay);
+      return sp;
+    };
+    // Zone layers: background and midground behind the world, foreground in front (screen-wide, crossfaded in update).
+    for (const id of ['ice', 'passage', 'floes', 'deep'] as const) {
+      const z: (typeof this.zones)[number] = { id };
+      const bg = T[`${id}_bg` as EuropaArtKey];
+      const mid = T[`${id}_mid` as EuropaArtKey];
+      const fg = T[`${id}_fg` as EuropaArtKey];
+      if (bg) this.zoneBack.addChild((z.bg = new Sprite(bg)));
+      if (mid) this.zoneBack.addChild((z.mid = new Sprite(mid)));
+      if (fg) this.zoneFront.addChild((z.fg = new Sprite(fg)));
+      this.zones.push(z);
+    }
+    if (this.zones.some((z) => z.mid)) this.far.visible = false;
+    if (this.zones.some((z) => z.fg)) this.fg.visible = false;
+    // The floe field's sky, behind Jupiter, standing on the water line.
+    if (T.floes_sky) {
+      this.skyArt = new Sprite(T.floes_sky);
+      this.world.addChildAt(this.skyArt, this.world.getChildIndex(this.jupiter));
+    }
+    if (T.jupiter) {
+      for (const c of this.jupiter.children) c.visible = false;
+      const j = sprite(T.jupiter, 0.5, 0.5);
+      j.scale.set(820 / T.jupiter.width);
+      j.position.set(0, -300);
+      this.jupiter.addChild(j);
+    }
+    if (T.blackwater) {
+      this.blackSpecks = new TilingSprite({ texture: T.blackwater, width: ABYSS.x1 - ABYSS.x0 - 200, height: ABYSS.blackBottom - ABYSS.blackTop + 200 });
+      this.blackSpecks.position.set(ABYSS.x0 + 100, ABYSS.blackTop - 100);
+      this.blackSpecks.blendMode = 'add';
+      this.blackSpecks.alpha = 0.6;
+      this.world.addChildAt(this.blackSpecks, this.world.getChildIndex(this.blackWater) + 1);
+    }
+    // The hab: the painting replaces the drawn capsule; its porthole lights move onto the painted portholes.
+    if (T.hab && this.habG) {
+      for (const c of this.habG.children) c.visible = false;
+      this.habG.clear();
+      const x = LANDER.x;
+      const top = ceilY(x);
+      // The bore shaft still runs up through the ice above it.
+      this.habG.rect(x - LANDER.shaftW / 2, top - 900, LANDER.shaftW, 900).fill({ color: 0x050b10 });
+      const w = 300;
+      const h = (w * T.hab.height) / T.hab.width;
+      const sp = sprite(T.hab, 0.5, 0);
+      sp.scale.set(w / T.hab.width);
+      sp.position.set(x, top - 18);
+      this.objects.addChildAt(sp, this.objects.getChildIndex(this.habG) + 1);
+      const hl = this.habLights.clear();
+      for (const rx of [-0.17, 0.17]) {
+        const py = top - 18 + h * 0.43;
+        hl.circle(x + rx * w, py, 24).fill({ color: AMBER, alpha: 0.35 });
+        hl.circle(x + rx * w, py, 64).fill({ color: AMBER, alpha: 0.1 });
+      }
+      hl.ellipse(x, top - 18 + h + 30, 120, 60).fill({ color: AMBER, alpha: 0.07 });
+    }
+    // Glyph pillars.
+    GLYPHS.forEach((gl, i) => {
+      const hang = gl.id === 'bell';
+      const t = hang ? T.glyph_hang : T.glyph_stand;
+      if (!t) return;
+      this.glyphArt[i].visible = false;
+      const sp = sprite(t, 0.5, hang ? 0 : 1);
+      sp.scale.set(140 / t.height);
+      sp.position.set(gl.x, hang ? gl.y - 70 : gl.y + 72);
+      this.objects.addChild(sp);
+    });
+    // Pickups.
+    for (const sp0 of EUROPA_SPOTS) {
+      const c = this.spotViews.get(sp0.id);
+      const t = T[sp0.kind];
+      if (!c || !t) continue;
+      (c.children[0] as Graphics).visible = false;
+      const sp = sprite(t, 0.5, sp0.kind === 'rime' ? 0.1 : 0.85);
+      sp.scale.set((sp0.kind === 'frond' ? 56 : sp0.kind === 'rime' ? 52 : 40) / Math.max(t.width, t.height));
+      sp.position.set(sp0.x, sp0.kind === 'rime' ? sp0.y - 18 : sp0.y + 6);
+      c.addChild(sp);
+    }
+    // Creatures: the painted body inside each view, the glow sheet as added light.
+    const swapGlow = (old: Container, t: Texture | undefined, w: number): Container => {
+      if (!t) return old;
+      const sp = sprite(t, 0.5, 0.5);
+      sp.scale.set(w / t.width);
+      this.light.addChildAt(sp, this.light.getChildIndex(old));
+      old.destroy();
+      return sp;
+    };
+    for (const m of this.moths) {
+      if (!T.moth) break;
+      m.view.children[0].visible = false;
+      const sp = sprite(T.moth, 0.5, 0.5);
+      sp.scale.set(64 / T.moth.width);
+      m.view.addChild(sp);
+      m.glow = swapGlow(m.glow, T.moth_glow, 64);
+    }
+    for (const h of this.horns) {
+      if (!T.glasshorn) break;
+      h.view.children[0].visible = false;
+      const sp = sprite(T.glasshorn, 0.5, 0.62);
+      sp.scale.set(150 / T.glasshorn.width);
+      h.view.addChild(sp);
+      h.glow = swapGlow(h.glow, T.glasshorn_glow, 150);
+    }
+    if (T.krill)
+      for (let n = 0; n < this.krill.length; n++) {
+        const list: Sprite[] = [];
+        for (let i = 0; i < 10; i++) {
+          const sp = sprite(T.krill, 0.5, 0.5);
+          sp.scale.set(16 / T.krill.width);
+          sp.alpha = 0.85;
+          this.objects.addChild(sp);
+          list.push(sp);
+        }
+        this.krillSprites.push(list);
+      }
+    // The rays (Kestrel's and the wild ones).
+    this.ray.applyArt(T);
+    for (const w of this.wildRays) w.view.applyArt(T);
+    // The kin and their gates (on black, so they are drawn as added light).
+    if (T.kin) for (let i = 0; i < 5; i++) this.light.addChild((this.kinSprites[i] = sprite(T.kin, 0.5, 0.5)));
+    if (T.kin_gate) for (let i = 0; i < 2; i++) this.light.addChild((this.gateSprites[i] = sprite(T.kin_gate, 0.5, 0.5)));
+    // Redraw what is drawn from state: the ice and floes, the vents, the hab's pieces.
+    this.brokenSig = '-';
+    this.ventsDrawn = false;
+    this.modSig = '-';
+  }
+
+  /** Crossfade the zone layers by where the camera is (screen-wide, with parallax). */
+  private updateZones(cam: { x: number; y: number; zoom: number }, screen: { w: number; h: number }): void {
+    if (!this.zones.length) return;
+    const vw = screen.w / cam.zoom;
+    const vh = screen.h / cam.zoom;
+    const cx = cam.x + vw / 2;
+    const cy = cam.y + vh / 2;
+    const sm = (t: number) => {
+      const u = Math.max(0, Math.min(1, t));
+      return u * u * (3 - 2 * u);
+    };
+    const inAbyss = sm((cx - ABYSS.x0) / 300) * (1 - sm((cx - (ABYSS.x1 - 300)) / 300));
+    const deep = inAbyss * sm((cy - ABYSS.blackTop) / (ABYSS.blackBottom - ABYSS.blackTop));
+    const w: Record<string, number> = {
+      ice: 1 - sm((cx - 5900) / 500),
+      passage: sm((cx - 5900) / 500) * (1 - sm((cx - 8300) / 500)),
+      floes: sm((cx - 8300) / 500) * (1 - deep),
+      deep,
+    };
+    for (const z of this.zones) {
+      const a = w[z.id];
+      if (z.bg) {
+        const t = z.bg.texture;
+        const k = Math.max(screen.w / t.width, screen.h / t.height) * 1.06;
+        z.bg.scale.set(k);
+        z.bg.position.set((screen.w - t.width * k) / 2, (screen.h - t.height * k) / 2);
+        z.bg.alpha = a;
+        z.bg.visible = a > 0.01;
+        z.bg.tint = 0x8a9aa8;
+      }
+      // The paintings don't tile, so each layer is one picture wider than the screen that slides
+      // across as you cross its zone: the foreground further than the midground (parallax).
+      const [z0, z1] = ZONE_SPAN[z.id];
+      const prog = Math.max(0, Math.min(1, (cx - z0) / (z1 - z0)));
+      for (const [layer, wide, alpha] of [
+        [z.mid, 1.25, 0.75],
+        [z.fg, 1.6, 0.9],
+      ] as const) {
+        if (!layer) continue;
+        const t = layer.texture;
+        const k = Math.max(screen.h / t.height, (screen.w * wide) / t.width);
+        layer.scale.set(k);
+        layer.position.set(-prog * (t.width * k - screen.w), screen.h - t.height * k);
+        layer.alpha = a * alpha;
+        layer.visible = a > 0.01;
+        layer.tint = layer === z.mid ? 0x9aaab8 : 0x6a7a88;
+      }
+    }
+    // The floe field's painted sky, standing on the water line, drifting slowly.
+    if (this.skyArt) {
+      const t = this.skyArt.texture;
+      // One painting (it doesn't tile), a little wider than the view, sliding slowly as you cross the field.
+      const k = Math.max((vw * 1.3) / t.width, 760 / t.height);
+      const drift = Math.max(-1, Math.min(1, (cx - (FLOE_X0 + FLOE_X1) / 2) / 3000));
+      this.skyArt.scale.set(k);
+      this.skyArt.position.set(cx - (t.width * k) / 2 - drift * vw * 0.12, -t.height * k + 30);
+      this.skyArt.visible = cx > FLOE_X0 - 1200;
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -425,8 +679,18 @@ export class EuropaScene {
     let run: number[] = [];
     const flush = (x: number) => {
       if (run.length >= 4) {
-        g.poly([run[0], -3000, ...run, x, -3000]).fill(iceFill);
-        for (let i = 2; i < run.length; i += 2) g.moveTo(run[i - 2], run[i - 1]).lineTo(run[i], run[i + 1]);
+        g.poly([run[0], -3000, ...run, x, -3000]).fill(this.art ? { color: 0x081521 } : iceFill);
+        const edge = () => {
+          for (let i = 2; i < run.length; i += 2) g.moveTo(run[i - 2], run[i - 1]).lineTo(run[i], run[i + 1]);
+        };
+        if (this.art) {
+          // A soft lit lip, whatever height the roof is at.
+          for (const [wd, al] of [[90, 0.12], [44, 0.2], [16, 0.3]] as const) {
+            edge();
+            g.stroke({ color: ICE_DEEP, width: wd, alpha: al, alignment: 1 });
+          }
+        }
+        edge();
         g.stroke({ color: ICE_HI, width: 3, alpha: 0.35 });
       }
       run = [];
@@ -462,8 +726,22 @@ export class EuropaScene {
     }
     // The open water's surface over the floe field, and the floes floating on it.
     this.waterLine(g, FLOE_X0 - 60, FLOE_X1 + 200);
+    const A = this.art?.europa;
+    const paint = (t: Texture, x: number, y: number, w: number, ay: number) => {
+      const sp = new Sprite(t);
+      sp.anchor.set(0.5, ay);
+      sp.scale.set(w / t.width);
+      sp.position.set(x, y);
+      g.addChild(sp);
+    };
     for (const f of FLOES) {
       if (f.thin && this.brokenFloes.has(f.id)) continue;
+      const ft = f.thin ? A?.floe_thin : A?.floe;
+      if (ft) {
+        // The painting's waterline sits on the water (half-way down a floe, a third on a thin sheet).
+        paint(ft, f.x, 0, f.w * 1.12, f.thin ? 0.36 : 0.5);
+        continue;
+      }
       const x0 = f.x - f.w / 2;
       const x1 = f.x + f.w / 2;
       // A slab of ice: a lumpy snow top a little above the water, sides that slope in, and a
@@ -487,9 +765,9 @@ export class EuropaScene {
       else g.ellipse(f.x - f.w * 0.15, f.depth * 0.45, f.w * 0.22, f.depth * 0.18).fill({ color: ICE_HI, alpha: 0.12 });
     }
     // The seabed: cold silt, with a lighter crust and pebbles.
-    const floorPts: number[] = [-600, 4000];
+    const floorPts: number[] = [-600, ABYSS.floor + 1500];
     for (let x = -600; x <= EUROPA_W + 600; x += STEP) floorPts.push(x, floorY(Math.max(0, Math.min(EUROPA_W, x))));
-    floorPts.push(EUROPA_W + 600, 4000);
+    floorPts.push(EUROPA_W + 600, ABYSS.floor + 1500);
     g.poly(floorPts).fill(SILT);
     for (let x = 0; x < EUROPA_W; x += STEP) g.moveTo(x, floorY(x)).lineTo(x + STEP, floorY(x + STEP));
     g.stroke({ color: SILT_HI, width: 5, alpha: 0.8 });
@@ -507,6 +785,10 @@ export class EuropaScene {
         if (fy > top) pts.push(x, Math.max(top, Math.min(fy, top + 400)));
       }
       if (pts.length < 6) continue;
+      if (A?.brine_pool) {
+        paint(A.brine_pool, p.x, top - 6, p.w + 140, 0.14);
+        continue;
+      }
       const poly = [pts[0], top, ...pts, pts[pts.length - 2], top];
       g.poly(poly).fill({ color: BRINE, alpha: 0.92 });
       g.moveTo(pts[0], top).lineTo(pts[pts.length - 2], top).stroke({ color: GLOW_TEAL, width: 2, alpha: 0.5 });
@@ -545,8 +827,23 @@ export class EuropaScene {
       sp.position.set(x, y);
       this.ventGlow.addChild(sp);
     };
+    for (const c of this.ventSprites.removeChildren()) c.destroy();
+    const A = this.art?.europa;
     const chimney = (x: number, hot: boolean, h: number) => {
       const base = floorY(x);
+      const tex = h > 200 ? A?.hearth : hot ? A?.vent_lit : A?.vent_cold;
+      if (tex) {
+        const sp = new Sprite(tex);
+        sp.anchor.set(0.5, 1);
+        sp.scale.set((h + 40) / tex.height);
+        sp.position.set(x, base + 24);
+        this.ventSprites.addChild(sp);
+        if (hot) {
+          soft(x, base - h - 30, 200, 0xff8a3a, 0.45);
+          soft(x, base - h, 70, 0xffd090, 0.6);
+        }
+        return;
+      }
       g.poly([x - 60, base + 20, x + 60, base + 20, x + 22, base - h, x - 22, base - h]).fill({ color: hot ? 0x3a2a22 : 0x2a3036 }).stroke({ color: INK, width: 2 });
       g.ellipse(x, base - h, 24, 8).fill({ color: hot ? 0xff9a40 : 0x15191c });
       if (hot) {
@@ -604,6 +901,7 @@ export class EuropaScene {
     t.position.set(x, hy + 112);
     g.addChild(t);
     this.objects.addChild(g);
+    this.habG = g;
     // The hab's warm light, added on top.
     const hl = this.habLights;
     for (const px of [-35, 35]) {
@@ -622,6 +920,7 @@ export class EuropaScene {
       else g.poly([gl.x - 22, gl.y + 70, gl.x + 22, gl.y + 70, gl.x + 30, gl.y - 50, gl.x - 30, gl.y - 50]).fill({ color: ICE, alpha: 0.95 });
       g.poly(up ? [gl.x - 30, gl.y - 60, gl.x - 10, gl.y - 60, gl.x - 6, gl.y + 50, gl.x - 16, gl.y + 50] : [gl.x - 22, gl.y + 70, gl.x - 8, gl.y + 70, gl.x - 10, gl.y - 50, gl.x - 30, gl.y - 50]).fill({ color: ICE_HI, alpha: 0.3 });
       this.objects.addChild(g);
+      this.glyphArt.push(g);
       const glow = new Graphics();
       glow.ellipse(gl.x, gl.y, 16, 7).stroke({ color: 0x6ff3ff, width: 2, alpha: 0.8 });
       glow.ellipse(gl.x, gl.y, 7, 16).stroke({ color: 0xb07cff, width: 1.6, alpha: 0.7 });
@@ -754,6 +1053,14 @@ export class EuropaScene {
         g.circle(cx + Math.cos(a) * r * 1.6, cy + Math.sin(a) * r * 0.6, 1.6).fill({ color: GLOW_WHITE, alpha: 0.8 });
       }
       g.circle(cx, cy, 70).fill({ color: GLOW_WHITE, alpha: 0.05 });
+      const ks = this.krillSprites[this.krill.indexOf(k)];
+      if (ks)
+        ks.forEach((sp, i) => {
+          const a = i * 2.39 + t * (0.6 + (i % 3) * 0.2);
+          const r = 14 + (i % 5) * 10;
+          sp.position.set(cx + Math.cos(a) * r * 1.6, cy + Math.sin(a) * r * 0.6);
+          sp.scale.x = (Math.cos(a) > 0 ? -1 : 1) * Math.abs(sp.scale.y);
+        });
     }
     // Biome 3: vents (redrawn when one is rekindled), the kin around the hearth, the black water, the gates.
     const kinState = save.europa?.kin;
@@ -766,6 +1073,7 @@ export class EuropaScene {
     this.blackWater.alpha = gland ? 0.55 : 0.97;
     this.kinNoteK = Math.max(0, this.kinNoteK - dt * 1.6);
     const kg = this.kinG.clear();
+    for (const ks of this.kinSprites) ks.visible = false;
     if (Math.abs(cam.x - HEARTH.x) < 2200 && cam.y > ABYSS.blackTop - 400) {
       const light = kinLight(save);
       const cols = [0x6ff3ff, 0xb07cff, 0xff6ad5, 0xffe7a0];
@@ -778,6 +1086,14 @@ export class EuropaScene {
         const sing = this.kinNote >= 0 && i % 4 === this.kinNote ? this.kinNoteK : 0;
         const al = Math.min(1, light * flick * 0.8 + sing);
         const r = 26 + light * 12;
+        const ks = this.kinSprites[i];
+        if (ks) {
+          ks.visible = true;
+          ks.position.set(x, y);
+          ks.scale.set(((90 + light * 50) * (1 + sing * 0.3)) / ks.texture.width);
+          ks.alpha = Math.min(1, al * 1.1);
+          continue;
+        }
         kg.ellipse(x, y, r, r * 0.42).stroke({ color: cols[0], width: 2.4, alpha: al });
         kg.ellipse(x, y, r * 0.42, r).stroke({ color: cols[1], width: 2, alpha: al * 0.9 });
         kg.moveTo(x - r, y + r * 0.6).bezierCurveTo(x - r * 0.3, y + r * 1.4, x + r * 0.3, y - r * 0.2, x + r, y + r * 0.5).stroke({ color: cols[2], width: 2, alpha: al * 0.8 });
@@ -786,9 +1102,18 @@ export class EuropaScene {
       }
     }
     const gg = this.gates.clear();
+    for (const gs of this.gateSprites) gs.visible = false;
     if (kinRestored(save)) {
-      for (const p of [KIN_GATES.hab, KIN_GATES.deep]) {
+      for (const [gi, p] of [KIN_GATES.hab, KIN_GATES.deep].entries()) {
         const pulse = 0.6 + 0.4 * Math.sin(t * 2);
+        const gs = this.gateSprites[gi];
+        if (gs) {
+          gs.visible = true;
+          gs.position.set(p.x, p.y);
+          gs.scale.set(160 / gs.texture.height);
+          gs.alpha = 0.75 + 0.25 * pulse;
+          continue;
+        }
         gg.ellipse(p.x, p.y, 44, 70).stroke({ color: 0x6ff3ff, width: 4, alpha: pulse });
         gg.ellipse(p.x, p.y, 34, 58).stroke({ color: 0xb07cff, width: 2.4, alpha: pulse * 0.8 });
         gg.ellipse(p.x, p.y, 40, 64).fill({ color: 0x9fe8ff, alpha: 0.08 });
@@ -810,6 +1135,7 @@ export class EuropaScene {
       this.bg.clear().rect(0, 0, screen.w, screen.h).fill(BG_GRAD);
     }
 
+    this.updateZones(cam, screen);
     this.world.scale.set(cam.zoom);
     this.world.position.set(-cam.x * cam.zoom, -cam.y * cam.zoom);
     this.far.position.set(cam.x * 0.35, cam.y * 0.2);
@@ -914,7 +1240,17 @@ export class EuropaScene {
     const top = ceilY(LANDER.x) + 30;
     const g = new Graphics();
     const building = (id: string) => e.built.includes(id as 'still') || e.welding?.id === id;
-    if (building('still')) {
+    const A = this.art?.europa;
+    const paint = (t: Texture, x: number, y: number, h: number, ay: number, alpha: number) => {
+      const sp = new Sprite(t);
+      sp.anchor.set(0.5, ay);
+      sp.scale.set(h / t.height);
+      sp.position.set(x, y);
+      sp.alpha = alpha;
+      this.modules.addChild(sp);
+    };
+    if (building('still') && A?.still) paint(A.still, LANDER.x + 168, top + 24, 130, 0, e.built.includes('still') ? 1 : 0.5);
+    else if (building('still')) {
       const alpha = e.built.includes('still') ? 1 : 0.5;
       const x = LANDER.x + 150;
       g.roundRect(x - 10, top + 30, 56, 90, 20).fill({ color: STEEL, alpha }).stroke({ color: INK, width: 2, alpha });
@@ -931,6 +1267,13 @@ export class EuropaScene {
       const alpha = e.built.includes('bell') ? 1 : 0.5;
       const { x, y } = BELL_AT;
       g.moveTo(x, ceilY(x)).lineTo(x, y).stroke({ color: BRASS, width: 3, alpha });
+      if (A?.bell) {
+        // The painting's rim (its bottom) is the dome's rim, 140 across.
+        const k = 150 / A.bell.width;
+        paint(A.bell, x, y + 66, A.bell.height * k, 1, alpha);
+        this.modules.addChildAt(g, 0);
+        return;
+      }
       g.arc(x, y + 60, 70, Math.PI, 0).fill({ color: 0x9fd6e8, alpha: 0.18 * alpha }).stroke({ color: BRASS, width: 4, alpha });
       for (const k of [-50, 0, 50]) g.circle(x + k, y + 60 - Math.sqrt(70 * 70 - k * k), 3).fill({ color: BRASS_HI, alpha });
       g.moveTo(x - 70, y + 60).lineTo(x + 70, y + 60).stroke({ color: 0xdff4ff, width: 2, alpha: 0.6 * alpha });
