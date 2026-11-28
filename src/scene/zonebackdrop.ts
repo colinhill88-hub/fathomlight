@@ -62,14 +62,23 @@ interface Landscape {
   width: number;
   depth: number;
   opacity: number;
+  /** A stand-in, shown only until this painting exists. */
+  until?: keyof WorldArt['plates'];
 }
 
 const landscapes: Landscape[] = [
   { asset: 'basin', x: [-5700, 2650], y: [-260, 1780], center: [-1550, 790], width: 3450, depth: 0.26, opacity: 0.86 },
+  // Colin's bridge from the dark basin into the sunlit reef (prompt: docs/art/prompts/earth-polish.md, 1).
+  { asset: 'basin-east', x: [-900, 2900], y: [-300, 1700], center: [900, 640], width: 3000, depth: 0.3, opacity: 0.82 },
   { asset: 'meadow', x: [1400, 9200], y: [-450, 1180], center: [5450, 408], width: 3100, depth: 0.32, opacity: 0.84 },
   { asset: 'grotto-mid', x: [4400, 9600], y: [-180, 1480], center: [6850, 560], width: 2800, depth: 0.44, opacity: 0.72 },
   { asset: 'cliff', x: [5200, 11400], y: [-300, 1650], center: [8250, 660], width: 2700, depth: 0.42, opacity: 0.78 },
   { asset: 'forest-east', x: [10200, 15600], y: [240, 1620], center: [13350, 1080], width: 2350, depth: 0.38, opacity: 0.80 },
+  // The reef top between the forest and the wreck shelf had no painting (only the flat code ridges):
+  // the meadow's slopes stand in until a painting made for it arrives (Nov 28, 2026).
+  { asset: 'meadow', x: [14900, 19700], y: [-450, 1500], center: [17200, 500], width: 3100, depth: 0.32, opacity: 0.74, until: 'reeftop' },
+  // Its own painting (prompt: docs/art/prompts/earth-polish.md, 2).
+  { asset: 'reeftop', x: [14900, 19700], y: [-450, 1500], center: [17200, 180], width: 2700, depth: 0.32, opacity: 0.84 },
   { asset: 'shelf', x: [18800, 25400], y: [380, 1980], center: [21600, 1360], width: 2550, depth: 0.32, opacity: 0.78 },
   { asset: 'shelf-east', x: [24200, 28600], y: [460, 2140], center: [26500, 1200], width: 2300, depth: 0.36, opacity: 0.74 },
   { asset: 'trench', x: [26400, 31200], y: [1480, 5260], center: [29000, 3350], width: 2880, depth: 0.36, opacity: 0.78 },
@@ -192,7 +201,7 @@ export class ZoneBackdrop {
     this.waterline = undefined;
     for (const placement of landscapes) {
       const texture = this.art?.plates[placement.asset];
-      if (!texture) continue;
+      if (!texture || (placement.until && this.art?.plates[placement.until])) continue;
       const sprite = new Sprite({ texture, label: `world-${placement.asset}` });
       sprite.anchor.set(0.5, 0.55);
       sprite.visible = false;

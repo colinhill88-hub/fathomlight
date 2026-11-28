@@ -8,6 +8,12 @@ const images = import.meta.glob<string>('./sunlit-shallows/*.png', {
   query: '?url&no-inline',
 });
 
+const paintings = import.meta.glob<string>('./sunlit-shallows/*.webp', {
+  eager: true,
+  import: 'default',
+  query: '?url&no-inline',
+});
+
 const TILE = 256;
 const PADDING = 8;
 const FRAME = TILE - 2 * PADDING;
@@ -80,6 +86,20 @@ export async function loadShallowsKelp(): Promise<readonly Texture[] | null> {
   }
 }
 
+/** Colin's painted near-camera kelp (Nov 28, 2026): one 1024 × 512 sheet, a cluster on its
+ * left half and one on its right half (prepared by scripts/prep-earth-art.py). */
+export async function loadShallowsFrontKelp(): Promise<readonly Texture[] | null> {
+  const url = paintings['./sunlit-shallows/kelp-front.webp'];
+  if (!url) return null;
+  try {
+    const sheet = await loadImageTexture(url, 1024, 512);
+    return [0, 1].map((half) => new Texture({ source: sheet.source, frame: new Rectangle(half * 512, 0, 512, 512) }));
+  } catch (error) {
+    console.warn('Painted foreground kelp could not be loaded. Using the drawn kelp.', error);
+    return null;
+  }
+}
+
 /** The strip is drawn inside the existing ground silhouette at world scale. */
 export function createShallowsSeabed(texture: Texture): MeshSimple {
   const step = 10;
@@ -107,7 +127,10 @@ export function createShallowsSeabed(texture: Texture): MeshSimple {
 }
 
 const REF_DEPTH = 260;
-const FADE = 240;
+/** The reef paintings fade in from the base's side and out toward the channel over a long swim
+ * (they used to snap in over 240 units at the buoy, which made the base-to-shallows seam jump). */
+const FADE_IN = 760;
+const FADE_OUT = 640;
 
 /** Decorative plates in the backdrop pass, behind the lit world. */
 export class ShallowsBackdrop {
@@ -132,8 +155,8 @@ export class ShallowsBackdrop {
 
   /** The procedural ridges fade with the same coverage as the painted layer. */
   update(camX: number, camY: number, zoom: number, width: number, height: number): number {
-    const edge = Math.min(camX - BUOY_X, ANCHOR_X - camX);
-    const coverage = smooth(edge / FADE) * smooth((1400 - height / zoom) / 440);
+    const edge = Math.min((camX - (BUOY_X - FADE_IN)) / FADE_IN, (ANCHOR_X + FADE_OUT - camX) / FADE_OUT);
+    const coverage = smooth(edge) * smooth((1400 - height / zoom) / 440);
     this.view.visible = coverage > 0;
     if (!this.view.visible) return 0;
     this.view.alpha = coverage;

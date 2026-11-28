@@ -844,6 +844,7 @@ export class Scenery {
   /** Milestone 11: the sanctum under the trench floor. */
   sanctum!: SanctumScenery;
   private kelps: Kelp[] = [];
+  private readonly frontSprites: { s: Sprite; phase: number }[] = [];
   private kelpFx = new Graphics();
   private kelpMotes: { x: number; y: number; vx: number; vy: number; life: number; r: number; bubble: boolean }[] = [];
   private kelpEmitClock = 0;
@@ -858,7 +859,7 @@ export class Scenery {
   private readonly anemoneFlow = { x: 0, y: 0, silt: 0, energy: 0 };
   private readonly shelfAnimals: BottomAnimal[] = [];
 
-  constructor(renderer: Renderer, detail: number, reef?: ReefTextures, seabed?: Texture, kelp?: readonly Texture[], forestOutcrop?: Texture, private readonly art?: WorldArt, living = false, private readonly livingBases = false) {
+  constructor(renderer: Renderer, detail: number, reef?: ReefTextures, seabed?: Texture, kelp?: readonly Texture[], forestOutcrop?: Texture, private readonly art?: WorldArt, living = false, private readonly livingBases = false, frontKelp?: readonly Texture[]) {
     // Same seed every time, so switching presets rebuilds the identical world.
     rand = mulberry32(WORLD_SEED ^ 0x5ce9);
 
@@ -1002,11 +1003,24 @@ export class Scenery {
       addKelp(x, h, rand() < 0.55 ? kelpBack : kelpFront, greens[Math.floor(rand() * greens.length)]);
     }
     // Dark foreground kelp silhouettes, like the blurred edges in the concept art.
-    const nFront = Math.round(12 * detail);
+    // (Polish, Nov 28, 2026: fewer and a little lighter, so they frame the view instead of smearing across it.)
+    const nFront = Math.round(8 * detail);
     for (let i = 0; i < nFront; i++) {
       const x = 200 + ((i + R(0.1, 0.9)) / nFront) * (FRONT_REF - 400);
-      addKelp(x, R(300, 560), this.front, 0x1d3530);
+      const h = R(300, 560);
+      if (frontKelp?.length) {
+        // Colin's painted kelp: a soft-focus cluster that sways from its root.
+        const s = new Sprite(frontKelp[i % frontKelp.length]);
+        s.anchor.set(0.5, 1);
+        s.scale.set(h / s.texture.height);
+        // Near the camera and out of the light: darker than the painting, so it frames rather than haunts.
+        s.tint = 0x6d8c86;
+        s.position.set(x, gy(x) + 60);
+        this.front.addChild(s);
+        this.frontSprites.push({ s, phase: rand() * 10 });
+      } else addKelp(x, h, this.front, 0x2b4a43);
     }
+    this.front.alpha = frontKelp?.length ? 0.92 : 0.72;
 
     // Seagrass meadow.
     for (let x = 6880; x < 8330; x += R(14, 34)) {
@@ -2705,6 +2719,7 @@ export class Scenery {
       } else g.g.skew.x = Math.sin(time * 1.1 + g.phase + g.x * 0.004) * 0.12 + near;
     }
 
+    for (const f of this.frontSprites) f.s.skew.x = Math.sin(time * 0.55 + f.phase) * 0.05;
     // Kelp sways in the swell, and leans away when the diver brushes past (shedding micro-bubbles & flecks).
     this.kelpEmitClock = Math.max(0, this.kelpEmitClock - dt);
     const swimSpd = Math.hypot(diverVX, diverVY);
