@@ -1,3 +1,4 @@
+import { loadEuropaArt } from './art/europaArt';
 import { Application, BlurFilter, Container, Graphics, RenderTexture, Sprite, Texture, UPDATE_PRIORITY } from 'pixi.js';
 import { isKey, keyName, keysFor, padFor, padName, type Action } from './controls/bindings';
 /** Phase 13: the first key bound to an action, for messages. */
@@ -5292,8 +5293,19 @@ async function boot(): Promise<void> {
     },
   });
 
+  // Colin's painted Europa art: fetched only once Europa is in play (a voyage, or a save already there).
+  const europaArtReady = (): Promise<void> =>
+    loadEuropaArt()
+      .then((a) => europaScene.applyArt(a))
+      .catch(() => undefined);
+
   function startVoyage(kind: VoyageKind): void {
     sound.clip();
+    // Give the paintings a moment to arrive so the voyage opens on them (it plays regardless after 2.5 s).
+    void Promise.race([europaArtReady(), new Promise((r) => setTimeout(r, 2500))]).then(() => playVoyage(kind));
+  }
+
+  function playVoyage(kind: VoyageKind): void {
     voyage.play(kind, () => {
       if (kind === 'home') exitEuropa();
       else enterEuropa(true);
@@ -5307,6 +5319,7 @@ async function boot(): Promise<void> {
   }
 
   function enterEuropa(fromVoyage: boolean): void {
+    void europaArtReady();
     const first = arrive(save);
     onEuropa = true;
     // Kestrel always arrives (or wakes) beside the hab, off the ray; it waits where it was left.
@@ -6767,6 +6780,7 @@ async function boot(): Promise<void> {
     europaScene,
     europaPanel,
     voyage,
+    loadEuropaArt,
     kinSong,
     enterEuropa: () => enterEuropa(false),
     exitEuropa: () => exitEuropa(),

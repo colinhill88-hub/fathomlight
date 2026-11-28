@@ -119,3 +119,60 @@ Made by Colin from the prompts in [`prompts/petrel.md`](prompts/petrel.md), sect
 | `src/art/landmarks/petrel_3.webp` | Petrel life support | OpenAI ImageGen | 2026-11-27 | Same ship with plated midsection and amber portholes, exposed girders at the top and no fins | Resized, padded as needed, encoded as lossless WebP; then re-encoded as lossy WebP (quality 88) in the repo to keep the build small (3.2 MB to 0.58 MB) |
 | `src/art/landmarks/petrel_4.webp` | Petrel navigation | OpenAI ImageGen | 2026-11-27 | Finished ship reference with the central Choir core window dark and empty | Resized, padded as needed, encoded as lossless WebP; then re-encoded as lossy WebP (quality 88) in the repo to keep the build small (3.2 MB to 0.58 MB) |
 | `src/art/landmarks/petrel_5.webp` | Finished Petrel | OpenAI ImageGen | 2026-11-27 | Upright Victorian rocket-submarine with iron hull, amber portholes, ceramic heat tiles and a cyan, violet and magenta Choir core | Resized, encoded as lossless WebP; then re-encoded as lossy WebP (quality 88) in the repo to keep the build small (3.2 MB to 0.58 MB) |
+
+## Europa, the voyages and the works room props (Beyond Earth, Nov 28, 2026)
+
+Made by Colin from the prompts in [`prompts/petrel.md`](prompts/petrel.md), section 4 (4a–4j). Every file was then keyed, trimmed and re-encoded in the repo by `scripts/prep-europa-art.py` (white or black backgrounds turned transparent, objects cropped, creatures kept on their full canvas so their glow sheets and the ray's gear line up, the black water's faint motes stretched so they show as added light). Shipped size: about 2 MB, from 26 MB. Wired in by `src/art/europaArt.ts` (loaded only once Europa is in play) and `src/scene/europaScene.ts` (`applyArt`), `src/ui/voyageCutscene.ts` (the voyage paintings), and `src/interior/baselevel.ts` (the works room props). The code-drawn versions stay as the fallback.
+
+| File | What | Tool | Date | Prompt (summary) | Edits |
+| --- | --- | --- | --- | --- | --- |
+| `src/art/europa/ice_bg.webp` | ice bg | OpenAI ImageGen | 2026-11-27 | Distant underside of a vast ice ceiling above dark, quiet water | Reframed earlier under-ice backdrop to the current 2:1 canvas |
+| `src/art/europa/ice_mid.webp` | ice mid | OpenAI ImageGen | 2026-11-27 | Hanging blue ice columns above a low dark silt ridge | Resized to layer canvas, keeping edge placement |
+| `src/art/europa/ice_fg.webp` | ice fg | OpenAI ImageGen | 2026-11-27 | Soft-focus dark icicles hanging at the far left and right | Resized to layer canvas, keeping edge placement |
+| `src/art/europa/passage_bg.webp` | passage bg | OpenAI ImageGen | 2026-11-27 | Low ice tunnel receding into darkness with a distant pale glow | Fit to the full-frame canvas |
+| `src/art/europa/passage_mid.webp` | passage mid | OpenAI ImageGen | 2026-11-27 | Frozen ribs framing the top and bottom of an ancient passage | Resized to layer canvas, keeping edge placement |
+| `src/art/europa/passage_fg.webp` | passage fg | OpenAI ImageGen | 2026-11-27 | Blurred dark ice lumps along the upper and lower edges | Resized to layer canvas, keeping edge placement |
+| `src/art/europa/floes_bg.webp` | floes bg | OpenAI ImageGen | 2026-11-27 | Deep water beneath floating floes with cold light between them | Fit to the full-frame canvas |
+| `src/art/europa/floes_sky.webp` | floes sky | OpenAI ImageGen | 2026-11-27 | Broken ice and still water beneath an open starry sky | Fit to the full-frame canvas |
+| `src/art/europa/floes_mid.webp` | floes mid | OpenAI ImageGen | 2026-11-27 | Ragged floe undersides above a low rocky seabed | Resized to layer canvas, keeping edge placement |
+| `src/art/europa/floes_fg.webp` | floes fg | OpenAI ImageGen | 2026-11-27 | Soft-focus broken ice framing the upper corners | Resized to layer canvas, keeping edge placement |
+| `src/art/europa/deep_bg.webp` | deep bg | OpenAI ImageGen | 2026-11-27 | Rows of distant vent chimneys in a black abyss with faint amber haze | Fit to the full-frame canvas |
+| `src/art/europa/deep_mid.webp` | deep mid | OpenAI ImageGen | 2026-11-27 | Crusted hydrothermal chimneys on rocky mounds with one amber vent | Resized to layer canvas, keeping edge placement |
+| `src/art/europa/deep_fg.webp` | deep fg | OpenAI ImageGen | 2026-11-27 | Blurred dark chimneys with faint warm rim light at the outer edges | Resized to layer canvas, keeping edge placement |
+| `src/art/europa/blackwater.webp` | blackwater | OpenAI ImageGen | 2026-11-27 | Black water with faint drifting specks and soft black edges | Fit to the full-frame canvas |
+| `src/art/europa/jupiter.webp` | jupiter | OpenAI ImageGen | 2026-11-27 | Jupiter on a black starry field with the Great Red Spot and its right half in shadow | Fit to the full-frame canvas |
+| `src/art/europa/hab.webp` | hab | OpenAI ImageGen | 2026-11-27 | Riveted habitat hung beneath ice with amber portholes, an axolotl jar and a moon pool | Reused existing WebP under the current filename |
+| `src/art/europa/still.webp` | still | OpenAI ImageGen | 2026-11-27 | Gunmetal brine still with brass bands, amber gauge and a dripping pipe | Separated from sprite atlas, fit on white canvas |
+| `src/art/europa/bell.webp` | bell | OpenAI ImageGen | 2026-11-27 | Glassy air dome with a brass chain, riveted ring and open water surface | Separated from sprite atlas, fit on white canvas |
+| `src/art/europa/glyph_stand.webp` | glyph stand | OpenAI ImageGen | 2026-11-27 | Standing glacier-ice pillar carved with faint cyan and violet rings | Reused existing WebP under the current filename |
+| `src/art/europa/glyph_hang.webp` | glyph hang | OpenAI ImageGen | 2026-11-27 | Matching glacial glyph hanging from a ceiling of ice | Adapted earlier Europa art with ImageGen. Fit on white canvas |
+| `src/art/europa/floe.webp` | floe | OpenAI ImageGen | 2026-11-27 | Thick snow-capped slab of floating ice with a ragged deep underside | Separated from sprite atlas, fit on white canvas |
+| `src/art/europa/floe_thin.webp` | floe thin | OpenAI ImageGen | 2026-11-27 | Thin translucent slab of floating ice with visible cracks | Separated from sprite atlas, fit on white canvas |
+| `src/art/europa/brine_pool.webp` | brine pool | OpenAI ImageGen | 2026-11-27 | Glassy brine pool in a rocky seabed hollow edged with salt | Separated from sprite atlas, fit on white canvas |
+| `src/art/europa/vent_cold.webp` | vent cold | OpenAI ImageGen | 2026-11-27 | Dark tapered hydrothermal vent with a black mouth | Separated from sprite atlas, fit on white canvas |
+| `src/art/europa/vent_lit.webp` | vent lit | OpenAI ImageGen | 2026-11-27 | Tapered hydrothermal vent with amber light and bubbles at its mouth | Separated from sprite atlas, fit on white canvas |
+| `src/art/europa/hearth.webp` | hearth | OpenAI ImageGen | 2026-11-27 | Ancient tall chimney with carved rings near its base and a faint warm glow | Separated from sprite atlas, fit on white canvas |
+| `src/art/europa/kin_gate.webp` | kin gate | OpenAI ImageGen | 2026-11-27 | An upright living oval doorway in cyan and violet on black | Fit to the full-frame canvas |
+| `src/art/europa/rime.webp` | rime | OpenAI ImageGen | 2026-11-27 | Downward-pointing needle-like ice crystals | Separated from sprite atlas, fit on white canvas |
+| `src/art/europa/brine.webp` | brine | OpenAI ImageGen | 2026-11-27 | White salt crystals on a dark pebble | Separated from sprite atlas, fit on white canvas |
+| `src/art/europa/frond.webp` | frond | OpenAI ImageGen | 2026-11-27 | Stiff glassy pale green-white seaweed | Separated from sprite atlas, fit on white canvas |
+| `src/art/europa/moth.webp` | moth | OpenAI ImageGen | 2026-11-27 | Delicate swimmer with four translucent frost-white fins, based on the earlier moth | Adapted earlier Europa art with ImageGen. Fit on white canvas |
+| `src/art/europa/moth_glow.webp` | moth glow | Hand-placed glow mask | 2026-11-27 | Rows of tiny pale blue-green fin lights on black | Aligned to the companion creature image on a black canvas |
+| `src/art/europa/glasshorn.webp` | glasshorn | OpenAI ImageGen | 2026-11-27 | Clear, many-legged seabed creature with a single horn, based on the earlier glasshorn | Adapted earlier Europa art with ImageGen. Fit on white canvas |
+| `src/art/europa/glasshorn_glow.webp` | glasshorn glow | Hand-placed glow mask | 2026-11-27 | One icy-white light at the horn tip on black | Aligned to the companion creature image on a black canvas |
+| `src/art/europa/krill.webp` | krill | OpenAI ImageGen | 2026-11-27 | Small translucent krill-like swimmer in side view | Fit on white canvas |
+| `src/art/europa/krill_glow.webp` | krill glow | Hand-placed glow mask | 2026-11-27 | One icy-white speck on black | Aligned to the companion creature image on a black canvas |
+| `src/art/europa/floe_ray.webp` | floe ray | OpenAI ImageGen | 2026-11-27 | Gentle slate-grey ray with a thin tail, curled horn-fins and broad wings | Fit on white canvas |
+| `src/art/europa/floe_ray_glow.webp` | floe ray glow | Hand-placed glow mask | 2026-11-27 | Rows of pale blue-green lights along the ray’s wing edges on black | Aligned to the companion creature image on a black canvas |
+| `src/art/europa/ray_saddle.webp` | ray saddle | OpenAI ImageGen | 2026-11-27 | Woven frost-frond saddle and pouch positioned on the ray’s back | Separated from sprite atlas, keyed to transparency and aligned to the ray canvas |
+| `src/art/europa/ray_bladder.webp` | ray bladder | OpenAI ImageGen | 2026-11-27 | Translucent air bubble positioned over the saddle | Separated from sprite atlas, keyed to transparency and aligned to the ray canvas |
+| `src/art/europa/ray_crest.webp` | ray crest | OpenAI ImageGen | 2026-11-27 | Rime crystal crest positioned on the ray’s brow | Separated from sprite atlas, keyed to transparency and aligned to the ray canvas |
+| `src/art/europa/ray_gland.webp` | ray gland | OpenAI ImageGen | 2026-11-27 | Organic icy-blue lantern positioned on the ray’s brow | Separated from sprite atlas, keyed to transparency and aligned to the ray canvas |
+| `src/art/europa/kin.webp` | kin | OpenAI ImageGen | 2026-11-27 | A faint non-humanoid being of cyan, violet and magenta rings and light on black | Fit to the full-frame canvas |
+| `src/art/interior/works_lathe.webp` | works lathe | OpenAI ImageGen | 2026-11-27 | Workbench lathe with gauges and a half-turned brass ring | Separated from sprite atlas, fit on white canvas |
+| `src/art/interior/works_model.webp` | works model | OpenAI ImageGen | 2026-11-27 | Victorian brass rocket-submarine display model with an amber porthole | Separated from sprite atlas, fit on white canvas |
+| `src/art/interior/works_hoist.webp` | works hoist | OpenAI ImageGen | 2026-11-27 | Tall riveted hoist with a brass cage and a platform sign | Separated from sprite atlas, fit on white canvas |
+| `src/art/voyage/dusk.webp` | dusk | OpenAI ImageGen | 2026-11-27 | Warm dusk above the sea from a floating platform | Fit to the full-frame canvas |
+| `src/art/voyage/space.webp` | space | OpenAI ImageGen | 2026-11-27 | Blue Earth curving away beneath a black starry sky | Fit to the full-frame canvas |
+| `src/art/voyage/moon.webp` | moon | OpenAI ImageGen | 2026-11-27 | Icy Europa ahead in darkness with rust-brown fractures | Fit to the full-frame canvas |
+| `src/art/voyage/ice.webp` | ice | OpenAI ImageGen | 2026-11-27 | White ice plain beneath black sky with a steaming drill shaft | Fit to the full-frame canvas |
