@@ -3,7 +3,7 @@ import { loadImageTexture } from './imageAssets';
 
 const files = import.meta.glob<string>('./painterly-world/*.{webp,jpg}', { eager: true, import: 'default', query: '?url&no-inline' });
 
-const plates = ['basin', 'meadow', 'grotto-mid', 'cliff', 'forest-east', 'shelf', 'shelf-east', 'trench', 'trench-mid', 'abyss', 'caves', 'sanctum'] as const;
+const plates = ['basin', 'basin-east', 'meadow', 'reeftop', 'grotto-mid', 'cliff', 'forest-east', 'shelf', 'shelf-east', 'trench', 'trench-mid', 'abyss', 'caves', 'sanctum'] as const;
 const materials = ['shale', 'limestone', 'grotto', 'forest', 'silt', 'basalt', 'cave', 'nacre', 'kestrel', 'corvina', 'fulmar', 'heart'] as const;
 type Plate = typeof plates[number];
 export type Material = typeof materials[number];

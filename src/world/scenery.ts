@@ -1002,11 +1002,13 @@ export class Scenery {
       addKelp(x, h, rand() < 0.55 ? kelpBack : kelpFront, greens[Math.floor(rand() * greens.length)]);
     }
     // Dark foreground kelp silhouettes, like the blurred edges in the concept art.
-    const nFront = Math.round(12 * detail);
+    // (Polish, Nov 28, 2026: fewer and a little lighter, so they frame the view instead of smearing across it.)
+    const nFront = Math.round(8 * detail);
     for (let i = 0; i < nFront; i++) {
       const x = 200 + ((i + R(0.1, 0.9)) / nFront) * (FRONT_REF - 400);
-      addKelp(x, R(300, 560), this.front, 0x1d3530);
+      addKelp(x, R(300, 560), this.front, 0x2b4a43);
     }
+    this.front.alpha = 0.72;
 
     // Seagrass meadow.
     for (let x = 6880; x < 8330; x += R(14, 34)) {

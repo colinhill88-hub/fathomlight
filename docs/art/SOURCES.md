@@ -176,3 +176,6 @@ Made by Colin from the prompts in [`prompts/petrel.md`](prompts/petrel.md), sect
 | `src/art/voyage/space.webp` | space | OpenAI ImageGen | 2026-11-27 | Blue Earth curving away beneath a black starry sky | Fit to the full-frame canvas |
 | `src/art/voyage/moon.webp` | moon | OpenAI ImageGen | 2026-11-27 | Icy Europa ahead in darkness with rust-brown fractures | Fit to the full-frame canvas |
 | `src/art/voyage/ice.webp` | ice | OpenAI ImageGen | 2026-11-27 | White ice plain beneath black sky with a steaming drill shaft | Fit to the full-frame canvas |
+
+
+**Nov 28, 2026:** `src/art/painterly-world/grotto-mid` and `trench-mid` (1376 × 768 JPGs, which the loader rejected) were padded to 1536 × 768, given soft faded edges and re-encoded as WebP. No other change to the paintings.

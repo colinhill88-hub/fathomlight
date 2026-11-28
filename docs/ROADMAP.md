@@ -395,6 +395,8 @@ From the pacing model and audit ([`pacing-audit.md`](pacing-audit.md), [`scripts
 
 **Art (Nov 28, 2026):** Colin's painted Petrel works, platform and five ship stages are in the game, and so is all of Europa's art from [`art/prompts/petrel.md`](art/prompts/petrel.md) section 4: each zone's background, midground and foreground, the sky and Jupiter, the objects, materials and creatures (the floe ray with its gear as overlays), the kin, the voyage paintings and the works room props. New Europa images go through `scripts/prep-europa-art.py` (see the handoff). **Saved for later:** the crystal caverns biome.
 
+**Earth scenery polish (Nov 28, 2026):** the code fixes are done (see PROGRESS). Colin is making the paintings in [`art/prompts/earth-polish.md`](art/prompts/earth-polish.md); the next session prepares them (white key, 1536 × 768 RGBA) and checks the seams again. Still to do in code: the trench rim's flat black wall.
+
 **Saved for later (Colin, Nov 27, 2026): a crystal caverns biome.** Caves inside the ice shelf, full of glowing crystal, where the kin's song echoes. It was the other choice for biome 3; Colin wants to keep it for a later biome. It could be where the kin show the way onward.
 
 **Next for Europa (to decide with Colin):** what the kin show beyond the deep; a cold tank to raise rime moths, glasshorns and floe ray calves; the supply line from Earth (it could carry the vent ore the far vents need); painted art.

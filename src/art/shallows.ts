@@ -107,7 +107,10 @@ export function createShallowsSeabed(texture: Texture): MeshSimple {
 }
 
 const REF_DEPTH = 260;
-const FADE = 240;
+/** The reef paintings fade in from the base's side and out toward the channel over a long swim
+ * (they used to snap in over 240 units at the buoy, which made the base-to-shallows seam jump). */
+const FADE_IN = 760;
+const FADE_OUT = 640;
 
 /** Decorative plates in the backdrop pass, behind the lit world. */
 export class ShallowsBackdrop {
@@ -132,8 +135,8 @@ export class ShallowsBackdrop {
 
   /** The procedural ridges fade with the same coverage as the painted layer. */
   update(camX: number, camY: number, zoom: number, width: number, height: number): number {
-    const edge = Math.min(camX - BUOY_X, ANCHOR_X - camX);
-    const coverage = smooth(edge / FADE) * smooth((1400 - height / zoom) / 440);
+    const edge = Math.min((camX - (BUOY_X - FADE_IN)) / FADE_IN, (ANCHOR_X + FADE_OUT - camX) / FADE_OUT);
+    const coverage = smooth(edge) * smooth((1400 - height / zoom) / 440);
     this.view.visible = coverage > 0;
     if (!this.view.visible) return 0;
     this.view.alpha = coverage;

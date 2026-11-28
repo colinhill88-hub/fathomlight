@@ -4,6 +4,23 @@ The live branch includes the Fulmar foothold, Codex Phases 1–11D the Phase 12 
 
 Play link: https://colinhill88-hub.github.io/fathomlight/ (live; first successful deploy 2026-11-14)
 
+### Earth scenery polish, part 1: code (Colin, Nov 28, 2026)
+
+Colin found the swim from the base into the shallows janky, and asked for polish.
+- **Base to shallows:** the reef paintings used to snap in over 240 units at the buoy, right where the base's dark basin painting runs out. They now fade in over 760 units from the base's side, and out over 640 past the anchor (`src/art/shallows.ts`).
+- **Two paintings that never showed:**
+  - `grotto-mid` and `trench-mid` were 1376 px wide, and the loader only accepts 1536 × 768, so they were rejected on every load (the console warning).
+  - They are now padded to size and given soft, foggy edges like the other far paintings (WebP, replacing the JPGs).
+  - The trench's flat grey placeholder blocks are gone behind its painted rock pillars.
+- **Foreground kelp:** fewer stalks (8, not 12), lighter, and 72% opacity, so they frame the view instead of smearing dark across it.
+- **The reef top between the forest and the wreck shelf** (x 14900–19700) had no painting. It borrows the meadow painting until its own arrives.
+- **Ready for new art:** `basin-east` (the basin rising into the reef) and `reeftop` are placed in `src/scene/zonebackdrop.ts`. They show as soon as the files exist; the meadow stand-in steps aside for `reeftop`.
+- **Prompts:** [`docs/art/prompts/earth-polish.md`](docs/art/prompts/earth-polish.md) covers the bridge, the reef top, a true midground grotto, and optional painted foreground kelp.
+- **Still to do in code:** the trench rim wall is a flat black slab with a hard vertical edge.
+- **Checked:**
+  - Typecheck, build, and the Europa and Petrel checks pass. The progression check still stops at "No boots row", which was already failing before.
+  - In `vite preview`, I photographed the route from the base through the shallows, the grotto, the reef top and the trench.
+
 ### Painted Europa art wired in (Colin, Nov 28, 2026)
 
 - **All of Colin's Europa images (prompt sections 4a–4j) are in the game**, prepared by `scripts/prep-europa-art.py`:
