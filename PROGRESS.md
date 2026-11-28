@@ -4,6 +4,19 @@ The live branch includes the Fulmar foothold, Codex Phases 1–11D the Phase 12 
 
 Play link: https://colinhill88-hub.github.io/fathomlight/ (live; first successful deploy 2026-11-14)
 
+### Interior tiles: wall, deck and ladder (Colin, Nov 28, 2026)
+
+Colin asked about the three tiles that repeat through every room.
+- **Wall (`wall_bulkhead`):**
+  - The painting was laid at 66% under a drawn panel grid (120 × 80 panels, each with seams and rivets). The painting has its own plates at a different spacing, so every room showed two grids that didn't line up: busy and flat at once.
+  - With the painting loaded, the drawn grid is now left out and the painting shows at 86%. The drawn vents, hatches and gauges stay for variety. The random numbers are drawn in the same order, so they stay where they were (`src/interior/detail.ts`).
+  - The painting was evened out from top to bottom and side to side, and its edges cross-faded, so copies meet without the light band they had.
+- **Deck (`deck_grate`):** the painting was squeezed into thin floor strips 96 wide, flattening it about 2.7 times into noise. It is now cropped to the riveted rail along its top, and the strips take their width from its real proportions (`deckRepeat` in `src/interior/interior.ts`). Floors now read as a solid riveted edge.
+- **Ladder (`ladder_rung`):** each 40-unit step stretched the whole painting, brackets included, so ladders read as a stack of short separate ladders. It is now cropped between the brackets, keeping its two rungs evenly spaced across the join, so the steps make one continuous ladder.
+- **Checked:**
+  - Typecheck, build, and the Europa, Petrel, creature-care and rarity checks pass. The progression check still stops at "No boots row" (already failing).
+  - Before-and-after in `vite preview`: the storage and press rooms, the lab, and the Corvina.
+
 ### Art audit: last week's Gemini art (Colin, Nov 28, 2026)
 
 Audited the 105 images Colin added Nov 23–25: base outsides and rooms, Kestrel's parts, landmarks, pickups, sea-floor life, wrecks, the intro, and the gauge. Each was run through the game's own cut-out code in a browser and looked at on the dark game background, alone and in the game.

@@ -215,6 +215,12 @@ export interface InteriorInput {
   sealVisor?: boolean;
 }
 
+/** How wide one repeat of the painted deck rail is at a given height, so it keeps its real
+ * proportions (it used to be squeezed to 96 wide, flattening it; art audit, Nov 28, 2026). */
+function deckRepeat(tex: Texture, height: number): number {
+  return (height * tex.width) / Math.max(1, tex.height);
+}
+
 export class Interior {
   /** Phase 14: the walker's head on screen in CSS px (updated each frame). */
   heroPx = { x: 0, y: 0 };
@@ -666,7 +672,7 @@ export class Interior {
           else if (steel) g.rect(x, y, T + 0.5, T + 0.5).fill(materialFill(steel, metal, 0.67, 860, 520));
           if (!this.solidTileStatic(tx, ty - 1)) {
             if (deckGrate) {
-              g.rect(x, y, T + 0.5, 13).fill(materialFill(deckGrate, 0x7c6e60, 1, 96, 15, 0, y));
+              g.rect(x, y, T + 0.5, 13).fill(materialFill(deckGrate, 0x7c6e60, 1, deckRepeat(deckGrate, 15), 15, 0, y));
               g.rect(x, y + 12, T + 0.5, 2).fill({ color: 0x161a1c, alpha: 0.85 });
             } else {
               g.rect(x, y, T + 0.5, 6).fill({ color: survey ? 0x8d8b77 : listening ? 0x8c8270 : 0x6e7476 });
@@ -945,7 +951,7 @@ export class Interior {
           const deckGrate = getPropArt().interior.deck_grate;
           if (open(0, -1)) {
             if (deckGrate) {
-              g.rect(x, y, T + 0.5, 16).fill(materialFill(deckGrate, 0x6a787e, 1, 96, 18, 0, y));
+              g.rect(x, y, T + 0.5, 16).fill(materialFill(deckGrate, 0x6a787e, 1, deckRepeat(deckGrate, 18), 18, 0, y));
               g.rect(x, y, T + 0.5, 1.5).fill({ color: 0xd8d2b8, alpha: 0.45 });
               g.rect(x, y + 15, T + 0.5, 1.5).fill({ color: 0x15191c, alpha: 0.85 });
             } else {
@@ -976,7 +982,7 @@ export class Interior {
         } else if (c === '=') {
           const deckGrate = getPropArt().interior.deck_grate;
           if (deckGrate) {
-            g.rect(x, y, T + 0.5, 10).fill(materialFill(deckGrate, 0x6a787e, 1, 96, 12, 0, y));
+            g.rect(x, y, T + 0.5, 10).fill(materialFill(deckGrate, 0x6a787e, 1, deckRepeat(deckGrate, 12), 12, 0, y));
             g.rect(x, y + 9, T + 0.5, 2).fill({ color: 0x15191c, alpha: 0.85 });
           } else {
             g.rect(x, y, T + 0.5, 7).fill({ color: 0x7c878e });
