@@ -43,7 +43,8 @@ export function loadImage(url: string): Promise<HTMLImageElement> {
  * interior eye catchlights and bright highlights stay 100% intact.
  * Crops tightly to the non-transparent silhouette for predictable rig fitting.
  */
-export function keyOutWhiteAndCrop(img: HTMLImageElement, mipmaps: boolean, maxDim = TARGET_MAX_DIM, removeEnclosedWhite = false): Texture {
+/** removeEnclosedWhite: also key out enclosed white pockets; a number sets the smallest pocket removed (default 12 px). */
+export function keyOutWhiteAndCrop(img: HTMLImageElement, mipmaps: boolean, maxDim = TARGET_MAX_DIM, removeEnclosedWhite: boolean | number = false): Texture {
   const scale = Math.min(1, maxDim / Math.max(img.naturalWidth, img.naturalHeight));
   const w = Math.max(1, Math.round(img.naturalWidth * scale));
   const h = Math.max(1, Math.round(img.naturalHeight * scale));
@@ -132,7 +133,7 @@ export function keyOutWhiteAndCrop(img: HTMLImageElement, mipmaps: boolean, maxD
         if (y + 1 < h) tryAdd(x, y + 1);
       }
       // Only remove genuine background pockets (>= 12 px) so tiny specular highlights stay intact.
-      if (cTail >= 12) {
+      if (cTail >= (typeof removeEnclosedWhite === 'number' ? removeEnclosedWhite : 12)) {
         for (let k = 0; k < cTail; k++) {
           const idx = comp[k];
           visited[idx] = 1;

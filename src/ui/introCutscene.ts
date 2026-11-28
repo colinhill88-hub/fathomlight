@@ -1,9 +1,9 @@
 import { audio } from '../audio/engine';
-import shot1Url from '../art/intro/intro_01_tub.jpg';
-import shot2Url from '../art/intro/intro_02_play.jpg';
-import shot3Url from '../art/intro/intro_03_hold.jpg';
-import shot4Url from '../art/intro/intro_04_plunge.jpg';
-import shot5Url from '../art/intro/intro_05_underwater.jpg';
+import shot1Url from '../art/intro/intro_01_tub.webp';
+import shot2Url from '../art/intro/intro_02_play.webp';
+import shot3Url from '../art/intro/intro_03_hold.webp';
+import shot4Url from '../art/intro/intro_04_plunge.webp';
+import shot5Url from '../art/intro/intro_05_underwater.webp';
 
 /**
  * Claymation stop-motion new-game intro cutscene (~21.5 seconds).
