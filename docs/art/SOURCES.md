@@ -194,3 +194,6 @@ Made by Colin from [`prompts/earth-polish.md`](prompts/earth-polish.md). Each pa
 
 
 **Nov 28, 2026 (art audit):** the 45 JPGs Colin added Nov 23–25 (in `base/`, `interior/`, `kestrel/`, `landmarks/`, `wrecks/`, `intro/` and `ui/`) were re-encoded as WebP (quality 88, same size). Each keeps its name, with `.webp` in place of `.jpg`. No other change to the images.
+
+
+**Nov 28, 2026 (interior tiles):** `interior/ladder_rung.webp` was cropped to the stretch between its brackets (rows 196–820 of 1024), so it repeats as one ladder. `interior/deck_grate.webp` was cropped to its top riveted rail (rows 25–76). `interior/wall_bulkhead.webp` had its light evened out top to bottom and side to side, and its edges cross-faded so it tiles. The originals are in the git history.

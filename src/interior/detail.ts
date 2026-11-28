@@ -55,23 +55,18 @@ export function bolts(g: Graphics, x0: number, y0: number, x1: number, y1: numbe
  */
 export function wallPanels(g: Graphics, x0: number, y0: number, w: number, h: number, rand: Rand, texture?: Texture, pw = 120, ph = 80): void {
   g.rect(x0, y0, w, h).fill({ color: DC.wall });
-  if (texture) g.rect(x0, y0, w, h).fill(materialFill(texture, DC.wall, 0.66, 790, 510));
+  // The painted bulkhead has its own plates and seams: with it, the drawn panel grid is left out
+  // (two grids that didn't line up made every room look busy; art audit, Nov 28, 2026). The
+  // random numbers are still drawn in the same order, so the vents and hatches stay put.
+  if (texture) g.rect(x0, y0, w, h).fill(materialFill(texture, DC.wall, 0.86, 790, 510));
   for (let y = y0; y < y0 + h - 4; y += ph)
     for (let x = x0; x < x0 + w - 4; x += pw) {
       const cw = Math.min(pw, x0 + w - x);
       const chh = Math.min(ph, y0 + h - y);
       const tone = rand();
-      g.rect(x + 2, y + 2, cw - 4, chh - 4).fill({ color: tone < 0.45 ? DC.wallLight : tone < 0.85 ? DC.wall : 0x343b40, alpha: texture ? 0.45 : 0.75 });
-      // Bevel: light from above.
-      g.rect(x + 2, y + 2, cw - 4, 1.4).fill({ color: DC.bevelHi, alpha: 0.55 });
-      g.rect(x + 2, y + 2, 1.4, chh - 4).fill({ color: DC.bevelHi, alpha: 0.3 });
-      g.rect(x + 2, y + chh - 3.5, cw - 4, 1.6).fill({ color: DC.bevelLo, alpha: 0.7 });
-      g.rect(x + cw - 3.5, y + 2, 1.5, chh - 4).fill({ color: DC.bevelLo, alpha: 0.5 });
-      // Seams.
-      g.rect(x, y, cw, 2).fill({ color: DC.seam, alpha: 0.8 });
-      g.rect(x, y, 2, chh).fill({ color: DC.seam, alpha: 0.6 });
+      if (!texture) panelFace(g, x, y, cw, chh, tone);
       if (cw < 30 || chh < 30) continue;
-      for (const [rx, ry] of [[6, 6], [cw - 6, 6], [6, chh - 6], [cw - 6, chh - 6]]) rivet(g, x + rx, y + ry, 1.2);
+      if (!texture) for (const [rx, ry] of [[6, 6], [cw - 6, 6], [6, chh - 6], [cw - 6, chh - 6]]) rivet(g, x + rx, y + ry, 1.2);
       const r = rand();
       const mx = x + cw / 2;
       const my = y + chh / 2;
@@ -105,6 +100,19 @@ export function wallPanels(g: Graphics, x0: number, y0: number, w: number, h: nu
         for (let k = 0; k < 3; k++) g.rect(mx - 12 + k * 9, my - 2, 6, 4).fill({ color: DC.seam, alpha: 0.6 });
       }
     }
+}
+
+/** One plain drawn wall panel: a tone, a bevel lit from above, and its seams (no painted wall). */
+function panelFace(g: Graphics, x: number, y: number, cw: number, chh: number, tone: number): void {
+  g.rect(x + 2, y + 2, cw - 4, chh - 4).fill({ color: tone < 0.45 ? DC.wallLight : tone < 0.85 ? DC.wall : 0x343b40, alpha: 0.75 });
+  // Bevel: light from above.
+  g.rect(x + 2, y + 2, cw - 4, 1.4).fill({ color: DC.bevelHi, alpha: 0.55 });
+  g.rect(x + 2, y + 2, 1.4, chh - 4).fill({ color: DC.bevelHi, alpha: 0.3 });
+  g.rect(x + 2, y + chh - 3.5, cw - 4, 1.6).fill({ color: DC.bevelLo, alpha: 0.7 });
+  g.rect(x + cw - 3.5, y + 2, 1.5, chh - 4).fill({ color: DC.bevelLo, alpha: 0.5 });
+  // Seams.
+  g.rect(x, y, cw, 2).fill({ color: DC.seam, alpha: 0.8 });
+  g.rect(x, y, 2, chh).fill({ color: DC.seam, alpha: 0.6 });
 }
 
 /** Darker air and grime gathering along a floor, and a few drips. */
