@@ -72,6 +72,15 @@ function findUrl(globMap: Record<string, string>, prefix: string, key: string): 
   return globMap[`./${prefix}/${key}.webp`] ?? globMap[`./${prefix}/${key}.jpg`] ?? globMap[`./${prefix}/${key}.png`];
 }
 
+/**
+ * Art whose pale areas are paint, not background: the cut-out must not treat enclosed white
+ * there as holes (it punched dark gashes in the pale sanctum and shallows shelves, panes out of
+ * the revive dome, a hole in the jar and specks in the lantern's nacre ring; art audit, Nov 28, 2026).
+ */
+const KEEP_PALE = new Set(['kestrel/head', 'kestrel/jar', 'landmarks/shelf_sanctum', 'landmarks/shelf_shallows', 'base/revive']);
+/** Only large pockets are background here (the lantern's open centre, not the specks in its nacre). */
+const BIG_POCKETS_ONLY: Record<string, number> = { 'base/lantern': 400 };
+
 async function loadGroup<K extends string>(
   globMap: Record<string, string>,
   prefix: string,
@@ -119,7 +128,8 @@ async function loadGroup<K extends string>(
           tex.source.style.addressMode = 'repeat';
           return [key, tex] as const;
         }
-        const stripHoles = !(prefix === 'kestrel' && key === 'head');
+        const id = `${prefix}/${key}`;
+        const stripHoles = KEEP_PALE.has(id) ? false : (BIG_POCKETS_ONLY[id] ?? true);
         return [key, keyOutWhiteAndCrop(img, true, maxDim, stripHoles)] as const;
       } catch {
         return null;

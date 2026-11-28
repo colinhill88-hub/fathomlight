@@ -4,6 +4,27 @@ The live branch includes the Fulmar foothold, Codex Phases 1–11D the Phase 12 
 
 Play link: https://colinhill88-hub.github.io/fathomlight/ (live; first successful deploy 2026-11-14)
 
+### Art audit: last week's Gemini art (Colin, Nov 28, 2026)
+
+Audited the 105 images Colin added Nov 23–25: base outsides and rooms, Kestrel's parts, landmarks, pickups, sea-floor life, wrecks, the intro, and the gauge. Each was run through the game's own cut-out code in a browser and looked at on the dark game background, alone and in the game.
+- **Holes punched in pale paint (fixed).** The cut-out also removes enclosed white pockets, which is meant for gaps inside pipe loops, ladder rungs and wheel spokes. It treated pale paint as background:
+  - dark gashes in the **sanctum** and **shallows** shelves;
+  - two panes out of the **revive** dome;
+  - a hole in the **jar**;
+  - specks in the **lantern**'s nacre ring.
+
+  `src/art/propArt.ts` now lists art whose pale areas are paint (`KEEP_PALE`). The lantern keeps only large pockets removed (`BIG_POCKETS_ONLY`), so its open centre stays open and its ring is solid. `keyOutWhiteAndCrop` takes a minimum pocket size for this.
+- **Download size (fixed).** 45 of the images were JPGs (20.6 MB). Re-encoded as WebP at the same size (quality 88), they come to 5.4 MB. The built game went from 44 MB to 29 MB. The cut-outs match the JPG ones (under 0.2% of edge pixels differ). The intro and the gauge bezel are now imported as `.webp`.
+- **Checked and fine:**
+  - The edges: the existing white-matte clean-up leaves no pale outline.
+  - Every file is used by the game.
+- **Style notes for Colin (not bugs, regenerate only if they bother him):**
+  - The **wrecks** (barge, trawler) are flat colour with bold comic outlines, unlike the painterly rest. The wreck shelf's fog hides most of it.
+  - The **nursery crate** is cleaner and bluer than its weathered neighbours.
+  - The **bedroom** module is bluer and cleaner than the olive, mossy base family.
+- **Still there, from before:** a PixiJS warning that the drawn sled adds its picture as a child of a shape (harmless).
+- **Checked:** typecheck, build, and the Europa, Petrel, creature-care and rarity checks pass. The progression check still stops at "No boots row" (already failing). In `vite preview`: the intro, the basin, and the wreck shelf, with no missing files and no page errors.
+
 ### Earth scenery polish, part 2: Colin's paintings and the trench walls (Nov 28, 2026)
 
 - **Four new paintings are in**, prepared by `scripts/prep-earth-art.py`:

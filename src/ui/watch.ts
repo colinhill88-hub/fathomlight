@@ -16,7 +16,7 @@
  *    the bottom with a brass rated-load notch tick.
  */
 
-import bezelUrl from '../art/ui/dive_gauge_bezel.jpg?url';
+import bezelUrl from '../art/ui/dive_gauge_bezel.webp?url';
 
 const LUME = '#e6f0cc';
 const BRASS = '#d4b168';
