@@ -7,7 +7,7 @@
 
 These paintings fix what code can't. They're listed in order of how much they'll show.
 
-**Status:** to make.
+**Status:** all four **made and in the game** (Colin, Nov 28, 2026; logged in `docs/art/SOURCES.md`). New Earth plates go through `scripts/prep-earth-art.py`.
 
 ## How to make them
 

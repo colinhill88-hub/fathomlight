@@ -78,7 +78,7 @@ const landscapes: Landscape[] = [
   // the meadow's slopes stand in until a painting made for it arrives (Nov 28, 2026).
   { asset: 'meadow', x: [14900, 19700], y: [-450, 1500], center: [17200, 500], width: 3100, depth: 0.32, opacity: 0.74, until: 'reeftop' },
   // Its own painting (prompt: docs/art/prompts/earth-polish.md, 2).
-  { asset: 'reeftop', x: [14900, 19700], y: [-450, 1500], center: [17200, 520], width: 3100, depth: 0.32, opacity: 0.8 },
+  { asset: 'reeftop', x: [14900, 19700], y: [-450, 1500], center: [17200, 180], width: 2700, depth: 0.32, opacity: 0.84 },
   { asset: 'shelf', x: [18800, 25400], y: [380, 1980], center: [21600, 1360], width: 2550, depth: 0.32, opacity: 0.78 },
   { asset: 'shelf-east', x: [24200, 28600], y: [460, 2140], center: [26500, 1200], width: 2300, depth: 0.36, opacity: 0.74 },
   { asset: 'trench', x: [26400, 31200], y: [1480, 5260], center: [29000, 3350], width: 2880, depth: 0.36, opacity: 0.78 },

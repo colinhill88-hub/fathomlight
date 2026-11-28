@@ -113,6 +113,36 @@ export class TrenchScenery {
         }
         g.stroke({ color: 0x1c262a, alpha: 0.45, width: R(0.8, 1.8) });
       }
+      // The cliff faces (polish, Nov 28, 2026). So deep, no sunlight is left and the lighting leaves
+      // rock black except where the lamp falls, so the walls read as flat black slabs with smooth
+      // edges. They get a faint cold bounce of light from the open water instead, drawn in the glow
+      // layer (which the darkness doesn't swallow): broken dabs down the whole face, some spilling
+      // over the edge to roughen it, and a thin lit rim. Its own random numbers, so everything else
+      // in the trench stays where it was.
+      const face = new Graphics();
+      const fr = mulberry32(WORLD_SEED ^ 0x3a11 ^ x0);
+      const FR = (a: number, b: number) => a + fr() * (b - a);
+      const faceGap = (x: number, y: number) => {
+        for (const dx of [40, 80, 130, 180]) if (gy(x - dx) > y + 6 || gy(x + dx) > y + 6) return dx;
+        return 0;
+      };
+      const nf = Math.round(((x1 - x0) / 700) * 900 * detail);
+      for (let i = 0; i < nf; i++) {
+        const x = FR(x0, x1);
+        const y = gy(x) + 30 + fr() * 3400;
+        const d = faceGap(x, y);
+        if (!d) continue;
+        // Brighter right at the face, fading into the rock.
+        const k = d <= 40 ? 1 : d <= 80 ? 0.6 : 0.3;
+        dab(face, x, y, FR(10, 38), FR(6, 22), fr() < 0.5 ? 0x2a3c46 : 0x1f2e36, FR(0.35, 0.7) * k);
+      }
+      for (let x = x0; x < x1; x += 8) {
+        const y0 = gy(x);
+        const y1 = gy(x + 8);
+        if (Math.abs(y1 - y0) > 10) face.moveTo(x, y0).lineTo(x + 8, y1).stroke({ color: 0x3a5260, alpha: 0.55, width: 2.5 });
+      }
+      this.glow.addChild(face);
+      this.slices.push({ obj: face, x0: x0 - 60, x1: x1 + 60 });
       // Grey sediment on the flats, and a pale rim along the edge.
       for (let x = x0; x < x1; x += 6) {
         const y = gy(x);

@@ -179,3 +179,15 @@ Made by Colin from the prompts in [`prompts/petrel.md`](prompts/petrel.md), sect
 
 
 **Nov 28, 2026:** `src/art/painterly-world/grotto-mid` and `trench-mid` (1376 × 768 JPGs, which the loader rejected) were padded to 1536 × 768, given soft faded edges and re-encoded as WebP. No other change to the paintings.
+
+
+## Earth scenery polish (Nov 28, 2026)
+
+Made by Colin from [`prompts/earth-polish.md`](prompts/earth-polish.md). Each painting was then prepared in the repo by `scripts/prep-earth-art.py`: sized to the plate (1536 × 768; the kelp 1024 × 512), the white mist at the edges turned into soft transparency with the colour under it recovered, and re-encoded as WebP. Wired in by `src/scene/zonebackdrop.ts` (`basin-east`, `reeftop`, `grotto-mid`) and `src/world/scenery.ts` (the foreground kelp, via `loadShallowsFrontKelp` in `src/art/shallows.ts`). The new `grotto-mid` replaces the padded one from earlier that day.
+
+| File | What | Tool | Date | Prompt (summary) | Edits |
+| --- | --- | --- | --- | --- | --- |
+| `src/art/painterly-world/basin-east.webp` | Basin-to-reef transition | OpenAI ImageGen | 2026-11-28 | A low-contrast underwater slope, rising from cool dark basin on the left to warmly lit sand, kelp and muted coral on the right. Victorian watercolor and gouache with edges fading to white. | Resized to 2048 × 1024, finished perimeter fade to white, encoded as lossless WebP |
+| `src/art/painterly-world/reeftop.webp` | Shallow reef top | OpenAI ImageGen | 2026-11-28 | Continuous sand ridges and rock shelves below a bright surface, with dense kelp at the far left thinning toward the right. Victorian watercolor and gouache with edges fading to white. | Resized to 2048 × 1024, finished perimeter fade to white, encoded as lossless WebP |
+| `src/art/painterly-world/grotto-mid.webp` | Grotto midground | OpenAI ImageGen | 2026-11-28 | Overlapping limestone arches, mossy ledges and sponges in dim green water with soft ambient light. Victorian watercolor and gouache with edges fading to white. | Resized to 2048 × 1024, finished perimeter fade to white, encoded as lossless WebP |
+| `src/art/sunlit-shallows/kelp-front.webp` | Foreground kelp | OpenAI ImageGen | 2026-11-28 | Near-camera blue-green kelp silhouettes with soft ribbon fronds at the outer edges and a clear center. Victorian watercolor and gouache with edges fading to white. | Resized to 2048 × 1024, finished perimeter fade to white, encoded as lossless WebP |

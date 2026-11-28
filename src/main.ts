@@ -18,7 +18,7 @@ import { WaterWake } from './fx/waterWake';
 import { Backdrop } from './scene/backdrop';
 import { MarineSnow, SnowLight } from './scene/particles';
 import { ZoneBackdrop } from './scene/zonebackdrop';
-import { loadShallowsArt, loadShallowsKelp, loadShallowsSeabed, ShallowsBackdrop } from './art/shallows';
+import { loadShallowsArt, loadShallowsFrontKelp, loadShallowsKelp, loadShallowsSeabed, ShallowsBackdrop } from './art/shallows';
 import { loadPaintedDiver } from './art/paintedDiver';
 import { loadPaintedSuit } from './art/paintedSuit';
 import { loadForestMidground, loadForestOutcrop } from './art/forest';
@@ -357,6 +357,7 @@ async function boot(): Promise<void> {
   const compact = redesigned && urlq.get('character') !== 'phase9';
   // art=procedural still switches the whole Shallows pilot back to procedural art.
   const useShallowsArt = visualMode('art', 'shallows');
+  const frontKelpLoad = useShallowsArt && visualMode('kelp') ? loadShallowsFrontKelp() : Promise.resolve(null);
   const [shallowsArt, shallowsSeabed, shallowsKelp, paintedFace, paintedSuit, forestMidground, forestOutcrop, shelfMidground, worldArt, tankArt] = await Promise.all([
     useShallowsArt ? loadShallowsArt(fidelity) : null,
     useShallowsArt && visualMode('terrain') ? loadShallowsSeabed() : null,
@@ -371,10 +372,11 @@ async function boot(): Promise<void> {
     useShallowsArt && visualMode('worldArt') && livingCreatures ? loadCreatureArt(fidelity) : undefined,
     useShallowsArt && visualMode('worldArt') ? loadPropArt(fidelity) : undefined,
   ]);
+  const frontKelp = (await frontKelpLoad) ?? undefined;
   const zoneBackdrop = new ZoneBackdrop(forestMidground, shelfMidground, worldArt);
   zoneBackdrop.build();
   const shallowsBackdrop = shallowsArt ? new ShallowsBackdrop(shallowsArt) : null;
-  let scenery = new Scenery(renderer, preset.detail, shallowsArt?.reef, shallowsSeabed ?? undefined, shallowsKelp ?? undefined, forestOutcrop, worldArt, livingCreatures, livingBases);
+  let scenery = new Scenery(renderer, preset.detail, shallowsArt?.reef, shallowsSeabed ?? undefined, shallowsKelp ?? undefined, forestOutcrop, worldArt, livingCreatures, livingBases, frontKelp);
   const pickups = new Pickups();
   const diver = new Diver(paintedFace, paintedSuit?.swimmer, visualMode('personality', 'surface'), redesigned, compact, fidelity);
   diver.x = save.x;
@@ -1751,7 +1753,7 @@ async function boot(): Promise<void> {
     snow.build(renderer, preset.particleDensity, cssW, cssH, fx.litSnow ? preset.bokeh : 0);
     if (builtDetail !== preset.detail) {
       scenery.view.destroy({ children: true });
-      scenery = new Scenery(renderer, preset.detail, shallowsArt?.reef, shallowsSeabed ?? undefined, shallowsKelp ?? undefined, forestOutcrop, worldArt, livingCreatures, livingBases);
+      scenery = new Scenery(renderer, preset.detail, shallowsArt?.reef, shallowsSeabed ?? undefined, shallowsKelp ?? undefined, forestOutcrop, worldArt, livingCreatures, livingBases, frontKelp);
       builtDetail = preset.detail;
       populate();
     }

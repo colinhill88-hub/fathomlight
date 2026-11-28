@@ -4,6 +4,23 @@ The live branch includes the Fulmar foothold, Codex Phases 1–11D the Phase 12 
 
 Play link: https://colinhill88-hub.github.io/fathomlight/ (live; first successful deploy 2026-11-14)
 
+### Earth scenery polish, part 2: Colin's paintings and the trench walls (Nov 28, 2026)
+
+- **Four new paintings are in**, prepared by `scripts/prep-earth-art.py`:
+  - It sizes them.
+  - It turns the white mist at their edges into soft transparency, keeping the colour underneath.
+  - It keeps sun rays and surface sparkle solid. Only white joined to the border counts as mist.
+- **The basin rising into the reef** (`basin-east`) now bridges the base's dark basin and the sunlit reef, so the swim out from the base reads as one place getting brighter.
+- **The reef top** (`reeftop`) replaces the meadow stand-in between the forest and the wreck shelf.
+- **A new grotto midground** (`grotto-mid`): dim green arches that sit in the grotto, not a bright picture hung in the water.
+- **Painted foreground kelp** (`kelp-front`) replaces the drawn dark stalks in front of the camera in the shallows. It is tinted darker as it's near the camera and out of the light, sways gently, and keeps the drawn stalks as the fallback. It draws the same random numbers, so nothing else in the world moves.
+- **The trench walls:**
+  - **Cause:** they were flat black slabs with smooth edges. So deep, the lighting leaves rock black except under the lamp, whatever is drawn there. This is why texturing the rock alone, or letting light into it from the side in the bake, changed nothing (tried, then undone).
+  - **Fix:** the cliff faces now get a faint cold bounce of light from the open water, drawn in the glow layer: broken dabs down the whole face, some spilling over the edge, and a thin lit rim (`src/world/trenchgfx.ts`). It uses its own random numbers, so nothing else in the trench moves.
+- **Checked:**
+  - Typecheck, build, and the Europa, Petrel, creature-care and rarity checks pass. The progression check still stops at "No boots row" (already failing before).
+  - In `vite preview`, I photographed the base to the shallows, the coral garden, the grotto, the reef top, and the trench at three depths.
+
 ### Earth scenery polish, part 1: code (Colin, Nov 28, 2026)
 
 Colin found the swim from the base into the shallows janky, and asked for polish.
